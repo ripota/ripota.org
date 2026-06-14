@@ -11,8 +11,3 @@ npx --yes @resvg/resvg-js-cli \
   --fit-width 1254 \
   "$LOGO_DIR/ri-pota-coastal-signal.svg" \
   "$LOGO_DIR/ri-pota-coastal-signal.png"
-
-npx --yes @resvg/resvg-js-cli \
-  --fit-width 1254 \
-  "$LOGO_DIR/ri-pota-coastal-signal-mono.svg" \
-  "$LOGO_DIR/ri-pota-coastal-signal-mono.png"
