@@ -1,0 +1,11 @@
+.superpowers/
+node_modules/
+dist/
+.astro/
+.wrangler/
+.dev.vars
+.env
+.env.*
+!.env.example
+mise/tasks/node_modules/
+
