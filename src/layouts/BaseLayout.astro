@@ -5,13 +5,16 @@ import { siteIdentity } from "../data/site";
 type Props = {
   title?: string;
   description?: string;
+  canonicalPath?: string;
 };
 
 const {
   title = siteIdentity.name,
   description = siteIdentity.tagline,
+  canonicalPath = "/",
 } = Astro.props;
 const pageTitle = title === siteIdentity.name ? title : `${title} | ${siteIdentity.name}`;
+const canonicalUrl = new URL(canonicalPath, siteIdentity.url).toString();
 ---
 
 <!doctype html>
@@ -21,7 +24,7 @@ const pageTitle = title === siteIdentity.name ? title : `${title} | ${siteIdenti
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="generator" content={Astro.generator} />
     <meta name="description" content={description} />
-    <link rel="canonical" href={siteIdentity.url} />
+    <link rel="canonical" href={canonicalUrl} />
     <title>{pageTitle}</title>
   </head>
   <body>

@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">RI POTA coastal signal logo</title>
+  <desc id="desc">A circular Rhode Island POTA badge with a lighthouse, radio signal arcs, water bands, and a simplified Rhode Island outline.</desc>
+  <defs>
+    <style>
+      .evergreen { fill: #18312f; }
+      .evergreen-stroke { stroke: #18312f; }
+      .parchment { fill: #f7f4ed; }
+      .brass { fill: #a87338; }
+      .teal { fill: #0b5d70; }
+      .line {
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .label {
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-weight: 900;
+      }
+    </style>
+  </defs>
+
+  <circle cx="512" cy="512" r="492" class="parchment"/>
+  <circle cx="512" cy="512" r="470" class="line evergreen-stroke" stroke-width="36"/>
+
+  <path class="evergreen" d="M94 829c50-44 95-74 137-91 35-14 68-18 101-12 33 7 66 24 101 49 52 36 109 55 172 56 62 1 131-14 207-45 39-16 80-25 123-27 24-2 48 0 72 3v178H80z"/>
+  <path class="teal" d="M62 864c97-33 178-45 244-35 55 8 108 29 159 64 52 34 111 50 178 48 67-3 143-22 230-58 40-17 86-24 138-23v116H38z"/>
+  <path class="parchment" d="M62 846c74-27 141-41 201-42 73-1 139 19 198 60 52 35 112 51 178 49 66-3 141-22 224-57 45-19 96-27 151-24v26c-52-3-98 4-139 21-88 37-167 57-235 60-73 3-139-15-196-53-55-37-116-56-183-55-56 1-119 14-190 40z"/>
+  <path class="parchment" d="M34 910c73-26 140-38 199-37 72 1 137 20 195 57 48 31 102 47 162 47 58 0 124-15 198-44 67-27 142-36 224-28v27c-78-8-148 0-210 25-77 31-147 46-210 46-66 1-126-16-179-50-54-35-115-53-182-54-55-1-117 11-186 36z"/>
+
+  <path class="evergreen" d="M199 747l51-43 69-16 43 40 36 96H118z"/>
+  <path class="parchment" d="M147 765l74-18 56 49 41 77h-28l-31-58-48-42-55 14z"/>
+  <path class="evergreen" d="M265 380h156l52 365-42 42H255l-42-42z"/>
+  <path class="parchment" d="M276 387h134l15 76H262z"/>
+  <path class="evergreen" d="M245 385l98-82 98 82z"/>
+  <rect x="268" y="424" width="150" height="78" rx="5" class="parchment"/>
+  <rect x="291" y="424" width="18" height="78" class="evergreen"/>
+  <rect x="334" y="424" width="18" height="78" class="evergreen"/>
+  <rect x="377" y="424" width="18" height="78" class="evergreen"/>
+  <rect x="298" y="552" width="46" height="98" rx="12" class="parchment"/>
+  <circle cx="343" cy="294" r="18" class="evergreen"/>
+  <path class="line evergreen-stroke" d="M343 276v-42" stroke-width="8"/>
+
+  <path class="line brass" d="M142 234a214 214 0 0 0 0 306" stroke="#a87338" stroke-width="30"/>
+  <path class="line brass" d="M197 286a140 140 0 0 0 0 202" stroke="#a87338" stroke-width="27"/>
+  <path class="line brass" d="M503 298a133 133 0 0 1 0 178" stroke="#a87338" stroke-width="27"/>
+  <path class="line brass" d="M558 245a210 210 0 0 1 0 284" stroke="#a87338" stroke-width="30"/>
+
+  <path class="line evergreen-stroke" stroke-width="18" d="M486 142h286v98h56l67 83-32 65 61 35v195l-47 28-35-18-30 64-63 34-42-22 24-87-48-18-56 18-35-28 35-64-31-54 32-60-45-58 12-82-62-48v-97h-47z"/>
+  <text x="517" y="560" class="label evergreen" font-size="186">RI</text>
+  <text x="470" y="674" class="label brass" font-size="112">POTA</text>
+</svg>

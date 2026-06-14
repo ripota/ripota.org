@@ -232,6 +232,11 @@ p {
   color: var(--text-on-hero);
 }
 
+.site-header[data-variant="solid"] {
+  position: relative;
+  background: var(--surface-ink);
+}
+
 .site-header__inner {
   display: flex;
   height: 100%;
@@ -425,6 +430,88 @@ p {
   color: var(--text-muted);
 }
 
+.asset-hero {
+  padding-top: clamp(2.8rem, 6vw, 5rem);
+}
+
+.asset-hero h1 {
+  max-width: 8ch;
+  color: var(--surface-ink);
+  font-size: clamp(4rem, 10vw, 7rem);
+}
+
+.asset-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(300px, 0.7fr);
+  gap: clamp(1.5rem, 5vw, 4rem);
+  align-items: center;
+}
+
+.asset-layout--compact {
+  grid-template-columns: minmax(0, 0.9fr) minmax(240px, 0.45fr);
+}
+
+.asset-copy {
+  display: grid;
+  gap: 1.1rem;
+}
+
+.asset-preview {
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--surface-raised) 92%, white), var(--surface-raised));
+  padding: clamp(1rem, 3vw, 1.6rem);
+  box-shadow: var(--shadow-soft);
+}
+
+.asset-preview img {
+  width: min(100%, 420px);
+  aspect-ratio: 1;
+  object-fit: contain;
+}
+
+.asset-preview--small img {
+  width: min(100%, 300px);
+}
+
+.asset-downloads-section {
+  padding-top: 0;
+}
+
+.asset-downloads {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.asset-download {
+  display: grid;
+  min-height: 170px;
+  gap: 0.8rem;
+  align-content: start;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  padding: 1.2rem;
+  color: var(--text-primary);
+  text-decoration: none;
+  box-shadow: var(--shadow-soft);
+}
+
+.asset-download strong {
+  color: var(--surface-ink);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.55rem;
+  line-height: 1.1;
+}
+
+.asset-download span {
+  color: var(--text-muted);
+}
+
 .notice {
   border-block: 1px solid var(--border-subtle);
   background: var(--notice-surface);
@@ -505,7 +592,10 @@ p {
 
   .path-grid,
   .resource-layout,
-  .official-links {
+  .official-links,
+  .asset-layout,
+  .asset-layout--compact,
+  .asset-downloads {
     grid-template-columns: 1fr;
   }
 

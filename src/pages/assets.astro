@@ -1,0 +1,101 @@
+---
+import Footer from "../components/Footer.astro";
+import Notice from "../components/Notice.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+const logoDownloads = [
+  {
+    label: "PNG",
+    href: "/assets/logos/ri-pota-coastal-signal.png",
+    detail: "High-quality 1254 x 1254 raster logo for GitHub and social profiles.",
+  },
+  {
+    label: "SVG",
+    href: "/assets/logos/ri-pota-coastal-signal.svg",
+    detail: "Full-color vector mark for web pages, print layouts, and future site UI.",
+  },
+  {
+    label: "Mono SVG",
+    href: "/assets/logos/ri-pota-coastal-signal-mono.svg",
+    detail: "One-color vector mark for stamps, stickers, single-ink uses, and dark/light adaptation.",
+  },
+];
+---
+
+<BaseLayout
+  title="Assets"
+  description="Download Rhode Island POTA community logo assets."
+  canonicalPath="/assets/"
+>
+  <SiteHeader variant="solid" />
+  <main id="main">
+    <section class="section asset-hero" aria-labelledby="asset-title">
+      <div class="container asset-layout">
+        <div class="asset-copy">
+          <p class="eyebrow">Community assets</p>
+          <h1 id="asset-title">RI POTA logo files</h1>
+          <p class="lead">
+            Download the coastal signal mark for Rhode Island POTA community pages,
+            project profiles, and local coordination materials.
+          </p>
+        </div>
+        <div class="asset-preview" aria-label="RI POTA coastal signal logo preview">
+          <img
+            src="/assets/logos/ri-pota-coastal-signal.png"
+            alt="RI POTA coastal signal logo with lighthouse, radio waves, Rhode Island outline, and water bands."
+          />
+        </div>
+      </div>
+    </section>
+
+    <section class="section asset-downloads-section" aria-labelledby="downloads-title">
+      <div class="container">
+        <div class="section-header">
+          <p class="eyebrow">Downloads</p>
+          <h2 id="downloads-title">Use the format that fits</h2>
+          <p class="lead">
+            The PNG preserves the generated badge artwork. The SVG files are
+            simplified vector versions for scalable use.
+          </p>
+        </div>
+        <div class="asset-downloads">
+          {
+            logoDownloads.map((asset) => (
+              <a class="asset-download" href={asset.href} download>
+                <strong>{asset.label}</strong>
+                <span>{asset.detail}</span>
+              </a>
+            ))
+          }
+        </div>
+      </div>
+    </section>
+
+    <section class="section asset-downloads-section" aria-labelledby="concept-title">
+      <div class="container asset-layout asset-layout--compact">
+        <div class="asset-copy">
+          <p class="eyebrow">Concept archive</p>
+          <h2 id="concept-title">Original selected concept</h2>
+          <p class="lead">
+            The first coastal signal concept is kept here as visual source
+            material for future refinements.
+          </p>
+          <p>
+            <a class="text-link" href="/assets/logos/ri-pota-coastal-signal-concept.png" download>
+              Download concept PNG
+            </a>
+          </p>
+        </div>
+        <div class="asset-preview asset-preview--small" aria-label="Original RI POTA coastal signal concept preview">
+          <img
+            src="/assets/logos/ri-pota-coastal-signal-concept.png"
+            alt="Original RI POTA coastal signal logo concept."
+          />
+        </div>
+      </div>
+    </section>
+    <Notice />
+  </main>
+  <Footer />
+</BaseLayout>
