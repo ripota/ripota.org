@@ -1,0 +1,49 @@
+---
+import Footer from "../components/Footer.astro";
+import Hero from "../components/Hero.astro";
+import Notice from "../components/Notice.astro";
+import OfficialLinks from "../components/OfficialLinks.astro";
+import PathCard from "../components/PathCard.astro";
+import ResourceMapPreview from "../components/ResourceMapPreview.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import { pathCards, siteIdentity } from "../data/site";
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout title={siteIdentity.name} description={siteIdentity.tagline}>
+  <SiteHeader />
+  <main id="main">
+    <Hero />
+    <section class="section" id="paths" aria-labelledby="paths-title">
+      <div class="container">
+        <div class="section-header">
+          <p class="eyebrow">Two useful paths</p>
+          <h2 id="paths-title">Find the right next step</h2>
+        </div>
+        <div class="path-grid">
+          {pathCards.map((card) => <PathCard card={card} />)}
+        </div>
+      </div>
+    </section>
+    <section class="section" id="resources" aria-labelledby="resources-title">
+      <div class="container">
+        <h2 id="resources-title" class="sr-only">Rhode Island resources</h2>
+        <ResourceMapPreview />
+      </div>
+    </section>
+    <section class="section" id="official" aria-labelledby="official-title">
+      <div class="container">
+        <div class="section-header">
+          <p class="eyebrow">Source of truth</p>
+          <h2 id="official-title">Official POTA links</h2>
+          <p class="lead">
+            Keep these nearby for rules, accounts, spots, logs, map searches, and current reference information.
+          </p>
+        </div>
+        <OfficialLinks />
+      </div>
+    </section>
+    <Notice />
+  </main>
+  <Footer />
+</BaseLayout>

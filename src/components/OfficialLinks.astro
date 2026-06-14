@@ -1,0 +1,14 @@
+---
+import { officialLinks } from "../data/site";
+---
+
+<div class="official-links">
+  {
+    officialLinks.map((link) => (
+      <a class="official-link" href={link.href}>
+        <strong>{link.label}</strong>
+        <span>{link.description}</span>
+      </a>
+    ))
+  }
+</div>

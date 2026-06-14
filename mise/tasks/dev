@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; -*-
+#MISE description="Start the Astro development server"
+
+set -euo pipefail
+
+npm run dev -- "$@"

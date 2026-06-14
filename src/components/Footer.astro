@@ -1,0 +1,16 @@
+---
+import { officialLinks, siteIdentity } from "../data/site";
+---
+
+<footer class="site-footer">
+  <div class="site-footer__inner container">
+    <p>{siteIdentity.name}</p>
+    <nav class="site-footer__links" aria-label="Footer links">
+      {
+        officialLinks.map((link) => (
+          <a href={link.href}>{link.label}</a>
+        ))
+      }
+    </nav>
+  </div>
+</footer>

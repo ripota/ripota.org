@@ -1,0 +1,47 @@
+---
+import { resourceLinks } from "../data/site";
+---
+
+<div class="resource-layout">
+  <div class="resource-copy">
+    <div class="section-header">
+      <p class="eyebrow">Rhode Island references</p>
+      <h2>Small state, plenty of field choices</h2>
+    </div>
+    <p class="lead">
+      This homepage keeps the map lightweight for launch. Use official POTA tools for current reference names, boundaries, activation rules, and account data.
+    </p>
+    <div class="button-row">
+      {
+        resourceLinks.map((link) => (
+          <a class="text-link" href={link.href}>{link.label}</a>
+        ))
+      }
+    </div>
+  </div>
+  <figure class="map-preview" aria-label="Stylized Rhode Island resource map preview">
+    <svg class="map-preview__svg" viewBox="0 0 620 430" role="img" aria-labelledby="map-title map-desc">
+      <title id="map-title">Static Rhode Island map-style preview</title>
+      <desc id="map-desc">A stylized non-authoritative map preview with shoreline, bay islands, and reference markers.</desc>
+      <rect width="620" height="430" fill="var(--map-water)" />
+      <path d="M206 42 C248 28 300 42 323 80 C347 121 337 172 360 204 C384 238 440 263 438 313 C436 361 391 392 338 393 C288 394 250 361 226 325 C201 287 168 255 163 211 C158 166 171 88 206 42 Z" fill="var(--map-land)" stroke="var(--map-line)" stroke-width="3" />
+      <path d="M395 98 C425 116 451 154 449 194 C447 232 417 254 386 242 C354 229 355 181 365 145 C371 121 378 106 395 98 Z" fill="color-mix(in srgb, var(--map-land) 84%, white)" stroke="var(--map-line)" stroke-width="2" />
+      <path d="M263 108 C284 130 284 166 266 190 C251 210 223 215 204 198 C186 181 190 143 207 119 C221 99 244 88 263 108 Z" fill="color-mix(in srgb, var(--map-water) 82%, white)" opacity="0.8" />
+      <path d="M402 296 C423 300 443 316 448 338 C453 361 437 382 416 383 C395 384 376 365 374 341 C372 318 382 302 402 296 Z" fill="color-mix(in srgb, var(--map-land) 90%, white)" stroke="var(--map-line)" stroke-width="2" />
+      <g fill="var(--accent-strong)" stroke="var(--surface-raised)" stroke-width="3">
+        <circle cx="244" cy="88" r="8" />
+        <circle cx="310" cy="154" r="8" />
+        <circle cx="222" cy="262" r="8" />
+        <circle cx="386" cy="178" r="8" />
+        <circle cx="412" cy="337" r="8" />
+      </g>
+      <g stroke="color-mix(in srgb, var(--map-line) 70%, transparent)" stroke-width="1.5" fill="none">
+        <path d="M80 88 C175 126 221 134 326 104 C412 80 486 90 565 136" />
+        <path d="M78 313 C176 282 249 306 335 340 C421 373 494 358 566 318" />
+      </g>
+    </svg>
+    <figcaption class="map-preview__caption">
+      Preview only. Current reference details belong in the official POTA app and documentation.
+    </figcaption>
+  </figure>
+</div>

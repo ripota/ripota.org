@@ -3,9 +3,9 @@ node_modules/
 dist/
 .astro/
 .wrangler/
+tmp/
 .dev.vars
 .env
 .env.*
 !.env.example
 mise/tasks/node_modules/
-

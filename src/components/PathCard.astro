@@ -1,0 +1,18 @@
+---
+import type { PathCardContent } from "../data/site";
+
+type Props = {
+  card: PathCardContent;
+};
+
+const { card } = Astro.props;
+---
+
+<article class="path-card">
+  <p class="eyebrow">{card.eyebrow}</p>
+  <h3>{card.heading}</h3>
+  <p>{card.body}</p>
+  <p>
+    <a class="text-link" href={card.action.href}>{card.action.label}</a>
+  </p>
+</article>

@@ -1,0 +1,23 @@
+---
+import { heroImage, primaryCallsToAction, siteIdentity } from "../data/site";
+---
+
+<section class="hero" aria-labelledby="hero-title">
+  <img class="hero__image" src={heroImage.src} alt={heroImage.alt} loading="eager" />
+  <div class="hero__content container">
+    <p class="eyebrow hero__kicker">Rhode Island field guide</p>
+    <h1 id="hero-title">{siteIdentity.name}</h1>
+    <p class="hero__copy">
+      Local notes, community links, and official starting points for Parks on the Air operators working Rhode Island's compact mix of coast, forest, bay, and historic sites.
+    </p>
+    <div class="button-row" aria-label="Primary actions">
+      {
+        primaryCallsToAction.map((action) => (
+          <a class="button" data-variant={action.variant} href={action.href}>
+            {action.label}
+          </a>
+        ))
+      }
+    </div>
+  </div>
+</section>

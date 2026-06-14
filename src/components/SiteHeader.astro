@@ -1,0 +1,16 @@
+---
+import { siteIdentity } from "../data/site";
+---
+
+<header class="site-header" aria-label="Site header">
+  <div class="site-header__inner container">
+    <a class="site-header__brand" href="/" aria-label={`${siteIdentity.name} home`}>
+      {siteIdentity.name}
+    </a>
+    <nav class="site-header__nav" aria-label="Primary navigation">
+      <a href="#paths">Get started</a>
+      <a href="#resources">RI resources</a>
+      <a href="#official">Official links</a>
+    </nav>
+  </div>
+</header>
