@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; -*-
+#MISE description="Regenerate the branded social share card image"
+#MISE sources=["public/assets/rhode-island-coast-hero.jpg", "public/assets/logos/ri-pota-coastal-signal.png"]
+#MISE outputs=["public/assets/ripota-share-card.png"]
+
+set -euo pipefail
+
+if ! command -v magick >/dev/null 2>&1; then
+  echo "ImageMagick is required to regenerate public/assets/ripota-share-card.png." >&2
+  echo "Install it with: brew install imagemagick" >&2
+  exit 1
+fi
+
+root="$(cd "$(dirname "$0")/../../.." && pwd -P)"
+tmp_dir="${root}/tmp/share-card"
+font="/System/Library/Fonts/HelveticaNeue.ttc"
+
+mkdir -p "${tmp_dir}"
+
+magick "${root}/public/assets/logos/ri-pota-coastal-signal.png" \
+  -resize 188x188 \
+  -alpha set \
+  \( -size 188x188 xc:none -fill white -draw "circle 94,94 94,0" \) \
+  -compose DstIn \
+  -composite \
+  "${tmp_dir}/logo-circle.png"
+
+magick "${root}/public/assets/rhode-island-coast-hero.jpg" \
+  -fill "rgba(7,30,32,0.80)" \
+  -draw "roundrectangle 720,72 1528,300 30,30" \
+  \( "${tmp_dir}/logo-circle.png" \
+    \( +clone -background "rgba(0,0,0,0.45)" -shadow 22x5+0+4 \) \
+    +swap -background none -layers merge +repage \
+  \) \
+  -geometry +760+92 \
+  -composite \
+  -font "${font}" \
+  -fill "#ffffff" \
+  -pointsize 58 \
+  -weight 700 \
+  -annotate +988+166 "Rhode Island POTA" \
+  -fill "#d6f3ef" \
+  -pointsize 28 \
+  -weight 500 \
+  -annotate +992+222 "Local Parks on the Air field guide" \
+  "${root}/public/assets/ripota-share-card.png"
+
+echo "Regenerated public/assets/ripota-share-card.png"

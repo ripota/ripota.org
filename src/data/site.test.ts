@@ -43,7 +43,7 @@ describe("site content", () => {
         type: "image/png",
       }),
     );
-    expect(defaultShareImage.alt).toMatch(/RI POTA coastal signal logo/i);
+    expect(defaultShareImage.alt).toMatch(/RI POTA logo and Rhode Island POTA title/i);
   });
 
   it("uses public-ready resource copy instead of launch placeholders", () => {

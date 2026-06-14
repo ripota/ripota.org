@@ -33,7 +33,7 @@ export const heroImage = {
 
 export const defaultShareImage = {
   src: "/assets/ripota-share-card.png",
-  alt: "A Rhode Island shoreline photo with the RI POTA coastal signal logo overlaid.",
+  alt: "A Rhode Island shoreline photo with the RI POTA logo and Rhode Island POTA title overlaid.",
   width: 1600,
   height: 900,
   type: "image/png",
