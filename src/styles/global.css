@@ -447,10 +447,6 @@ p {
   align-items: center;
 }
 
-.asset-layout--compact {
-  grid-template-columns: minmax(0, 0.9fr) minmax(240px, 0.45fr);
-}
-
 .asset-copy {
   display: grid;
   gap: 1.1rem;
@@ -471,10 +467,6 @@ p {
   width: min(100%, 420px);
   aspect-ratio: 1;
   object-fit: contain;
-}
-
-.asset-preview--small img {
-  width: min(100%, 300px);
 }
 
 .asset-downloads-section {
@@ -594,7 +586,6 @@ p {
   .resource-layout,
   .official-links,
   .asset-layout,
-  .asset-layout--compact,
   .asset-downloads {
     grid-template-columns: 1fr;
   }
