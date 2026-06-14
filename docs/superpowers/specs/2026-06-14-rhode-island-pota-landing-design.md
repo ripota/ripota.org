@@ -29,7 +29,7 @@ Launch scope:
 - One polished homepage at `/`.
 - Cloudflare Workers Static Assets deployment configuration.
 - Light and dark theme support.
-- Public-safe README and project hygiene.
+- Public-safe project documentation and project hygiene.
 - Vitest-style utility test setup.
 - Mise file-based local tasks for common commands.
 
@@ -230,10 +230,18 @@ Do not commit:
 
 Do commit:
 
-- Public-safe README.
+- Public-safe `README.md`.
+- Public-safe `CONTRIBUTING.md`.
+- Public-safe `AGENTS.md`.
 - Public-safe design and planning docs.
 - Clear unofficial-community wording.
 - Source and ownership notes for photos or generated assets when needed.
+
+Initial documentation expectations:
+
+- `README.md` explains what Rhode Island POTA is, the unofficial relationship to Parks on the Air, local development, common mise tasks, and the Cloudflare deployment target.
+- `CONTRIBUTING.md` documents how to run checks, how to propose content/assets, how to avoid stale event copy, and how to keep official POTA links/source-of-truth language clear.
+- `AGENTS.md` records project-specific agent instructions, including the use of mise file-based tasks, TypeScript/ESM for code, Vitest-style utility tests, public-repo safety, no committed private exports or secrets, and the requirement to preserve the unofficial POTA disclaimer.
 
 ## Implementation Defaults
 
