@@ -26,10 +26,9 @@ export const siteIdentity = {
 } as const;
 
 export const heroImage = {
-  src: "/assets/coastal-field-journal-hero.jpg",
-  alt: "A quiet rocky Rhode Island-style shoreline with coastal shrubs, calm water, and a small lighthouse marker in soft morning light.",
-  source:
-    "Generated project asset for ripota.org; replace with a user-owned Rhode Island field photo when available.",
+  src: "/assets/rhode-island-coast-hero.jpg",
+  alt: "A rocky Rhode Island shoreline looking toward the ocean with a lighthouse and coastal buildings in the distance.",
+  source: "User-owned Rhode Island coastal field photo, cropped and stripped of metadata for ripota.org.",
 } as const;
 
 export const primaryCallsToAction: CallToAction[] = [
@@ -68,6 +67,16 @@ export const pathCards: PathCardContent[] = [
       description: "Visit official Parks on the Air documentation.",
     },
   },
+  {
+    eyebrow: "Planning locally?",
+    heading: "Share access notes and rove ideas",
+    body: "RI POTA helps local activators and hunters compare access notes, coordinate roves, and keep Rhode Island activity visible while official POTA systems handle rules, awards, spots, and logs.",
+    action: {
+      label: "Join local coordination",
+      href: "https://groups.io/g/RI-POTA",
+      description: "Coordinate Rhode Island POTA activity with the local Groups.io community.",
+    },
+  },
 ];
 
 export const resourceLinks: ExternalLink[] = [
@@ -82,6 +91,9 @@ export const resourceLinks: ExternalLink[] = [
     description: "Go to the official POTA application for accounts, spots, and logs.",
   },
 ];
+
+export const resourceIntro =
+  "Browse the current Parks on the Air references associated with Rhode Island, including parks, refuges, forests, management areas, and multi-state references that include RI. This map is a local convenience; official POTA pages remain the source of truth for boundaries, rules, spots, and logs.";
 
 export const officialLinks: ExternalLink[] = [
   {

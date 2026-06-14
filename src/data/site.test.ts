@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  resourceIntro,
   officialLinks,
   primaryCallsToAction,
   siteIdentity,
@@ -28,5 +29,10 @@ describe("site content", () => {
   it("states that Rhode Island POTA is unofficial", () => {
     expect(siteIdentity.isOfficialPotaSite).toBe(false);
     expect(siteIdentity.disclaimer).toMatch(/not an official Parks on the Air/i);
+  });
+
+  it("uses public-ready resource copy instead of launch placeholders", () => {
+    expect(resourceIntro).toMatch(/Browse the current Parks on the Air references/i);
+    expect(resourceIntro).not.toMatch(/preview only|for launch|placeholder/i);
   });
 });

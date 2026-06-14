@@ -1,0 +1,551 @@
+[
+  {
+    "reference": "US-0513",
+    "name": "Block Island National Wildlife Refuge",
+    "latitude": 41.2133,
+    "longitude": -71.5724,
+    "grid": "FN41ff",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-0513"
+  },
+  {
+    "reference": "US-0514",
+    "name": "John H. Chafee National Wildlife Refuge",
+    "latitude": 41.443,
+    "longitude": -71.4707,
+    "grid": "FN41gk",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-0514"
+  },
+  {
+    "reference": "US-0515",
+    "name": "Ninigret National Wildlife Refuge",
+    "latitude": 41.3682,
+    "longitude": -71.6716,
+    "grid": "FN41di",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-0515"
+  },
+  {
+    "reference": "US-0516",
+    "name": "Sachuest Point National Wildlife Refuge",
+    "latitude": 41.4798,
+    "longitude": -71.2436,
+    "grid": "FN41jl",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-0516"
+  },
+  {
+    "reference": "US-0517",
+    "name": "Trustom Pond National Wildlife Refuge",
+    "latitude": 41.3834,
+    "longitude": -71.5846,
+    "grid": "FN41ej",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-0517"
+  },
+  {
+    "reference": "US-0789",
+    "name": "Roger Williams National Memorial",
+    "latitude": 41.831,
+    "longitude": -71.411,
+    "grid": "FN41ht",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-0789"
+  },
+  {
+    "reference": "US-10541",
+    "name": "Gull Cove State Recreation Area",
+    "latitude": 41.6339,
+    "longitude": -71.231,
+    "grid": "FN41jp",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-10541"
+  },
+  {
+    "reference": "US-10542",
+    "name": "Camp Cronin State Recreation Area",
+    "latitude": 41.3625,
+    "longitude": -71.4873,
+    "grid": "FN41gi",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-10542"
+  },
+  {
+    "reference": "US-10543",
+    "name": "Patriots Park State Historic Site",
+    "latitude": 41.6018,
+    "longitude": -71.2583,
+    "grid": "FN41io",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-10543"
+  },
+  {
+    "reference": "US-10544",
+    "name": "Jerimoth Hill State Recreation Area",
+    "latitude": 41.8512,
+    "longitude": -71.7786,
+    "grid": "FN41cu",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-10544"
+  },
+  {
+    "reference": "US-10545",
+    "name": "Hillsdale Preserve Management Area",
+    "latitude": 41.522,
+    "longitude": -71.6411,
+    "grid": "FN41em",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-10545"
+  },
+  {
+    "reference": "US-10546",
+    "name": "Eight Rod Farm Wildlife Management Area",
+    "latitude": 41.5521,
+    "longitude": -71.1899,
+    "grid": "FN41jn",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-10546"
+  },
+  {
+    "reference": "US-10547",
+    "name": "Silver Spring State Recreation Area",
+    "latitude": 41.5388,
+    "longitude": -71.4705,
+    "grid": "FN41gm",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-10547"
+  },
+  {
+    "reference": "US-10548",
+    "name": "Barber Pond State Recreation Area",
+    "latitude": 41.4994,
+    "longitude": -71.5639,
+    "grid": "FN41fl",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-10548"
+  },
+  {
+    "reference": "US-2868",
+    "name": "Beavertail State Park",
+    "latitude": 41.446,
+    "longitude": -71.3993,
+    "grid": "FN41hk",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-2868"
+  },
+  {
+    "reference": "US-2869",
+    "name": "Blackstone River State Park",
+    "latitude": 41.9379,
+    "longitude": -71.4343,
+    "grid": "FN41gw",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-2869"
+  },
+  {
+    "reference": "US-2870",
+    "name": "Brenton Point State Park",
+    "latitude": 41.452,
+    "longitude": -71.3542,
+    "grid": "FN41hk",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-2870"
+  },
+  {
+    "reference": "US-2871",
+    "name": "Burlingame State Park",
+    "latitude": 41.3756,
+    "longitude": -71.6986,
+    "grid": "FN41dj",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-2871"
+  },
+  {
+    "reference": "US-2872",
+    "name": "Colt State Park",
+    "latitude": 41.6769,
+    "longitude": -71.2985,
+    "grid": "FN41iq",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-2872"
+  },
+  {
+    "reference": "US-2873",
+    "name": "Fishermen's Memorial State Park",
+    "latitude": 41.3805,
+    "longitude": -71.4897,
+    "grid": "FN41gj",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-2873"
+  },
+  {
+    "reference": "US-2874",
+    "name": "Fort Adams State Park",
+    "latitude": 41.4778,
+    "longitude": -71.3355,
+    "grid": "FN41hl",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-2874"
+  },
+  {
+    "reference": "US-2875",
+    "name": "Fort Wetherill State Park",
+    "latitude": 41.4778,
+    "longitude": -71.3585,
+    "grid": "FN41hl",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-2875"
+  },
+  {
+    "reference": "US-2876",
+    "name": "Goddard Memorial State Park",
+    "latitude": 41.657,
+    "longitude": -71.4377,
+    "grid": "FN41gp",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-2876"
+  },
+  {
+    "reference": "US-2877",
+    "name": "Haines Memorial State Park",
+    "latitude": 41.7539,
+    "longitude": -71.3508,
+    "grid": "FN41hs",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-2877"
+  },
+  {
+    "reference": "US-2878",
+    "name": "Lincoln Woods State Park",
+    "latitude": 41.8975,
+    "longitude": -71.4329,
+    "grid": "FN41gv",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-2878"
+  },
+  {
+    "reference": "US-2879",
+    "name": "Rocky Point State Park",
+    "latitude": 41.6915,
+    "longitude": -71.3634,
+    "grid": "FN41hq",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-2879"
+  },
+  {
+    "reference": "US-2880",
+    "name": "Snake Den State Park",
+    "latitude": 41.8303,
+    "longitude": -71.5373,
+    "grid": "FN41ft",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-2880"
+  },
+  {
+    "reference": "US-2881",
+    "name": "World War II Veterans Memorial State Park",
+    "latitude": 42.0101,
+    "longitude": -71.5097,
+    "grid": "FN42fa",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-2881"
+  },
+  {
+    "reference": "US-4582",
+    "name": "Washington-Rochambeau Revolutionary Route National Historic Trail",
+    "latitude": 41.312,
+    "longitude": -73.9709,
+    "grid": "FN31ah",
+    "locationDesc": "US-CT,US-DC,US-DE,US-MA,US-MD,US-NJ,US-NY,US-PA,US-RI,US-VA",
+    "potaUrl": "https://pota.app/#/park/US-4582"
+  },
+  {
+    "reference": "US-5482",
+    "name": "Wickaboxet Wildlife Management Area",
+    "latitude": 41.6364,
+    "longitude": -71.7359,
+    "grid": "FN41dp",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-5482"
+  },
+  {
+    "reference": "US-5483",
+    "name": "Lincoln Woods State Forest",
+    "latitude": 41.8962,
+    "longitude": -71.4327,
+    "grid": "FN41gv",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-5483"
+  },
+  {
+    "reference": "US-5484",
+    "name": "George Washington Memorial State Forest",
+    "latitude": 41.9259,
+    "longitude": -71.7359,
+    "grid": "FN41dw",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-5484"
+  },
+  {
+    "reference": "US-6979",
+    "name": "Arcadia Management Area",
+    "latitude": 41.5561,
+    "longitude": -71.685,
+    "grid": "FN41dn",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-6979"
+  },
+  {
+    "reference": "US-6980",
+    "name": "Beach Pond Wildlife Management Area",
+    "latitude": 41.5739,
+    "longitude": -71.7864,
+    "grid": "FN41cn",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-6980"
+  },
+  {
+    "reference": "US-6981",
+    "name": "Great Swamp Wildlife Management Area",
+    "latitude": 41.4691,
+    "longitude": -71.5796,
+    "grid": "FN41fl",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-6981"
+  },
+  {
+    "reference": "US-6982",
+    "name": "Big River Wildlife Management Area",
+    "latitude": 41.6311,
+    "longitude": -71.5714,
+    "grid": "FN41fp",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-6982"
+  },
+  {
+    "reference": "US-6983",
+    "name": "Woody Hill Wildlife Management Area",
+    "latitude": 41.3694,
+    "longitude": -71.7448,
+    "grid": "FN41di",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-6983"
+  },
+  {
+    "reference": "US-6984",
+    "name": "Black Hut Wildlife Management Area",
+    "latitude": 41.9928,
+    "longitude": -71.6568,
+    "grid": "FN41ex",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-6984"
+  },
+  {
+    "reference": "US-6985",
+    "name": "Round Top Wildlife Management Area",
+    "latitude": 42.0014,
+    "longitude": -71.7011,
+    "grid": "FN42da",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-6985"
+  },
+  {
+    "reference": "US-6986",
+    "name": "Simmons Mill Wildlife Management Area",
+    "latitude": 41.5358,
+    "longitude": -71.1341,
+    "grid": "FN41km",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-6986"
+  },
+  {
+    "reference": "US-6987",
+    "name": "Cocumcussoc State Park",
+    "latitude": 41.5823,
+    "longitude": -71.4599,
+    "grid": "FN41gn",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-6987"
+  },
+  {
+    "reference": "US-6988",
+    "name": "Grills State Preserve",
+    "latitude": 41.3997,
+    "longitude": -71.7591,
+    "grid": "FN41cj",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-6988"
+  },
+  {
+    "reference": "US-6989",
+    "name": "Black Farm Wildlife Management Area",
+    "latitude": 41.4674,
+    "longitude": -71.7285,
+    "grid": "FN41dl",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-6989"
+  },
+  {
+    "reference": "US-6990",
+    "name": "Nicholas Farm Wildlife Management Area",
+    "latitude": 41.6804,
+    "longitude": -71.7739,
+    "grid": "FN41cq",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-6990"
+  },
+  {
+    "reference": "US-6991",
+    "name": "Rockville Wildlife Management Area",
+    "latitude": 41.5054,
+    "longitude": -71.7591,
+    "grid": "FN41cm",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-6991"
+  },
+  {
+    "reference": "US-6992",
+    "name": "JL Curran State Park",
+    "latitude": 41.7507,
+    "longitude": -71.5516,
+    "grid": "FN41fs",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-6992"
+  },
+  {
+    "reference": "US-7508",
+    "name": "Pulaski State Park",
+    "latitude": 41.9281,
+    "longitude": -71.7969,
+    "grid": "FN41cw",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-7508"
+  },
+  {
+    "reference": "US-7518",
+    "name": "Kimball Wildlife Refuge",
+    "latitude": 41.3745,
+    "longitude": -71.6868,
+    "grid": "FN41di",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-7518"
+  },
+  {
+    "reference": "US-7714",
+    "name": "Buck Hill Wildlife Management Area",
+    "latitude": 41.9851,
+    "longitude": -71.7893,
+    "grid": "FN41cx",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-7714"
+  },
+  {
+    "reference": "US-7715",
+    "name": "Durfee Hill Wildlife Management Area",
+    "latitude": 41.9025,
+    "longitude": -71.7841,
+    "grid": "FN41cv",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-7715"
+  },
+  {
+    "reference": "US-7716",
+    "name": "Carolina Wildlife Management Area",
+    "latitude": 41.4665,
+    "longitude": -71.689,
+    "grid": "FN41dl",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-7716"
+  },
+  {
+    "reference": "US-7717",
+    "name": "Charlestown Breachway State Park",
+    "latitude": 41.3567,
+    "longitude": -71.6382,
+    "grid": "FN41ei",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-7717"
+  },
+  {
+    "reference": "US-7718",
+    "name": "East Matunuck State Beach",
+    "latitude": 41.3776,
+    "longitude": -71.5251,
+    "grid": "FN41fj",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-7718"
+  },
+  {
+    "reference": "US-7719",
+    "name": "Misquamicut State Beach",
+    "latitude": 41.3234,
+    "longitude": -71.8025,
+    "grid": "FN41ch",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-7719"
+  },
+  {
+    "reference": "US-7720",
+    "name": "Roger W. Wheeler State Beach",
+    "latitude": 41.3735,
+    "longitude": -71.5004,
+    "grid": "FN41fi",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-7720"
+  },
+  {
+    "reference": "US-7721",
+    "name": "Salty Brine State Beach",
+    "latitude": 41.3761,
+    "longitude": -71.5127,
+    "grid": "FN41fj",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-7721"
+  },
+  {
+    "reference": "US-7722",
+    "name": "Scarborough North State Beach",
+    "latitude": 41.3897,
+    "longitude": -71.4731,
+    "grid": "FN41gj",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-7722"
+  },
+  {
+    "reference": "US-7723",
+    "name": "John H. Chaffee Rome Point State Nature Preserve",
+    "latitude": 41.5372,
+    "longitude": -71.4374,
+    "grid": "FN41gm",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-7723"
+  },
+  {
+    "reference": "US-7865",
+    "name": "East State Beach",
+    "latitude": 41.3481,
+    "longitude": -71.6733,
+    "grid": "FN41di",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-7865"
+  },
+  {
+    "reference": "US-7971",
+    "name": "Blackstone River Valley National Historical Park",
+    "latitude": 42.015,
+    "longitude": -71.5529,
+    "grid": "FN42fa",
+    "locationDesc": "US-MA,US-RI",
+    "potaUrl": "https://pota.app/#/park/US-7971"
+  },
+  {
+    "reference": "US-8293",
+    "name": "Sapowet Marsh State Wildlife Area",
+    "latitude": 41.5825,
+    "longitude": -71.2089,
+    "grid": "FN41jn",
+    "locationDesc": "US-RI",
+    "potaUrl": "https://pota.app/#/park/US-8293"
+  }
+]
