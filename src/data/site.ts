@@ -32,11 +32,11 @@ export const heroImage = {
 } as const;
 
 export const defaultShareImage = {
-  src: heroImage.src,
-  alt: heroImage.alt,
+  src: "/assets/ripota-share-card.png",
+  alt: "A Rhode Island shoreline photo with the RI POTA coastal signal logo overlaid.",
   width: 1600,
   height: 900,
-  type: "image/jpeg",
+  type: "image/png",
 } as const;
 
 export const primaryCallsToAction: CallToAction[] = [

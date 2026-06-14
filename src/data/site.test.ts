@@ -37,13 +37,13 @@ describe("site content", () => {
   it("uses a large landscape image for social share previews", () => {
     expect(defaultShareImage).toEqual(
       expect.objectContaining({
-        src: "/assets/rhode-island-coast-hero.jpg",
+        src: "/assets/ripota-share-card.png",
         width: 1600,
         height: 900,
-        type: "image/jpeg",
+        type: "image/png",
       }),
     );
-    expect(defaultShareImage.alt).toMatch(/Rhode Island shoreline/i);
+    expect(defaultShareImage.alt).toMatch(/RI POTA coastal signal logo/i);
   });
 
   it("uses public-ready resource copy instead of launch placeholders", () => {
