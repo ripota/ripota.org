@@ -18,5 +18,11 @@
     "typescript": "latest",
     "vitest": "latest",
     "wrangler": "latest"
+  },
+  "overrides": {
+    "esbuild": "^0.28.1",
+    "vite": "^8.0.16",
+    "volar-service-yaml": "^0.0.71",
+    "yaml-language-server": "^1.23.0"
   }
 }

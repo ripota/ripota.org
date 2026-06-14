@@ -96,6 +96,7 @@ export const resourceIntro =
   "Browse the current Parks on the Air references associated with Rhode Island, including parks, refuges, forests, management areas, and multi-state references that include RI. Use the map to get oriented, then open POTA for the latest reference details before activating.";
 
 export const referenceMapZoomOffset = 1;
+export const referenceMapZoomBehavior = "always-after-fit";
 
 export const officialLinks: ExternalLink[] = [
   {

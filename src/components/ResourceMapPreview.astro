@@ -2,7 +2,7 @@
 import "leaflet/dist/leaflet.css";
 
 import references from "../data/ri-references.json";
-import { referenceMapZoomOffset, resourceIntro, resourceLinks } from "../data/site";
+import { referenceMapZoomBehavior, referenceMapZoomOffset, resourceIntro, resourceLinks } from "../data/site";
 
 const referenceJson = JSON.stringify(references);
 ---
@@ -29,6 +29,7 @@ const referenceJson = JSON.stringify(references);
       id="ri-reference-map"
       class="ri-reference-map"
       data-zoom-offset={referenceMapZoomOffset}
+      data-zoom-behavior={referenceMapZoomBehavior}
     >
     </div>
     <figcaption class="map-preview__caption">
@@ -88,10 +89,10 @@ const referenceJson = JSON.stringify(references);
 
     if (rhodeIslandBounds.isValid()) {
       map.fitBounds(rhodeIslandBounds, { padding: [28, 28], maxZoom: 10 });
-      zoomInIfReferencesStillFit(map, references, zoomOffset);
+      applyZoomOffset(map, zoomOffset);
     } else if (bounds.isValid()) {
       map.fitBounds(bounds, { padding: [24, 24] });
-      zoomInIfReferencesStillFit(map, references, zoomOffset);
+      applyZoomOffset(map, zoomOffset);
     } else {
       map.setView([41.58, -71.48], 9);
     }
@@ -129,36 +130,11 @@ const referenceJson = JSON.stringify(references);
     );
   }
 
-  function zoomInIfReferencesStillFit(
-    map: L.Map,
-    references: Reference[],
-    zoomOffset: number,
-  ): void {
-    if (zoomOffset <= 0 || references.length === 0) {
+  function applyZoomOffset(map: L.Map, zoomOffset: number): void {
+    if (zoomOffset === 0) {
       return;
     }
 
-    const targetZoom = map.getZoom() + zoomOffset;
-    const center = map.getCenter();
-    const size = map.getSize();
-    const centerPoint = map.project(center, targetZoom);
-    const padding = 12;
-    const referencesFit = references.every((reference) => {
-      const point = map
-        .project([reference.latitude, reference.longitude], targetZoom)
-        .subtract(centerPoint)
-        .add(size.divideBy(2));
-
-      return (
-        point.x >= padding &&
-        point.y >= padding &&
-        point.x <= size.x - padding &&
-        point.y <= size.y - padding
-      );
-    });
-
-    if (referencesFit) {
-      map.setZoom(targetZoom);
-    }
+    map.setZoom(map.getZoom() + zoomOffset);
   }
 </script>
