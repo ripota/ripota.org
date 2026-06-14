@@ -13,8 +13,8 @@
     <path fill="none" stroke="#f7f4ed" stroke-linecap="round" stroke-linejoin="round" stroke-width="24" d="M54 801c83-28 158-39 226-32 61 7 116 27 165 60 46 31 101 45 165 42 63-3 135-22 214-55 50-21 105-28 165-20"/>
     <path fill="none" stroke="#f7f4ed" stroke-linecap="round" stroke-linejoin="round" stroke-width="21" d="M33 868c70-24 136-34 198-29 69 5 128 25 177 58 44 30 96 44 155 42 59-2 127-19 202-50 68-28 143-36 224-23"/>
 
-    <path fill="#18312f" d="M112 750l84-60 80-22 62 45 61 142H70z"/>
-    <path fill="none" stroke="#f7f4ed" stroke-linecap="round" stroke-linejoin="round" stroke-width="16" d="M128 765l72-22 56 47 37 70"/>
+    <path fill="#18312f" d="M96 760l82-54 83-24 64 29 58 55 104 50-54 45-122-10-86-55-93-18-80 29z"/>
+    <path fill="none" stroke="#f7f4ed" stroke-linecap="round" stroke-linejoin="round" stroke-width="16" d="M117 772l82-24 58 45 37 71"/>
 
     <path fill="#18312f" d="M259 388h150l50 365-44 48H253l-43-48z"/>
     <path fill="#f7f4ed" d="M273 396h122l15 76H258z"/>
@@ -27,10 +27,10 @@
     <rect x="366" y="429" width="16" height="72" fill="#18312f"/>
     <rect x="300" y="559" width="42" height="92" rx="10" fill="#f7f4ed"/>
 
-    <path fill="none" stroke="#a87338" stroke-linecap="round" stroke-linejoin="round" stroke-width="28" d="M142 247a204 204 0 0 0 0 288"/>
-    <path fill="none" stroke="#a87338" stroke-linecap="round" stroke-linejoin="round" stroke-width="24" d="M197 305a125 125 0 0 0 0 172"/>
-    <path fill="none" stroke="#a87338" stroke-linecap="round" stroke-linejoin="round" stroke-width="24" d="M458 306a125 125 0 0 1 0 172"/>
-    <path fill="none" stroke="#a87338" stroke-linecap="round" stroke-linejoin="round" stroke-width="28" d="M512 249a203 203 0 0 1 0 286"/>
+    <path fill="none" stroke="#a87338" stroke-linecap="round" stroke-linejoin="round" stroke-width="24" d="M176 296a146 146 0 0 0 0 197"/>
+    <path fill="none" stroke="#a87338" stroke-linecap="round" stroke-linejoin="round" stroke-width="20" d="M221 344a80 80 0 0 0 0 101"/>
+    <path fill="none" stroke="#a87338" stroke-linecap="round" stroke-linejoin="round" stroke-width="20" d="M450 344a80 80 0 0 1 0 101"/>
+    <path fill="none" stroke="#a87338" stroke-linecap="round" stroke-linejoin="round" stroke-width="24" d="M494 296a146 146 0 0 1 0 197"/>
     <!-- Simplified from U.S. Census Bureau 2024 Rhode Island cartographic boundary data. -->
     <path fill="none" stroke="#18312f" stroke-linecap="round" stroke-linejoin="round" stroke-width="9" d="M803.8 383.8L808.0 371.7L813.7 386.1L808.5 388.5L826.9 401.6L816.7 426.5L811.6 416.5L816.9 398.3L803.8 383.8ZM799.6 498.8L811.9 486.3L812.1 493.9L821.1 489.0L815.8 463.4L823.5 461.1L841.8 398.4L865.6 378.8L869.6 389.0L877.1 366.7L906.1 376.0L902.4 408.6L911.8 476.7L877.8 502.1L879.6 484.8L865.3 437.4L870.5 438.8L873.3 415.6L866.1 397.4L856.2 401.3L862.1 457.6L852.8 481.1L856.3 489.9L835.5 481.9L824.0 505.4L817.7 499.8L803.9 506.2L799.6 498.8ZM782.2 499.3L796.2 429.3L803.6 488.2L794.0 491.3L788.8 482.7L791.0 494.9L782.6 506.9L782.1 503.0L782.2 499.3ZM683.8 685.4L698.8 658.7L700.2 641.5L711.1 652.8L705.4 670.5L714.4 689.5L689.9 693.6L684.5 689.3L683.8 685.4ZM568.2 592.2L583.6 572.6L577.5 530.9L598.3 526.7L603.3 378.6L597.6 160.6L791.1 154.0L790.9 231.7L810.8 228.5L809.9 290.5L815.8 301.5L846.6 318.9L863.6 344.8L853.8 353.1L857.2 372.6L845.8 386.6L835.4 362.2L828.1 382.3L832.8 349.7L825.4 337.9L810.5 335.9L796.5 311.4L798.6 303.3L786.8 299.5L791.2 334.4L802.2 341.0L792.7 372.0L786.8 361.2L759.2 359.7L762.3 374.2L778.4 374.1L781.3 403.6L774.6 410.2L780.7 419.8L761.0 423.6L775.3 456.6L773.9 492.0L756.6 516.6L757.9 531.0L745.0 561.6L734.8 553.0L712.3 552.8L636.1 579.7L568.2 592.2Z"/>
     <rect x="590" y="432" width="288" height="252" rx="10" fill="#f7f4ed"/>
