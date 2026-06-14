@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  referenceMapZoomOffset,
   resourceIntro,
   officialLinks,
   primaryCallsToAction,
@@ -34,5 +35,9 @@ describe("site content", () => {
   it("uses public-ready resource copy instead of launch placeholders", () => {
     expect(resourceIntro).toMatch(/Browse the current Parks on the Air references/i);
     expect(resourceIntro).not.toMatch(/preview only|for launch|placeholder/i);
+  });
+
+  it("starts the reference map one zoom level tighter than default bounds fitting", () => {
+    expect(referenceMapZoomOffset).toBe(1);
   });
 });
