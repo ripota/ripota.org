@@ -1,20 +1,29 @@
 ---
 import "../styles/global.css";
-import { siteIdentity } from "../data/site";
+import { defaultShareImage, siteIdentity } from "../data/site";
 
 type Props = {
   title?: string;
   description?: string;
   canonicalPath?: string;
+  image?: {
+    src: string;
+    alt: string;
+    width?: number;
+    height?: number;
+    type?: string;
+  };
 };
 
 const {
   title = siteIdentity.name,
   description = siteIdentity.tagline,
   canonicalPath = "/",
+  image = defaultShareImage,
 } = Astro.props;
 const pageTitle = title === siteIdentity.name ? title : `${title} | ${siteIdentity.name}`;
 const canonicalUrl = new URL(canonicalPath, siteIdentity.url).toString();
+const imageUrl = new URL(image.src, siteIdentity.url).toString();
 ---
 
 <!doctype html>
@@ -25,6 +34,22 @@ const canonicalUrl = new URL(canonicalPath, siteIdentity.url).toString();
     <meta name="generator" content={Astro.generator} />
     <meta name="description" content={description} />
     <link rel="canonical" href={canonicalUrl} />
+    <meta property="og:site_name" content={siteIdentity.name} />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:image" content={imageUrl} />
+    <meta property="og:image:alt" content={image.alt} />
+    {image.width && <meta property="og:image:width" content={String(image.width)} />}
+    {image.height && <meta property="og:image:height" content={String(image.height)} />}
+    {image.type && <meta property="og:image:type" content={image.type} />}
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={pageTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={imageUrl} />
+    <meta name="twitter:image:alt" content={image.alt} />
+    <meta name="theme-color" content="#0f766e" />
     <title>{pageTitle}</title>
   </head>
   <body>

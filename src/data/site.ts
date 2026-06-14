@@ -31,6 +31,14 @@ export const heroImage = {
   source: "User-owned Rhode Island coastal field photo, cropped and stripped of metadata for ripota.org.",
 } as const;
 
+export const defaultShareImage = {
+  src: heroImage.src,
+  alt: heroImage.alt,
+  width: 1600,
+  height: 900,
+  type: "image/jpeg",
+} as const;
+
 export const primaryCallsToAction: CallToAction[] = [
   {
     label: "Join the RI POTA community",

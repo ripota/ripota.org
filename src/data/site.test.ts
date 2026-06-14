@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  defaultShareImage,
   referenceMapZoomBehavior,
   referenceMapZoomOffset,
   resourceIntro,
@@ -31,6 +32,18 @@ describe("site content", () => {
   it("states that Rhode Island POTA is unofficial", () => {
     expect(siteIdentity.isOfficialPotaSite).toBe(false);
     expect(siteIdentity.disclaimer).toMatch(/not an official Parks on the Air/i);
+  });
+
+  it("uses a large landscape image for social share previews", () => {
+    expect(defaultShareImage).toEqual(
+      expect.objectContaining({
+        src: "/assets/rhode-island-coast-hero.jpg",
+        width: 1600,
+        height: 900,
+        type: "image/jpeg",
+      }),
+    );
+    expect(defaultShareImage.alt).toMatch(/Rhode Island shoreline/i);
   });
 
   it("uses public-ready resource copy instead of launch placeholders", () => {
