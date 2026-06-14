@@ -8,16 +8,22 @@ const logoDownloads = [
   {
     label: "PNG",
     href: "/assets/logos/ri-pota-coastal-signal.png",
+    previewSrc: "/assets/logos/ri-pota-coastal-signal.png",
+    previewAlt: "Full-color RI POTA coastal signal PNG logo preview.",
     detail: "High-quality 1254 x 1254 raster logo for GitHub and social profiles.",
   },
   {
     label: "SVG",
     href: "/assets/logos/ri-pota-coastal-signal.svg",
+    previewSrc: "/assets/logos/ri-pota-coastal-signal.svg",
+    previewAlt: "Full-color RI POTA coastal signal SVG logo preview.",
     detail: "Full-color vector mark for web pages, print layouts, and future site UI.",
   },
   {
     label: "Mono SVG",
     href: "/assets/logos/ri-pota-coastal-signal-mono.svg",
+    previewSrc: "/assets/logos/ri-pota-coastal-signal-mono.svg",
+    previewAlt: "One-color RI POTA coastal signal SVG logo preview.",
     detail: "One-color vector mark for stamps, stickers, single-ink uses, and dark/light adaptation.",
   },
 ];
@@ -63,8 +69,13 @@ const logoDownloads = [
           {
             logoDownloads.map((asset) => (
               <a class="asset-download" href={asset.href} download>
-                <strong>{asset.label}</strong>
-                <span>{asset.detail}</span>
+                <span class="asset-download__preview">
+                  <img src={asset.previewSrc} alt={asset.previewAlt} loading="lazy" />
+                </span>
+                <span class="asset-download__body">
+                  <strong>{asset.label}</strong>
+                  <span>{asset.detail}</span>
+                </span>
               </a>
             ))
           }

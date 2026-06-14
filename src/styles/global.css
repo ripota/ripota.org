@@ -481,8 +481,9 @@ p {
 
 .asset-download {
   display: grid;
-  min-height: 170px;
-  gap: 0.8rem;
+  min-height: 310px;
+  grid-template-rows: minmax(150px, 1fr) auto;
+  gap: 1rem;
   align-content: start;
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
@@ -491,6 +492,26 @@ p {
   color: var(--text-primary);
   text-decoration: none;
   box-shadow: var(--shadow-soft);
+}
+
+.asset-download__preview {
+  display: grid;
+  place-items: center;
+  min-height: 150px;
+  border-radius: 6px;
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--surface-page) 88%, white), var(--surface-raised));
+}
+
+.asset-download__preview img {
+  width: min(100%, 128px);
+  aspect-ratio: 1;
+  object-fit: contain;
+}
+
+.asset-download__body {
+  display: grid;
+  gap: 0.65rem;
 }
 
 .asset-download strong {
