@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; -*-
+#MISE description="Render logo PNG exports from SVG masters"
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd -P)"
+LOGO_DIR="$ROOT/public/assets/logos"
+
+npx --yes @resvg/resvg-js-cli \
+  --fit-width 1254 \
+  "$LOGO_DIR/ri-pota-coastal-signal.svg" \
+  "$LOGO_DIR/ri-pota-coastal-signal.png"
+
+npx --yes @resvg/resvg-js-cli \
+  --fit-width 1254 \
+  "$LOGO_DIR/ri-pota-coastal-signal-mono.svg" \
+  "$LOGO_DIR/ri-pota-coastal-signal-mono.png"
