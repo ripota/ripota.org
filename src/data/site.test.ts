@@ -34,7 +34,9 @@ describe("site content", () => {
 
   it("uses public-ready resource copy instead of launch placeholders", () => {
     expect(resourceIntro).toMatch(/Browse the current Parks on the Air references/i);
+    expect(resourceIntro).toMatch(/Use the map to get oriented/i);
     expect(resourceIntro).not.toMatch(/preview only|for launch|placeholder/i);
+    expect(resourceIntro).not.toMatch(/local convenience|source of truth/i);
   });
 
   it("starts the reference map one zoom level tighter than default bounds fitting", () => {

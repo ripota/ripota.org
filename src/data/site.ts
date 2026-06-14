@@ -93,7 +93,7 @@ export const resourceLinks: ExternalLink[] = [
 ];
 
 export const resourceIntro =
-  "Browse the current Parks on the Air references associated with Rhode Island, including parks, refuges, forests, management areas, and multi-state references that include RI. This map is a local convenience; official POTA pages remain the source of truth for boundaries, rules, spots, and logs.";
+  "Browse the current Parks on the Air references associated with Rhode Island, including parks, refuges, forests, management areas, and multi-state references that include RI. Use the map to get oriented, then open POTA for the latest reference details before activating.";
 
 export const referenceMapZoomOffset = 1;
 
