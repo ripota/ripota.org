@@ -1,0 +1,115 @@
+{
+  "type": "FeatureCollection",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "EPSG:4326"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": 916,
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -71.79268271826508,
+              41.92616613302855
+            ],
+            [
+              -71.78637979856663,
+              41.922975096361995
+            ],
+            [
+              -71.78682123712844,
+              41.92618846797316
+            ],
+            [
+              -71.78671602715147,
+              41.94075134718753
+            ],
+            [
+              -71.79259179072335,
+              41.94102158276414
+            ],
+            [
+              -71.7925808093476,
+              41.936659560764404
+            ],
+            [
+              -71.79467881263533,
+              41.936781542304296
+            ],
+            [
+              -71.79655314912706,
+              41.9369810156308
+            ],
+            [
+              -71.79806277189994,
+              41.93711205578006
+            ],
+            [
+              -71.79797828805346,
+              41.930855106350876
+            ],
+            [
+              -71.7978851906022,
+              41.928605974324974
+            ],
+            [
+              -71.79783088400316,
+              41.92757163857678
+            ],
+            [
+              -71.7957810125019,
+              41.92675333759548
+            ],
+            [
+              -71.79527885353723,
+              41.92602304681085
+            ],
+            [
+              -71.79268271826508,
+              41.92616613302855
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "ACQ_TYPE": "Fee Title",
+        "Acres": 342.66044073,
+        "BondFund": "No",
+        "DeedAcres": 3072.004351,
+        "DeedURL": "https://rigov.sharepoint.com/sites/DEM-NR-PD-Team/Shared%20Documents/LandAcquisition/Legal_Records",
+        "DEM_AREA": "George Washington Management Area",
+        "DEM_DIV": "Forest Environment",
+        "DEM_ID": "6077",
+        "DEM_Managed": "Yes",
+        "FISHING": "Yes",
+        "HUNTING": "No",
+        "ManArea": "No",
+        "NAME": "Pulaski State Park",
+        "NPS_6f": "Y",
+        "OBJECTID": 916,
+        "Poly_Src": "TGIS",
+        "PrimUse": "State Park",
+        "Pub_Access": "YES",
+        "Shape.STArea()": 14926288.79814148,
+        "Shape.STLength()": 18366.301658731572,
+        "SurvURL": "https://rigov.sharepoint.com/sites/DEM-NR-PD-Team/Shared%20Documents/LandAcquisition/Legal_Records",
+        "USFW_GrntID": "NA",
+        "Year": "1938"
+      }
+    }
+  ],
+  "properties": {
+    "geometryKind": "boundary",
+    "potaReference": "US-7508",
+    "potaName": "Pulaski State Park",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "NAME = 'Pulaski State Park'"
+  }
+}

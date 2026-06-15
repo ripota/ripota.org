@@ -1,0 +1,143 @@
+{
+  "type": "FeatureCollection",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "EPSG:4326"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": 869,
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -71.25855126423446,
+              41.60168673440399
+            ],
+            [
+              -71.25865528667963,
+              41.601590059066446
+            ],
+            [
+              -71.25869498114609,
+              41.601506555263995
+            ],
+            [
+              -71.25871538587275,
+              41.601452312737834
+            ],
+            [
+              -71.25874246147677,
+              41.60129075061594
+            ],
+            [
+              -71.25872125844656,
+              41.601207025355485
+            ],
+            [
+              -71.25869812639175,
+              41.601115955291355
+            ],
+            [
+              -71.25865149838917,
+              41.60103217574997
+            ],
+            [
+              -71.25856219785575,
+              41.60099263110092
+            ],
+            [
+              -71.25841137584203,
+              41.60091128870955
+            ],
+            [
+              -71.2582316524435,
+              41.60106560508869
+            ],
+            [
+              -71.25812870139654,
+              41.60118669504834
+            ],
+            [
+              -71.25805762374583,
+              41.60130883610039
+            ],
+            [
+              -71.25801261477424,
+              41.60143371959411
+            ],
+            [
+              -71.25798835921091,
+              41.60158131637182
+            ],
+            [
+              -71.25799751372281,
+              41.60174869805952
+            ],
+            [
+              -71.2580332338745,
+              41.60189478238631
+            ],
+            [
+              -71.25810261512561,
+              41.6018869195594
+            ],
+            [
+              -71.25818090077132,
+              41.60187387125829
+            ],
+            [
+              -71.25832327133821,
+              41.601840805463574
+            ],
+            [
+              -71.25837472555398,
+              41.60182289622974
+            ],
+            [
+              -71.25855126423446,
+              41.60168673440399
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "ACQ_TYPE": "Fee Title",
+        "Acres": 1.16326386,
+        "BondFund": "No",
+        "DeedAcres": 1.16498831,
+        "DeedURL": "https://rigov.sharepoint.com/sites/DEM-NR-PD-Team/Shared%20Documents/LandAcquisition/Legal_Records",
+        "DEM_AREA": "Patriot Park",
+        "DEM_DIV": "Parks & Recreation",
+        "DEM_ID": "7091",
+        "DEM_Managed": "Yes",
+        "FISHING": "Yes",
+        "HUNTING": "No",
+        "ManArea": "No",
+        "NAME": "Patriot Park",
+        "NPS_6f": "N",
+        "OBJECTID": 869,
+        "Poly_Src": "TGIS",
+        "PrimUse": "Historic Site",
+        "Pub_Access": "YES",
+        "Shape.STArea()": 50671.7737197876,
+        "Shape.STLength()": 893.2605440633262,
+        "SurvURL": "https://rigov.sharepoint.com/sites/DEM-NR-PD-Team/Shared%20Documents/LandAcquisition/Legal_Records",
+        "USFW_GrntID": "NA",
+        "Year": "1901"
+      }
+    }
+  ],
+  "properties": {
+    "geometryKind": "boundary",
+    "potaReference": "US-10543",
+    "potaName": "Patriots Park State Historic Site",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Patriot Park'"
+  }
+}

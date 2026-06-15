@@ -1,0 +1,243 @@
+{
+  "type": "FeatureCollection",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "EPSG:4326"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": 390,
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -71.51087471305556,
+              42.01085027541395
+            ],
+            [
+              -71.51052597649112,
+              42.01085795967058
+            ],
+            [
+              -71.51036257497009,
+              42.010861559578764
+            ],
+            [
+              -71.51015667883848,
+              42.01086609484469
+            ],
+            [
+              -71.50993252862708,
+              42.01087103196091
+            ],
+            [
+              -71.5098148691044,
+              42.010866406385155
+            ],
+            [
+              -71.50959765342633,
+              42.010857868205775
+            ],
+            [
+              -71.50932613270311,
+              42.01084719490362
+            ],
+            [
+              -71.50889254912627,
+              42.010830147729294
+            ],
+            [
+              -71.50892857063565,
+              42.01095822311704
+            ],
+            [
+              -71.50895031477872,
+              42.011035535593834
+            ],
+            [
+              -71.50896942232315,
+              42.01110347153715
+            ],
+            [
+              -71.50897801892071,
+              42.011189825952115
+            ],
+            [
+              -71.50899714646606,
+              42.01138197953116
+            ],
+            [
+              -71.50912773910576,
+              42.01155938260457
+            ],
+            [
+              -71.50926573676811,
+              42.01163158995023
+            ],
+            [
+              -71.50945277250727,
+              42.01181346171735
+            ],
+            [
+              -71.50976326718123,
+              42.01195519410042
+            ],
+            [
+              -71.50982643789337,
+              42.01259252292435
+            ],
+            [
+              -71.50964751336438,
+              42.01279896935639
+            ],
+            [
+              -71.50982127411429,
+              42.012958422975224
+            ],
+            [
+              -71.50996941119115,
+              42.01293525332099
+            ],
+            [
+              -71.51037007249218,
+              42.01287258322841
+            ],
+            [
+              -71.51044545721942,
+              42.01298196859106
+            ],
+            [
+              -71.5104899282443,
+              42.01291480318919
+            ],
+            [
+              -71.51053122877663,
+              42.012846508170895
+            ],
+            [
+              -71.51060411805658,
+              42.012706903845924
+            ],
+            [
+              -71.51066377152532,
+              42.01256384711153
+            ],
+            [
+              -71.51074227445126,
+              42.01227018016054
+            ],
+            [
+              -71.51076074163716,
+              42.01212099970023
+            ],
+            [
+              -71.51076373259414,
+              42.01192445985577
+            ],
+            [
+              -71.51080934393126,
+              42.011518438058296
+            ],
+            [
+              -71.51087471305556,
+              42.01085027541395
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "ACQ_TYPE": "Fee Title",
+        "Acres": 6.17706543,
+        "BondFund": "No",
+        "DeedAcres": 6.17709014,
+        "DeedURL": "https://rigov.sharepoint.com/sites/DEM-NR-PD-Team/Shared%20Documents/LandAcquisition/Legal_Records/7061%20World%20War%20II%20Park%20Woonsocket%207061.pdf",
+        "DEM_AREA": "World War II Veterans Memorial State Park",
+        "DEM_DIV": "Parks & Recreation",
+        "DEM_ID": "7061",
+        "DEM_Managed": "No",
+        "FISHING": "Yes",
+        "HUNTING": "No",
+        "ManArea": "No",
+        "NAME": "World War II Park",
+        "NPS_6f": "N",
+        "OBJECTID": 390,
+        "Poly_Src": "TGIS",
+        "PrimUse": "Other",
+        "Pub_Access": "YES",
+        "Shape.STArea()": 269072.97021484375,
+        "Shape.STLength()": 2431.0420353735813,
+        "SurvURL": "https://rigov.sharepoint.com/sites/DEM-NR-PD-Team/Shared%20Documents/LandAcquisition/Legal_Records",
+        "USFW_GrntID": "NA",
+        "Year": "1960"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": 899,
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -71.5109030718925,
+              42.01072567603713
+            ],
+            [
+              -71.51085105122829,
+              42.01010787788481
+            ],
+            [
+              -71.51066720571282,
+              42.01036560185502
+            ],
+            [
+              -71.51051471176325,
+              42.01074608900766
+            ],
+            [
+              -71.5109030718925,
+              42.01072567603713
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "ACQ_TYPE": "Fee Title",
+        "Acres": 0.30879695,
+        "BondFund": "No",
+        "DeedAcres": 1,
+        "DeedURL": "https://rigov.sharepoint.com/sites/DEM-NR-PD-Team/Shared%20Documents/LandAcquisition/Legal_Records",
+        "DEM_AREA": "World War II Veterans Memorial State Park",
+        "DEM_DIV": "Parks & Recreation",
+        "DEM_ID": "7034",
+        "DEM_Managed": "Yes",
+        "FISHING": "No",
+        "HUNTING": "No",
+        "ManArea": "No",
+        "NAME": "LaFond Garage",
+        "NPS_6f": "N",
+        "OBJECTID": 899,
+        "Poly_Src": "TGIS",
+        "PrimUse": "Maintainance",
+        "Pub_Access": "NO",
+        "Shape.STArea()": 13451.195213317871,
+        "Shape.STLength()": 582.479568015927,
+        "SurvURL": "https://rigov.sharepoint.com/sites/DEM-NR-PD-Team/Shared%20Documents/LandAcquisition/Legal_Records",
+        "USFW_GrntID": "NA",
+        "Year": "1989"
+      }
+    }
+  ],
+  "properties": {
+    "geometryKind": "boundary",
+    "potaReference": "US-2881",
+    "potaName": "World War II Veterans Memorial State Park",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'World War II Veterans Memorial State Park'"
+  }
+}

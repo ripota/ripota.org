@@ -1,0 +1,135 @@
+{
+  "type": "FeatureCollection",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "EPSG:4326"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": 684,
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -71.5130794667337,
+              41.37707882083898
+            ],
+            [
+              -71.51316619169249,
+              41.37709842818478
+            ],
+            [
+              -71.5131702661764,
+              41.3768818241287
+            ],
+            [
+              -71.51318223589712,
+              41.37661012395392
+            ],
+            [
+              -71.51320459505222,
+              41.37588511006375
+            ],
+            [
+              -71.51320837305973,
+              41.375781646168846
+            ],
+            [
+              -71.51321161961882,
+              41.375503511706285
+            ],
+            [
+              -71.51319948397649,
+              41.37517770045759
+            ],
+            [
+              -71.5131076230331,
+              41.37520170509959
+            ],
+            [
+              -71.51301192961752,
+              41.37523155826801
+            ],
+            [
+              -71.51292296232239,
+              41.37525448554413
+            ],
+            [
+              -71.51285382736128,
+              41.37528297417393
+            ],
+            [
+              -71.51277136627967,
+              41.37529928168787
+            ],
+            [
+              -71.51269587218256,
+              41.37531746843123
+            ],
+            [
+              -71.51266827558416,
+              41.37548935713595
+            ],
+            [
+              -71.51265795510191,
+              41.37577516746103
+            ],
+            [
+              -71.51263722653388,
+              41.37678482058579
+            ],
+            [
+              -71.51278827277159,
+              41.37690540934938
+            ],
+            [
+              -71.51293681745842,
+              41.37700730747761
+            ],
+            [
+              -71.5130794667337,
+              41.37707882083898
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "ACQ_TYPE": "Fee Title",
+        "Acres": 2.13519228,
+        "BondFund": "No",
+        "DeedAcres": 2.20070518,
+        "DeedURL": "https://rigov.sharepoint.com/sites/DEM-NR-PD-Team/Shared%20Documents/LandAcquisition/Legal_Records/7076%20Salty%20Brine%20Beach%20Narragansett%207076.pdf",
+        "DEM_AREA": "Salty Brine Beach State Park",
+        "DEM_DIV": "Parks & Recreation",
+        "DEM_ID": "7076",
+        "DEM_Managed": "Yes",
+        "FISHING": "Yes",
+        "HUNTING": "No",
+        "ManArea": "No",
+        "NAME": "Salty Brine State Beach",
+        "NPS_6f": "Y",
+        "OBJECTID": 684,
+        "Poly_Src": "TGIS",
+        "PrimUse": "Beach",
+        "Pub_Access": "YES",
+        "Shape.STArea()": 93008.97585296631,
+        "Shape.STLength()": 1570.3886697971384,
+        "SurvURL": "https://rigov.sharepoint.com/sites/DEM-NR-PD-Team/Shared%20Documents/LandAcquisition/Legal_Records/7076_Salty_Brine_Survey.pdf",
+        "USFW_GrntID": "NA",
+        "Year": "1946"
+      }
+    }
+  ],
+  "properties": {
+    "geometryKind": "boundary",
+    "potaReference": "US-7721",
+    "potaName": "Salty Brine State Beach",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Salty Brine Beach State Park'"
+  }
+}

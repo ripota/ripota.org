@@ -1,0 +1,215 @@
+{
+  "type": "FeatureCollection",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "EPSG:4326"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": 626,
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -71.77905700777757,
+              41.84995778476023
+            ],
+            [
+              -71.77930318876273,
+              41.851039924302746
+            ],
+            [
+              -71.78047915437561,
+              41.850890367090564
+            ],
+            [
+              -71.78024586444796,
+              41.849768039167984
+            ],
+            [
+              -71.78078831124223,
+              41.84969769917307
+            ],
+            [
+              -71.78067106414426,
+              41.849279288656426
+            ],
+            [
+              -71.77958504347156,
+              41.849416469025336
+            ],
+            [
+              -71.77969021592665,
+              41.84987725639268
+            ],
+            [
+              -71.77905700777757,
+              41.84995778476023
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "ACQ_TYPE": "Fee Title",
+        "Acres": 4.14676782,
+        "BondFund": "Yes",
+        "DeedAcres": 4.1467844,
+        "DeedURL": "https://rigov.sharepoint.com/sites/DEM-NR-PD-Team/Shared%20Documents/LandAcquisition/Legal_Records/6105%20Mosley%206105.pdf",
+        "DEM_AREA": "Jerimoth Hill",
+        "DEM_DIV": "Forest Environment",
+        "DEM_ID": "6105",
+        "DEM_Managed": "Yes",
+        "FISHING": "No",
+        "HUNTING": "No",
+        "ManArea": "No",
+        "NAME": "Mosley/Jerimoth Hill",
+        "NPS_6f": "N",
+        "OBJECTID": 626,
+        "Poly_Src": "PSUR",
+        "PrimUse": "State Park",
+        "Pub_Access": "LIM",
+        "Shape.STArea()": 180633.2060623169,
+        "Shape.STLength()": 2090.0973666814757,
+        "SurvURL": "https://rigov.sharepoint.com/sites/DEM-NR-PD-Team/Shared%20Documents/LandAcquisition/Legal_Records/6105_Mosley_Survey.pdf",
+        "USFW_GrntID": "NA",
+        "Year": "2009"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": 627,
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -71.77887611277681,
+              41.84998088554911
+            ],
+            [
+              -71.77912226872367,
+              41.851062931902874
+            ],
+            [
+              -71.77930318876273,
+              41.851039924302746
+            ],
+            [
+              -71.77905700777757,
+              41.84995778476023
+            ],
+            [
+              -71.77887611277681,
+              41.84998088554911
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "ACQ_TYPE": "Conservation Easement",
+        "Acres": 0.45911543,
+        "BondFund": "Yes",
+        "DeedAcres": 0.4591366,
+        "DeedURL": "https://rigov.sharepoint.com/sites/DEM-NR-PD-Team/Shared%20Documents/LandAcquisition/Legal_Records/6105%20Mosley%206105.pdf",
+        "DEM_AREA": "Jerimoth Hill",
+        "DEM_DIV": "Forest Environment",
+        "DEM_ID": "6105",
+        "DEM_Managed": "Yes",
+        "FISHING": "No",
+        "HUNTING": "No",
+        "ManArea": "No",
+        "NAME": "Mosley/Jerimoth Hill",
+        "NPS_6f": "N",
+        "OBJECTID": 627,
+        "Poly_Src": "PSUR",
+        "PrimUse": "Conservation",
+        "Pub_Access": "LIM",
+        "Shape.STArea()": 19999.068061828613,
+        "Shape.STLength()": 899.9633650924136,
+        "SurvURL": "https://rigov.sharepoint.com/sites/DEM-NR-PD-Team/Shared%20Documents/LandAcquisition/Legal_Records/6105_Mosley_Survey.pdf",
+        "USFW_GrntID": "NA",
+        "Year": "2009"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": 782,
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -71.77958504347156,
+              41.849416469025336
+            ],
+            [
+              -71.7793197670531,
+              41.84825419418654
+            ],
+            [
+              -71.77787260207757,
+              41.84843883651433
+            ],
+            [
+              -71.77824301548578,
+              41.85006190344337
+            ],
+            [
+              -71.77887611277681,
+              41.84998088554911
+            ],
+            [
+              -71.77905700777757,
+              41.84995778476023
+            ],
+            [
+              -71.77969021592665,
+              41.84987725639268
+            ],
+            [
+              -71.77958504347156,
+              41.849416469025336
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "ACQ_TYPE": "Fee Title",
+        "Acres": 5.50916816,
+        "BondFund": "Yes",
+        "DeedAcres": 5.50922576,
+        "DeedURL": "https://rigov.sharepoint.com/sites/DEM-NR-PD-Team/Shared%20Documents/LandAcquisition/Legal_Records/6111%20Jerimoth_BrownU%20Deed%20Foster%206111.pdf",
+        "DEM_AREA": "Jerimoth Hill",
+        "DEM_DIV": "Forest Environment",
+        "DEM_ID": "6111",
+        "DEM_Managed": "Yes",
+        "FISHING": "No",
+        "HUNTING": "No",
+        "ManArea": "No",
+        "NAME": "Brown U / Jerimoth Hill",
+        "NPS_6f": "N",
+        "OBJECTID": 782,
+        "Poly_Src": "PSUR",
+        "PrimUse": "Conservation",
+        "Pub_Access": "YES",
+        "Shape.STArea()": 239979.36519622803,
+        "Shape.STLength()": 1999.9996501903008,
+        "SurvURL": "https://rigov.sharepoint.com/sites/DEM-NR-PD-Team/Shared%20Documents/LandAcquisition/Legal_Records/6111_Brown_Survey.pdf",
+        "USFW_GrntID": "NA",
+        "Year": "2014"
+      }
+    }
+  ],
+  "properties": {
+    "geometryKind": "boundary",
+    "potaReference": "US-10544",
+    "potaName": "Jerimoth Hill State Recreation Area",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Jerimoth Hill'"
+  }
+}

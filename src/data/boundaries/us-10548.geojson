@@ -1,0 +1,127 @@
+{
+  "type": "FeatureCollection",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "EPSG:4326"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": 649,
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -71.56488529497541,
+              41.49876243869753
+            ],
+            [
+              -71.56477342797585,
+              41.498552288350595
+            ],
+            [
+              -71.56415534307754,
+              41.499046898150894
+            ],
+            [
+              -71.56385795410661,
+              41.49935844676966
+            ],
+            [
+              -71.56341555158257,
+              41.4999852240697
+            ],
+            [
+              -71.56375881275768,
+              41.49999764156212
+            ],
+            [
+              -71.56380611626355,
+              41.499979784888566
+            ],
+            [
+              -71.56388932138162,
+              41.49991357527565
+            ],
+            [
+              -71.56393879576491,
+              41.499880707825376
+            ],
+            [
+              -71.5640245349663,
+              41.49970879801615
+            ],
+            [
+              -71.56407093133532,
+              41.49950844960462
+            ],
+            [
+              -71.56414214533903,
+              41.49937376634837
+            ],
+            [
+              -71.56427307034784,
+              41.499251091520684
+            ],
+            [
+              -71.56447684433746,
+              41.49917544546484
+            ],
+            [
+              -71.56459180533918,
+              41.49910751218719
+            ],
+            [
+              -71.56473002243725,
+              41.49899906251803
+            ],
+            [
+              -71.56485506682337,
+              41.498821657359
+            ],
+            [
+              -71.56488529497541,
+              41.49876243869753
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "ACQ_TYPE": "Fee Title",
+        "Acres": 1.22190839,
+        "BondFund": "No",
+        "DeedAcres": 1.22909709,
+        "DeedURL": "https://rigov.sharepoint.com/sites/DEM-NR-PD-Team/Shared%20Documents/LandAcquisition/Legal_Records",
+        "DEM_AREA": "Barber Pond Fishing Access",
+        "DEM_DIV": "Boat Ramps & Fishing Access",
+        "DEM_ID": "9066",
+        "DEM_Managed": "Yes",
+        "FISHING": "Yes",
+        "HUNTING": "No",
+        "ManArea": "No",
+        "NAME": "Barbers Pond",
+        "NPS_6f": "N",
+        "OBJECTID": 649,
+        "Poly_Src": "TGIS",
+        "PrimUse": "Fishing  Access",
+        "Pub_Access": "YES",
+        "Shape.STArea()": 53226.32963562012,
+        "Shape.STLength()": 1392.3858332552145,
+        "SurvURL": "https://rigov.sharepoint.com/sites/DEM-NR-PD-Team/Shared%20Documents/LandAcquisition/Legal_Records",
+        "USFW_GrntID": "NA",
+        "Year": "1901"
+      }
+    }
+  ],
+  "properties": {
+    "geometryKind": "boundary",
+    "potaReference": "US-10548",
+    "potaName": "Barber Pond State Recreation Area",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Barber Pond Fishing Access'"
+  }
+}

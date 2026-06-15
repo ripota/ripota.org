@@ -1,0 +1,159 @@
+{
+  "type": "FeatureCollection",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "EPSG:4326"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": 768,
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -71.68679037035812,
+              41.374330900919425
+            ],
+            [
+              -71.68699725851559,
+              41.37481723923024
+            ],
+            [
+              -71.68706054382413,
+              41.37481020141749
+            ],
+            [
+              -71.68712944465155,
+              41.374766771572354
+            ],
+            [
+              -71.68718283811177,
+              41.3746800490866
+            ],
+            [
+              -71.68738174887264,
+              41.374584534021416
+            ],
+            [
+              -71.68770327651185,
+              41.37447143715867
+            ],
+            [
+              -71.68814355593904,
+              41.37433509030554
+            ],
+            [
+              -71.6884690022005,
+              41.374282594194945
+            ],
+            [
+              -71.68874222594177,
+              41.37427791356503
+            ],
+            [
+              -71.68891953890143,
+              41.374284377485615
+            ],
+            [
+              -71.68909063536681,
+              41.37432363167592
+            ],
+            [
+              -71.68972315486599,
+              41.37400450543742
+            ],
+            [
+              -71.68929346944601,
+              41.372854402394985
+            ],
+            [
+              -71.68907699290396,
+              41.372274963366905
+            ],
+            [
+              -71.68839324351502,
+              41.370444709213224
+            ],
+            [
+              -71.68702135356976,
+              41.37062922516815
+            ],
+            [
+              -71.68703922017895,
+              41.370705385276224
+            ],
+            [
+              -71.68677091574729,
+              41.37073563003837
+            ],
+            [
+              -71.68673544095128,
+              41.3706395957861
+            ],
+            [
+              -71.68513908896136,
+              41.37074159932706
+            ],
+            [
+              -71.68596307669901,
+              41.37288113345719
+            ],
+            [
+              -71.68613318545056,
+              41.373406077638755
+            ],
+            [
+              -71.68634939580058,
+              41.373983000483385
+            ],
+            [
+              -71.68649996196375,
+              41.37439549284034
+            ],
+            [
+              -71.68679037035812,
+              41.374330900919425
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "ACQ_TYPE": "Fee Title",
+        "Acres": 28.86120662,
+        "BondFund": "Yes",
+        "DeedAcres": 28.86132067,
+        "DeedURL": "https://rigov.sharepoint.com/sites/DEM-NR-PD-Team/Shared%20Documents/LandAcquisition/Legal_Records/7141%20Burlingame%20Charlestown%207141.pdf",
+        "DEM_AREA": "Burlingame State Park - Sanctuary Road",
+        "DEM_DIV": "Parks & Recreation",
+        "DEM_ID": "7141",
+        "DEM_Managed": "Yes",
+        "FISHING": "Yes",
+        "HUNTING": "No",
+        "ManArea": "No",
+        "NAME": "Kimball Refuge",
+        "NPS_6f": "N",
+        "OBJECTID": 768,
+        "Poly_Src": "TGIS",
+        "PrimUse": "State Park",
+        "Pub_Access": "YES",
+        "Shape.STArea()": 1257194.1602840424,
+        "Shape.STLength()": 4803.777134453929,
+        "SurvURL": "https://rigov.sharepoint.com/sites/DEM-NR-PD-Team/Shared%20Documents/LandAcquisition/Legal_Records/7141%20Kimball%20Refuge%20Survey.pdf",
+        "USFW_GrntID": "NA",
+        "Year": "2015"
+      }
+    }
+  ],
+  "properties": {
+    "geometryKind": "boundary",
+    "potaReference": "US-7518",
+    "potaName": "Kimball Wildlife Refuge",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "NAME = 'Kimball Refuge'"
+  }
+}

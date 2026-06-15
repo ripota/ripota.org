@@ -1,0 +1,1085 @@
+[
+  {
+    "reference": "US-0513",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "U.S. Fish and Wildlife Service National Wildlife Refuge System Boundaries",
+    "sourceUrl": "https://services.arcgis.com/QVENGdaPbd4LUkLV/arcgis/rest/services/National_Wildlife_Refuge_System_Boundaries/FeatureServer/0",
+    "sourceQuery": "ORGNAME = 'BLOCK ISLAND NATIONAL WILDLIFE REFUGE'",
+    "sourceFeatureIds": [
+      87
+    ],
+    "localGeojson": "./boundaries/us-0513.geojson"
+  },
+  {
+    "reference": "US-0514",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "U.S. Fish and Wildlife Service National Wildlife Refuge System Boundaries",
+    "sourceUrl": "https://services.arcgis.com/QVENGdaPbd4LUkLV/arcgis/rest/services/National_Wildlife_Refuge_System_Boundaries/FeatureServer/0",
+    "sourceQuery": "ORGNAME = 'JOHN H. CHAFEE NATIONAL WILDLIFE REFUGE'",
+    "sourceFeatureIds": [
+      491
+    ],
+    "localGeojson": "./boundaries/us-0514.geojson"
+  },
+  {
+    "reference": "US-0515",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "U.S. Fish and Wildlife Service National Wildlife Refuge System Boundaries",
+    "sourceUrl": "https://services.arcgis.com/QVENGdaPbd4LUkLV/arcgis/rest/services/National_Wildlife_Refuge_System_Boundaries/FeatureServer/0",
+    "sourceQuery": "ORGNAME = 'NINIGRET NATIONAL WILDLIFE REFUGE'",
+    "sourceFeatureIds": [
+      717
+    ],
+    "localGeojson": "./boundaries/us-0515.geojson"
+  },
+  {
+    "reference": "US-0516",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "U.S. Fish and Wildlife Service National Wildlife Refuge System Boundaries",
+    "sourceUrl": "https://services.arcgis.com/QVENGdaPbd4LUkLV/arcgis/rest/services/National_Wildlife_Refuge_System_Boundaries/FeatureServer/0",
+    "sourceQuery": "ORGNAME = 'SACHUEST POINT NATIONAL WILDLIFE REFUGE'",
+    "sourceFeatureIds": [
+      861
+    ],
+    "localGeojson": "./boundaries/us-0516.geojson"
+  },
+  {
+    "reference": "US-0517",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "U.S. Fish and Wildlife Service National Wildlife Refuge System Boundaries",
+    "sourceUrl": "https://services.arcgis.com/QVENGdaPbd4LUkLV/arcgis/rest/services/National_Wildlife_Refuge_System_Boundaries/FeatureServer/0",
+    "sourceQuery": "ORGNAME = 'TRUSTOM POND NATIONAL WILDLIFE REFUGE'",
+    "sourceFeatureIds": [
+      1001
+    ],
+    "localGeojson": "./boundaries/us-0517.geojson"
+  },
+  {
+    "reference": "US-0789",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "National Park Service Land Resources Division Boundary and Tract Data Service",
+    "sourceUrl": "https://services1.arcgis.com/fBc8EJBxQRMcHlei/arcgis/rest/services/NPS_Land_Resources_Division_Boundary_and_Tract_Data_Service/FeatureServer/2",
+    "sourceQuery": "UNIT_CODE = 'ROWI'",
+    "sourceFeatureIds": [
+      929
+    ],
+    "localGeojson": "./boundaries/us-0789.geojson"
+  },
+  {
+    "reference": "US-10541",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Gull Cove Fishing Access'",
+    "sourceFeatureIds": [
+      713
+    ],
+    "localGeojson": "./boundaries/us-10541.geojson"
+  },
+  {
+    "reference": "US-10542",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Camp Cronin Fishing Access'",
+    "sourceFeatureIds": [
+      680,
+      681
+    ],
+    "localGeojson": "./boundaries/us-10542.geojson"
+  },
+  {
+    "reference": "US-10543",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Patriot Park'",
+    "sourceFeatureIds": [
+      869
+    ],
+    "localGeojson": "./boundaries/us-10543.geojson"
+  },
+  {
+    "reference": "US-10544",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Jerimoth Hill'",
+    "sourceFeatureIds": [
+      626,
+      627,
+      782
+    ],
+    "localGeojson": "./boundaries/us-10544.geojson"
+  },
+  {
+    "reference": "US-10545",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Hillsdale'",
+    "sourceFeatureIds": [
+      16015
+    ],
+    "localGeojson": "./boundaries/us-10545.geojson"
+  },
+  {
+    "reference": "US-10546",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Eight Rod Farm Management Area'",
+    "sourceFeatureIds": [
+      227,
+      228,
+      25549
+    ],
+    "localGeojson": "./boundaries/us-10546.geojson"
+  },
+  {
+    "reference": "US-10547",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Spring Lake Fishing Access' OR DEM_AREA = 'Silver Spring Management Area'",
+    "sourceFeatureIds": [
+      646,
+      31599
+    ],
+    "localGeojson": "./boundaries/us-10547.geojson"
+  },
+  {
+    "reference": "US-10548",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Barber Pond Fishing Access'",
+    "sourceFeatureIds": [
+      649
+    ],
+    "localGeojson": "./boundaries/us-10548.geojson"
+  },
+  {
+    "reference": "US-2868",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Beavertail State Park'",
+    "sourceFeatureIds": [
+      37984,
+      37985,
+      37986,
+      47339
+    ],
+    "localGeojson": "./boundaries/us-2868.geojson"
+  },
+  {
+    "reference": "US-2869",
+    "status": "research-needed",
+    "sourceName": "Not yet matched to an authoritative boundary source",
+    "sourceUrl": "https://docs.pota.app/",
+    "notes": "RI DEM has many Blackstone River conservation and bikeway parcels, but no clear Blackstone River State Park boundary match in the State Conservation Land layer."
+  },
+  {
+    "reference": "US-2870",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Brenton Point State Park'",
+    "sourceFeatureIds": [
+      876,
+      879
+    ],
+    "localGeojson": "./boundaries/us-2870.geojson"
+  },
+  {
+    "reference": "US-2871",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA LIKE 'Burlingame State Park%' OR DEM_AREA = 'Burlingame Management Area'",
+    "sourceFeatureIds": [
+      24,
+      75,
+      135,
+      177,
+      244,
+      245,
+      509,
+      549,
+      587,
+      763,
+      768,
+      775,
+      888,
+      911,
+      950
+    ],
+    "localGeojson": "./boundaries/us-2871.geojson"
+  },
+  {
+    "reference": "US-2872",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Colt State Park'",
+    "sourceFeatureIds": [
+      109,
+      259,
+      729,
+      762
+    ],
+    "localGeojson": "./boundaries/us-2872.geojson"
+  },
+  {
+    "reference": "US-2873",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Fishermans Memorial State Park Campground'",
+    "sourceFeatureIds": [
+      258,
+      275,
+      339
+    ],
+    "localGeojson": "./boundaries/us-2873.geojson"
+  },
+  {
+    "reference": "US-2874",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Fort Adams State Park'",
+    "sourceFeatureIds": [
+      223,
+      483,
+      484,
+      485,
+      486,
+      487,
+      690,
+      691
+    ],
+    "localGeojson": "./boundaries/us-2874.geojson"
+  },
+  {
+    "reference": "US-2875",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Fort Wetherill'",
+    "sourceFeatureIds": [
+      566,
+      567
+    ],
+    "localGeojson": "./boundaries/us-2875.geojson"
+  },
+  {
+    "reference": "US-2876",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Goddard State Park'",
+    "sourceFeatureIds": [
+      94
+    ],
+    "localGeojson": "./boundaries/us-2876.geojson"
+  },
+  {
+    "reference": "US-2877",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Haines Memorial Park' OR DEM_AREA = 'Haines Memorial State Park Boat Ramp'",
+    "sourceFeatureIds": [
+      4252,
+      13547
+    ],
+    "localGeojson": "./boundaries/us-2877.geojson"
+  },
+  {
+    "reference": "US-2878",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Lincoln Woods State Park'",
+    "sourceFeatureIds": [
+      53,
+      61,
+      62,
+      69,
+      883
+    ],
+    "localGeojson": "./boundaries/us-2878.geojson"
+  },
+  {
+    "reference": "US-2879",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Rocky Point State Park'",
+    "sourceFeatureIds": [
+      643,
+      692
+    ],
+    "localGeojson": "./boundaries/us-2879.geojson"
+  },
+  {
+    "reference": "US-2880",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Snake Den State Park'",
+    "sourceFeatureIds": [
+      751,
+      752,
+      753,
+      754,
+      756,
+      757,
+      758
+    ],
+    "localGeojson": "./boundaries/us-2880.geojson"
+  },
+  {
+    "reference": "US-2881",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'World War II Veterans Memorial State Park'",
+    "sourceFeatureIds": [
+      390,
+      899
+    ],
+    "localGeojson": "./boundaries/us-2881.geojson"
+  },
+  {
+    "reference": "US-4582",
+    "status": "available",
+    "geometryKind": "activation-zone",
+    "sourceName": "Washington Rochambeau National Historic Trail Route",
+    "sourceUrl": "https://services.arcgis.com/hRUr1F8lE8Jq2uJo/arcgis/rest/services/Washington_Rochambeau_National_Historic_Trail_Route/FeatureServer/2",
+    "sourceQuery": "Name = 'Trail in RI'",
+    "sourceFeatureIds": [
+      2
+    ],
+    "localGeojson": "./boundaries/us-4582.geojson",
+    "notes": "Buffered from the NPS Rhode Island route segment using POTA's 100-foot trail activation-zone rule."
+  },
+  {
+    "reference": "US-5482",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Wickaboxet Management Area'",
+    "sourceFeatureIds": [
+      368,
+      411
+    ],
+    "localGeojson": "./boundaries/us-5482.geojson"
+  },
+  {
+    "reference": "US-5483",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Lincoln Woods State Park'",
+    "sourceFeatureIds": [
+      53,
+      61,
+      62,
+      69,
+      883
+    ],
+    "localGeojson": "./boundaries/us-5483.geojson"
+  },
+  {
+    "reference": "US-5484",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'George Washington Management Area'",
+    "sourceFeatureIds": [
+      27,
+      29,
+      30,
+      167,
+      536,
+      543,
+      557,
+      638,
+      721,
+      916
+    ],
+    "localGeojson": "./boundaries/us-5484.geojson"
+  },
+  {
+    "reference": "US-6979",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Arcadia Management Area'",
+    "sourceFeatureIds": [
+      13,
+      14,
+      35,
+      95,
+      102,
+      112,
+      115,
+      124,
+      126,
+      155,
+      156,
+      158,
+      159,
+      165,
+      171,
+      190,
+      226,
+      274,
+      289,
+      290,
+      296,
+      332,
+      359,
+      360,
+      367,
+      369,
+      399,
+      407,
+      408,
+      409,
+      412,
+      414,
+      415,
+      416,
+      417,
+      418,
+      419,
+      420,
+      427,
+      428,
+      431,
+      438,
+      482,
+      518,
+      523,
+      524,
+      529,
+      562,
+      575,
+      616,
+      625,
+      651,
+      652,
+      693,
+      694,
+      695,
+      764,
+      765,
+      778,
+      796,
+      797,
+      799,
+      800,
+      801,
+      802,
+      803,
+      804,
+      805,
+      806,
+      807,
+      808,
+      809,
+      810,
+      811,
+      812,
+      813,
+      814,
+      815,
+      816,
+      817,
+      818,
+      819,
+      820,
+      821,
+      822,
+      823,
+      824,
+      825,
+      826,
+      827,
+      828,
+      829,
+      830,
+      831,
+      832,
+      833,
+      834,
+      835,
+      836,
+      837,
+      838,
+      839,
+      840,
+      841,
+      842,
+      843,
+      844,
+      845,
+      846,
+      847,
+      848,
+      849,
+      850,
+      851,
+      852,
+      853,
+      854,
+      855,
+      856,
+      857,
+      858,
+      859,
+      862,
+      863,
+      893,
+      910,
+      929
+    ],
+    "localGeojson": "./boundaries/us-6979.geojson"
+  },
+  {
+    "reference": "US-6980",
+    "status": "point-only",
+    "geometryKind": "point",
+    "sourceName": "Parks on the Air reference coordinate",
+    "sourceUrl": "https://pota.app/#/park/US-6980",
+    "sourceFeatureIds": [
+      "US-6980"
+    ],
+    "localGeojson": "./boundaries/us-6980.geojson",
+    "notes": "No reviewed Beach Pond Wildlife Management Area polygon was found in RI DEM State Conservation Land. RI Parks lists Beach Pond as a DEM site managed from the Arcadia Management Area context, and the POTA coordinate is 41.5739, -71.7864."
+  },
+  {
+    "reference": "US-6981",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Great Swamp Management Area'",
+    "sourceFeatureIds": [
+      176,
+      191,
+      211,
+      218,
+      230,
+      231,
+      232,
+      280,
+      301,
+      381,
+      401,
+      406,
+      525,
+      676,
+      720,
+      889,
+      890,
+      891
+    ],
+    "localGeojson": "./boundaries/us-6981.geojson"
+  },
+  {
+    "reference": "US-6982",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Big River Management Area'",
+    "sourceFeatureIds": [
+      508,
+      10848,
+      37958
+    ],
+    "localGeojson": "./boundaries/us-6982.geojson"
+  },
+  {
+    "reference": "US-6983",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Woody Hill Management Area'",
+    "sourceFeatureIds": [
+      285,
+      397,
+      660,
+      925,
+      34078,
+      34478
+    ],
+    "localGeojson": "./boundaries/us-6983.geojson"
+  },
+  {
+    "reference": "US-6984",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Black Hut Management Area'",
+    "sourceFeatureIds": [
+      16,
+      299,
+      343,
+      515,
+      519,
+      548,
+      554,
+      555,
+      558,
+      559,
+      560,
+      561,
+      670,
+      703,
+      744,
+      770,
+      771,
+      29221,
+      47329
+    ],
+    "localGeojson": "./boundaries/us-6984.geojson"
+  },
+  {
+    "reference": "US-6985",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Round Top Management Area'",
+    "sourceFeatureIds": [
+      2,
+      278,
+      919
+    ],
+    "localGeojson": "./boundaries/us-6985.geojson"
+  },
+  {
+    "reference": "US-6986",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Simmons Mill Management Area'",
+    "sourceFeatureIds": [
+      170,
+      188,
+      194,
+      634
+    ],
+    "localGeojson": "./boundaries/us-6986.geojson"
+  },
+  {
+    "reference": "US-6987",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Cocumcussoc'",
+    "sourceFeatureIds": [
+      436
+    ],
+    "localGeojson": "./boundaries/us-6987.geojson"
+  },
+  {
+    "reference": "US-6988",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Grills Preserve'",
+    "sourceFeatureIds": [
+      437,
+      586,
+      588,
+      783,
+      33784
+    ],
+    "localGeojson": "./boundaries/us-6988.geojson"
+  },
+  {
+    "reference": "US-6989",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Black Farm Management Area'",
+    "sourceFeatureIds": [
+      7,
+      25,
+      219,
+      600
+    ],
+    "localGeojson": "./boundaries/us-6989.geojson"
+  },
+  {
+    "reference": "US-6990",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Nicholas Farm Management Area'",
+    "sourceFeatureIds": [
+      67,
+      100,
+      101,
+      103,
+      107,
+      363,
+      393,
+      394,
+      395,
+      787,
+      40720
+    ],
+    "localGeojson": "./boundaries/us-6990.geojson"
+  },
+  {
+    "reference": "US-6991",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Rockville Management Area'",
+    "sourceFeatureIds": [
+      15,
+      199,
+      203,
+      204,
+      372,
+      650,
+      677,
+      704,
+      774,
+      920,
+      921,
+      934,
+      8550,
+      15997,
+      51970,
+      51972
+    ],
+    "localGeojson": "./boundaries/us-6991.geojson"
+  },
+  {
+    "reference": "US-6992",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'J.L. Curran'",
+    "sourceFeatureIds": [
+      335,
+      603,
+      734
+    ],
+    "localGeojson": "./boundaries/us-6992.geojson"
+  },
+  {
+    "reference": "US-7508",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "NAME = 'Pulaski State Park'",
+    "sourceFeatureIds": [
+      916
+    ],
+    "localGeojson": "./boundaries/us-7508.geojson"
+  },
+  {
+    "reference": "US-7518",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "NAME = 'Kimball Refuge'",
+    "sourceFeatureIds": [
+      768
+    ],
+    "localGeojson": "./boundaries/us-7518.geojson"
+  },
+  {
+    "reference": "US-7714",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Buck Hill Management Area' OR DEM_AREA = 'Buck HIll'",
+    "sourceFeatureIds": [
+      41,
+      42,
+      501,
+      656,
+      873,
+      8578,
+      8579,
+      8581,
+      8583,
+      8585,
+      8587,
+      8588,
+      8592,
+      8593,
+      8594,
+      8595,
+      8597,
+      8599,
+      8601,
+      8603,
+      8608,
+      9126,
+      9128,
+      9130,
+      9133,
+      9135,
+      9136,
+      9138,
+      9139,
+      9140,
+      9142,
+      9144,
+      9146,
+      9149,
+      9152,
+      9155,
+      9157,
+      9159,
+      9163,
+      9164,
+      9166,
+      9170,
+      9173,
+      9174,
+      36473,
+      40693,
+      46210
+    ],
+    "localGeojson": "./boundaries/us-7714.geojson"
+  },
+  {
+    "reference": "US-7715",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Durfee Hill Management Area'",
+    "sourceFeatureIds": [
+      40,
+      63,
+      64,
+      287,
+      324,
+      356,
+      506,
+      514,
+      532,
+      551,
+      552,
+      553,
+      631,
+      772,
+      773,
+      791,
+      922,
+      16027,
+      16031,
+      16069
+    ],
+    "localGeojson": "./boundaries/us-7715.geojson"
+  },
+  {
+    "reference": "US-7716",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Carolina Management Area'",
+    "sourceFeatureIds": [
+      44,
+      47,
+      202,
+      215,
+      238,
+      250,
+      497,
+      571,
+      780
+    ],
+    "localGeojson": "./boundaries/us-7716.geojson"
+  },
+  {
+    "reference": "US-7717",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Charlestown Breachway State Park Campground'",
+    "sourceFeatureIds": [
+      265
+    ],
+    "localGeojson": "./boundaries/us-7717.geojson"
+  },
+  {
+    "reference": "US-7718",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "NAME = 'East Matunuck State Beach'",
+    "sourceFeatureIds": [
+      609
+    ],
+    "localGeojson": "./boundaries/us-7718.geojson"
+  },
+  {
+    "reference": "US-7719",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "NAME = 'Misquamicut State Beach'",
+    "sourceFeatureIds": [
+      664,
+      665
+    ],
+    "localGeojson": "./boundaries/us-7719.geojson"
+  },
+  {
+    "reference": "US-7720",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Roger Wheeler Beach State Park'",
+    "sourceFeatureIds": [
+      263
+    ],
+    "localGeojson": "./boundaries/us-7720.geojson"
+  },
+  {
+    "reference": "US-7721",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Salty Brine Beach State Park'",
+    "sourceFeatureIds": [
+      684
+    ],
+    "localGeojson": "./boundaries/us-7721.geojson"
+  },
+  {
+    "reference": "US-7722",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Scarborough Beach State Park'",
+    "sourceFeatureIds": [
+      138,
+      239,
+      240,
+      550,
+      901
+    ],
+    "localGeojson": "./boundaries/us-7722.geojson"
+  },
+  {
+    "reference": "US-7723",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'John H. Chafee Rome Point Preserve'",
+    "sourceFeatureIds": [
+      647
+    ],
+    "localGeojson": "./boundaries/us-7723.geojson"
+  },
+  {
+    "reference": "US-7865",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'East Beach State Park'",
+    "sourceFeatureIds": [
+      125,
+      269,
+      270
+    ],
+    "localGeojson": "./boundaries/us-7865.geojson"
+  },
+  {
+    "reference": "US-7971",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "National Park Service Land Resources Division Boundary and Tract Data Service",
+    "sourceUrl": "https://services1.arcgis.com/fBc8EJBxQRMcHlei/arcgis/rest/services/NPS_Land_Resources_Division_Boundary_and_Tract_Data_Service/FeatureServer/2",
+    "sourceQuery": "UNIT_CODE = 'BLRV'",
+    "sourceFeatureIds": [
+      1247
+    ],
+    "localGeojson": "./boundaries/us-7971.geojson"
+  },
+  {
+    "reference": "US-8293",
+    "status": "available",
+    "geometryKind": "boundary",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Seapowet Marsh Management Area'",
+    "sourceFeatureIds": [
+      151,
+      152,
+      154,
+      157,
+      545
+    ],
+    "localGeojson": "./boundaries/us-8293.geojson"
+  }
+]

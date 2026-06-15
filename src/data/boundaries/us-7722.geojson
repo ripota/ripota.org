@@ -1,0 +1,637 @@
+{
+  "type": "FeatureCollection",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "EPSG:4326"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": 138,
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -71.46722142462377,
+              41.39492637701838
+            ],
+            [
+              -71.46728162079766,
+              41.3957220940317
+            ],
+            [
+              -71.46830901943069,
+              41.39565160503236
+            ],
+            [
+              -71.46843126745361,
+              41.39556649251573
+            ],
+            [
+              -71.4685005444937,
+              41.395496807366605
+            ],
+            [
+              -71.46855946114528,
+              41.395437667616825
+            ],
+            [
+              -71.46869369822076,
+              41.3952926350831
+            ],
+            [
+              -71.4687203703077,
+              41.39525057530388
+            ],
+            [
+              -71.46955458063384,
+              41.39393483729952
+            ],
+            [
+              -71.46897007631506,
+              41.39370858433142
+            ],
+            [
+              -71.46864971636964,
+              41.39402832587995
+            ],
+            [
+              -71.46842748741996,
+              41.39419793702277
+            ],
+            [
+              -71.46826763504912,
+              41.394317811130406
+            ],
+            [
+              -71.46812806318641,
+              41.394429609474685
+            ],
+            [
+              -71.46799236207704,
+              41.39453763511639
+            ],
+            [
+              -71.46785757203548,
+              41.39464490991067
+            ],
+            [
+              -71.46780299624714,
+              41.394686531296024
+            ],
+            [
+              -71.46773224884288,
+              41.39472664894346
+            ],
+            [
+              -71.4675604429162,
+              41.39483611539757
+            ],
+            [
+              -71.46722142462377,
+              41.39492637701838
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "ACQ_TYPE": "Fee Title",
+        "Acres": 5.2256153,
+        "BondFund": "Yes",
+        "DeedAcres": 5.22571187,
+        "DeedURL": "https://rigov.sharepoint.com/sites/DEM-NR-PD-Team/Shared%20Documents/LandAcquisition/Legal_Records/7044%20Ianuccillo%20Narragansett%207044.pdf",
+        "DEM_AREA": "Scarborough Beach State Park",
+        "DEM_DIV": "Parks & Recreation",
+        "DEM_ID": "7044",
+        "DEM_Managed": "Yes",
+        "FISHING": "Yes",
+        "HUNTING": "No",
+        "ManArea": "No",
+        "NAME": "Ianuccillo",
+        "NPS_6f": "N",
+        "OBJECTID": 138,
+        "Poly_Src": "TGIS",
+        "PrimUse": "Beach",
+        "Pub_Access": "YES",
+        "Shape.STArea()": 227627.8024673462,
+        "Shape.STLength()": 2135.3753959388573,
+        "SurvURL": "https://rigov.sharepoint.com/sites/DEM-NR-PD-Team/Shared%20Documents/LandAcquisition/Legal_Records",
+        "USFW_GrntID": "NA",
+        "Year": "1996"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": 239,
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -71.47500367446523,
+              41.38911489025669
+            ],
+            [
+              -71.47514862357718,
+              41.38927380950184
+            ],
+            [
+              -71.47524346956628,
+              41.38921392127634
+            ],
+            [
+              -71.47548118741716,
+              41.389004135605866
+            ],
+            [
+              -71.47552903652637,
+              41.38895611800829
+            ],
+            [
+              -71.47568322808408,
+              41.388770328912436
+            ],
+            [
+              -71.4759468162489,
+              41.38839473751315
+            ],
+            [
+              -71.47705155275186,
+              41.38678760683342
+            ],
+            [
+              -71.47738651635696,
+              41.38633719864531
+            ],
+            [
+              -71.47512821907874,
+              41.38563676843955
+            ],
+            [
+              -71.47497060757077,
+              41.38594226820691
+            ],
+            [
+              -71.47487021109168,
+              41.386124214449175
+            ],
+            [
+              -71.47459242037894,
+              41.38652647320488
+            ],
+            [
+              -71.47419671523132,
+              41.38703033491156
+            ],
+            [
+              -71.47380924799468,
+              41.38743499096969
+            ],
+            [
+              -71.47335943363987,
+              41.387912349171955
+            ],
+            [
+              -71.47419567307728,
+              41.38823297618764
+            ],
+            [
+              -71.47469279570076,
+              41.38877404656202
+            ],
+            [
+              -71.47514818799324,
+              41.38854942367195
+            ],
+            [
+              -71.47546683626409,
+              41.38888969694736
+            ],
+            [
+              -71.47532327911826,
+              41.388973798612156
+            ],
+            [
+              -71.475150901645,
+              41.38906238421374
+            ],
+            [
+              -71.47500367446523,
+              41.38911489025669
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "ACQ_TYPE": "Fee Title",
+        "Acres": 15.63574484,
+        "BondFund": "Yes",
+        "DeedAcres": 15.61513257,
+        "DeedURL": "https://rigov.sharepoint.com/sites/DEM-NR-PD-Team/Shared%20Documents/LandAcquisition/Legal_Records/7024%20Scarborough%20State%20Beach%20Narragansett%207024.pdf",
+        "DEM_AREA": "Scarborough Beach State Park",
+        "DEM_DIV": "Parks & Recreation",
+        "DEM_ID": "7024",
+        "DEM_Managed": "Yes",
+        "FISHING": "Yes",
+        "HUNTING": "No",
+        "ManArea": "No",
+        "NAME": "Olivos Beach",
+        "NPS_6f": "N",
+        "OBJECTID": 239,
+        "Poly_Src": "TGIS",
+        "PrimUse": "Beach",
+        "Pub_Access": "YES",
+        "Shape.STArea()": 681093.0450897217,
+        "Shape.STLength()": 3893.9208668085203,
+        "SurvURL": "https://rigov.sharepoint.com/sites/DEM-NR-PD-Team/Shared%20Documents/LandAcquisition/Legal_Records/7024_Olivos_Survey.pdf",
+        "USFW_GrntID": "NA",
+        "Year": "1986"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": 240,
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -71.47738651635696,
+              41.38633719864531
+            ],
+            [
+              -71.47766358470534,
+              41.38578163208039
+            ],
+            [
+              -71.47771201913571,
+              41.38580051043845
+            ],
+            [
+              -71.47810118788642,
+              41.384973358758295
+            ],
+            [
+              -71.47575979308232,
+              41.38446684244379
+            ],
+            [
+              -71.47557891323939,
+              41.384747667897045
+            ],
+            [
+              -71.47527076418804,
+              41.38534930489644
+            ],
+            [
+              -71.47512821907874,
+              41.38563676843955
+            ],
+            [
+              -71.47738651635696,
+              41.38633719864531
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "ACQ_TYPE": "Fee Title",
+        "Acres": 7.6955252,
+        "BondFund": "Yes",
+        "DeedAcres": 7.68836844,
+        "DeedURL": "https://rigov.sharepoint.com/sites/DEM-NR-PD-Team/Shared%20Documents/LandAcquisition/Legal_Records/7016%20Lido's%20Beach%20Narragansett%207016.pdf",
+        "DEM_AREA": "Scarborough Beach State Park",
+        "DEM_DIV": "Parks & Recreation",
+        "DEM_ID": "7016",
+        "DEM_Managed": "Yes",
+        "FISHING": "Yes",
+        "HUNTING": "No",
+        "ManArea": "No",
+        "NAME": "Lidos Beach",
+        "NPS_6f": "Y",
+        "OBJECTID": 240,
+        "Poly_Src": "TGIS",
+        "PrimUse": "Beach",
+        "Pub_Access": "YES",
+        "Shape.STArea()": 335217.077709198,
+        "Shape.STLength()": 2350.174438976119,
+        "SurvURL": "https://rigov.sharepoint.com/sites/DEM-NR-PD-Team/Shared%20Documents/LandAcquisition/Legal_Records/7016_Lidos_Survey.pdf",
+        "USFW_GrntID": "NA",
+        "Year": "1981"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": 550,
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -71.46897007631506,
+              41.39370858433142
+            ],
+            [
+              -71.46955458063384,
+              41.39393483729952
+            ],
+            [
+              -71.47016215460822,
+              41.393020666684095
+            ],
+            [
+              -71.47055618545677,
+              41.39234117460139
+            ],
+            [
+              -71.47087566922363,
+              41.39177505061633
+            ],
+            [
+              -71.47009926546572,
+              41.391460113913816
+            ],
+            [
+              -71.47003571491369,
+              41.39182583228269
+            ],
+            [
+              -71.46991550634232,
+              41.392071580759485
+            ],
+            [
+              -71.46972540199769,
+              41.392494474975365
+            ],
+            [
+              -71.46950208390734,
+              41.39293680975592
+            ],
+            [
+              -71.46919333388986,
+              41.39340514751404
+            ],
+            [
+              -71.46916894105401,
+              41.393443905331914
+            ],
+            [
+              -71.46897007631506,
+              41.39370858433142
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "ACQ_TYPE": "Fee Title",
+        "Acres": 3.79146519,
+        "BondFund": "Yes",
+        "DeedAcres": 3.79148035,
+        "DeedURL": "https://rigov.sharepoint.com/sites/DEM-NR-PD-Team/Shared%20Documents/LandAcquisition/Legal_Records",
+        "DEM_AREA": "Scarborough Beach State Park",
+        "DEM_DIV": "Parks & Recreation",
+        "DEM_ID": "7031",
+        "DEM_Managed": "Yes",
+        "FISHING": "Yes",
+        "HUNTING": "No",
+        "ManArea": "No",
+        "NAME": "North Scarborough",
+        "NPS_6f": "N",
+        "OBJECTID": 550,
+        "Poly_Src": "TGIS",
+        "PrimUse": "Beach",
+        "Pub_Access": "YES",
+        "Shape.STArea()": 165156.22357177734,
+        "Shape.STLength()": 2170.9752055376175,
+        "SurvURL": "https://rigov.sharepoint.com/sites/DEM-NR-PD-Team/Shared%20Documents/LandAcquisition/Legal_Records/7031_North_Scarborough_Survey.pdf",
+        "USFW_GrntID": "NA",
+        "Year": "1996"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": 901,
+      "geometry": {
+        "type": "MultiPolygon",
+        "coordinates": [
+          [
+            [
+              [
+                -71.47296107456026,
+                41.38822781252992
+              ],
+              [
+                -71.47247919724947,
+                41.38858945000329
+              ],
+              [
+                -71.47211289709384,
+                41.38898462759968
+              ],
+              [
+                -71.4718785051159,
+                41.38928686735312
+              ],
+              [
+                -71.47155660717347,
+                41.3896900739078
+              ],
+              [
+                -71.47122709320735,
+                41.39004841929379
+              ],
+              [
+                -71.47093484748507,
+                41.39034290268097
+              ],
+              [
+                -71.47064226690885,
+                41.39061041169987
+              ],
+              [
+                -71.47040769678271,
+                41.39102976169794
+              ],
+              [
+                -71.47009926546572,
+                41.391460113913816
+              ],
+              [
+                -71.47087566922363,
+                41.39177505061633
+              ],
+              [
+                -71.47097198963493,
+                41.3916861146496
+              ],
+              [
+                -71.47112944061398,
+                41.39153610217398
+              ],
+              [
+                -71.47132007384737,
+                41.391419881960736
+              ],
+              [
+                -71.47148898748628,
+                41.391321821781595
+              ],
+              [
+                -71.47267858302696,
+                41.39067900020956
+              ],
+              [
+                -71.47380784742899,
+                41.3900343355271
+              ],
+              [
+                -71.47472956670727,
+                41.38954403432293
+              ],
+              [
+                -71.47496479194825,
+                41.38940328348826
+              ],
+              [
+                -71.4750558882179,
+                41.38933236460131
+              ],
+              [
+                -71.47514862357718,
+                41.38927380950184
+              ],
+              [
+                -71.47500367446523,
+                41.38911489025669
+              ],
+              [
+                -71.47469279570076,
+                41.38877404656202
+              ],
+              [
+                -71.47419567307728,
+                41.38823297618764
+              ],
+              [
+                -71.47335943363987,
+                41.387912349171955
+              ],
+              [
+                -71.47296107456026,
+                41.38822781252992
+              ]
+            ]
+          ],
+          [
+            [
+              [
+                -71.47512885787046,
+                41.38965528841195
+              ],
+              [
+                -71.4734950798661,
+                41.3905540740459
+              ],
+              [
+                -71.47272523842837,
+                41.39098037425418
+              ],
+              [
+                -71.47137406710738,
+                41.39171364629371
+              ],
+              [
+                -71.47131380506796,
+                41.3917568877851
+              ],
+              [
+                -71.4712857588112,
+                41.39181490757867
+              ],
+              [
+                -71.47128432710332,
+                41.39188664902196
+              ],
+              [
+                -71.4713039243518,
+                41.3919246349161
+              ],
+              [
+                -71.47133052897951,
+                41.391958402340755
+              ],
+              [
+                -71.47140196345006,
+                41.39199745639787
+              ],
+              [
+                -71.47266128855983,
+                41.39244404149638
+              ],
+              [
+                -71.47350878766724,
+                41.39274070437248
+              ],
+              [
+                -71.47486724727622,
+                41.39050539428458
+              ],
+              [
+                -71.47522612679377,
+                41.38990410299127
+              ],
+              [
+                -71.47515188812831,
+                41.38986927090177
+              ],
+              [
+                -71.47536777347351,
+                41.38950849581416
+              ],
+              [
+                -71.47512885787046,
+                41.38965528841195
+              ]
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "ACQ_TYPE": "Fee Title",
+        "Acres": 28.83878326,
+        "BondFund": "No",
+        "DeedAcres": 17.82996258,
+        "DeedURL": "https://rigov.sharepoint.com/sites/DEM-NR-PD-Team/Shared%20Documents/LandAcquisition/Legal_Records/7075%20Scarborough%20Beach%20Narragansett%207075.pdf",
+        "DEM_AREA": "Scarborough Beach State Park",
+        "DEM_DIV": "Parks & Recreation",
+        "DEM_ID": "7075",
+        "DEM_Managed": "Yes",
+        "FISHING": "Yes",
+        "HUNTING": "No",
+        "ManArea": "No",
+        "NAME": "Scarborough Beach",
+        "NPS_6f": "Y",
+        "OBJECTID": 901,
+        "Poly_Src": "TGIS",
+        "PrimUse": "Beach",
+        "Pub_Access": "YES",
+        "Shape.STArea()": 1256217.3988113403,
+        "Shape.STLength()": 7458.565938073994,
+        "SurvURL": "https://rigov.sharepoint.com/sites/DEM-NR-PD-Team/Shared%20Documents/LandAcquisition/Legal_Records/7075_Scarborough_Beach_Survey.pdf",
+        "USFW_GrntID": "NA",
+        "Year": "1937"
+      }
+    }
+  ],
+  "properties": {
+    "geometryKind": "boundary",
+    "potaReference": "US-7722",
+    "potaName": "Scarborough North State Beach",
+    "sourceName": "Rhode Island DEM State Conservation Land",
+    "sourceUrl": "https://risegis.ri.gov/hosting/rest/services/RIDEM/State_Conservation_Land/MapServer/0",
+    "sourceQuery": "DEM_AREA = 'Scarborough Beach State Park'"
+  }
+}

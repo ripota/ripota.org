@@ -1,0 +1,28 @@
+{
+  "type": "FeatureCollection",
+  "properties": {
+    "geometryKind": "point",
+    "potaReference": "US-6980",
+    "potaName": "Beach Pond Wildlife Management Area",
+    "sourceName": "Parks on the Air reference coordinate",
+    "sourceUrl": "https://pota.app/#/park/US-6980",
+    "notes": "No reviewed Beach Pond Wildlife Management Area polygon was found in RI DEM State Conservation Land. RI Parks lists Beach Pond as a DEM site managed from the Arcadia Management Area context, and the POTA coordinate is 41.5739, -71.7864."
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "reference": "US-6980",
+        "name": "Beach Pond Wildlife Management Area",
+        "grid": "FN41cn"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -71.7864,
+          41.5739
+        ]
+      }
+    }
+  ]
+}
