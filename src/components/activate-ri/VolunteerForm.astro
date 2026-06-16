@@ -1,0 +1,158 @@
+---
+import references from "../../data/ri-references.json";
+---
+
+<form class="event-form" method="post" action="/api/activate-ri-2026/routes" data-activate-ri-volunteer>
+  <div class="form-grid">
+    <label>
+      Callsign
+      <input name="submitterCallsign" autocomplete="nickname" required />
+    </label>
+    <label>
+      Name
+      <input name="submitterName" autocomplete="name" required />
+    </label>
+    <label>
+      Email
+      <input name="submitterEmail" type="email" autocomplete="email" required />
+    </label>
+    <label>
+      Club or group
+      <input name="club" autocomplete="organization" />
+    </label>
+  </div>
+
+  <fieldset class="activation-stop-fieldset">
+    <legend>Activation stop</legend>
+    <div class="form-grid">
+      <label>
+        Park
+        <select name="stops[0][parkReference]" required>
+          <option value="">Choose a RI POTA park</option>
+          {
+            references.map((reference) => (
+              <option value={reference.reference}>
+                {reference.reference} - {reference.name}
+              </option>
+            ))
+          }
+        </select>
+      </label>
+      <label>
+        Date
+        <select name="stops[0][plannedDate]" required>
+          <option value="2026-09-10">Thursday, September 10 soft start</option>
+          <option value="2026-09-11">Friday, September 11</option>
+          <option value="2026-09-12">Saturday, September 12</option>
+          <option value="2026-09-13">Sunday, September 13</option>
+        </select>
+      </label>
+      <label>
+        Start time
+        <input name="stops[0][startTime]" type="time" required />
+      </label>
+      <label>
+        End time
+        <input name="stops[0][endTime]" type="time" required />
+      </label>
+      <label>
+        Bands
+        <input
+          name="stops[0][bands]"
+          aria-describedby="bands-help"
+          placeholder="40m, 20m, 15m"
+          required
+        />
+        <span id="bands-help" class="form-help">Separate bands with commas.</span>
+      </label>
+      <label>
+        Modes
+        <input name="stops[0][modes]" aria-describedby="modes-help" placeholder="SSB, CW, FT8" required />
+        <span id="modes-help" class="form-help">Separate modes with commas.</span>
+      </label>
+    </div>
+    <label>
+      Public notes for hunters
+      <textarea name="stops[0][publicNotes]" rows="3"></textarea>
+    </label>
+  </fieldset>
+
+  <label>
+    Notes for organizers
+    <textarea name="organizerNotes" rows="3"></textarea>
+  </label>
+
+  <p class="form-help">
+    Frequencies are not collected here. Please use normal POTA spotting when
+    your activation begins.
+  </p>
+
+  <button class="button" data-variant="primary" type="submit">Submit for review</button>
+  <output class="form-status" data-form-status aria-live="polite"></output>
+</form>
+
+<script>
+  const form = document.querySelector("[data-activate-ri-volunteer]") as HTMLFormElement | null;
+  const status = document.querySelector("[data-form-status]");
+
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    status?.replaceChildren("Submitting...");
+
+    try {
+      const response = await fetch(form.action, {
+        method: "POST",
+        body: JSON.stringify(formToPayload(new FormData(form))),
+        headers: { "content-type": "application/json" },
+      });
+      const data = await parseResponse(response);
+
+      if (response.ok && data.ok) {
+        form.reset();
+        status?.replaceChildren(data.message ?? "Submission received for organizer review.");
+      } else {
+        status?.replaceChildren(data.errors?.join(" ") ?? data.message ?? "Submission failed.");
+      }
+    } catch {
+      status?.replaceChildren("Submission failed. Please try again later.");
+    }
+  });
+
+  async function parseResponse(response: Response): Promise<{ ok: boolean; message?: string; errors?: string[] }> {
+    const contentType = response.headers.get("content-type") ?? "";
+
+    if (!contentType.includes("application/json")) {
+      return { ok: false };
+    }
+
+    return response.json();
+  }
+
+  function formToPayload(data: FormData) {
+    return {
+      submitterCallsign: data.get("submitterCallsign"),
+      submitterName: data.get("submitterName"),
+      submitterEmail: data.get("submitterEmail"),
+      club: data.get("club"),
+      organizerNotes: data.get("organizerNotes"),
+      stops: [
+        {
+          parkReference: data.get("stops[0][parkReference]"),
+          plannedDate: data.get("stops[0][plannedDate]"),
+          startTime: data.get("stops[0][startTime]"),
+          endTime: data.get("stops[0][endTime]"),
+          bands: splitList(data.get("stops[0][bands]")),
+          modes: splitList(data.get("stops[0][modes]")),
+          publicNotes: data.get("stops[0][publicNotes]"),
+        },
+      ],
+    };
+  }
+
+  function splitList(value: FormDataEntryValue | null): string[] {
+    return String(value ?? "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+</script>

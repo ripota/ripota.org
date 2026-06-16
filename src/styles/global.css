@@ -636,6 +636,62 @@ p {
   font-weight: 500;
 }
 
+.event-form {
+  display: grid;
+  gap: 1.2rem;
+  max-width: 900px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.event-form label,
+.activation-stop-fieldset {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--surface-ink);
+  font-weight: 800;
+}
+
+.activation-stop-fieldset {
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.activation-stop-fieldset legend {
+  padding: 0 0.35rem;
+}
+
+.event-form input,
+.event-form select,
+.event-form textarea {
+  width: 100%;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  padding: 0.7rem;
+}
+
+.event-form textarea {
+  resize: vertical;
+}
+
+.form-help,
+.form-status {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.form-status {
+  min-height: 1.5rem;
+}
+
 .notice {
   border-block: 1px solid var(--border-subtle);
   background: var(--notice-surface);
