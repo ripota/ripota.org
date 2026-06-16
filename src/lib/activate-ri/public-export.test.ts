@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { routeRowsToPublicStops } from "./public-export";
+import { parseStringArray, routeRowsToPublicStops } from "./public-export";
 
 describe("routeRowsToPublicStops", () => {
   it("exports only public-safe scheduled stop fields", () => {
@@ -36,5 +36,22 @@ describe("routeRowsToPublicStops", () => {
       },
     ]);
     expect(JSON.stringify(stops)).not.toMatch(/private|555|Organizer/i);
+  });
+});
+
+describe("parseStringArray", () => {
+  it("returns an empty array for malformed JSON", () => {
+    expect(parseStringArray("[not-json")).toEqual([]);
+  });
+
+  it("returns an empty array for non-array JSON", () => {
+    expect(parseStringArray("{\"band\":\"40m\"}")).toEqual([]);
+  });
+
+  it("keeps trimmed string entries and drops empty or non-string entries", () => {
+    expect(parseStringArray("[\" 40m \",\"\",42,true,{\"band\":\"20m\"},\" CW \"]")).toEqual([
+      "40m",
+      "CW",
+    ]);
   });
 });

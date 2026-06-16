@@ -78,4 +78,66 @@ describe("deriveParkCoverage", () => {
       }),
     ]);
   });
+
+  it("marks completed stops as completed coverage without an upcoming next stop", () => {
+    const stops: PublicActivationStop[] = [
+      {
+        id: "completed",
+        parkReference: "US-2868",
+        plannedDate: "2026-09-11",
+        startTime: "09:00",
+        endTime: "11:00",
+        activatorCallsign: "N1RWJ",
+        bands: ["40m"],
+        modes: ["CW"],
+        publicNotes: "",
+        status: "completed",
+      },
+    ];
+
+    expect(deriveParkCoverage([park], stops)).toEqual([
+      expect.objectContaining({
+        status: "completed",
+        scheduledStopCount: 0,
+        nextStop: null,
+      }),
+    ]);
+  });
+
+  it("keeps scheduled coverage when completed stops also have future active stops", () => {
+    const stops: PublicActivationStop[] = [
+      {
+        id: "completed",
+        parkReference: "US-2868",
+        plannedDate: "2026-09-11",
+        startTime: "09:00",
+        endTime: "11:00",
+        activatorCallsign: "N1RWJ",
+        bands: ["40m"],
+        modes: ["CW"],
+        publicNotes: "",
+        status: "completed",
+      },
+      {
+        id: "future",
+        parkReference: "US-2868",
+        plannedDate: "2026-09-12",
+        startTime: "14:00",
+        endTime: "16:00",
+        activatorCallsign: "K1ABC",
+        bands: ["20m"],
+        modes: ["SSB"],
+        publicNotes: "",
+        status: "scheduled",
+      },
+    ];
+
+    expect(deriveParkCoverage([park], stops)).toEqual([
+      expect.objectContaining({
+        status: "scheduled",
+        scheduledStopCount: 1,
+        nextStop: expect.objectContaining({ id: "future" }),
+      }),
+    ]);
+  });
 });

@@ -16,10 +16,19 @@ export function routeRowsToPublicStops(rows: StopExportRow[]): PublicActivationS
 }
 
 export function parseStringArray(value: string): string[] {
-  const parsed = JSON.parse(value) as unknown;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value) as unknown;
+  } catch {
+    return [];
+  }
+
   if (!Array.isArray(parsed)) {
     return [];
   }
 
-  return parsed.map((item) => String(item)).filter(Boolean);
+  return parsed
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }

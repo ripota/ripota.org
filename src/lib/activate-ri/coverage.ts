@@ -1,6 +1,6 @@
 import type { ParkCoverage, PublicActivationStop, PublicParkSummary } from "./types";
 
-const activeStatuses = new Set(["scheduled", "delayed", "completed"]);
+const upcomingActiveStatuses = new Set(["scheduled", "delayed"]);
 
 export function deriveParkCoverage(
   parks: PublicParkSummary[],
@@ -10,13 +10,20 @@ export function deriveParkCoverage(
     const parkStops = sortStops(
       stops.filter((stop) => stop.parkReference === park.reference),
     );
-    const scheduledStops = parkStops.filter((stop) => activeStatuses.has(stop.status));
+    const scheduledStops = parkStops.filter((stop) =>
+      upcomingActiveStatuses.has(stop.status),
+    );
+    const completedStops = parkStops.filter((stop) => stop.status === "completed");
     const cancelledStops = parkStops.filter((stop) => stop.status === "cancelled");
 
     return {
       reference: park.reference,
       name: park.name,
-      status: coverageStatus(scheduledStops.length, cancelledStops.length),
+      status: coverageStatus(
+        scheduledStops.length,
+        cancelledStops.length,
+        completedStops.length,
+      ),
       scheduledStopCount: scheduledStops.length,
       cancelledStopCount: cancelledStops.length,
       nextStop: scheduledStops[0] ?? null,
@@ -28,6 +35,7 @@ export function deriveParkCoverage(
 function coverageStatus(
   scheduledStopCount: number,
   cancelledStopCount: number,
+  completedStopCount: number,
 ): ParkCoverage["status"] {
   if (scheduledStopCount > 1) {
     return "multiple-scheduled";
@@ -35,6 +43,10 @@ function coverageStatus(
 
   if (scheduledStopCount === 1) {
     return "scheduled";
+  }
+
+  if (completedStopCount > 0) {
+    return "completed";
   }
 
   if (cancelledStopCount > 0) {
