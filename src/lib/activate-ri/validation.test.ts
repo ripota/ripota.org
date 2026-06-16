@@ -2,6 +2,22 @@ import { describe, expect, it } from "vitest";
 import { validateRouteSubmission } from "./validation";
 
 describe("validateRouteSubmission", () => {
+  const validSubmission = {
+    submitterCallsign: "N1RWJ",
+    submitterName: "Rob Jackson",
+    submitterEmail: "rob@example.com",
+    stops: [
+      {
+        parkReference: "US-2868",
+        plannedDate: "2026-09-11",
+        startTime: "09:00",
+        endTime: "11:00",
+        bands: ["40m", "20m"],
+        modes: ["SSB", "CW"],
+      },
+    ],
+  };
+
   it("normalizes a valid single-stop submission", () => {
     const result = validateRouteSubmission({
       submitterCallsign: " n1rwj ",
@@ -42,6 +58,63 @@ describe("validateRouteSubmission", () => {
     }
   });
 
+  it("rejects non-object route submissions", () => {
+    const result = validateRouteSubmission(null);
+
+    expect(result).toEqual({
+      ok: false,
+      errors: ["Enter a valid route submission."],
+    });
+  });
+
+  it("rejects non-object activation stops without throwing", () => {
+    const result = validateRouteSubmission({
+      ...validSubmission,
+      stops: [null],
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors).toContain("Stop 1 must be a valid activation stop.");
+    }
+  });
+
+  it("rejects non-string band and mode entries", () => {
+    const result = validateRouteSubmission({
+      ...validSubmission,
+      stops: [
+        {
+          ...validSubmission.stops[0],
+          bands: ["40m", 20],
+          modes: ["SSB", true],
+        },
+      ],
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors).toEqual(
+        expect.arrayContaining([
+          "Stop 1 bands must be text values.",
+          "Stop 1 modes must be text values.",
+        ]),
+      );
+    }
+  });
+
+  it("accepts base US amateur callsigns", () => {
+    const callsigns = ["N1RWJ", "K1NW", "KC1NDQ", "W3DRE", "K8ZFJ", "AA1ZZ"];
+
+    for (const submitterCallsign of callsigns) {
+      const result = validateRouteSubmission({
+        ...validSubmission,
+        submitterCallsign,
+      });
+
+      expect(result.ok, submitterCallsign).toBe(true);
+    }
+  });
+
   it("rejects invalid callsigns, emails, dates, times, and empty stops", () => {
     const result = validateRouteSubmission({
       submitterCallsign: "not a call sign!",
@@ -73,6 +146,22 @@ describe("validateRouteSubmission", () => {
           "Stop 1 needs at least one planned mode.",
         ]),
       );
+    }
+  });
+
+  it("rejects non-US and portable-suffix callsigns", () => {
+    const callsigns = ["1234", "ZZ1ZZ", "N1RWJ/P", "W1AW/1"];
+
+    for (const submitterCallsign of callsigns) {
+      const result = validateRouteSubmission({
+        ...validSubmission,
+        submitterCallsign,
+      });
+
+      expect(result.ok, submitterCallsign).toBe(false);
+      if (!result.ok) {
+        expect(result.errors).toContain("Enter a valid activator callsign.");
+      }
     }
   });
 });

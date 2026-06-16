@@ -3,19 +3,22 @@ import { normalizePotaReference } from "../pota/references";
 import type {
   ActivationStopInput,
   NormalizedRouteSubmission,
-  RouteSubmissionInput,
   ValidationResult,
 } from "./types";
 
 const referenceIds = new Set(references.map((reference) => reference.reference));
 const eventDatePattern = /^2026-09-(10|11|12|13)$/;
 const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
-const callsignPattern = /^[A-Z0-9]{1,3}[0-9][A-Z0-9]{1,4}$/;
+const callsignPattern = /^(?:[KNW][0-9][A-Z]{1,3}|[KNW][A-Z][0-9][A-Z]{1,3}|A[A-L][0-9][A-Z]{1,3})$/;
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function validateRouteSubmission(
-  input: Partial<RouteSubmissionInput>,
+  input: unknown,
 ): ValidationResult<NormalizedRouteSubmission> {
+  if (!isPlainObject(input)) {
+    return { ok: false, errors: ["Enter a valid route submission."] };
+  }
+
   const errors: string[] = [];
   const submitterCallsign = String(input.submitterCallsign ?? "")
     .trim()
@@ -64,17 +67,25 @@ export function validateRouteSubmission(
 }
 
 function normalizeStop(
-  stop: Partial<ActivationStopInput>,
+  stop: unknown,
   index: number,
   errors: string[],
 ): Required<ActivationStopInput> {
   const label = `Stop ${index + 1}`;
+  if (!isPlainObject(stop)) {
+    errors.push(`${label} must be a valid activation stop.`);
+
+    return emptyStop();
+  }
+
   const parkReference = normalizePotaReference(String(stop.parkReference ?? ""));
   const plannedDate = String(stop.plannedDate ?? "").trim();
   const startTime = String(stop.startTime ?? "").trim();
   const endTime = String(stop.endTime ?? "").trim();
-  const bands = cleanList(stop.bands);
-  const modes = cleanList(stop.modes).map((mode) => mode.toUpperCase());
+  const bands = cleanList(stop.bands, `${label} bands`, errors);
+  const modes = cleanList(stop.modes, `${label} modes`, errors).map((mode) =>
+    mode.toUpperCase(),
+  );
 
   if (!referenceIds.has(parkReference)) {
     errors.push(`${label} must use a known Rhode Island POTA reference.`);
@@ -120,10 +131,40 @@ function normalizeStop(
   };
 }
 
-function cleanList(value: unknown): string[] {
+function cleanList(value: unknown, label: string, errors: string[]): string[] {
   if (!Array.isArray(value)) {
     return [];
   }
 
-  return value.map((item) => String(item).trim()).filter(Boolean);
+  const hasNonStringValue = value.some((item) => typeof item !== "string");
+  if (hasNonStringValue) {
+    errors.push(`${label} must be text values.`);
+  }
+
+  return value
+    .filter((item) => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function emptyStop(): Required<ActivationStopInput> {
+  return {
+    parkReference: "",
+    plannedDate: "",
+    startTime: "",
+    endTime: "",
+    bands: [],
+    modes: [],
+    publicNotes: "",
+    organizerNotes: "",
+  };
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.getPrototypeOf(value) === Object.prototype
+  );
 }
