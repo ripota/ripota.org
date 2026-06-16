@@ -45,7 +45,11 @@ export async function handleActivateRiApi(
       return identity;
     }
 
-    return json({ ok: true, rows: await listPublicStopRows(env) });
+    return json({
+      ok: true,
+      generatedAt: new Date().toISOString(),
+      rows: await listPublicStopRows(env),
+    });
   }
 
   const approveMatch = url.pathname.match(

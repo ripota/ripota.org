@@ -569,13 +569,15 @@ describe("handleActivateRiApi", () => {
       testEnv,
     );
 
-    const body = await response.json() as { rows: unknown[] };
+    const body = await response.json() as { generatedAt: string; rows: unknown[] };
 
     expect(response.status).toBe(200);
     expect(body).toEqual({
       ok: true,
+      generatedAt: expect.any(String),
       rows: [publicStopRow],
     });
+    expect(new Date(body.generatedAt).toISOString()).toBe(body.generatedAt);
     expect(JSON.stringify(body)).not.toMatch(
       /submitter_email|submitter_phone|edit_token_hash|approval_operation_id|organizer_notes|audit|log/i,
     );

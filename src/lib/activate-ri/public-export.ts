@@ -44,6 +44,28 @@ export function routeRowsToPublicStops(rows: unknown): PublicActivationStop[] {
   });
 }
 
+export function routeRowsToPublicStopsStrict(rows: unknown): PublicActivationStop[] {
+  if (!Array.isArray(rows)) {
+    throw new Error("Expected public stop rows to be a JSON array.");
+  }
+
+  const invalidRows = rows.flatMap((row, index) => {
+    const validation = validatePublicExportRow(row, { strictJsonArrays: true });
+
+    return validation.ok ? [] : [`row ${index}: ${validation.errors.join("; ")}`];
+  });
+
+  if (invalidRows.length > 0) {
+    throw new Error(
+      `Invalid public stop export rows:\n${invalidRows
+        .map((message) => `- ${message}`)
+        .join("\n")}`,
+    );
+  }
+
+  return routeRowsToPublicStops(rows);
+}
+
 export function parseStringArray(value: string): string[] {
   let parsed: unknown;
   try {
@@ -63,8 +85,20 @@ export function parseStringArray(value: string): string[] {
 }
 
 function parsePublicExportRow(row: unknown): PublicExportRow | null {
+  const validation = validatePublicExportRow(row, { strictJsonArrays: false });
+  return validation.ok ? validation.value : null;
+}
+
+type PublicExportRowValidation =
+  | { ok: true; value: PublicExportRow }
+  | { ok: false; errors: string[] };
+
+function validatePublicExportRow(
+  row: unknown,
+  options: { strictJsonArrays: boolean },
+): PublicExportRowValidation {
   if (!isRecord(row)) {
-    return null;
+    return { ok: false, errors: ["expected an object"] };
   }
 
   const id = stringField(row, "id");
@@ -76,6 +110,26 @@ function parsePublicExportRow(row: unknown): PublicExportRow | null {
   const bands_json = stringField(row, "bands_json");
   const modes_json = stringField(row, "modes_json");
   const status = stringField(row, "status");
+  const errors = [
+    ...requiredStringErrors({
+      id,
+      park_reference,
+      planned_date,
+      start_time,
+      end_time,
+      submitter_callsign,
+      bands_json,
+      modes_json,
+    }),
+    ...(options.strictJsonArrays ? jsonStringArrayErrors(row, "bands_json") : []),
+    ...(options.strictJsonArrays ? jsonStringArrayErrors(row, "modes_json") : []),
+  ];
+
+  if (!isPublicStatus(status)) {
+    errors.push(
+      `status must be one of ${[...publicStatuses].join(", ")}`,
+    );
+  }
 
   if (
     id === null ||
@@ -86,23 +140,59 @@ function parsePublicExportRow(row: unknown): PublicExportRow | null {
     submitter_callsign === null ||
     bands_json === null ||
     modes_json === null ||
-    !isPublicStatus(status)
+    !isPublicStatus(status) ||
+    errors.length > 0
   ) {
-    return null;
+    return { ok: false, errors };
   }
 
   return {
-    id,
-    park_reference,
-    planned_date,
-    start_time,
-    end_time,
-    submitter_callsign,
-    bands_json,
-    modes_json,
-    public_notes: row.public_notes,
-    status,
+    ok: true,
+    value: {
+      id,
+      park_reference,
+      planned_date,
+      start_time,
+      end_time,
+      submitter_callsign,
+      bands_json,
+      modes_json,
+      public_notes: row.public_notes,
+      status,
+    },
   };
+}
+
+function requiredStringErrors(fields: Record<string, string | null>): string[] {
+  return Object.entries(fields).flatMap(([field, value]) =>
+    value === null ? [`${field} must be a string`] : [],
+  );
+}
+
+function jsonStringArrayErrors(
+  row: Record<string, unknown>,
+  field: "bands_json" | "modes_json",
+): string[] {
+  const value = row[field];
+  if (typeof value !== "string") {
+    return [];
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value) as unknown;
+  } catch {
+    return [`${field} must be valid JSON`];
+  }
+
+  if (!Array.isArray(parsed)) {
+    return [`${field} must be a JSON array`];
+  }
+
+  const invalidItemIndex = parsed.findIndex((item) => typeof item !== "string");
+  return invalidItemIndex === -1
+    ? []
+    : [`${field}[${invalidItemIndex}] must be a string`];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

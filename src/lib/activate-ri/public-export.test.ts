@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { parseStringArray, routeRowsToPublicStops } from "./public-export";
+import {
+  parseStringArray,
+  routeRowsToPublicStops,
+  routeRowsToPublicStopsStrict,
+} from "./public-export";
 
 const validRow = {
   id: "stop-1",
@@ -82,6 +86,40 @@ describe("routeRowsToPublicStops", () => {
   it("returns an empty array for non-array input", () => {
     expect(routeRowsToPublicStops(null)).toEqual([]);
     expect(routeRowsToPublicStops({ results: [] })).toEqual([]);
+  });
+});
+
+describe("routeRowsToPublicStopsStrict", () => {
+  it("exports valid public rows", () => {
+    expect(routeRowsToPublicStopsStrict([validRow])).toEqual([
+      expect.objectContaining({
+        id: "stop-1",
+        parkReference: "US-2868",
+        activatorCallsign: "N1RWJ",
+      }),
+    ]);
+  });
+
+  it("fails with row indexes for malformed rows", () => {
+    expect(() =>
+      routeRowsToPublicStopsStrict([
+        validRow,
+        { ...validRow, id: 42 },
+        { ...validRow, modes_json: "[\"SSB\",42]" },
+        { ...validRow, status: "pending-review" },
+      ]),
+    ).toThrowErrorMatchingInlineSnapshot(`
+      [Error: Invalid public stop export rows:
+      - row 1: id must be a string
+      - row 2: modes_json[1] must be a string
+      - row 3: status must be one of scheduled, delayed, cancelled, completed]
+    `);
+  });
+
+  it("fails when the export payload rows are not an array", () => {
+    expect(() => routeRowsToPublicStopsStrict({ rows: [] })).toThrow(
+      "Expected public stop rows to be a JSON array.",
+    );
   });
 });
 
