@@ -103,16 +103,30 @@ const turnstileSiteKey =
     data-action="turnstile-spin-v1"
   />
 
-  <button class="button" data-variant="primary" type="submit">Submit for review</button>
+  <button class="button" data-variant="primary" type="submit" data-submit-button>
+    Submit for review
+  </button>
   <output class="form-status" data-form-status aria-live="polite"></output>
 </form>
 
 <script>
   const form = document.querySelector("[data-activate-ri-volunteer]") as HTMLFormElement | null;
   const status = document.querySelector("[data-form-status]");
+  const submitButton = document.querySelector("[data-submit-button]") as HTMLButtonElement | null;
+  let isSubmitting = false;
 
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
+
+    if (isSubmitting) {
+      return;
+    }
+
+    isSubmitting = true;
+    if (submitButton) {
+      submitButton.disabled = true;
+    }
+
     status?.replaceChildren("Submitting...");
 
     try {
@@ -134,6 +148,11 @@ const turnstileSiteKey =
     } catch {
       status?.replaceChildren("Submission failed. Please try again later.");
       resetTurnstile();
+    } finally {
+      isSubmitting = false;
+      if (submitButton) {
+        submitButton.disabled = false;
+      }
     }
   });
 

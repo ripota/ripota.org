@@ -4,7 +4,7 @@
   "main": "src/worker/index.ts",
   "compatibility_date": "2026-06-14",
   "build": {
-    "command": "npm run build"
+    "command": "node scripts/guard-turnstile-production.mjs --required && npm run build"
   },
   "assets": {
     "directory": "./dist",
@@ -20,10 +20,23 @@
   ],
   "vars": {
     "ACTIVATE_RI_EVENT_ID": "activate-ri-2026",
-    "PUBLIC_TURNSTILE_SITE_KEY": "1x00000000000000000000AA",
-    "TURNSTILE_REQUIRED": "false"
+    "TURNSTILE_REQUIRED": "true"
   },
   "env": {
+    "local": {
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "ripota-org",
+          "database_id": "5fa75a4d-9387-437d-9f81-ebb06b645747"
+        }
+      ],
+      "vars": {
+        "ACTIVATE_RI_EVENT_ID": "activate-ri-2026",
+        "PUBLIC_TURNSTILE_SITE_KEY": "1x00000000000000000000AA",
+        "TURNSTILE_REQUIRED": "false"
+      }
+    },
     "production": {
       "d1_databases": [
         {
@@ -34,7 +47,6 @@
       ],
       "vars": {
         "ACTIVATE_RI_EVENT_ID": "activate-ri-2026",
-        "PUBLIC_TURNSTILE_SITE_KEY": "REPLACE_WITH_PRODUCTION_TURNSTILE_SITE_KEY",
         "TURNSTILE_REQUIRED": "true"
       }
     }
