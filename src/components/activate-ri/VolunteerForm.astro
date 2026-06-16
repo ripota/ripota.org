@@ -1,6 +1,16 @@
 ---
 import references from "../../data/ri-references.json";
+
+const turnstileSiteKey =
+  import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? "1x00000000000000000000AA";
 ---
+
+<script
+  is:inline
+  src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+  async
+  defer
+></script>
 
 <form class="event-form" method="post" action="/api/activate-ri-2026/routes" data-activate-ri-volunteer>
   <div class="form-grid">
@@ -87,6 +97,12 @@ import references from "../../data/ri-references.json";
     your activation begins.
   </p>
 
+  <div
+    class="cf-turnstile"
+    data-sitekey={turnstileSiteKey}
+    data-action="turnstile-spin-v1"
+  />
+
   <button class="button" data-variant="primary" type="submit">Submit for review</button>
   <output class="form-status" data-form-status aria-live="polite"></output>
 </form>
@@ -135,6 +151,7 @@ import references from "../../data/ri-references.json";
       submitterEmail: data.get("submitterEmail"),
       club: data.get("club"),
       organizerNotes: data.get("organizerNotes"),
+      turnstileToken: data.get("cf-turnstile-response"),
       stops: [
         {
           parkReference: data.get("stops[0][parkReference]"),

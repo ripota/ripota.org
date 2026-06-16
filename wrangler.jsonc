@@ -20,6 +20,7 @@
   ],
   "vars": {
     "ACTIVATE_RI_EVENT_ID": "activate-ri-2026",
+    "PUBLIC_TURNSTILE_SITE_KEY": "1x00000000000000000000AA",
     "TURNSTILE_REQUIRED": "false"
   },
   "observability": {
