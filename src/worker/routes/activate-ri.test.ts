@@ -266,6 +266,9 @@ describe("handleActivateRiApi", () => {
   });
 
   it("returns validation errors for invalid route submissions", async () => {
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+
     const response = await handleActivateRiApi(
       post("/api/activate-ri-2026/routes", {
         submitterCallsign: "not a call sign!",
@@ -273,7 +276,7 @@ describe("handleActivateRiApi", () => {
         submitterEmail: "not-email",
         stops: [],
       }),
-      env(),
+      turnstileEnv(),
     );
 
     expect(response.status).toBe(400);
@@ -286,6 +289,7 @@ describe("handleActivateRiApi", () => {
         "Add at least one activation stop.",
       ]),
     });
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it("returns validation errors for non-object JSON payloads", async () => {
@@ -366,6 +370,44 @@ describe("handleActivateRiApi", () => {
       ok: false,
       errors: ["Turnstile verification failed."],
     });
+  });
+
+  it("accepts route submissions after successful Turnstile verification", async () => {
+    const fetch = vi.fn(async () => Response.json({ success: true }));
+    vi.stubGlobal("fetch", fetch);
+
+    const testEnv = turnstileEnv();
+    const response = await handleActivateRiApi(
+      new Request("https://ripota.org/api/activate-ri-2026/routes", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "CF-Connecting-IP": "203.0.113.10",
+        },
+        body: JSON.stringify(validPayloadWithTurnstile()),
+      }),
+      testEnv,
+    );
+
+    expect(response.status).toBe(202);
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      message: "Submission received for organizer review.",
+    });
+    expect(testEnv.DB.batch).toHaveBeenCalledOnce();
+    expect(fetch).toHaveBeenCalledOnce();
+
+    const [url, init] = fetch.mock.calls[0] as unknown as [
+      string,
+      { method: string; body: FormData },
+    ];
+    expect(url).toBe(
+      "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+    );
+    expect(init.method).toBe("POST");
+    expect(init.body.get("secret")).toBe("test-secret");
+    expect(init.body.get("response")).toBe("test-token");
+    expect(init.body.get("remoteip")).toBe("203.0.113.10");
   });
 
   it("returns sanitized JSON errors when Turnstile verification cannot be parsed", async () => {

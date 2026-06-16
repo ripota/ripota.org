@@ -208,6 +208,11 @@ async function handleRouteSubmission(
     );
   }
 
+  const validation = validateRouteSubmission(payload);
+  if (!validation.ok) {
+    return json({ ok: false, errors: validation.errors }, { status: 400 });
+  }
+
   const turnstileToken = isObject(payload) ? payload.turnstileToken : undefined;
   const turnstileValid = await verifyTurnstile(request, env, turnstileToken);
   if (!turnstileValid) {
@@ -215,11 +220,6 @@ async function handleRouteSubmission(
       { ok: false, errors: ["Turnstile verification failed."] },
       { status: 400 },
     );
-  }
-
-  const validation = validateRouteSubmission(payload);
-  if (!validation.ok) {
-    return json({ ok: false, errors: validation.errors }, { status: 400 });
   }
 
   await insertPendingRoute(env, validation.value);

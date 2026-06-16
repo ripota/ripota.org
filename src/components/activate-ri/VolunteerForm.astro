@@ -126,11 +126,14 @@ const turnstileSiteKey =
       if (response.ok && data.ok) {
         form.reset();
         status?.replaceChildren(data.message ?? "Submission received for organizer review.");
+        resetTurnstile();
       } else {
         status?.replaceChildren(data.errors?.join(" ") ?? data.message ?? "Submission failed.");
+        resetTurnstile();
       }
     } catch {
       status?.replaceChildren("Submission failed. Please try again later.");
+      resetTurnstile();
     }
   });
 
@@ -171,5 +174,17 @@ const turnstileSiteKey =
       .split(",")
       .map((item) => item.trim())
       .filter(Boolean);
+  }
+
+  function resetTurnstile(): void {
+    const turnstile = (
+      globalThis as {
+        turnstile?: {
+          reset?: () => void;
+        };
+      }
+    ).turnstile;
+
+    turnstile?.reset?.();
   }
 </script>
