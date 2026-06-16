@@ -63,8 +63,63 @@ type RouteStatusRow = {
   status: string;
 };
 
-export async function listPendingRoutes(env: Env): Promise<unknown[]> {
-  const result = await env.DB.prepare(
+type PendingRouteRow = {
+  id: string;
+  event_id: string;
+  submitter_callsign: string;
+  submitter_name: string;
+  submitter_email: string;
+  submitter_phone: string;
+  club: string;
+  public_notes: string;
+  organizer_notes: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  approved_at: string | null;
+  approved_by: string | null;
+};
+
+type PendingStopRow = {
+  id: string;
+  route_id: string;
+  event_id: string;
+  park_reference: string;
+  planned_date: string;
+  start_time: string;
+  end_time: string;
+  bands_json: string;
+  modes_json: string;
+  public_notes: string;
+  organizer_notes: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PendingStopDto = {
+  id: string;
+  route_id: string;
+  event_id: string;
+  park_reference: string;
+  planned_date: string;
+  start_time: string;
+  end_time: string;
+  bands: string[];
+  modes: string[];
+  public_notes: string;
+  organizer_notes: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PendingRouteDto = PendingRouteRow & {
+  stops: PendingStopDto[];
+};
+
+export async function listPendingRoutes(env: Env): Promise<PendingRouteDto[]> {
+  const routeResult = await env.DB.prepare(
     `SELECT
        id,
        event_id,
@@ -85,9 +140,80 @@ export async function listPendingRoutes(env: Env): Promise<unknown[]> {
      ORDER BY created_at ASC`,
   )
     .bind(env.ACTIVATE_RI_EVENT_ID)
-    .all();
+    .all<PendingRouteRow>();
 
-  return result.results ?? [];
+  const routes = routeResult.results ?? [];
+  if (routes.length === 0) {
+    return [];
+  }
+
+  const routeIds = routes.map((route) => route.id);
+  const stopResult = await env.DB.prepare(
+    `SELECT
+       id,
+       route_id,
+       event_id,
+       park_reference,
+       planned_date,
+       start_time,
+       end_time,
+       bands_json,
+       modes_json,
+       public_notes,
+       organizer_notes,
+       status,
+       created_at,
+       updated_at
+     FROM activate_ri_stops
+     WHERE event_id = ? AND route_id IN (${routeIds.map(() => "?").join(", ")})
+     ORDER BY planned_date ASC, start_time ASC, created_at ASC`,
+  )
+    .bind(env.ACTIVATE_RI_EVENT_ID, ...routeIds)
+    .all<PendingStopRow>();
+
+  const stopsByRoute = new Map<string, PendingStopDto[]>();
+  for (const stop of stopResult.results ?? []) {
+    const stops = stopsByRoute.get(stop.route_id) ?? [];
+    stops.push(toPendingStopDto(stop));
+    stopsByRoute.set(stop.route_id, stops);
+  }
+
+  return routes.map((route) => ({
+    ...route,
+    stops: stopsByRoute.get(route.id) ?? [],
+  }));
+}
+
+function toPendingStopDto(stop: PendingStopRow): PendingStopDto {
+  return {
+    id: stop.id,
+    route_id: stop.route_id,
+    event_id: stop.event_id,
+    park_reference: stop.park_reference,
+    planned_date: stop.planned_date,
+    start_time: stop.start_time,
+    end_time: stop.end_time,
+    bands: parseStringArray(stop.bands_json),
+    modes: parseStringArray(stop.modes_json),
+    public_notes: stop.public_notes,
+    organizer_notes: stop.organizer_notes,
+    status: stop.status,
+    created_at: stop.created_at,
+    updated_at: stop.updated_at,
+  };
+}
+
+function parseStringArray(value: string): string[] {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.filter((item): item is string => typeof item === "string");
+  } catch {
+    return [];
+  }
 }
 
 export async function approveRoute(

@@ -73,9 +73,66 @@ function adminRequest(path: string, init?: RequestInit): Request {
 }
 
 type AdminDbOptions = {
-  listRows?: unknown[];
+  routeRows?: unknown[];
+  stopRows?: unknown[];
   routeStatus?: string | null;
   routeUpdateChanges?: number;
+};
+
+const pendingRouteRow = {
+  id: "route-1",
+  event_id: "activate-ri-2026",
+  submitter_callsign: "N1RWJ",
+  submitter_name: "Rob Jackson",
+  submitter_email: "rob@example.com",
+  submitter_phone: "401-555-0100",
+  club: "Rhode Island POTA",
+  public_notes: "Open to hunters.",
+  organizer_notes: "Needs review.",
+  status: "pending",
+  created_at: "2026-06-16T12:00:00.000Z",
+  updated_at: "2026-06-16T12:00:00.000Z",
+  approved_at: null,
+  approved_by: null,
+};
+
+const pendingStopRow = {
+  id: "stop-1",
+  route_id: "route-1",
+  event_id: "activate-ri-2026",
+  park_reference: "US-2868",
+  planned_date: "2026-09-11",
+  start_time: "09:00",
+  end_time: "11:00",
+  bands_json: '["40m","20m"]',
+  modes_json: '["SSB","CW"]',
+  public_notes: "Meet near the trailhead.",
+  organizer_notes: "Confirm parking.",
+  status: "pending-review",
+  created_at: "2026-06-16T12:00:00.000Z",
+  updated_at: "2026-06-16T12:00:00.000Z",
+};
+
+const pendingRouteDto = {
+  ...pendingRouteRow,
+  stops: [
+    {
+      id: "stop-1",
+      route_id: "route-1",
+      event_id: "activate-ri-2026",
+      park_reference: "US-2868",
+      planned_date: "2026-09-11",
+      start_time: "09:00",
+      end_time: "11:00",
+      bands: ["40m", "20m"],
+      modes: ["SSB", "CW"],
+      public_notes: "Meet near the trailhead.",
+      organizer_notes: "Confirm parking.",
+      status: "pending-review",
+      created_at: "2026-06-16T12:00:00.000Z",
+      updated_at: "2026-06-16T12:00:00.000Z",
+    },
+  ],
 };
 
 function adminDb(options: AdminDbOptions = {}): D1Database {
@@ -88,11 +145,9 @@ function adminDb(options: AdminDbOptions = {}): D1Database {
         meta: { changes: options.routeUpdateChanges ?? 1 },
       })),
       all: vi.fn(async () => ({
-        results:
-          options.listRows ??
-          (sql.includes("SELECT *")
-            ? [{ id: "route-1", edit_token_hash: "secret-token-hash" }]
-            : [{ id: "route-1", status: "pending" }]),
+        results: sql.includes("FROM activate_ri_stops")
+          ? (options.stopRows ?? [pendingStopRow])
+          : (options.routeRows ?? [pendingRouteRow]),
       })),
       first: vi.fn(async () => {
         if (options.routeStatus === undefined) {
@@ -331,7 +386,7 @@ describe("handleActivateRiApi", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       ok: true,
-      routes: [{ id: "route-1", status: "pending" }],
+      routes: [pendingRouteDto],
     });
   });
 
@@ -378,7 +433,7 @@ describe("handleActivateRiApi", () => {
     });
   });
 
-  it("lists pending routes for authenticated admins without exposing edit tokens", async () => {
+  it("lists pending routes with stops for authenticated admins without exposing edit tokens", async () => {
     const testEnv = adminEnv();
     testEnv.DB = adminDb();
 
@@ -389,20 +444,30 @@ describe("handleActivateRiApi", () => {
       testEnv,
     );
 
-    const body = await response.json();
+    const body = await response.json() as { routes: typeof pendingRouteDto[] };
 
     expect(response.status).toBe(200);
     expect(body).toEqual({
       ok: true,
-      routes: [{ id: "route-1", status: "pending" }],
+      routes: [pendingRouteDto],
+    });
+    expect(body.routes[0].stops[0]).toMatchObject({
+      park_reference: "US-2868",
+      planned_date: "2026-09-11",
+      start_time: "09:00",
+      end_time: "11:00",
+      bands: ["40m", "20m"],
+      modes: ["SSB", "CW"],
+      public_notes: "Meet near the trailhead.",
+      organizer_notes: "Confirm parking.",
     });
     expect(JSON.stringify(body)).not.toContain("edit_token_hash");
-    expect(testEnv.DB.prepare).toHaveBeenCalledWith(
-      expect.not.stringContaining("SELECT *"),
-    );
-    expect(testEnv.DB.prepare).toHaveBeenCalledWith(
-      expect.not.stringContaining("edit_token_hash"),
-    );
+    const preparedSql = vi.mocked(testEnv.DB.prepare).mock.calls
+      .map(([sql]) => sql)
+      .join("\n");
+    expect(preparedSql).toContain("FROM activate_ri_stops");
+    expect(preparedSql).not.toContain("SELECT *");
+    expect(preparedSql).not.toContain("edit_token_hash");
   });
 
   it("approves pending routes for authenticated admins", async () => {

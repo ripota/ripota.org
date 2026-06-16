@@ -19,11 +19,27 @@
 </section>
 
 <script>
+  type PendingStop = {
+    park_reference?: unknown;
+    planned_date?: unknown;
+    start_time?: unknown;
+    end_time?: unknown;
+    bands?: unknown;
+    modes?: unknown;
+    public_notes?: unknown;
+    organizer_notes?: unknown;
+  };
+
   type PendingRoute = {
     id?: unknown;
     submitter_callsign?: unknown;
     submitter_name?: unknown;
     submitter_email?: unknown;
+    submitter_phone?: unknown;
+    club?: unknown;
+    public_notes?: unknown;
+    organizer_notes?: unknown;
+    stops?: unknown;
   };
 
   type AdminResponse = {
@@ -101,9 +117,14 @@
     meta.className = "admin-meta";
     addMeta(meta, "Name", stringValue(route.submitter_name) || "Not provided");
     addMeta(meta, "Email", stringValue(route.submitter_email) || "Not provided");
+    addMeta(meta, "Phone", stringValue(route.submitter_phone) || "Not provided");
+    addMeta(meta, "Club", stringValue(route.club) || "Not provided");
+    addMeta(meta, "Public notes", stringValue(route.public_notes) || "None");
+    addMeta(meta, "Organizer notes", stringValue(route.organizer_notes) || "None");
 
     body.appendChild(title);
     body.appendChild(meta);
+    body.appendChild(createStopsSection(stopValues(route.stops)));
 
     const actions = document.createElement("div");
     actions.className = "admin-card__actions";
@@ -125,6 +146,54 @@
     return article;
   }
 
+  function createStopsSection(stops: PendingStop[]) {
+    const section = document.createElement("section");
+    section.className = "admin-stops";
+
+    const heading = document.createElement("h4");
+    heading.textContent = `Stops (${stops.length})`;
+    section.appendChild(heading);
+
+    if (stops.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "admin-stops__empty";
+      empty.textContent = "No stop details provided.";
+      section.appendChild(empty);
+      return section;
+    }
+
+    const list = document.createElement("div");
+    list.className = "admin-stops__list";
+    for (const stop of stops) {
+      list.appendChild(createStopCard(stop));
+    }
+    section.appendChild(list);
+
+    return section;
+  }
+
+  function createStopCard(stop: PendingStop) {
+    const article = document.createElement("article");
+    article.className = "admin-stop";
+
+    const title = document.createElement("h5");
+    title.textContent = stringValue(stop.park_reference) || "Unknown park";
+
+    const meta = document.createElement("dl");
+    meta.className = "admin-meta admin-meta--compact";
+    addMeta(meta, "Date", stringValue(stop.planned_date) || "Not provided");
+    addMeta(meta, "Time", timeRange(stop));
+    addMeta(meta, "Bands", arrayValue(stop.bands).join(", ") || "Not provided");
+    addMeta(meta, "Modes", arrayValue(stop.modes).join(", ") || "Not provided");
+    addMeta(meta, "Public notes", stringValue(stop.public_notes) || "None");
+    addMeta(meta, "Organizer notes", stringValue(stop.organizer_notes) || "None");
+
+    article.appendChild(title);
+    article.appendChild(meta);
+
+    return article;
+  }
+
   function addMeta(list: HTMLDListElement, label: string, value: string) {
     const term = document.createElement("dt");
     term.textContent = label;
@@ -132,6 +201,29 @@
     description.textContent = value;
     list.appendChild(term);
     list.appendChild(description);
+  }
+
+  function stopValues(value: unknown): PendingStop[] {
+    return Array.isArray(value)
+      ? value.filter((item): item is PendingStop => typeof item === "object" && item !== null)
+      : [];
+  }
+
+  function arrayValue(value: unknown): string[] {
+    return Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === "string")
+      : [];
+  }
+
+  function timeRange(stop: PendingStop): string {
+    const start = stringValue(stop.start_time);
+    const end = stringValue(stop.end_time);
+
+    if (start && end) {
+      return `${start}-${end}`;
+    }
+
+    return start || end || "Not provided";
   }
 
   async function approveRoute(routeId: string, card: HTMLElement, button: HTMLButtonElement) {
