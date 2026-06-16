@@ -222,6 +222,7 @@ export async function approveRoute(
   actorEmail: string,
   now = new Date().toISOString(),
 ): Promise<ApproveRouteResult> {
+  const approvalOperationId = crypto.randomUUID();
   const route = await env.DB.prepare(
     `SELECT status
      FROM activate_ri_routes
@@ -241,9 +242,20 @@ export async function approveRoute(
   const [updateResult] = await env.DB.batch([
     env.DB.prepare(
       `UPDATE activate_ri_routes
-       SET status = 'approved', approved_at = ?, approved_by = ?, updated_at = ?
+       SET status = 'approved',
+           approved_at = ?,
+           approved_by = ?,
+           approval_operation_id = ?,
+           updated_at = ?
        WHERE id = ? AND event_id = ? AND status = 'pending'`,
-    ).bind(now, actorEmail, now, routeId, env.ACTIVATE_RI_EVENT_ID),
+    ).bind(
+      now,
+      actorEmail,
+      approvalOperationId,
+      now,
+      routeId,
+      env.ACTIVATE_RI_EVENT_ID,
+    ),
     env.DB.prepare(
       `UPDATE activate_ri_stops
        SET status = 'scheduled', updated_at = ?
@@ -254,8 +266,7 @@ export async function approveRoute(
            WHERE id = ?
              AND event_id = ?
              AND status = 'approved'
-             AND approved_at = ?
-             AND approved_by = ?
+             AND approval_operation_id = ?
          )`,
     ).bind(
       now,
@@ -263,8 +274,7 @@ export async function approveRoute(
       env.ACTIVATE_RI_EVENT_ID,
       routeId,
       env.ACTIVATE_RI_EVENT_ID,
-      now,
-      actorEmail,
+      approvalOperationId,
     ),
     env.DB.prepare(
       `INSERT INTO activate_ri_audit_events
@@ -276,8 +286,7 @@ export async function approveRoute(
          WHERE id = ?
            AND event_id = ?
            AND status = 'approved'
-           AND approved_at = ?
-           AND approved_by = ?
+           AND approval_operation_id = ?
        )`,
     ).bind(
       crypto.randomUUID(),
@@ -287,8 +296,7 @@ export async function approveRoute(
       now,
       routeId,
       env.ACTIVATE_RI_EVENT_ID,
-      now,
-      actorEmail,
+      approvalOperationId,
     ),
   ]);
 

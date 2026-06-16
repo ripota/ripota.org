@@ -467,12 +467,14 @@ describe("handleActivateRiApi", () => {
       organizer_notes: "Confirm parking.",
     });
     expect(JSON.stringify(body)).not.toContain("edit_token_hash");
+    expect(JSON.stringify(body)).not.toContain("approval_operation_id");
     const preparedSql = vi.mocked(testEnv.DB.prepare).mock.calls
       .map(([sql]) => sql)
       .join("\n");
     expect(preparedSql).toContain("FROM activate_ri_stops");
     expect(preparedSql).not.toContain("SELECT *");
     expect(preparedSql).not.toContain("edit_token_hash");
+    expect(preparedSql).not.toContain("approval_operation_id");
   });
 
   it("approves pending routes for authenticated admins", async () => {
@@ -498,14 +500,32 @@ describe("handleActivateRiApi", () => {
       expect.anything(),
       expect.anything(),
     ]);
-    const preparedSql = vi.mocked(testEnv.DB.prepare).mock.calls
-      .map(([sql]) => sql)
-      .join("\n");
-    expect(preparedSql).toContain("UPDATE activate_ri_routes");
-    expect(preparedSql).toContain("UPDATE activate_ri_stops");
-    expect(preparedSql).toContain("INSERT INTO activate_ri_audit_events");
-    expect(preparedSql).toContain("AND approved_at = ?");
-    expect(preparedSql).toContain("AND approved_by = ?");
+    const prepareCalls = vi.mocked(testEnv.DB.prepare).mock.calls;
+    const routeUpdateSql = prepareCalls[1][0];
+    const stopUpdateSql = prepareCalls[2][0];
+    const auditInsertSql = prepareCalls[3][0];
+    expect(routeUpdateSql).toContain("UPDATE activate_ri_routes");
+    expect(routeUpdateSql).toContain("approval_operation_id = ?");
+    expect(stopUpdateSql).toContain("UPDATE activate_ri_stops");
+    expect(stopUpdateSql).toContain("AND approval_operation_id = ?");
+    expect(stopUpdateSql).not.toContain("AND approved_at = ?");
+    expect(stopUpdateSql).not.toContain("AND approved_by = ?");
+    expect(auditInsertSql).toContain("INSERT INTO activate_ri_audit_events");
+    expect(auditInsertSql).toContain("AND approval_operation_id = ?");
+    expect(auditInsertSql).not.toContain("AND approved_at = ?");
+    expect(auditInsertSql).not.toContain("AND approved_by = ?");
+
+    const batchStatements = vi.mocked(testEnv.DB.batch).mock
+      .calls[0][0] as unknown as Array<{
+      bind: { mock: { calls: unknown[][] } };
+    }>;
+    const routeUpdateBinds = batchStatements[0].bind.mock.calls[0];
+    const stopUpdateBinds = batchStatements[1].bind.mock.calls[0];
+    const auditInsertBinds = batchStatements[2].bind.mock.calls[0];
+    const approvalOperationId = routeUpdateBinds[2];
+    expect(typeof approvalOperationId).toBe("string");
+    expect(stopUpdateBinds.at(-1)).toBe(approvalOperationId);
+    expect(auditInsertBinds.at(-1)).toBe(approvalOperationId);
   });
 
   it("returns 409 without scheduling stops or audit when the route transition loses a race", async () => {
@@ -526,11 +546,28 @@ describe("handleActivateRiApi", () => {
       error: "Route is not pending",
     });
     expect(testEnv.DB.batch).toHaveBeenCalledOnce();
-    const preparedSql = vi.mocked(testEnv.DB.prepare).mock.calls
-      .map(([sql]) => sql)
-      .join("\n");
-    expect(preparedSql).toContain("SELECT 1\n           FROM activate_ri_routes");
-    expect(preparedSql).toContain("SELECT 1\n         FROM activate_ri_routes");
+    const prepareCalls = vi.mocked(testEnv.DB.prepare).mock.calls;
+    const routeUpdateSql = prepareCalls[1][0];
+    const stopUpdateSql = prepareCalls[2][0];
+    const auditInsertSql = prepareCalls[3][0];
+    expect(routeUpdateSql).toContain("approval_operation_id = ?");
+    expect(stopUpdateSql).toContain("AND approval_operation_id = ?");
+    expect(stopUpdateSql).not.toContain("AND approved_at = ?");
+    expect(stopUpdateSql).not.toContain("AND approved_by = ?");
+    expect(auditInsertSql).toContain("AND approval_operation_id = ?");
+    expect(auditInsertSql).not.toContain("AND approved_at = ?");
+    expect(auditInsertSql).not.toContain("AND approved_by = ?");
+
+    const batchStatements = vi.mocked(testEnv.DB.batch).mock
+      .calls[0][0] as unknown as Array<{
+      bind: { mock: { calls: unknown[][] } };
+    }>;
+    const routeUpdateBinds = batchStatements[0].bind.mock.calls[0];
+    const stopUpdateBinds = batchStatements[1].bind.mock.calls[0];
+    const auditInsertBinds = batchStatements[2].bind.mock.calls[0];
+    const approvalOperationId = routeUpdateBinds[2];
+    expect(stopUpdateBinds.at(-1)).toBe(approvalOperationId);
+    expect(auditInsertBinds.at(-1)).toBe(approvalOperationId);
   });
 
   it("returns 404 for missing route approvals without scheduling stops or audit", async () => {

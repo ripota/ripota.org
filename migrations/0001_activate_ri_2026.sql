@@ -13,7 +13,8 @@ CREATE TABLE activate_ri_routes (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   approved_at TEXT,
-  approved_by TEXT
+  approved_by TEXT,
+  approval_operation_id TEXT
 );
 
 CREATE TABLE activate_ri_stops (
@@ -47,6 +48,9 @@ CREATE TABLE activate_ri_audit_events (
 );
 
 CREATE INDEX activate_ri_routes_status_idx ON activate_ri_routes(status);
+CREATE UNIQUE INDEX activate_ri_routes_approval_operation_idx
+  ON activate_ri_routes(approval_operation_id)
+  WHERE approval_operation_id IS NOT NULL;
 CREATE INDEX activate_ri_stops_route_idx ON activate_ri_stops(route_id);
 CREATE INDEX activate_ri_stops_status_idx ON activate_ri_stops(status);
 CREATE INDEX activate_ri_stops_park_idx ON activate_ri_stops(park_reference);
