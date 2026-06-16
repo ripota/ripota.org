@@ -238,30 +238,63 @@ export async function approveRoute(
     return { ok: false, status: 409, error: "Route is not pending" };
   }
 
-  const updateResult = await env.DB.prepare(
-    `UPDATE activate_ri_routes
-     SET status = 'approved', approved_at = ?, approved_by = ?, updated_at = ?
-     WHERE id = ? AND event_id = ? AND status = 'pending'`,
-  )
-    .bind(now, actorEmail, now, routeId, env.ACTIVATE_RI_EVENT_ID)
-    .run();
+  const [updateResult] = await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE activate_ri_routes
+       SET status = 'approved', approved_at = ?, approved_by = ?, updated_at = ?
+       WHERE id = ? AND event_id = ? AND status = 'pending'`,
+    ).bind(now, actorEmail, now, routeId, env.ACTIVATE_RI_EVENT_ID),
+    env.DB.prepare(
+      `UPDATE activate_ri_stops
+       SET status = 'scheduled', updated_at = ?
+       WHERE route_id = ? AND event_id = ? AND status = 'pending-review'
+         AND EXISTS (
+           SELECT 1
+           FROM activate_ri_routes
+           WHERE id = ?
+             AND event_id = ?
+             AND status = 'approved'
+             AND approved_at = ?
+             AND approved_by = ?
+         )`,
+    ).bind(
+      now,
+      routeId,
+      env.ACTIVATE_RI_EVENT_ID,
+      routeId,
+      env.ACTIVATE_RI_EVENT_ID,
+      now,
+      actorEmail,
+    ),
+    env.DB.prepare(
+      `INSERT INTO activate_ri_audit_events
+       (id, event_id, route_id, actor_email, action, details_json, created_at)
+       SELECT ?, ?, ?, ?, 'approve-route', '{}', ?
+       WHERE EXISTS (
+         SELECT 1
+         FROM activate_ri_routes
+         WHERE id = ?
+           AND event_id = ?
+           AND status = 'approved'
+           AND approved_at = ?
+           AND approved_by = ?
+       )`,
+    ).bind(
+      crypto.randomUUID(),
+      env.ACTIVATE_RI_EVENT_ID,
+      routeId,
+      actorEmail,
+      now,
+      routeId,
+      env.ACTIVATE_RI_EVENT_ID,
+      now,
+      actorEmail,
+    ),
+  ]);
 
   if (updateResult.meta.changes < 1) {
     return { ok: false, status: 409, error: "Route is not pending" };
   }
-
-  await env.DB.batch([
-    env.DB.prepare(
-      `UPDATE activate_ri_stops
-       SET status = 'scheduled', updated_at = ?
-       WHERE route_id = ? AND event_id = ? AND status = 'pending-review'`,
-    ).bind(now, routeId, env.ACTIVATE_RI_EVENT_ID),
-    env.DB.prepare(
-      `INSERT INTO activate_ri_audit_events
-       (id, event_id, route_id, actor_email, action, details_json, created_at)
-       VALUES (?, ?, ?, ?, 'approve-route', '{}', ?)`,
-    ).bind(crypto.randomUUID(), env.ACTIVATE_RI_EVENT_ID, routeId, actorEmail, now),
-  ]);
 
   return { ok: true };
 }
