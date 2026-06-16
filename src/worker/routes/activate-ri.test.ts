@@ -60,6 +60,10 @@ function post(path: string, payload: unknown): Request {
   });
 }
 
+function adminRequest(path: string, init?: RequestInit): Request {
+  return new Request(`https://ripota.org${path}`, init);
+}
+
 describe("handleActivateRiApi", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -232,5 +236,118 @@ describe("handleActivateRiApi", () => {
       ok: false,
       error: "Not found",
     });
+  });
+
+  it("requires Cloudflare Access identity for admin routes", async () => {
+    const listResponse = await handleActivateRiApi(
+      adminRequest("/api/activate-ri-2026/admin/routes"),
+      env(),
+    );
+    const approveResponse = await handleActivateRiApi(
+      adminRequest("/api/activate-ri-2026/admin/routes/route-1/approve", {
+        method: "POST",
+      }),
+      env(),
+    );
+
+    expect(listResponse.status).toBe(401);
+    expect(listResponse.headers.get("content-type")).toContain(
+      "application/json",
+    );
+    await expect(listResponse.json()).resolves.toEqual({
+      ok: false,
+      error: "Unauthorized",
+    });
+    expect(approveResponse.status).toBe(401);
+    await expect(approveResponse.json()).resolves.toEqual({
+      ok: false,
+      error: "Unauthorized",
+    });
+  });
+
+  it("lists pending routes for authenticated admins", async () => {
+    const routes = [
+      {
+        id: "route-1",
+        event_id: "activate-ri-2026",
+        submitter_callsign: "N1RWJ",
+        status: "pending",
+      },
+    ];
+    const testEnv = env();
+    const all = vi.fn(async () => ({ results: routes }));
+    const prepare = vi.fn(() => ({
+      bind: vi.fn().mockReturnThis(),
+      run: vi.fn(async () => ({ success: true })),
+      all,
+      first: vi.fn(),
+    }));
+    testEnv.DB = {
+      ...testEnv.DB,
+      prepare,
+    } as unknown as D1Database;
+
+    const response = await handleActivateRiApi(
+      adminRequest("/api/activate-ri-2026/admin/routes", {
+        headers: { "Cf-Access-Authenticated-User-Email": "admin@example.com" },
+      }),
+      testEnv,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true, routes });
+    expect(prepare).toHaveBeenCalledWith(
+      `SELECT * FROM activate_ri_routes WHERE status = 'pending' ORDER BY created_at ASC`,
+    );
+    expect(all).toHaveBeenCalledOnce();
+  });
+
+  it("approves routes for authenticated admins", async () => {
+    const testEnv = env();
+    const batch = vi.fn(async () => []);
+    const bind = vi.fn().mockReturnThis();
+    const prepare = vi.fn(() => ({
+      bind,
+      run: vi.fn(async () => ({ success: true })),
+      all: vi.fn(),
+      first: vi.fn(),
+    }));
+    testEnv.DB = {
+      ...testEnv.DB,
+      prepare,
+      batch,
+    } as unknown as D1Database;
+
+    const response = await handleActivateRiApi(
+      adminRequest("/api/activate-ri-2026/admin/routes/route-1/approve", {
+        method: "POST",
+        headers: { "Cf-Access-Authenticated-User-Email": "admin@example.com" },
+      }),
+      testEnv,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(prepare).toHaveBeenCalledTimes(3);
+    expect(bind).toHaveBeenCalledWith(
+      expect.any(String),
+      "admin@example.com",
+      expect.any(String),
+      "route-1",
+    );
+    expect(bind).toHaveBeenCalledWith(expect.any(String), "route-1");
+    expect(bind).toHaveBeenCalledWith(
+      expect.any(String),
+      "activate-ri-2026",
+      "route-1",
+      "admin@example.com",
+      expect.any(String),
+    );
+    expect(batch).toHaveBeenCalledOnce();
+    expect(batch).toHaveBeenCalledWith([
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+    ]);
   });
 });

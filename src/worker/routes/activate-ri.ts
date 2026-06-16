@@ -1,5 +1,6 @@
 import { validateRouteSubmission } from "../../lib/activate-ri/validation";
-import { insertPendingRoute } from "../db";
+import { requireAccessIdentity } from "../access";
+import { approveRoute, insertPendingRoute, listPendingRoutes } from "../db";
 import type { Env } from "../env";
 import { json, readJson } from "../http";
 import { verifyTurnstile } from "../turnstile";
@@ -12,6 +13,31 @@ export async function handleActivateRiApi(
   env: Env,
 ): Promise<Response> {
   const url = new URL(request.url);
+
+  if (
+    request.method === "GET" &&
+    url.pathname === "/api/activate-ri-2026/admin/routes"
+  ) {
+    const identity = requireAccessIdentity(request);
+    if (identity instanceof Response) {
+      return identity;
+    }
+
+    return json({ ok: true, routes: await listPendingRoutes(env) });
+  }
+
+  const approveMatch = url.pathname.match(
+    /^\/api\/activate-ri-2026\/admin\/routes\/([^/]+)\/approve$/,
+  );
+  if (request.method === "POST" && approveMatch) {
+    const identity = requireAccessIdentity(request);
+    if (identity instanceof Response) {
+      return identity;
+    }
+
+    await approveRoute(env, approveMatch[1], identity.email);
+    return json({ ok: true });
+  }
 
   if (
     request.method === "POST" &&
