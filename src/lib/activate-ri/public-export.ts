@@ -15,7 +15,11 @@ type PublicExportRow = {
   status: PublicActivationStop["status"];
 };
 
-export function routeRowsToPublicStops(rows: unknown[]): PublicActivationStop[] {
+export function routeRowsToPublicStops(rows: unknown): PublicActivationStop[] {
+  if (!Array.isArray(rows)) {
+    return [];
+  }
+
   return rows.flatMap((row) => {
     const exportRow = parsePublicExportRow(row);
     if (exportRow === null) {

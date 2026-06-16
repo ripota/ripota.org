@@ -78,6 +78,11 @@ describe("routeRowsToPublicStops", () => {
       expect.objectContaining({ id: "completed", status: "completed" }),
     ]);
   });
+
+  it("returns an empty array for non-array input", () => {
+    expect(routeRowsToPublicStops(null)).toEqual([]);
+    expect(routeRowsToPublicStops({ results: [] })).toEqual([]);
+  });
 });
 
 describe("parseStringArray", () => {

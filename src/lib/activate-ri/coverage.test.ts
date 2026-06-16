@@ -140,4 +140,41 @@ describe("deriveParkCoverage", () => {
       }),
     ]);
   });
+
+  it("treats delayed stops as upcoming coverage and picks them over completed stops", () => {
+    const stops: PublicActivationStop[] = [
+      {
+        id: "completed",
+        parkReference: "US-2868",
+        plannedDate: "2026-09-11",
+        startTime: "09:00",
+        endTime: "11:00",
+        activatorCallsign: "N1RWJ",
+        bands: ["40m"],
+        modes: ["CW"],
+        publicNotes: "",
+        status: "completed",
+      },
+      {
+        id: "delayed",
+        parkReference: "US-2868",
+        plannedDate: "2026-09-12",
+        startTime: "14:00",
+        endTime: "16:00",
+        activatorCallsign: "K1ABC",
+        bands: ["20m"],
+        modes: ["SSB"],
+        publicNotes: "Delayed start.",
+        status: "delayed",
+      },
+    ];
+
+    expect(deriveParkCoverage([park], stops)).toEqual([
+      expect.objectContaining({
+        status: "scheduled",
+        scheduledStopCount: 1,
+        nextStop: expect.objectContaining({ id: "delayed" }),
+      }),
+    ]);
+  });
 });
