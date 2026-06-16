@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; -*-
+#MISE description="Regenerate Activate All RI 2026 public JSON data"
+
+set -euo pipefail
+
+node --experimental-strip-types scripts/activate-ri-2026/publish-public-data.mjs
