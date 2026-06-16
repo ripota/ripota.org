@@ -1,0 +1,24 @@
+---
+import { activateRi2026Event } from "../../data/activate-ri-2026/event";
+
+const ctas = activateRi2026Event.phaseCtas[activateRi2026Event.phase];
+---
+
+<section class="event-hero" aria-labelledby="event-title">
+  <div class="container event-hero__inner">
+    <p class="eyebrow">September 11-13, 2026</p>
+    <h1 id="event-title">{activateRi2026Event.name}</h1>
+    <p class="event-hero__copy">
+      Help the Rhode Island POTA community cover all 61 Rhode Island references
+      during one coordinated weekend. A soft start is planned for September 10.
+    </p>
+    <div class="button-row" aria-label="Event actions">
+      <a class="button" data-variant="primary" href={ctas.primary.href}>
+        {ctas.primary.label}
+      </a>
+      <a class="button" data-variant="light" href={ctas.secondary.href}>
+        {ctas.secondary.label}
+      </a>
+    </div>
+  </div>
+</section>

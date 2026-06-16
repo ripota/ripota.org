@@ -1,0 +1,68 @@
+---
+import coverage from "../../../public/data/activate-ri-2026/coverage.json";
+
+const statusLabels: Record<string, string> = {
+  uncovered: "Needs coverage",
+  scheduled: "Scheduled",
+  "multiple-scheduled": "Multiple scheduled",
+  "cancelled-needs-replacement": "Needs replacement",
+  completed: "Completed",
+};
+
+const dateFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+function formatDate(date: string) {
+  return dateFormatter.format(new Date(`${date}T00:00:00Z`));
+}
+
+function formatStop(stop: (typeof coverage)[number]["nextStop"]) {
+  if (!stop) {
+    return "Needs coverage";
+  }
+
+  return `${formatDate(stop.plannedDate)}, ${stop.startTime}-${stop.endTime} ET`;
+}
+
+function formatList(items: string[]) {
+  return items.length > 0 ? items.join(", ") : "TBD";
+}
+---
+
+<div class="event-table-wrap">
+  <table class="event-table">
+    <thead>
+      <tr>
+        <th scope="col">Park</th>
+        <th scope="col">Status</th>
+        <th scope="col">Next activation</th>
+        <th scope="col">Activator</th>
+        <th scope="col">Bands / modes</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        coverage.map((park) => (
+          <tr>
+            <th scope="row">
+              {park.name}
+              <span>{park.reference}</span>
+            </th>
+            <td>{statusLabels[park.status] ?? park.status}</td>
+            <td>{formatStop(park.nextStop)}</td>
+            <td>{park.nextStop?.activatorCallsign ?? "TBD"}</td>
+            <td>
+              {park.nextStop
+                ? `${formatList(park.nextStop.bands)} / ${formatList(park.nextStop.modes)}`
+                : "TBD"}
+            </td>
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+</div>

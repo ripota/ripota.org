@@ -525,6 +525,111 @@ p {
   color: var(--text-muted);
 }
 
+.event-hero {
+  padding: calc(var(--header-height) + 4rem) 0 4rem;
+  background: var(--surface-ink);
+  color: var(--text-on-hero);
+}
+
+.event-hero h1 {
+  max-width: 12ch;
+  color: var(--text-on-hero);
+  font-size: clamp(3.25rem, 8vw, 6rem);
+}
+
+.event-hero__copy {
+  max-width: 720px;
+  margin: 1rem 0 1.5rem;
+  color: color-mix(in srgb, var(--text-on-hero) 86%, transparent);
+  font-size: 1.2rem;
+}
+
+.event-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.event-nav a,
+.button[data-variant="light"] {
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 0.7rem 0.9rem;
+  text-decoration: none;
+}
+
+.button[data-variant="light"] {
+  border-color: rgba(255, 250, 240, 0.62);
+  background: rgba(255, 250, 240, 0.1);
+  color: var(--text-on-hero);
+}
+
+.event-page h1 {
+  max-width: 12ch;
+  color: var(--surface-ink);
+  font-size: clamp(3.25rem, 8vw, 5.5rem);
+}
+
+.coverage-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  margin: 0 0 2rem;
+}
+
+.coverage-summary div {
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 1rem;
+  background: var(--surface-raised);
+}
+
+.coverage-summary dt {
+  color: var(--text-muted);
+  font-weight: 800;
+}
+
+.coverage-summary dd {
+  margin: 0.25rem 0 0;
+  color: var(--surface-ink);
+  font-size: 2rem;
+  font-weight: 900;
+}
+
+.event-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-raised);
+}
+
+.event-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  background: var(--surface-raised);
+}
+
+.event-table th,
+.event-table td {
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 0.8rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.event-table tbody tr:last-child th,
+.event-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.event-table th span {
+  display: block;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
 .notice {
   border-block: 1px solid var(--border-subtle);
   background: var(--notice-surface);

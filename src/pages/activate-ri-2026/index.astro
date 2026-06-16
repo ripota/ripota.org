@@ -1,0 +1,37 @@
+---
+import CoverageSummary from "../../components/activate-ri/CoverageSummary.astro";
+import EventHero from "../../components/activate-ri/EventHero.astro";
+import EventNav from "../../components/activate-ri/EventNav.astro";
+import Footer from "../../components/Footer.astro";
+import Notice from "../../components/Notice.astro";
+import SiteHeader from "../../components/SiteHeader.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+---
+
+<BaseLayout
+  title="Activate All RI 2026"
+  description="A Rhode Island POTA community weekend to cover all 61 Rhode Island references."
+  canonicalPath="/activate-ri-2026/"
+>
+  <SiteHeader variant="solid" />
+  <main id="main">
+    <EventHero />
+    <section class="section event-overview" aria-labelledby="event-overview-title">
+      <div class="container">
+        <EventNav />
+        <div class="section-header">
+          <p class="eyebrow">Coverage plan</p>
+          <h2 id="event-overview-title">One coordinated weekend</h2>
+          <p class="lead">
+            The schedule tracks planned activation windows and coverage gaps for
+            Rhode Island references. Use the park list to find references that
+            still need volunteer coverage.
+          </p>
+        </div>
+        <CoverageSummary />
+      </div>
+    </section>
+    <Notice />
+  </main>
+  <Footer />
+</BaseLayout>

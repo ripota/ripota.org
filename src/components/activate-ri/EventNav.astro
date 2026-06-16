@@ -1,0 +1,12 @@
+---
+const links = [
+  ["Overview", "/activate-ri-2026/"],
+  ["Volunteer", "/activate-ri-2026/volunteer/"],
+  ["Schedule", "/activate-ri-2026/schedule/"],
+  ["Parks", "/activate-ri-2026/parks/"],
+];
+---
+
+<nav class="event-nav" aria-label="Activate All RI navigation">
+  {links.map(([label, href]) => <a href={href}>{label}</a>)}
+</nav>

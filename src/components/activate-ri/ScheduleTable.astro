@@ -1,0 +1,69 @@
+---
+import parks from "../../../public/data/activate-ri-2026/parks.json";
+import schedule from "../../../public/data/activate-ri-2026/schedule.json";
+
+const parkNames = new Map(parks.map((park) => [park.reference, park.name]));
+
+const dateFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+const statusLabels: Record<string, string> = {
+  "pending-review": "Pending review",
+  scheduled: "Scheduled",
+  delayed: "Delayed",
+  cancelled: "Cancelled",
+  completed: "Completed",
+};
+
+function formatDate(date: string) {
+  return dateFormatter.format(new Date(`${date}T00:00:00Z`));
+}
+
+function formatList(items: string[]) {
+  return items.length > 0 ? items.join(", ") : "TBD";
+}
+---
+
+<div class="event-table-wrap">
+  <table class="event-table">
+    <thead>
+      <tr>
+        <th scope="col">Date</th>
+        <th scope="col">Time</th>
+        <th scope="col">Park</th>
+        <th scope="col">Activator</th>
+        <th scope="col">Bands</th>
+        <th scope="col">Modes</th>
+        <th scope="col">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        schedule.length > 0 ? (
+          schedule.map((stop) => (
+            <tr>
+              <td>{formatDate(stop.plannedDate)}</td>
+              <td>{stop.startTime}-{stop.endTime} ET</td>
+              <th scope="row">
+                {parkNames.get(stop.parkReference) ?? stop.parkReference}
+                <span>{stop.parkReference}</span>
+              </th>
+              <td>{stop.activatorCallsign}</td>
+              <td>{formatList(stop.bands)}</td>
+              <td>{formatList(stop.modes)}</td>
+              <td>{statusLabels[stop.status] ?? stop.status}</td>
+            </tr>
+          ))
+        ) : (
+          <tr>
+            <td colspan="7">No scheduled activations are published yet.</td>
+          </tr>
+        )
+      }
+    </tbody>
+  </table>
+</div>

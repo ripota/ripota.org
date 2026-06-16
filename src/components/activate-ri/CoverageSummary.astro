@@ -1,0 +1,21 @@
+---
+import coverage from "../../../public/data/activate-ri-2026/coverage.json";
+
+const scheduled = coverage.filter((park) =>
+  ["scheduled", "multiple-scheduled", "completed"].includes(park.status),
+).length;
+const gaps = coverage.filter((park) =>
+  ["uncovered", "cancelled-needs-replacement"].includes(park.status),
+).length;
+---
+
+<dl class="coverage-summary" aria-label="Activate All RI coverage summary">
+  <div>
+    <dt>Parks scheduled</dt>
+    <dd>{scheduled} / {coverage.length}</dd>
+  </div>
+  <div>
+    <dt>Coverage gaps</dt>
+    <dd>{gaps}</dd>
+  </div>
+</dl>
