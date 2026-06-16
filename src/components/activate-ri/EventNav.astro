@@ -5,8 +5,18 @@ const links = [
   ["Schedule", "/activate-ri-2026/schedule/"],
   ["Parks", "/activate-ri-2026/parks/"],
 ];
+
+const currentPath = Astro.url.pathname.endsWith("/")
+  ? Astro.url.pathname
+  : `${Astro.url.pathname}/`;
 ---
 
 <nav class="event-nav" aria-label="Activate All RI navigation">
-  {links.map(([label, href]) => <a href={href}>{label}</a>)}
+  {
+    links.map(([label, href]) => (
+      <a href={href} aria-current={currentPath === href ? "page" : undefined}>
+        {label}
+      </a>
+    ))
+  }
 </nav>

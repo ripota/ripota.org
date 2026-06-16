@@ -3,9 +3,10 @@ import { siteIdentity } from "../data/site";
 
 type Props = {
   variant?: "overlay" | "solid";
+  showEventLink?: boolean;
 };
 
-const { variant = "overlay" } = Astro.props;
+const { variant = "overlay", showEventLink = false } = Astro.props;
 ---
 
 <header class="site-header" data-variant={variant} aria-label="Site header">
@@ -15,7 +16,7 @@ const { variant = "overlay" } = Astro.props;
     </a>
     <nav class="site-header__nav" aria-label="Primary navigation">
       <a href="/#paths">Get started</a>
-      <a href="/activate-ri-2026/">Activate All RI</a>
+      {showEventLink && <a href="/activate-ri-2026/">Activate All RI</a>}
       <a href="/#resources">RI resources</a>
       <a href="/#official">Official links</a>
     </nav>

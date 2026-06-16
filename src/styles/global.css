@@ -559,6 +559,12 @@ p {
   text-decoration: none;
 }
 
+.event-nav a[aria-current="page"] {
+  border-color: var(--accent);
+  background: var(--surface-ink);
+  color: var(--text-on-hero);
+}
+
 .button[data-variant="light"] {
   border-color: rgba(255, 250, 240, 0.62);
   background: rgba(255, 250, 240, 0.1);

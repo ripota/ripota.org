@@ -1,0 +1,35 @@
+---
+import EventNav from "../../components/activate-ri/EventNav.astro";
+import Footer from "../../components/Footer.astro";
+import Notice from "../../components/Notice.astro";
+import SiteHeader from "../../components/SiteHeader.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+---
+
+<BaseLayout
+  title="Activate All RI 2026 Volunteer"
+  description="Activator signup information for Activate All RI 2026."
+  canonicalPath="/activate-ri-2026/volunteer/"
+>
+  <SiteHeader variant="solid" showEventLink />
+  <main id="main">
+    <section class="section event-page" aria-labelledby="volunteer-title">
+      <div class="container">
+        <EventNav />
+        <div class="section-header">
+          <p class="eyebrow">Activator signup</p>
+          <h1 id="volunteer-title">Volunteer page coming next</h1>
+          <p class="lead">
+            The activator signup form is the next event tool page. For now, use
+            the park coverage list to review references that need planned coverage.
+          </p>
+        </div>
+        <a class="button" data-variant="primary" href="/activate-ri-2026/parks/">
+          Review park coverage
+        </a>
+      </div>
+    </section>
+    <Notice />
+  </main>
+  <Footer />
+</BaseLayout>
