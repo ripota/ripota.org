@@ -1,5 +1,5 @@
 ---
-import { officialLinks, siteIdentity } from "../data/site";
+import { officialLinks, siteFeedbackLink, siteIdentity } from "../data/site";
 ---
 
 <footer class="site-footer">
@@ -7,6 +7,7 @@ import { officialLinks, siteIdentity } from "../data/site";
     <p>{siteIdentity.name}</p>
     <nav class="site-footer__links" aria-label="Footer links">
       <a href="/assets/">Assets</a>
+      <a href={siteFeedbackLink.href} title={siteFeedbackLink.description}>{siteFeedbackLink.label}</a>
       {
         officialLinks.map((link) => (
           <a href={link.href}>{link.label}</a>

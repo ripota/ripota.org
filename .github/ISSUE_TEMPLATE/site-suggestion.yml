@@ -1,0 +1,46 @@
+name: Site suggestion or correction
+description: Suggest an improvement, correction, or broken-link fix for ripota.org.
+title: "[Site]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve ripota.org.
+
+        Use this form for site content, broken links, local-resource notes, and page suggestions. Official Parks on the Air resources remain the source of truth for rules, accounts, spots, logs, awards, and current reference status.
+  - type: input
+    id: page-url
+    attributes:
+      label: Page URL
+      description: Which ripota.org page is this about? Leave blank if the suggestion is not tied to one page.
+      placeholder: https://ripota.org/
+    validations:
+      required: false
+  - type: textarea
+    id: requested-change
+    attributes:
+      label: What should change?
+      description: Describe the correction, broken link, local-resource note, or site idea.
+    validations:
+      required: true
+  - type: textarea
+    id: reason
+    attributes:
+      label: Why would this help?
+      description: Share the visitor problem, missing context, or local operating detail this would improve.
+    validations:
+      required: false
+  - type: textarea
+    id: source-context
+    attributes:
+      label: Supporting source or context
+      description: Add public sources, firsthand local context, or links that help maintainers evaluate the suggestion.
+    validations:
+      required: false
+  - type: input
+    id: contact
+    attributes:
+      label: Optional contact or callsign
+      description: Add a callsign, GitHub handle, or other contact detail if you want maintainers to follow up.
+    validations:
+      required: false

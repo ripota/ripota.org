@@ -6,6 +6,7 @@ import {
   resourceIntro,
   officialLinks,
   primaryCallsToAction,
+  siteFeedbackLink,
   siteIdentity,
 } from "./site";
 
@@ -27,6 +28,16 @@ describe("site content", () => {
     for (const link of officialLinks) {
       expect(link.href).toMatch(/^https:\/\//);
     }
+  });
+
+  it("routes site feedback to the GitHub issue form", () => {
+    expect(siteFeedbackLink).toEqual(
+      expect.objectContaining({
+        label: "Suggest a site improvement",
+        href: "https://github.com/ripota/ripota.org/issues/new?template=site-suggestion.yml",
+      }),
+    );
+    expect(siteFeedbackLink.description).toMatch(/ripota\.org/i);
   });
 
   it("states that Rhode Island POTA is unofficial", () => {

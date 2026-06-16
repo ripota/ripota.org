@@ -54,6 +54,12 @@ export const primaryCallsToAction: CallToAction[] = [
   },
 ];
 
+export const siteFeedbackLink = {
+  label: "Suggest a site improvement",
+  href: "https://github.com/ripota/ripota.org/issues/new?template=site-suggestion.yml",
+  description: "Suggest a correction, broken-link fix, or local-resource improvement for ripota.org.",
+} satisfies ExternalLink;
+
 export const pathCards: PathCardContent[] = [
   {
     eyebrow: "Already active in RI?",
