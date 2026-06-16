@@ -90,6 +90,46 @@ describe("Rhode Island POTA reference boundaries", () => {
     );
   });
 
+  it("uses all RI DEM Blackstone River records for Blackstone River State Park", () => {
+    const boundary = (boundaries as BoundaryRecord[]).find(
+      (candidate) => candidate.reference === "US-2869",
+    );
+
+    expect(boundary).toEqual(
+      expect.objectContaining({
+        status: "available",
+        geometryKind: "boundary",
+        sourceName: "Rhode Island DEM State Conservation Land",
+        sourceFeatureIds: [
+          5,
+          26,
+          31,
+          33,
+          51,
+          54,
+          314,
+          327,
+          439,
+          502,
+          563,
+          564,
+          590,
+          591,
+          678,
+          679,
+          726,
+          731,
+          965,
+          22917,
+          27011,
+          27012,
+          27013,
+          38157,
+        ],
+      }),
+    );
+  });
+
   it("stores Washington-Rochambeau as a 100-foot trail activation zone", () => {
     const boundary = (boundaries as BoundaryRecord[]).find(
       (candidate) => candidate.reference === "US-4582",

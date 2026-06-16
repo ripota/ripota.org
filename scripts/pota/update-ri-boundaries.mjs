@@ -62,6 +62,11 @@ const availableBoundaryQueries = [
   ],
   ["US-10548", "ridem", "DEM_AREA = 'Barber Pond Fishing Access'"],
   ["US-2868", "ridem", "DEM_AREA = 'Beavertail State Park'"],
+  [
+    "US-2869",
+    "ridem",
+    "UPPER(NAME) LIKE '%BLACKSTONE RIVER%' OR UPPER(DEM_AREA) LIKE '%BLACKSTONE RIVER%'",
+  ],
   ["US-2870", "ridem", "DEM_AREA = 'Brenton Point State Park'"],
   [
     "US-2871",
@@ -128,10 +133,6 @@ const bufferedTrailQueries = new Map([
 const pointOnlyReferences = new Set(["US-6980"]);
 
 const researchNeeded = new Map([
-  [
-    "US-2869",
-    "RI DEM has many Blackstone River conservation and bikeway parcels, but no clear Blackstone River State Park boundary match in the State Conservation Land layer.",
-  ],
   [
     "US-6980",
     "No reviewed Beach Pond Wildlife Management Area polygon was found in RI DEM State Conservation Land. RI Parks lists Beach Pond as a DEM site managed from the Arcadia Management Area context, and the POTA coordinate is 41.5739, -71.7864.",
