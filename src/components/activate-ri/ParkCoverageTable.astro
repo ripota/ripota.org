@@ -1,5 +1,13 @@
 ---
-import coverage from "../../../public/data/activate-ri-2026/coverage.json";
+import parks from "../../../public/data/activate-ri-2026/parks.json";
+import schedule from "../../../public/data/activate-ri-2026/schedule.json";
+import { deriveParkCoverage } from "../../lib/activate-ri/coverage";
+import type { ParkCoverage, PublicActivationStop, PublicParkSummary } from "../../lib/activate-ri/types";
+
+const visibleSchedule = (schedule as PublicActivationStop[]).filter(
+  (stop) => !stop.id.startsWith("sample-"),
+);
+const visibleCoverage = deriveParkCoverage(parks as PublicParkSummary[], visibleSchedule);
 
 const statusLabels: Record<string, string> = {
   uncovered: "Needs coverage",
@@ -20,7 +28,7 @@ function formatDate(date: string) {
   return dateFormatter.format(new Date(`${date}T00:00:00Z`));
 }
 
-function formatStop(stop: (typeof coverage)[number]["nextStop"]) {
+function formatStop(stop: ParkCoverage["nextStop"]) {
   if (!stop) {
     return "Needs coverage";
   }
@@ -46,7 +54,7 @@ function formatList(items: string[]) {
     </thead>
     <tbody>
       {
-        coverage.map((park) => (
+        visibleCoverage.map((park) => (
           <tr>
             <th scope="row">
               {park.name}

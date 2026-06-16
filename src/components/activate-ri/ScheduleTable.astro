@@ -1,8 +1,12 @@
 ---
 import parks from "../../../public/data/activate-ri-2026/parks.json";
 import schedule from "../../../public/data/activate-ri-2026/schedule.json";
+import type { PublicActivationStop } from "../../lib/activate-ri/types";
 
 const parkNames = new Map(parks.map((park) => [park.reference, park.name]));
+const visibleSchedule = (schedule as PublicActivationStop[]).filter(
+  (stop) => !stop.id.startsWith("sample-"),
+);
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -43,8 +47,8 @@ function formatList(items: string[]) {
     </thead>
     <tbody>
       {
-        schedule.length > 0 ? (
-          schedule.map((stop) => (
+        visibleSchedule.length > 0 ? (
+          visibleSchedule.map((stop) => (
             <tr>
               <td>{formatDate(stop.plannedDate)}</td>
               <td>{stop.startTime}-{stop.endTime} ET</td>
@@ -60,7 +64,9 @@ function formatList(items: string[]) {
           ))
         ) : (
           <tr>
-            <td colspan="7">No scheduled activations are published yet.</td>
+            <td colspan="7">
+              Approved activation windows will appear here after organizer review.
+            </td>
           </tr>
         )
       }
