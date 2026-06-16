@@ -18,7 +18,7 @@ export async function handleActivateRiApi(
     request.method === "GET" &&
     url.pathname === "/api/activate-ri-2026/admin/routes"
   ) {
-    const identity = requireAccessIdentity(request);
+    const identity = await requireAccessIdentity(request, env);
     if (identity instanceof Response) {
       return identity;
     }
@@ -30,12 +30,19 @@ export async function handleActivateRiApi(
     /^\/api\/activate-ri-2026\/admin\/routes\/([^/]+)\/approve$/,
   );
   if (request.method === "POST" && approveMatch) {
-    const identity = requireAccessIdentity(request);
+    const identity = await requireAccessIdentity(request, env);
     if (identity instanceof Response) {
       return identity;
     }
 
-    await approveRoute(env, approveMatch[1], identity.email);
+    const result = await approveRoute(env, approveMatch[1], identity.email);
+    if (!result.ok) {
+      return json(
+        { ok: false, error: result.error },
+        { status: result.status },
+      );
+    }
+
     return json({ ok: true });
   }
 

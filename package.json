@@ -25,5 +25,8 @@
     "vite": "^8.0.16",
     "volar-service-yaml": "^0.0.71",
     "yaml-language-server": "^1.23.0"
+  },
+  "dependencies": {
+    "jose": "^6.2.3"
   }
 }

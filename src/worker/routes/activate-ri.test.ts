@@ -6,6 +6,7 @@ function env(): Env {
   return {
     ACTIVATE_RI_EVENT_ID: "activate-ri-2026",
     TURNSTILE_REQUIRED: "false",
+    ALLOW_ADMIN_HEADER_AUTH: "false",
     ASSETS: { fetch: vi.fn() } as unknown as Fetcher,
     DB: {
       prepare: vi.fn(() => ({
@@ -16,6 +17,13 @@ function env(): Env {
       })),
       batch: vi.fn(async () => []),
     } as unknown as D1Database,
+  };
+}
+
+function adminEnv(): Env {
+  return {
+    ...env(),
+    ALLOW_ADMIN_HEADER_AUTH: "true",
   };
 }
 
@@ -62,6 +70,50 @@ function post(path: string, payload: unknown): Request {
 
 function adminRequest(path: string, init?: RequestInit): Request {
   return new Request(`https://ripota.org${path}`, init);
+}
+
+type AdminDbOptions = {
+  listRows?: unknown[];
+  routeStatus?: string | null;
+  routeUpdateChanges?: number;
+};
+
+function adminDb(options: AdminDbOptions = {}): D1Database {
+  const batch = vi.fn(async () => []);
+  const prepare = vi.fn((sql: string) => {
+    const statement = {
+      bind: vi.fn().mockReturnThis(),
+      run: vi.fn(async () => ({
+        success: true,
+        meta: { changes: options.routeUpdateChanges ?? 1 },
+      })),
+      all: vi.fn(async () => ({
+        results:
+          options.listRows ??
+          (sql.includes("SELECT *")
+            ? [{ id: "route-1", edit_token_hash: "secret-token-hash" }]
+            : [{ id: "route-1", status: "pending" }]),
+      })),
+      first: vi.fn(async () => {
+        if (options.routeStatus === undefined) {
+          return { status: "pending" };
+        }
+
+        if (options.routeStatus === null) {
+          return null;
+        }
+
+        return { status: options.routeStatus };
+      }),
+    };
+
+    return statement;
+  });
+
+  return {
+    prepare,
+    batch,
+  } as unknown as D1Database;
 }
 
 describe("handleActivateRiApi", () => {
@@ -265,27 +317,9 @@ describe("handleActivateRiApi", () => {
     });
   });
 
-  it("lists pending routes for authenticated admins", async () => {
-    const routes = [
-      {
-        id: "route-1",
-        event_id: "activate-ri-2026",
-        submitter_callsign: "N1RWJ",
-        status: "pending",
-      },
-    ];
-    const testEnv = env();
-    const all = vi.fn(async () => ({ results: routes }));
-    const prepare = vi.fn(() => ({
-      bind: vi.fn().mockReturnThis(),
-      run: vi.fn(async () => ({ success: true })),
-      all,
-      first: vi.fn(),
-    }));
-    testEnv.DB = {
-      ...testEnv.DB,
-      prepare,
-    } as unknown as D1Database;
+  it("allows local admin header auth only when explicitly enabled", async () => {
+    const testEnv = adminEnv();
+    testEnv.DB = adminDb();
 
     const response = await handleActivateRiApi(
       adminRequest("/api/activate-ri-2026/admin/routes", {
@@ -295,28 +329,85 @@ describe("handleActivateRiApi", () => {
     );
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ ok: true, routes });
-    expect(prepare).toHaveBeenCalledWith(
-      `SELECT * FROM activate_ri_routes WHERE status = 'pending' ORDER BY created_at ASC`,
-    );
-    expect(all).toHaveBeenCalledOnce();
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      routes: [{ id: "route-1", status: "pending" }],
+    });
   });
 
-  it("approves routes for authenticated admins", async () => {
+  it("rejects spoofed admin email headers without Access config or local bypass", async () => {
     const testEnv = env();
-    const batch = vi.fn(async () => []);
-    const bind = vi.fn().mockReturnThis();
-    const prepare = vi.fn(() => ({
-      bind,
-      run: vi.fn(async () => ({ success: true })),
-      all: vi.fn(),
-      first: vi.fn(),
-    }));
-    testEnv.DB = {
-      ...testEnv.DB,
-      prepare,
-      batch,
-    } as unknown as D1Database;
+    testEnv.DB = adminDb();
+
+    const response = await handleActivateRiApi(
+      adminRequest("/api/activate-ri-2026/admin/routes", {
+        headers: { "Cf-Access-Authenticated-User-Email": "admin@example.com" },
+      }),
+      testEnv,
+    );
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: "Unauthorized",
+    });
+  });
+
+  it("rejects spoofed admin email headers when Access JWT config is present", async () => {
+    const testEnv = {
+      ...env(),
+      CF_ACCESS_TEAM_DOMAIN: "ripota.cloudflareaccess.com",
+      CF_ACCESS_AUD: "test-audience",
+    };
+    testEnv.DB = adminDb();
+
+    const response = await handleActivateRiApi(
+      adminRequest("/api/activate-ri-2026/admin/routes", {
+        headers: {
+          "Cf-Access-Authenticated-User-Email": "admin@example.com",
+          "Cf-Access-Jwt-Assertion": "not-a-valid-jwt",
+        },
+      }),
+      testEnv,
+    );
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: "Unauthorized",
+    });
+  });
+
+  it("lists pending routes for authenticated admins without exposing edit tokens", async () => {
+    const testEnv = adminEnv();
+    testEnv.DB = adminDb();
+
+    const response = await handleActivateRiApi(
+      adminRequest("/api/activate-ri-2026/admin/routes", {
+        headers: { "Cf-Access-Authenticated-User-Email": "admin@example.com" },
+      }),
+      testEnv,
+    );
+
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({
+      ok: true,
+      routes: [{ id: "route-1", status: "pending" }],
+    });
+    expect(JSON.stringify(body)).not.toContain("edit_token_hash");
+    expect(testEnv.DB.prepare).toHaveBeenCalledWith(
+      expect.not.stringContaining("SELECT *"),
+    );
+    expect(testEnv.DB.prepare).toHaveBeenCalledWith(
+      expect.not.stringContaining("edit_token_hash"),
+    );
+  });
+
+  it("approves pending routes for authenticated admins", async () => {
+    const testEnv = adminEnv();
+    testEnv.DB = adminDb({ routeStatus: "pending", routeUpdateChanges: 1 });
 
     const response = await handleActivateRiApi(
       adminRequest("/api/activate-ri-2026/admin/routes/route-1/approve", {
@@ -328,26 +419,53 @@ describe("handleActivateRiApi", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
-    expect(prepare).toHaveBeenCalledTimes(3);
-    expect(bind).toHaveBeenCalledWith(
-      expect.any(String),
-      "admin@example.com",
-      expect.any(String),
-      "route-1",
+    expect(testEnv.DB.prepare).toHaveBeenCalledWith(
+      expect.stringContaining("WHERE id = ? AND event_id = ? AND status = 'pending'"),
     );
-    expect(bind).toHaveBeenCalledWith(expect.any(String), "route-1");
-    expect(bind).toHaveBeenCalledWith(
-      expect.any(String),
-      "activate-ri-2026",
-      "route-1",
-      "admin@example.com",
-      expect.any(String),
-    );
-    expect(batch).toHaveBeenCalledOnce();
-    expect(batch).toHaveBeenCalledWith([
-      expect.anything(),
+    expect(testEnv.DB.batch).toHaveBeenCalledOnce();
+    expect(testEnv.DB.batch).toHaveBeenCalledWith([
       expect.anything(),
       expect.anything(),
     ]);
+  });
+
+  it("returns 404 for missing route approvals without scheduling stops or audit", async () => {
+    const testEnv = adminEnv();
+    testEnv.DB = adminDb({ routeStatus: null });
+
+    const response = await handleActivateRiApi(
+      adminRequest("/api/activate-ri-2026/admin/routes/missing-route/approve", {
+        method: "POST",
+        headers: { "Cf-Access-Authenticated-User-Email": "admin@example.com" },
+      }),
+      testEnv,
+    );
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: "Route not found",
+    });
+    expect(testEnv.DB.batch).not.toHaveBeenCalled();
+  });
+
+  it("returns 409 for wrong-status route approvals without scheduling stops or audit", async () => {
+    const testEnv = adminEnv();
+    testEnv.DB = adminDb({ routeStatus: "approved" });
+
+    const response = await handleActivateRiApi(
+      adminRequest("/api/activate-ri-2026/admin/routes/route-1/approve", {
+        method: "POST",
+        headers: { "Cf-Access-Authenticated-User-Email": "admin@example.com" },
+      }),
+      testEnv,
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: "Route is not pending",
+    });
+    expect(testEnv.DB.batch).not.toHaveBeenCalled();
   });
 });
