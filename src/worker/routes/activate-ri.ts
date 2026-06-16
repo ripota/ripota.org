@@ -33,10 +33,16 @@ async function handleRouteSubmission(
     payload = await readJson(request);
   } catch (error) {
     if (error instanceof Response) {
-      return error;
+      return json(
+        { ok: false, errors: ["Expected application/json."] },
+        { status: 415 },
+      );
     }
 
-    throw error;
+    return json(
+      { ok: false, errors: ["Expected valid JSON."] },
+      { status: 400 },
+    );
   }
 
   const turnstileToken = isObject(payload) ? payload.turnstileToken : undefined;

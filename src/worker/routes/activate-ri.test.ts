@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { handleActivateRiApi } from "./activate-ri";
 import type { Env } from "../env";
 
@@ -19,7 +19,15 @@ function env(): Env {
   };
 }
 
-function validPayload(): unknown {
+function turnstileEnv(): Env {
+  return {
+    ...env(),
+    TURNSTILE_REQUIRED: "true",
+    TURNSTILE_SECRET_KEY: "test-secret",
+  };
+}
+
+function validPayload(): Record<string, unknown> {
   return {
     submitterCallsign: "N1RWJ",
     submitterName: "Rob Jackson",
@@ -37,6 +45,13 @@ function validPayload(): unknown {
   };
 }
 
+function validPayloadWithTurnstile(): unknown {
+  return {
+    ...validPayload(),
+    turnstileToken: "test-token",
+  };
+}
+
 function post(path: string, payload: unknown): Request {
   return new Request(`https://ripota.org${path}`, {
     method: "POST",
@@ -46,6 +61,10 @@ function post(path: string, payload: unknown): Request {
 }
 
 describe("handleActivateRiApi", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("accepts valid route submissions for organizer review", async () => {
     const testEnv = env();
     const response = await handleActivateRiApi(
@@ -97,7 +116,7 @@ describe("handleActivateRiApi", () => {
     });
   });
 
-  it("returns readJson responses for unsupported content types", async () => {
+  it("returns JSON errors for unsupported content types", async () => {
     const response = await handleActivateRiApi(
       new Request("https://ripota.org/api/activate-ri-2026/routes", {
         method: "POST",
@@ -108,7 +127,98 @@ describe("handleActivateRiApi", () => {
     );
 
     expect(response.status).toBe(415);
-    await expect(response.text()).resolves.toBe("Expected application/json");
+    expect(response.headers.get("content-type")).toContain("application/json");
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      errors: ["Expected application/json."],
+    });
+  });
+
+  it("returns JSON errors for malformed JSON", async () => {
+    const response = await handleActivateRiApi(
+      new Request("https://ripota.org/api/activate-ri-2026/routes", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{not-json",
+      }),
+      env(),
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.headers.get("content-type")).toContain("application/json");
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      errors: ["Expected valid JSON."],
+    });
+  });
+
+  it("returns sanitized JSON errors when Turnstile is required without a token", async () => {
+    const response = await handleActivateRiApi(
+      post("/api/activate-ri-2026/routes", validPayload()),
+      turnstileEnv(),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      errors: ["Turnstile verification failed."],
+    });
+  });
+
+  it("returns sanitized JSON errors when Turnstile verification is unsuccessful", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({ success: false })),
+    );
+
+    const response = await handleActivateRiApi(
+      post("/api/activate-ri-2026/routes", validPayloadWithTurnstile()),
+      turnstileEnv(),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      errors: ["Turnstile verification failed."],
+    });
+  });
+
+  it("returns sanitized JSON errors when Turnstile verification cannot be parsed", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("not-json", { status: 200 })),
+    );
+
+    const response = await handleActivateRiApi(
+      post("/api/activate-ri-2026/routes", validPayloadWithTurnstile()),
+      turnstileEnv(),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      errors: ["Turnstile verification failed."],
+    });
+  });
+
+  it("returns sanitized JSON errors when Turnstile verification fetch fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new Error("network unavailable");
+      }),
+    );
+
+    const response = await handleActivateRiApi(
+      post("/api/activate-ri-2026/routes", validPayloadWithTurnstile()),
+      turnstileEnv(),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      errors: ["Turnstile verification failed."],
+    });
   });
 
   it("returns JSON 404 for unknown Activate RI API routes", async () => {

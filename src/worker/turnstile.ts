@@ -30,14 +30,23 @@ export async function verifyTurnstile(
     formData.set("remoteip", remoteIp);
   }
 
-  const response = await fetch(
-    "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-    {
-      method: "POST",
-      body: formData,
-    },
-  );
-  const result = (await response.json()) as TurnstileResponse;
+  try {
+    const response = await fetch(
+      "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+      {
+        method: "POST",
+        body: formData,
+      },
+    );
 
-  return result.success === true;
+    if (!response.ok) {
+      return false;
+    }
+
+    const result = (await response.json()) as TurnstileResponse;
+
+    return result.success === true;
+  } catch {
+    return false;
+  }
 }
