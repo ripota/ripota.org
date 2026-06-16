@@ -725,6 +725,12 @@ p {
   font-weight: 700;
 }
 
+.admin-status__copy {
+  margin-left: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.85rem;
+}
+
 .admin-list {
   display: grid;
   gap: 0.9rem;

@@ -543,7 +543,14 @@ describe("handleActivateRiApi", () => {
     );
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ ok: true });
+    const body = await response.json() as { ok: boolean; editUrl?: string };
+    expect(body).toEqual({
+      ok: true,
+      editUrl: expect.stringMatching(
+        /^\/activate-ri-2026\/edit\/[a-f0-9]{64}\/$/,
+      ),
+    });
+    expect(JSON.stringify(body)).not.toContain("edit_token_hash");
     expect(testEnv.DB.prepare).toHaveBeenCalledWith(
       expect.stringContaining("WHERE id = ? AND event_id = ? AND status = 'pending'"),
     );
@@ -558,6 +565,7 @@ describe("handleActivateRiApi", () => {
     const stopUpdateSql = prepareCalls[2][0];
     const auditInsertSql = prepareCalls[3][0];
     expect(routeUpdateSql).toContain("UPDATE activate_ri_routes");
+    expect(routeUpdateSql).toContain("edit_token_hash = ?");
     expect(routeUpdateSql).toContain("approval_operation_id = ?");
     expect(stopUpdateSql).toContain("UPDATE activate_ri_stops");
     expect(stopUpdateSql).toContain("AND approval_operation_id = ?");
@@ -575,7 +583,13 @@ describe("handleActivateRiApi", () => {
     const routeUpdateBinds = batchStatements[0].bind.mock.calls[0];
     const stopUpdateBinds = batchStatements[1].bind.mock.calls[0];
     const auditInsertBinds = batchStatements[2].bind.mock.calls[0];
-    const approvalOperationId = routeUpdateBinds[2];
+    const rawEditToken = body.editUrl?.match(
+      /^\/activate-ri-2026\/edit\/([a-f0-9]{64})\/$/,
+    )?.[1];
+    expect(rawEditToken).toBeDefined();
+    expect(routeUpdateBinds[2]).toBe(await sha256Hex(rawEditToken ?? ""));
+    expect(routeUpdateBinds[2]).not.toBe(rawEditToken);
+    const approvalOperationId = routeUpdateBinds[3];
     expect(typeof approvalOperationId).toBe("string");
     expect(stopUpdateBinds.at(-1)).toBe(approvalOperationId);
     expect(auditInsertBinds.at(-1)).toBe(approvalOperationId);
@@ -594,15 +608,19 @@ describe("handleActivateRiApi", () => {
     );
 
     expect(response.status).toBe(409);
-    await expect(response.json()).resolves.toEqual({
+    const body = await response.json();
+    expect(body).toEqual({
       ok: false,
       error: "Route is not pending",
     });
+    expect(JSON.stringify(body)).not.toContain("editUrl");
+    expect(JSON.stringify(body)).not.toContain("edit_token_hash");
     expect(testEnv.DB.batch).toHaveBeenCalledOnce();
     const prepareCalls = vi.mocked(testEnv.DB.prepare).mock.calls;
     const routeUpdateSql = prepareCalls[1][0];
     const stopUpdateSql = prepareCalls[2][0];
     const auditInsertSql = prepareCalls[3][0];
+    expect(routeUpdateSql).toContain("edit_token_hash = ?");
     expect(routeUpdateSql).toContain("approval_operation_id = ?");
     expect(stopUpdateSql).toContain("AND approval_operation_id = ?");
     expect(stopUpdateSql).not.toContain("AND approved_at = ?");
@@ -618,7 +636,7 @@ describe("handleActivateRiApi", () => {
     const routeUpdateBinds = batchStatements[0].bind.mock.calls[0];
     const stopUpdateBinds = batchStatements[1].bind.mock.calls[0];
     const auditInsertBinds = batchStatements[2].bind.mock.calls[0];
-    const approvalOperationId = routeUpdateBinds[2];
+    const approvalOperationId = routeUpdateBinds[3];
     expect(stopUpdateBinds.at(-1)).toBe(approvalOperationId);
     expect(auditInsertBinds.at(-1)).toBe(approvalOperationId);
   });
@@ -636,10 +654,13 @@ describe("handleActivateRiApi", () => {
     );
 
     expect(response.status).toBe(404);
-    await expect(response.json()).resolves.toEqual({
+    const body = await response.json();
+    expect(body).toEqual({
       ok: false,
       error: "Route not found",
     });
+    expect(JSON.stringify(body)).not.toContain("editUrl");
+    expect(JSON.stringify(body)).not.toContain("edit_token_hash");
     expect(testEnv.DB.batch).not.toHaveBeenCalled();
   });
 
@@ -656,10 +677,13 @@ describe("handleActivateRiApi", () => {
     );
 
     expect(response.status).toBe(409);
-    await expect(response.json()).resolves.toEqual({
+    const body = await response.json();
+    expect(body).toEqual({
       ok: false,
       error: "Route is not pending",
     });
+    expect(JSON.stringify(body)).not.toContain("editUrl");
+    expect(JSON.stringify(body)).not.toContain("edit_token_hash");
     expect(testEnv.DB.batch).not.toHaveBeenCalled();
   });
 

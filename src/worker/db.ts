@@ -1,4 +1,5 @@
 import type { NormalizedRouteSubmission } from "../lib/activate-ri/types";
+import { generateEditToken, tokenHash } from "./edit-token";
 import type { Env } from "./env";
 
 export async function insertPendingRoute(
@@ -56,7 +57,7 @@ export async function insertPendingRoute(
 }
 
 export type ApproveRouteResult =
-  | { ok: true }
+  | { ok: true; editToken: string }
   | { ok: false; status: 404 | 409; error: string };
 
 export type EditStopFields = {
@@ -251,18 +252,22 @@ export async function approveRoute(
     return { ok: false, status: 409, error: "Route is not pending" };
   }
 
+  const editToken = generateEditToken();
+  const editTokenHash = await tokenHash(editToken);
   const [updateResult] = await env.DB.batch([
     env.DB.prepare(
       `UPDATE activate_ri_routes
        SET status = 'approved',
            approved_at = ?,
            approved_by = ?,
+           edit_token_hash = ?,
            approval_operation_id = ?,
            updated_at = ?
        WHERE id = ? AND event_id = ? AND status = 'pending'`,
     ).bind(
       now,
       actorEmail,
+      editTokenHash,
       approvalOperationId,
       now,
       routeId,
@@ -316,7 +321,7 @@ export async function approveRoute(
     return { ok: false, status: 409, error: "Route is not pending" };
   }
 
-  return { ok: true };
+  return { ok: true, editToken };
 }
 
 type EditStopRouteRow = {

@@ -47,6 +47,7 @@
     routes?: PendingRoute[];
     error?: string;
     message?: string;
+    editUrl?: string;
   };
 
   const dashboard = document.querySelector("[data-admin-dashboard]");
@@ -263,15 +264,43 @@
 
       card.remove();
       nextFocusTarget?.focus();
-      if (list.children.length === 0) {
-        status.replaceChildren("No pending submissions.");
-      } else {
-        status.replaceChildren("Submission approved.");
-      }
+      showApprovalSuccess(stringValue(data.editUrl), list.children.length);
     } catch {
       status.replaceChildren("Unable to approve submission. Please try again later.");
       button.disabled = false;
     }
+  }
+
+  function showApprovalSuccess(editUrl: string, remainingCount: number) {
+    if (!status) {
+      return;
+    }
+
+    if (!editUrl) {
+      status.replaceChildren(
+        remainingCount === 0 ? "No pending submissions." : "Submission approved.",
+      );
+      return;
+    }
+
+    const link = document.createElement("a");
+    link.href = editUrl;
+    link.textContent = editUrl;
+
+    const copyButton = document.createElement("button");
+    copyButton.className = "button admin-status__copy";
+    copyButton.type = "button";
+    copyButton.textContent = "Copy";
+    copyButton.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(new URL(editUrl, window.location.href).href);
+        copyButton.textContent = "Copied";
+      } catch {
+        copyButton.textContent = "Copy failed";
+      }
+    });
+
+    status.replaceChildren("Submission approved. Edit link: ", link, " ", copyButton);
   }
 
   async function parseResponse(response: Response): Promise<AdminResponse> {

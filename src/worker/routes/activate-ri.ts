@@ -8,6 +8,7 @@ import {
   updateStopByToken,
   type EditStopFields,
 } from "../db";
+import { tokenHash } from "../edit-token";
 import type { Env } from "../env";
 import { json, readJson } from "../http";
 import { verifyTurnstile } from "../turnstile";
@@ -50,7 +51,10 @@ export async function handleActivateRiApi(
       );
     }
 
-    return json({ ok: true });
+    return json({
+      ok: true,
+      editUrl: `/activate-ri-2026/edit/${encodeURIComponent(result.editToken)}/`,
+    });
   }
 
   const editStopMatch = url.pathname.match(
@@ -329,13 +333,4 @@ function decodePathSegment(value: string): string {
   } catch {
     return "";
   }
-}
-
-async function tokenHash(token: string): Promise<string> {
-  const bytes = new TextEncoder().encode(token);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-
-  return [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
 }
