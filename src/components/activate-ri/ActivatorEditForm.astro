@@ -1,0 +1,37 @@
+<section class="admin-panel" aria-labelledby="activator-edit-title" data-activator-edit>
+  <div class="admin-panel__header">
+    <div>
+      <p class="eyebrow">Activator edits</p>
+      <h2 id="activator-edit-title">Edit your activation stop</h2>
+      <p class="lead">
+        This private page will load your approved route before edit and
+        cancellation controls are shown.
+      </p>
+    </div>
+  </div>
+
+  <p class="admin-status" data-edit-status aria-live="polite">
+    Approved route lookup is not connected yet. Full controls will load here
+    after that lookup is added.
+  </p>
+</section>
+
+<script>
+  const editShell = document.querySelector("[data-activator-edit]");
+  const editStatus = editShell?.querySelector("[data-edit-status]");
+
+  if (editStatus) {
+    const pathParts = window.location.pathname.split("/").filter(Boolean);
+    const hasToken =
+      pathParts[0] === "activate-ri-2026" &&
+      pathParts[1] === "edit" &&
+      typeof pathParts[2] === "string" &&
+      pathParts[2].length > 0;
+
+    editStatus.replaceChildren(
+      hasToken
+        ? "Approved route lookup is not connected yet. Full controls will load here after that lookup is added."
+        : "This edit link is missing its private token.",
+    );
+  }
+</script>

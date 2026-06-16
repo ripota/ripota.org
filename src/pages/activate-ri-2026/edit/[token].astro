@@ -1,0 +1,39 @@
+---
+import ActivatorEditForm from "../../../components/activate-ri/ActivatorEditForm.astro";
+import EventNav from "../../../components/activate-ri/EventNav.astro";
+import Footer from "../../../components/Footer.astro";
+import Notice from "../../../components/Notice.astro";
+import SiteHeader from "../../../components/SiteHeader.astro";
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+
+export function getStaticPaths() {
+  return [{ params: { token: "[token]" } }];
+}
+---
+
+<BaseLayout
+  title="Edit Activate All RI 2026 Stop"
+  description="Private Activate All RI 2026 activator edit page."
+  canonicalPath="/activate-ri-2026/edit/[token]/"
+>
+  <SiteHeader variant="solid" showEventLink />
+  <main id="main">
+    <section class="section event-page" aria-labelledby="edit-title">
+      <div class="container">
+        <EventNav />
+        <div class="section-header">
+          <p class="eyebrow">Private edit link</p>
+          <h1 id="edit-title">Activator edit page</h1>
+          <p class="lead">
+            Use the private magic link from your approval email to manage an
+            approved Activate All RI 2026 stop. Full edit and cancellation
+            controls will load here after approved route lookup is added.
+          </p>
+        </div>
+        <ActivatorEditForm />
+      </div>
+    </section>
+    <Notice />
+  </main>
+  <Footer />
+</BaseLayout>

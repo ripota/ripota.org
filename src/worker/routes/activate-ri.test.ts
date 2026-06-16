@@ -68,6 +68,14 @@ function post(path: string, payload: unknown): Request {
   });
 }
 
+function patch(path: string, payload: unknown, headers?: HeadersInit): Request {
+  return new Request(`https://ripota.org${path}`, {
+    method: "PATCH",
+    headers: headers ?? { "content-type": "application/json" },
+    body: typeof payload === "string" ? payload : JSON.stringify(payload),
+  });
+}
+
 function adminRequest(path: string, init?: RequestInit): Request {
   return new Request(`https://ripota.org${path}`, init);
 }
@@ -174,6 +182,51 @@ function adminDb(options: AdminDbOptions = {}): D1Database {
     prepare,
     batch,
   } as unknown as D1Database;
+}
+
+type EditDbOptions = {
+  routeStatus?: string | null;
+  changes?: number;
+};
+
+function editDb(options: EditDbOptions = {}): D1Database {
+  const prepare = vi.fn((sql: string) => {
+    const statement = {
+      bind: vi.fn().mockReturnThis(),
+      run: vi.fn(async () => ({
+        success: true,
+        meta: { changes: options.changes ?? 1 },
+      })),
+      all: vi.fn(),
+      first: vi.fn(async () => {
+        if (!sql.includes("INNER JOIN activate_ri_routes")) {
+          return null;
+        }
+
+        if (options.routeStatus === null) {
+          return null;
+        }
+
+        return { status: options.routeStatus ?? "approved" };
+      }),
+    };
+
+    return statement;
+  });
+
+  return {
+    prepare,
+    batch: vi.fn(async () => []),
+  } as unknown as D1Database;
+}
+
+async function sha256Hex(value: string): Promise<string> {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+
+  return [...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 describe("handleActivateRiApi", () => {
@@ -608,5 +661,221 @@ describe("handleActivateRiApi", () => {
       error: "Route is not pending",
     });
     expect(testEnv.DB.batch).not.toHaveBeenCalled();
+  });
+
+  it("updates approved stops through a hashed edit token", async () => {
+    const testEnv = env();
+    testEnv.DB = editDb();
+    const token = "magic-token";
+    const response = await handleActivateRiApi(
+      patch(`/api/activate-ri-2026/edit/${token}/stops/stop-1`, {
+        startTime: "10:00",
+        endTime: "12:00",
+        bands: ["40m", "20m"],
+        modes: ["SSB", "CW"],
+        publicNotes: "Updated trailhead plan.",
+      }),
+      testEnv,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(testEnv.DB.prepare).toHaveBeenCalledWith(
+      expect.stringContaining("r.edit_token_hash = ?"),
+    );
+    expect(testEnv.DB.prepare).toHaveBeenCalledWith(
+      expect.stringContaining("UPDATE activate_ri_stops"),
+    );
+
+    const statements = vi.mocked(testEnv.DB.prepare).mock.results.map(
+      (result) => result.value as { bind: { mock: { calls: unknown[][] } } },
+    );
+    const routeLookupBinds = statements[0].bind.mock.calls[0];
+    const updateBinds = statements[1].bind.mock.calls[0];
+    const expectedHash = await sha256Hex(token);
+    expect(routeLookupBinds).toEqual([
+      "stop-1",
+      "activate-ri-2026",
+      "activate-ri-2026",
+      expectedHash,
+    ]);
+    expect(updateBinds).toEqual([
+      "10:00",
+      "12:00",
+      JSON.stringify(["40m", "20m"]),
+      JSON.stringify(["SSB", "CW"]),
+      "Updated trailhead plan.",
+      expect.any(String),
+      "stop-1",
+      "activate-ri-2026",
+      "activate-ri-2026",
+      expectedHash,
+    ]);
+    expect(JSON.stringify(updateBinds)).not.toContain(token);
+  });
+
+  it("cancels approved stops through a hashed edit token", async () => {
+    const testEnv = env();
+    testEnv.DB = editDb();
+    const token = "magic-token";
+
+    const response = await handleActivateRiApi(
+      post(`/api/activate-ri-2026/edit/${token}/stops/stop-1/cancel`, {
+        cancelReason: "Weather.",
+      }),
+      testEnv,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+
+    const statements = vi.mocked(testEnv.DB.prepare).mock.results.map(
+      (result) => result.value as { bind: { mock: { calls: unknown[][] } } },
+    );
+    const cancelBinds = statements[1].bind.mock.calls[0];
+    const expectedHash = await sha256Hex(token);
+    expect(cancelBinds).toEqual([
+      expect.any(String),
+      "Weather.",
+      expect.any(String),
+      "stop-1",
+      "activate-ri-2026",
+      "activate-ri-2026",
+      expectedHash,
+    ]);
+    expect(JSON.stringify(cancelBinds)).not.toContain(token);
+  });
+
+  it("allows cancellation without a JSON body", async () => {
+    const testEnv = env();
+    testEnv.DB = editDb();
+
+    const response = await handleActivateRiApi(
+      new Request(
+        "https://ripota.org/api/activate-ri-2026/edit/token/stops/stop-1/cancel",
+        { method: "POST" },
+      ),
+      testEnv,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+  });
+
+  it("rejects invalid edit stop payload shapes", async () => {
+    const response = await handleActivateRiApi(
+      patch("/api/activate-ri-2026/edit/token/stops/stop-1", {
+        startTime: 10,
+        endTime: "12:00",
+        bands: ["40m", 20],
+        modes: ["SSB"],
+        publicNotes: null,
+      }),
+      env(),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      errors: [
+        "Enter startTime as text.",
+        "Enter publicNotes as text.",
+        "Enter bands as a list of text values.",
+      ],
+    });
+  });
+
+  it("returns JSON errors for malformed edit JSON", async () => {
+    const response = await handleActivateRiApi(
+      patch("/api/activate-ri-2026/edit/token/stops/stop-1", "{not-json"),
+      env(),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      errors: ["Expected valid JSON."],
+    });
+  });
+
+  it("returns JSON errors for unsupported edit content types", async () => {
+    const response = await handleActivateRiApi(
+      patch("/api/activate-ri-2026/edit/token/stops/stop-1", "hello", {
+        "content-type": "text/plain",
+      }),
+      env(),
+    );
+
+    expect(response.status).toBe(415);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      errors: ["Expected application/json."],
+    });
+  });
+
+  it("returns 404 for edit tokens or stops that do not match", async () => {
+    const testEnv = env();
+    testEnv.DB = editDb({ routeStatus: null });
+
+    const response = await handleActivateRiApi(
+      patch("/api/activate-ri-2026/edit/wrong-token/stops/stop-1", {
+        startTime: "10:00",
+        endTime: "12:00",
+        bands: ["40m"],
+        modes: ["SSB"],
+        publicNotes: "",
+      }),
+      testEnv,
+    );
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: "Stop not found",
+    });
+  });
+
+  it("returns 409 for edit tokens belonging to non-approved routes", async () => {
+    const testEnv = env();
+    testEnv.DB = editDb({ routeStatus: "pending" });
+
+    const response = await handleActivateRiApi(
+      patch("/api/activate-ri-2026/edit/token/stops/stop-1", {
+        startTime: "10:00",
+        endTime: "12:00",
+        bands: ["40m"],
+        modes: ["SSB"],
+        publicNotes: "",
+      }),
+      testEnv,
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: "Route is not approved",
+    });
+  });
+
+  it("does not report edit success when no stop row changes", async () => {
+    const testEnv = env();
+    testEnv.DB = editDb({ changes: 0 });
+
+    const response = await handleActivateRiApi(
+      patch("/api/activate-ri-2026/edit/token/stops/stop-1", {
+        startTime: "10:00",
+        endTime: "12:00",
+        bands: ["40m"],
+        modes: ["SSB"],
+        publicNotes: "",
+      }),
+      testEnv,
+    );
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: "Stop not found",
+    });
   });
 });

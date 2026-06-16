@@ -59,6 +59,18 @@ export type ApproveRouteResult =
   | { ok: true }
   | { ok: false; status: 404 | 409; error: string };
 
+export type EditStopFields = {
+  startTime: string;
+  endTime: string;
+  bands: string[];
+  modes: string[];
+  publicNotes: string;
+};
+
+export type EditStopResult =
+  | { ok: true }
+  | { ok: false; status: 404 | 409; error: string };
+
 type RouteStatusRow = {
   status: string;
 };
@@ -302,6 +314,133 @@ export async function approveRoute(
 
   if (updateResult.meta.changes < 1) {
     return { ok: false, status: 409, error: "Route is not pending" };
+  }
+
+  return { ok: true };
+}
+
+type EditStopRouteRow = {
+  status: string;
+};
+
+async function findEditStopRoute(
+  env: Env,
+  tokenHash: string,
+  stopId: string,
+): Promise<EditStopRouteRow | null> {
+  return env.DB.prepare(
+    `SELECT r.status
+     FROM activate_ri_stops s
+     INNER JOIN activate_ri_routes r ON r.id = s.route_id
+     WHERE s.id = ?
+       AND s.event_id = ?
+       AND r.event_id = ?
+       AND r.edit_token_hash = ?`,
+  )
+    .bind(stopId, env.ACTIVATE_RI_EVENT_ID, env.ACTIVATE_RI_EVENT_ID, tokenHash)
+    .first<EditStopRouteRow>();
+}
+
+export async function updateStopByToken(
+  env: Env,
+  tokenHash: string,
+  stopId: string,
+  fields: EditStopFields,
+  now = new Date().toISOString(),
+): Promise<EditStopResult> {
+  const route = await findEditStopRoute(env, tokenHash, stopId);
+  if (!route) {
+    return { ok: false, status: 404, error: "Stop not found" };
+  }
+
+  if (route.status !== "approved") {
+    return { ok: false, status: 409, error: "Route is not approved" };
+  }
+
+  const result = await env.DB.prepare(
+    `UPDATE activate_ri_stops
+     SET start_time = ?,
+         end_time = ?,
+         bands_json = ?,
+         modes_json = ?,
+         public_notes = ?,
+         updated_at = ?
+     WHERE id = ?
+       AND event_id = ?
+       AND route_id IN (
+         SELECT id
+         FROM activate_ri_routes
+         WHERE event_id = ?
+           AND edit_token_hash = ?
+           AND status = 'approved'
+       )`,
+  )
+    .bind(
+      fields.startTime,
+      fields.endTime,
+      JSON.stringify(fields.bands),
+      JSON.stringify(fields.modes),
+      fields.publicNotes,
+      now,
+      stopId,
+      env.ACTIVATE_RI_EVENT_ID,
+      env.ACTIVATE_RI_EVENT_ID,
+      tokenHash,
+    )
+    .run();
+
+  if ((result.meta?.changes ?? 0) < 1) {
+    return { ok: false, status: 404, error: "Stop not found" };
+  }
+
+  return { ok: true };
+}
+
+export async function cancelStopByToken(
+  env: Env,
+  tokenHash: string,
+  stopId: string,
+  cancelReason: string,
+  now = new Date().toISOString(),
+): Promise<EditStopResult> {
+  const route = await findEditStopRoute(env, tokenHash, stopId);
+  if (!route) {
+    return { ok: false, status: 404, error: "Stop not found" };
+  }
+
+  if (route.status !== "approved") {
+    return { ok: false, status: 409, error: "Route is not approved" };
+  }
+
+  const result = await env.DB.prepare(
+    `UPDATE activate_ri_stops
+     SET status = 'cancelled',
+         cancelled_at = ?,
+         cancel_reason = ?,
+         updated_at = ?
+     WHERE id = ?
+       AND event_id = ?
+       AND route_id IN (
+         SELECT id
+         FROM activate_ri_routes
+         WHERE event_id = ?
+           AND edit_token_hash = ?
+           AND status = 'approved'
+       )`,
+  )
+    .bind(
+      now,
+      cancelReason,
+      now,
+      stopId,
+      env.ACTIVATE_RI_EVENT_ID,
+      env.ACTIVATE_RI_EVENT_ID,
+      tokenHash,
+    )
+    .run();
+
+  if ((result.meta?.changes ?? 0) < 1) {
+    return { ok: false, status: 404, error: "Stop not found" };
   }
 
   return { ok: true };
