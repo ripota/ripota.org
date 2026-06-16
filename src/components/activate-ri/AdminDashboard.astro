@@ -155,7 +155,13 @@
         return;
       }
 
+      const nextFocusTarget =
+        card.nextElementSibling?.querySelector<HTMLButtonElement>("button") ??
+        card.previousElementSibling?.querySelector<HTMLButtonElement>("button") ??
+        loadButton;
+
       card.remove();
+      nextFocusTarget?.focus();
       if (list.children.length === 0) {
         status.replaceChildren("No pending submissions.");
       } else {
