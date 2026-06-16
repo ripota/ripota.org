@@ -20,11 +20,41 @@ export function validateRouteSubmission(
   }
 
   const errors: string[] = [];
-  const submitterCallsign = String(input.submitterCallsign ?? "")
+  const submitterCallsign = readStringField(
+    input.submitterCallsign,
+    "Callsign",
+    errors,
+  )
     .trim()
     .toUpperCase();
-  const submitterName = String(input.submitterName ?? "").trim();
-  const submitterEmail = String(input.submitterEmail ?? "").trim().toLowerCase();
+  const submitterName = readStringField(
+    input.submitterName,
+    "Activator name",
+    errors,
+  ).trim();
+  const submitterEmail = readStringField(
+    input.submitterEmail,
+    "Email",
+    errors,
+  )
+    .trim()
+    .toLowerCase();
+  const submitterPhone = readStringField(
+    input.submitterPhone,
+    "Phone",
+    errors,
+  ).trim();
+  const club = readStringField(input.club, "Club", errors).trim();
+  const publicNotes = readStringField(
+    input.publicNotes,
+    "Public notes",
+    errors,
+  ).trim();
+  const organizerNotes = readStringField(
+    input.organizerNotes,
+    "Organizer notes",
+    errors,
+  ).trim();
   const stops = Array.isArray(input.stops) ? input.stops : [];
 
   if (!callsignPattern.test(submitterCallsign)) {
@@ -57,10 +87,10 @@ export function validateRouteSubmission(
       submitterCallsign,
       submitterName,
       submitterEmail,
-      submitterPhone: String(input.submitterPhone ?? "").trim(),
-      club: String(input.club ?? "").trim(),
-      publicNotes: String(input.publicNotes ?? "").trim(),
-      organizerNotes: String(input.organizerNotes ?? "").trim(),
+      submitterPhone,
+      club,
+      publicNotes,
+      organizerNotes,
       stops: normalizedStops,
     },
   };
@@ -78,10 +108,20 @@ function normalizeStop(
     return emptyStop();
   }
 
-  const parkReference = normalizePotaReference(String(stop.parkReference ?? ""));
-  const plannedDate = String(stop.plannedDate ?? "").trim();
-  const startTime = String(stop.startTime ?? "").trim();
-  const endTime = String(stop.endTime ?? "").trim();
+  const parkReference = normalizePotaReference(
+    readStringField(stop.parkReference, `${label} park reference`, errors),
+  );
+  const plannedDate = readStringField(stop.plannedDate, `${label} date`, errors).trim();
+  const startTime = readStringField(
+    stop.startTime,
+    `${label} start time`,
+    errors,
+  ).trim();
+  const endTime = readStringField(
+    stop.endTime,
+    `${label} end time`,
+    errors,
+  ).trim();
   const bands = cleanList(stop.bands, `${label} bands`, errors);
   const modes = cleanList(stop.modes, `${label} modes`, errors).map((mode) =>
     mode.toUpperCase(),
@@ -126,9 +166,34 @@ function normalizeStop(
     endTime,
     bands,
     modes,
-    publicNotes: String(stop.publicNotes ?? "").trim(),
-    organizerNotes: String(stop.organizerNotes ?? "").trim(),
+    publicNotes: readStringField(
+      stop.publicNotes,
+      `${label} public notes`,
+      errors,
+    ).trim(),
+    organizerNotes: readStringField(
+      stop.organizerNotes,
+      `${label} organizer notes`,
+      errors,
+    ).trim(),
   };
+}
+
+function readStringField(
+  value: unknown,
+  label: string,
+  errors: string[],
+): string {
+  if (value === undefined || value === null) {
+    return "";
+  }
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  errors.push(`${label} must be text.`);
+  return "";
 }
 
 function cleanList(value: unknown, label: string, errors: string[]): string[] {

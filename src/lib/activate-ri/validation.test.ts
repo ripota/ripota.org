@@ -102,6 +102,85 @@ describe("validateRouteSubmission", () => {
     }
   });
 
+  it("rejects malformed top-level scalar fields", () => {
+    const result = validateRouteSubmission({
+      ...validSubmission,
+      submitterCallsign: ["N1RWJ"],
+      submitterEmail: { value: "rob@example.com" },
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors).toEqual(
+        expect.arrayContaining(["Callsign must be text.", "Email must be text."]),
+      );
+    }
+  });
+
+  it("rejects malformed stop scalar fields", () => {
+    const result = validateRouteSubmission({
+      ...validSubmission,
+      stops: [
+        {
+          ...validSubmission.stops[0],
+          parkReference: ["US-2868"],
+          plannedDate: { date: "2026-09-11" },
+          startTime: ["09:00"],
+          endTime: { time: "11:00" },
+          publicNotes: ["Will spot through POTA."],
+        },
+      ],
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors).toEqual(
+        expect.arrayContaining([
+          "Stop 1 park reference must be text.",
+          "Stop 1 date must be text.",
+          "Stop 1 start time must be text.",
+          "Stop 1 end time must be text.",
+          "Stop 1 public notes must be text.",
+        ]),
+      );
+    }
+  });
+
+  it("accepts undefined and null optional notes as empty strings", () => {
+    const result = validateRouteSubmission({
+      ...validSubmission,
+      submitterPhone: null,
+      club: undefined,
+      publicNotes: null,
+      organizerNotes: undefined,
+      stops: [
+        {
+          ...validSubmission.stops[0],
+          publicNotes: null,
+          organizerNotes: undefined,
+        },
+      ],
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toEqual(
+        expect.objectContaining({
+          submitterPhone: "",
+          club: "",
+          publicNotes: "",
+          organizerNotes: "",
+        }),
+      );
+      expect(result.value.stops[0]).toEqual(
+        expect.objectContaining({
+          publicNotes: "",
+          organizerNotes: "",
+        }),
+      );
+    }
+  });
+
   it("accepts base US amateur callsigns", () => {
     const callsigns = ["N1RWJ", "K1NW", "KC1NDQ", "W3DRE", "K8ZFJ", "AA1ZZ"];
 
