@@ -692,6 +692,92 @@ p {
   min-height: 1.5rem;
 }
 
+.admin-panel {
+  display: grid;
+  gap: 1.25rem;
+  max-width: 960px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-raised) 82%, transparent);
+  padding: clamp(1rem, 3vw, 1.5rem);
+}
+
+.admin-panel__header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.admin-panel h2 {
+  max-width: 12ch;
+  font-size: clamp(2.15rem, 5vw, 3.2rem);
+}
+
+.admin-panel .lead {
+  margin-top: 0.7rem;
+  font-size: 1.05rem;
+}
+
+.admin-status {
+  min-height: 1.5rem;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.admin-list {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.admin-card {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  padding: 1rem;
+}
+
+.admin-card__body {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.admin-card h3 {
+  font-size: 1.45rem;
+}
+
+.admin-meta {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.35rem 0.75rem;
+  margin: 0;
+}
+
+.admin-meta dt {
+  color: var(--text-muted);
+  font-weight: 800;
+}
+
+.admin-meta dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.admin-card__actions {
+  flex: 0 0 auto;
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.25);
+  opacity: 0.62;
+}
+
 .notice {
   border-block: 1px solid var(--border-subtle);
   background: var(--notice-surface);
@@ -776,6 +862,15 @@ p {
   .asset-layout,
   .asset-downloads {
     grid-template-columns: 1fr;
+  }
+
+  .admin-panel__header,
+  .admin-card {
+    flex-direction: column;
+  }
+
+  .admin-card__actions {
+    width: 100%;
   }
 
   .path-card,

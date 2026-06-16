@@ -1,0 +1,34 @@
+---
+import AdminDashboard from "../../components/activate-ri/AdminDashboard.astro";
+import EventNav from "../../components/activate-ri/EventNav.astro";
+import Footer from "../../components/Footer.astro";
+import Notice from "../../components/Notice.astro";
+import SiteHeader from "../../components/SiteHeader.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+---
+
+<BaseLayout
+  title="Activate All RI 2026 Admin"
+  description="Review pending Activate All RI 2026 activation submissions."
+  canonicalPath="/activate-ri-2026/admin/"
+>
+  <SiteHeader variant="solid" showEventLink />
+  <main id="main">
+    <section class="section event-page" aria-labelledby="admin-title">
+      <div class="container">
+        <EventNav />
+        <div class="section-header">
+          <p class="eyebrow">Admin review</p>
+          <h1 id="admin-title">Admin queue</h1>
+          <p class="lead">
+            Review pending Activate All RI 2026 activation submissions before
+            they appear on the public schedule.
+          </p>
+        </div>
+        <AdminDashboard />
+      </div>
+    </section>
+    <Notice />
+  </main>
+  <Footer />
+</BaseLayout>

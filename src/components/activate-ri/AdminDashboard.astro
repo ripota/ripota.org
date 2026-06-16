@@ -1,0 +1,198 @@
+<section class="admin-panel" aria-labelledby="admin-dashboard-title" data-admin-dashboard>
+  <div class="admin-panel__header">
+    <div>
+      <p class="eyebrow">Organizer tools</p>
+      <h2 id="admin-dashboard-title">Activation review queue</h2>
+      <p class="lead">
+        This admin queue is protected by Cloudflare Access in production.
+      </p>
+    </div>
+    <button class="button" data-variant="primary" type="button" data-load-routes>
+      Load pending submissions
+    </button>
+  </div>
+
+  <p class="admin-status" data-admin-status aria-live="polite">
+    Load the queue to review pending activation submissions.
+  </p>
+  <div class="admin-list" data-admin-list></div>
+</section>
+
+<script>
+  type PendingRoute = {
+    id?: unknown;
+    submitter_callsign?: unknown;
+    submitter_name?: unknown;
+    submitter_email?: unknown;
+  };
+
+  type AdminResponse = {
+    ok?: boolean;
+    routes?: PendingRoute[];
+    error?: string;
+    message?: string;
+  };
+
+  const dashboard = document.querySelector("[data-admin-dashboard]");
+  const loadButton = dashboard?.querySelector<HTMLButtonElement>("[data-load-routes]");
+  const status = dashboard?.querySelector("[data-admin-status]");
+  const list = dashboard?.querySelector("[data-admin-list]");
+
+  loadButton?.addEventListener("click", () => {
+    void loadPendingRoutes();
+  });
+
+  async function loadPendingRoutes() {
+    if (!loadButton || !status || !list) {
+      return;
+    }
+
+    loadButton.disabled = true;
+    status.replaceChildren("Loading pending submissions...");
+    list.replaceChildren();
+
+    try {
+      const response = await fetch("/api/activate-ri-2026/admin/routes", {
+        headers: { accept: "application/json" },
+      });
+      const data = await parseResponse(response);
+
+      if (!response.ok || !data.ok) {
+        showRequestError(response, data, "Unable to load pending submissions.");
+        return;
+      }
+
+      renderRoutes(Array.isArray(data.routes) ? data.routes : []);
+    } catch {
+      status.replaceChildren("Unable to load pending submissions. Please try again later.");
+    } finally {
+      loadButton.disabled = false;
+    }
+  }
+
+  function renderRoutes(routes: PendingRoute[]) {
+    if (!status || !list) {
+      return;
+    }
+
+    list.replaceChildren();
+
+    if (routes.length === 0) {
+      status.replaceChildren("No pending submissions.");
+      return;
+    }
+
+    status.replaceChildren(`${routes.length} pending submission${routes.length === 1 ? "" : "s"}.`);
+    list.replaceChildren(...routes.map((route) => createRouteCard(route)));
+  }
+
+  function createRouteCard(route: PendingRoute) {
+    const routeId = stringValue(route.id);
+    const article = document.createElement("article");
+    article.className = "admin-card";
+
+    const body = document.createElement("div");
+    body.className = "admin-card__body";
+
+    const title = document.createElement("h3");
+    title.textContent = stringValue(route.submitter_callsign) || "Unknown callsign";
+
+    const meta = document.createElement("dl");
+    meta.className = "admin-meta";
+    addMeta(meta, "Name", stringValue(route.submitter_name) || "Not provided");
+    addMeta(meta, "Email", stringValue(route.submitter_email) || "Not provided");
+
+    body.appendChild(title);
+    body.appendChild(meta);
+
+    const actions = document.createElement("div");
+    actions.className = "admin-card__actions";
+
+    const button = document.createElement("button");
+    button.className = "button";
+    button.dataset.variant = "primary";
+    button.type = "button";
+    button.textContent = "Approve";
+    button.disabled = routeId.length === 0;
+    button.addEventListener("click", () => {
+      void approveRoute(routeId, article, button);
+    });
+
+    actions.appendChild(button);
+    article.appendChild(body);
+    article.appendChild(actions);
+
+    return article;
+  }
+
+  function addMeta(list: HTMLDListElement, label: string, value: string) {
+    const term = document.createElement("dt");
+    term.textContent = label;
+    const description = document.createElement("dd");
+    description.textContent = value;
+    list.appendChild(term);
+    list.appendChild(description);
+  }
+
+  async function approveRoute(routeId: string, card: HTMLElement, button: HTMLButtonElement) {
+    if (!status || !list || routeId.length === 0) {
+      return;
+    }
+
+    button.disabled = true;
+    status.replaceChildren("Approving submission...");
+
+    try {
+      const response = await fetch(`/api/activate-ri-2026/admin/routes/${encodeURIComponent(routeId)}/approve`, {
+        method: "POST",
+        headers: { accept: "application/json" },
+      });
+      const data = await parseResponse(response);
+
+      if (!response.ok || !data.ok) {
+        showRequestError(response, data, "Unable to approve submission.");
+        button.disabled = false;
+        return;
+      }
+
+      card.remove();
+      if (list.children.length === 0) {
+        status.replaceChildren("No pending submissions.");
+      } else {
+        status.replaceChildren("Submission approved.");
+      }
+    } catch {
+      status.replaceChildren("Unable to approve submission. Please try again later.");
+      button.disabled = false;
+    }
+  }
+
+  async function parseResponse(response: Response): Promise<AdminResponse> {
+    const contentType = response.headers.get("content-type") ?? "";
+
+    if (!contentType.includes("application/json")) {
+      return {};
+    }
+
+    return response.json();
+  }
+
+  function showRequestError(response: Response, data: AdminResponse, fallback: string) {
+    if (!status) {
+      return;
+    }
+
+    if (response.status === 401 || response.status === 403) {
+      status.replaceChildren(
+        "Admin access is protected. Sign in with an authorized Cloudflare Access account, then try again.",
+      );
+      return;
+    }
+
+    status.replaceChildren(data.error ?? data.message ?? fallback);
+  }
+
+  function stringValue(value: unknown): string {
+    return typeof value === "string" ? value : "";
+  }
+</script>
