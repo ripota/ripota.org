@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; -*-
+#MISE description="Apply Activate RI D1 migrations to local Wrangler D1"
+
+set -euo pipefail
+
+npx wrangler d1 migrations apply ripota-org --local

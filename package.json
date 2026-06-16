@@ -12,6 +12,7 @@
   },
   "devDependencies": {
     "@astrojs/check": "latest",
+    "@cloudflare/workers-types": "^4.20260616.1",
     "@types/leaflet": "^1.9.21",
     "astro": "latest",
     "leaflet": "^1.9.4",
