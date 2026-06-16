@@ -2,6 +2,9 @@ import type { Env } from "./env";
 import { json } from "./http";
 import { handleActivateRiApi } from "./routes/activate-ri";
 
+const activateRiEditPathPattern = /^\/activate-ri-2026\/edit\/[^/]+\/?$/;
+const activateRiEditShellPath = "/activate-ri-2026/edit/[token]/";
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -16,6 +19,17 @@ export default {
 
     if (url.pathname.startsWith("/api/")) {
       return json({ ok: false, error: "Not found" }, { status: 404 });
+    }
+
+    if (
+      (request.method === "GET" || request.method === "HEAD") &&
+      activateRiEditPathPattern.test(url.pathname)
+    ) {
+      const shellUrl = new URL(request.url);
+      shellUrl.pathname = activateRiEditShellPath;
+      shellUrl.search = "";
+
+      return env.ASSETS.fetch(new Request(shellUrl, request));
     }
 
     return env.ASSETS.fetch(request);
