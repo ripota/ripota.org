@@ -1,3 +1,4 @@
+import { eventRoute } from "../../lib/activate-ri/paths";
 import type { ActivateRiEvent } from "../../lib/activate-ri/types";
 
 export const activateRi2026Event = {
@@ -16,48 +17,48 @@ export const activateRi2026Event = {
     planning: {
       primary: {
         label: "Volunteer to activate",
-        href: "/activate-ri-2026/volunteer/",
+        href: eventRoute("volunteer"),
         description: "Submit one park or a multi-park route for organizer review.",
       },
       secondary: {
         label: "See the schedule",
-        href: "/activate-ri-2026/schedule/",
+        href: eventRoute("schedule"),
         description: "Review planned activation windows as they are approved.",
       },
     },
     "schedule-live": {
       primary: {
         label: "Find scheduled activations",
-        href: "/activate-ri-2026/schedule/",
+        href: eventRoute("schedule"),
         description: "Browse approved activation windows by date and time.",
       },
       secondary: {
         label: "Fill a coverage gap",
-        href: "/activate-ri-2026/parks/",
+        href: eventRoute("parks"),
         description: "Find parks that still need activator coverage.",
       },
     },
     "event-live": {
       primary: {
         label: "Open event schedule",
-        href: "/activate-ri-2026/schedule/",
+        href: eventRoute("schedule"),
         description: "Use the schedule and official POTA spots during the event.",
       },
       secondary: {
         label: "Update my activation",
-        href: "/activate-ri-2026/volunteer/",
+        href: eventRoute("volunteer"),
         description: "Use your private edit link to update or cancel a stop.",
       },
     },
     "post-event": {
       primary: {
         label: "Check recognition",
-        href: "/activate-ri-2026/awards/",
+        href: eventRoute("awards"),
         description: "Review community recognition details after the event.",
       },
       secondary: {
         label: "Submit corrections",
-        href: "/activate-ri-2026/volunteer/",
+        href: eventRoute("volunteer"),
         description: "Contact organizers about schedule or log corrections.",
       },
     },

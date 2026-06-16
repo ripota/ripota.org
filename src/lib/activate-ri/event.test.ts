@@ -21,10 +21,10 @@ describe("Activate RI event config", () => {
 
   it("keeps volunteer as the planning primary call to action", () => {
     expect(activateRi2026Event.phaseCtas.planning.primary.href).toBe(
-      "/activate-ri-2026/volunteer/",
+      eventRoute("volunteer"),
     );
     expect(activateRi2026Event.phaseCtas.planning.secondary.href).toBe(
-      "/activate-ri-2026/schedule/",
+      eventRoute("schedule"),
     );
   });
 
