@@ -101,3 +101,28 @@ export type NormalizedRouteSubmission = {
 export type ValidationResult<T> =
   | { ok: true; value: T }
   | { ok: false; errors: string[] };
+
+export type PublicParkSummary = {
+  reference: string;
+  name: string;
+  latitude?: number;
+  longitude?: number;
+  grid?: string;
+  potaUrl?: string;
+};
+
+export type StopExportRow = {
+  id: string;
+  park_reference: string;
+  planned_date: string;
+  start_time: string;
+  end_time: string;
+  submitter_callsign: string;
+  submitter_email?: string;
+  submitter_phone?: string;
+  bands_json: string;
+  modes_json: string;
+  public_notes: string | null;
+  organizer_notes?: string | null;
+  status: ActivationStopStatus;
+};
