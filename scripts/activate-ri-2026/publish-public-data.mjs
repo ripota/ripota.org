@@ -18,9 +18,6 @@ const server = await createServer({
 const { activateRi2026Event } = await server.ssrLoadModule(
   "/src/data/activate-ri-2026/event.ts",
 );
-const { sampleActivationStops } = await server.ssrLoadModule(
-  "/src/data/activate-ri-2026/sample-stops.ts",
-);
 const { deriveParkCoverage } = await server.ssrLoadModule(
   "/src/lib/activate-ri/coverage.ts",
 );
@@ -34,13 +31,14 @@ const parks = references.map((reference) => ({
   potaUrl: reference.potaUrl,
 }));
 
-const coverage = deriveParkCoverage(parks, sampleActivationStops);
+const publicActivationStops = [];
+const coverage = deriveParkCoverage(parks, publicActivationStops);
 
 try {
   await mkdir(outputDir, { recursive: true });
   await writeJson("event.json", activateRi2026Event);
   await writeJson("parks.json", parks);
-  await writeJson("schedule.json", sampleActivationStops);
+  await writeJson("schedule.json", publicActivationStops);
   await writeJson("coverage.json", coverage);
 } finally {
   await server.close();
