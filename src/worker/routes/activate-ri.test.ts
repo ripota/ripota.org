@@ -354,6 +354,23 @@ describe("handleActivateRiApi", () => {
     });
   });
 
+  it("fails closed when the Turnstile required binding is missing", async () => {
+    const testEnv = env();
+    delete testEnv.TURNSTILE_REQUIRED;
+
+    const response = await handleActivateRiApi(
+      post("/api/activate-ri-2026/routes", validPayload()),
+      testEnv,
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      errors: ["Turnstile verification failed."],
+    });
+    expect(testEnv.DB.batch).not.toHaveBeenCalled();
+  });
+
   it("returns sanitized JSON errors when Turnstile verification is unsuccessful", async () => {
     vi.stubGlobal(
       "fetch",

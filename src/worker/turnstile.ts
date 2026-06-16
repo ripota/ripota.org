@@ -9,7 +9,7 @@ export async function verifyTurnstile(
   env: Env,
   token: unknown,
 ): Promise<boolean> {
-  if (env.TURNSTILE_REQUIRED !== "true") {
+  if (env.TURNSTILE_REQUIRED === "false") {
     return true;
   }
 
