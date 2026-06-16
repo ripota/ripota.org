@@ -136,7 +136,12 @@ const pendingRouteDto = {
 };
 
 function adminDb(options: AdminDbOptions = {}): D1Database {
-  const batch = vi.fn(async () => []);
+  const batch = vi.fn(async (statements: unknown[]) =>
+    statements.map((_, index) => ({
+      success: true,
+      meta: { changes: index === 0 ? (options.routeUpdateChanges ?? 1) : 1 },
+    })),
+  );
   const prepare = vi.fn((sql: string) => {
     const statement = {
       bind: vi.fn().mockReturnThis(),
@@ -491,7 +496,41 @@ describe("handleActivateRiApi", () => {
     expect(testEnv.DB.batch).toHaveBeenCalledWith([
       expect.anything(),
       expect.anything(),
+      expect.anything(),
     ]);
+    const preparedSql = vi.mocked(testEnv.DB.prepare).mock.calls
+      .map(([sql]) => sql)
+      .join("\n");
+    expect(preparedSql).toContain("UPDATE activate_ri_routes");
+    expect(preparedSql).toContain("UPDATE activate_ri_stops");
+    expect(preparedSql).toContain("INSERT INTO activate_ri_audit_events");
+    expect(preparedSql).toContain("AND approved_at = ?");
+    expect(preparedSql).toContain("AND approved_by = ?");
+  });
+
+  it("returns 409 without scheduling stops or audit when the route transition loses a race", async () => {
+    const testEnv = adminEnv();
+    testEnv.DB = adminDb({ routeStatus: "pending", routeUpdateChanges: 0 });
+
+    const response = await handleActivateRiApi(
+      adminRequest("/api/activate-ri-2026/admin/routes/route-1/approve", {
+        method: "POST",
+        headers: { "Cf-Access-Authenticated-User-Email": "admin@example.com" },
+      }),
+      testEnv,
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: "Route is not pending",
+    });
+    expect(testEnv.DB.batch).toHaveBeenCalledOnce();
+    const preparedSql = vi.mocked(testEnv.DB.prepare).mock.calls
+      .map(([sql]) => sql)
+      .join("\n");
+    expect(preparedSql).toContain("SELECT 1\n           FROM activate_ri_routes");
+    expect(preparedSql).toContain("SELECT 1\n         FROM activate_ri_routes");
   });
 
   it("returns 404 for missing route approvals without scheduling stops or audit", async () => {

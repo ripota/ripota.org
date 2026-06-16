@@ -134,6 +134,7 @@
     button.dataset.variant = "primary";
     button.type = "button";
     button.textContent = "Approve";
+    button.setAttribute("aria-label", approvalLabel(route));
     button.disabled = routeId.length === 0;
     button.addEventListener("click", () => {
       void approveRoute(routeId, article, button);
@@ -224,6 +225,14 @@
     }
 
     return start || end || "Not provided";
+  }
+
+  function approvalLabel(route: PendingRoute): string {
+    const callsign = stringValue(route.submitter_callsign);
+    const name = stringValue(route.submitter_name);
+    const submitter = [callsign, name].filter(Boolean).join(" - ");
+
+    return submitter ? `Approve ${submitter}` : "Approve submission";
   }
 
   async function approveRoute(routeId: string, card: HTMLElement, button: HTMLButtonElement) {
