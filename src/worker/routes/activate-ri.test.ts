@@ -803,10 +803,120 @@ describe("handleActivateRiApi", () => {
       ok: false,
       errors: [
         "Enter startTime as text.",
-        "Enter publicNotes as text.",
         "Enter bands as a list of text values.",
+        "Enter startTime in HH:MM 24-hour format.",
       ],
     });
+  });
+
+  it("rejects edit stop time formats outside HH:MM 24-hour format", async () => {
+    const response = await handleActivateRiApi(
+      patch("/api/activate-ri-2026/edit/token/stops/stop-1", {
+        startTime: "9:00",
+        endTime: "24:00",
+        bands: ["40m"],
+        modes: ["SSB"],
+        publicNotes: "",
+      }),
+      env(),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      errors: [
+        "Enter startTime in HH:MM 24-hour format.",
+        "Enter endTime in HH:MM 24-hour format.",
+      ],
+    });
+  });
+
+  it("rejects edit stop end times that are not after start times", async () => {
+    const response = await handleActivateRiApi(
+      patch("/api/activate-ri-2026/edit/token/stops/stop-1", {
+        startTime: "12:00",
+        endTime: "12:00",
+        bands: ["40m"],
+        modes: ["SSB"],
+        publicNotes: "",
+      }),
+      env(),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      errors: ["Enter endTime after startTime."],
+    });
+  });
+
+  it("rejects edit stop payloads without bands after trimming", async () => {
+    const response = await handleActivateRiApi(
+      patch("/api/activate-ri-2026/edit/token/stops/stop-1", {
+        startTime: "10:00",
+        endTime: "12:00",
+        bands: ["  "],
+        modes: ["SSB"],
+        publicNotes: "",
+      }),
+      env(),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      errors: ["Enter at least one band."],
+    });
+  });
+
+  it("rejects edit stop payloads without modes after trimming", async () => {
+    const response = await handleActivateRiApi(
+      patch("/api/activate-ri-2026/edit/token/stops/stop-1", {
+        startTime: "10:00",
+        endTime: "12:00",
+        bands: ["40m"],
+        modes: ["  "],
+        publicNotes: "",
+      }),
+      env(),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      errors: ["Enter at least one mode."],
+    });
+  });
+
+  it("normalizes whitespace in valid edit stop payloads before updating", async () => {
+    const testEnv = env();
+    testEnv.DB = editDb();
+
+    const response = await handleActivateRiApi(
+      patch("/api/activate-ri-2026/edit/token/stops/stop-1", {
+        startTime: " 10:00 ",
+        endTime: " 12:00 ",
+        bands: [" 40m ", " "],
+        modes: [" ssb ", "cw"],
+        publicNotes: " Updated trailhead plan. ",
+      }),
+      testEnv,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+
+    const statements = vi.mocked(testEnv.DB.prepare).mock.results.map(
+      (result) => result.value as { bind: { mock: { calls: unknown[][] } } },
+    );
+    const updateBinds = statements[1].bind.mock.calls[0];
+    expect(updateBinds.slice(0, 5)).toEqual([
+      "10:00",
+      "12:00",
+      JSON.stringify(["40m"]),
+      JSON.stringify(["SSB", "CW"]),
+      "Updated trailhead plan.",
+    ]);
   });
 
   it("returns JSON errors for malformed edit JSON", async () => {

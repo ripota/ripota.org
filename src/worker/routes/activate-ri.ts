@@ -15,6 +15,7 @@ import { verifyTurnstile } from "../turnstile";
 
 const submissionReceivedMessage =
   "Submission received for organizer review.";
+const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 export async function handleActivateRiApi(
   request: Request,
@@ -257,11 +258,37 @@ function validateEditStopPayload(payload: unknown): EditStopValidation {
   }
 
   const errors: string[] = [];
-  const startTime = stringField(payload, "startTime", errors);
-  const endTime = stringField(payload, "endTime", errors);
-  const publicNotes = stringField(payload, "publicNotes", errors);
-  const bands = stringArrayField(payload, "bands", errors);
-  const modes = stringArrayField(payload, "modes", errors);
+  const startTime = stringField(payload, "startTime", errors).trim();
+  const endTime = stringField(payload, "endTime", errors).trim();
+  const publicNotes = optionalStringField(payload, "publicNotes", errors).trim();
+  const bands = cleanStringArrayField(payload, "bands", errors);
+  const modes = cleanStringArrayField(payload, "modes", errors).map((mode) =>
+    mode.toUpperCase(),
+  );
+
+  if (!timePattern.test(startTime)) {
+    errors.push("Enter startTime in HH:MM 24-hour format.");
+  }
+
+  if (!timePattern.test(endTime)) {
+    errors.push("Enter endTime in HH:MM 24-hour format.");
+  }
+
+  if (
+    timePattern.test(startTime) &&
+    timePattern.test(endTime) &&
+    endTime <= startTime
+  ) {
+    errors.push("Enter endTime after startTime.");
+  }
+
+  if (bands.length === 0) {
+    errors.push("Enter at least one band.");
+  }
+
+  if (modes.length === 0) {
+    errors.push("Enter at least one mode.");
+  }
 
   if (errors.length > 0) {
     return { ok: false, errors };
@@ -310,21 +337,43 @@ function stringField(
   return value;
 }
 
-function stringArrayField(
+function optionalStringField(
+  payload: Record<string, unknown>,
+  key: string,
+  errors: string[],
+): string {
+  const value = payload[key];
+  if (value === undefined || value === null) {
+    return "";
+  }
+
+  if (typeof value !== "string") {
+    errors.push(`Enter ${key} as text.`);
+    return "";
+  }
+
+  return value;
+}
+
+function cleanStringArrayField(
   payload: Record<string, unknown>,
   key: string,
   errors: string[],
 ): string[] {
   const value = payload[key];
-  if (
-    !Array.isArray(value) ||
-    value.some((item) => typeof item !== "string")
-  ) {
+  if (!Array.isArray(value)) {
     errors.push(`Enter ${key} as a list of text values.`);
     return [];
   }
 
-  return value;
+  if (value.some((item) => typeof item !== "string")) {
+    errors.push(`Enter ${key} as a list of text values.`);
+  }
+
+  return value
+    .filter((item) => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function decodePathSegment(value: string): string {
