@@ -64,3 +64,40 @@ export type ParkCoverage = {
   nextStop: PublicActivationStop | null;
   stops: PublicActivationStop[];
 };
+
+export type ActivationStopInput = {
+  parkReference: string;
+  plannedDate: string;
+  startTime: string;
+  endTime: string;
+  bands: string[];
+  modes: string[];
+  publicNotes?: string;
+  organizerNotes?: string;
+};
+
+export type RouteSubmissionInput = {
+  submitterCallsign: string;
+  submitterName: string;
+  submitterEmail: string;
+  submitterPhone?: string;
+  club?: string;
+  publicNotes?: string;
+  organizerNotes?: string;
+  stops: ActivationStopInput[];
+};
+
+export type NormalizedRouteSubmission = {
+  submitterCallsign: string;
+  submitterName: string;
+  submitterEmail: string;
+  submitterPhone: string;
+  club: string;
+  publicNotes: string;
+  organizerNotes: string;
+  stops: Required<ActivationStopInput>[];
+};
+
+export type ValidationResult<T> =
+  | { ok: true; value: T }
+  | { ok: false; errors: string[] };
