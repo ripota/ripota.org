@@ -24,6 +24,9 @@
   },
   "env": {
     "local": {
+      "build": {
+        "command": "npm run build:local"
+      },
       "d1_databases": [
         {
           "binding": "DB",

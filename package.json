@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "astro dev",
-    "prebuild": "node scripts/guard-turnstile-production.mjs --if-production",
+    "prebuild": "node scripts/guard-turnstile-production.mjs --required",
     "build": "astro build",
+    "build:local": "node scripts/build-local.mjs",
     "preview": "astro preview",
     "check": "astro check",
     "test": "vitest"
