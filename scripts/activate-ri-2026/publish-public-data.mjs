@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -7,6 +7,10 @@ import references from "../../src/data/ri-references.json" with { type: "json" }
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const outputDir = resolve(root, "public/data/activate-ri-2026");
+const publicStopRowsPath = resolve(
+  root,
+  "tmp/activate-ri-2026/public-stop-rows.json",
+);
 
 const server = await createServer({
   appType: "custom",
@@ -21,6 +25,9 @@ const { activateRi2026Event } = await server.ssrLoadModule(
 const { deriveParkCoverage } = await server.ssrLoadModule(
   "/src/lib/activate-ri/coverage.ts",
 );
+const { routeRowsToPublicStops } = await server.ssrLoadModule(
+  "/src/lib/activate-ri/public-export.ts",
+);
 
 const parks = references.map((reference) => ({
   reference: reference.reference,
@@ -31,7 +38,8 @@ const parks = references.map((reference) => ({
   potaUrl: reference.potaUrl,
 }));
 
-const publicActivationStops = [];
+const publicStopRows = await readPublicStopRows(publicStopRowsPath);
+const publicActivationStops = routeRowsToPublicStops(publicStopRows);
 const coverage = deriveParkCoverage(parks, publicActivationStops);
 
 try {
@@ -52,4 +60,37 @@ async function writeJson(filename, value) {
     `${JSON.stringify(value, null, 2)}\n`,
     "utf8",
   );
+}
+
+async function readPublicStopRows(filename) {
+  let contents;
+
+  try {
+    contents = await readFile(filename, "utf8");
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      return [];
+    }
+
+    throw error;
+  }
+
+  try {
+    const parsed = JSON.parse(contents);
+    if (Array.isArray(parsed)) {
+      return parsed;
+    }
+
+    if (isRecord(parsed) && Array.isArray(parsed.rows)) {
+      return parsed.rows;
+    }
+
+    throw new Error("expected a JSON array or an object with a rows array");
+  } catch (error) {
+    throw new Error(`Failed to parse ${filename}: ${error.message}`);
+  }
+}
+
+function isRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

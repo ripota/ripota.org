@@ -1,4 +1,7 @@
-import type { NormalizedRouteSubmission } from "../lib/activate-ri/types";
+import type {
+  NormalizedRouteSubmission,
+  StopExportRow,
+} from "../lib/activate-ri/types";
 import { generateEditToken, tokenHash } from "./edit-token";
 import type { Env } from "./env";
 
@@ -130,6 +133,33 @@ export type PendingStopDto = {
 export type PendingRouteDto = PendingRouteRow & {
   stops: PendingStopDto[];
 };
+
+export async function listPublicStopRows(env: Env): Promise<StopExportRow[]> {
+  const result = await env.DB.prepare(
+    `SELECT
+       s.id,
+       s.park_reference,
+       s.planned_date,
+       s.start_time,
+       s.end_time,
+       r.submitter_callsign,
+       s.bands_json,
+       s.modes_json,
+       s.public_notes,
+       s.status
+     FROM activate_ri_stops s
+     INNER JOIN activate_ri_routes r ON r.id = s.route_id
+     WHERE s.event_id = ?
+       AND r.event_id = ?
+       AND r.status = 'approved'
+       AND s.status IN ('scheduled', 'delayed', 'cancelled', 'completed')
+     ORDER BY s.planned_date ASC, s.start_time ASC, s.park_reference ASC, s.id ASC`,
+  )
+    .bind(env.ACTIVATE_RI_EVENT_ID, env.ACTIVATE_RI_EVENT_ID)
+    .all<StopExportRow>();
+
+  return result.results ?? [];
+}
 
 export async function listPendingRoutes(env: Env): Promise<PendingRouteDto[]> {
   const routeResult = await env.DB.prepare(

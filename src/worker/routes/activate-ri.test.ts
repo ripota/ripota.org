@@ -83,6 +83,7 @@ function adminRequest(path: string, init?: RequestInit): Request {
 type AdminDbOptions = {
   routeRows?: unknown[];
   stopRows?: unknown[];
+  publicStopRows?: unknown[];
   routeStatus?: string | null;
   routeUpdateChanges?: number;
 };
@@ -143,6 +144,19 @@ const pendingRouteDto = {
   ],
 };
 
+const publicStopRow = {
+  id: "stop-public-1",
+  park_reference: "US-2868",
+  planned_date: "2026-09-11",
+  start_time: "09:00",
+  end_time: "11:00",
+  submitter_callsign: "N1RWJ",
+  bands_json: '["40m","20m"]',
+  modes_json: '["SSB","CW"]',
+  public_notes: "Meet near the trailhead.",
+  status: "scheduled",
+};
+
 function adminDb(options: AdminDbOptions = {}): D1Database {
   const batch = vi.fn(async (statements: unknown[]) =>
     statements.map((_, index) => ({
@@ -158,9 +172,11 @@ function adminDb(options: AdminDbOptions = {}): D1Database {
         meta: { changes: options.routeUpdateChanges ?? 1 },
       })),
       all: vi.fn(async () => ({
-        results: sql.includes("FROM activate_ri_stops")
-          ? (options.stopRows ?? [pendingStopRow])
-          : (options.routeRows ?? [pendingRouteRow]),
+        results: sql.includes("INNER JOIN activate_ri_routes r")
+          ? (options.publicStopRows ?? [publicStopRow])
+          : sql.includes("FROM activate_ri_stops")
+            ? (options.stopRows ?? [pendingStopRow])
+            : (options.routeRows ?? [pendingRouteRow]),
       })),
       first: vi.fn(async () => {
         if (options.routeStatus === undefined) {
@@ -408,6 +424,12 @@ describe("handleActivateRiApi", () => {
       adminRequest("/api/activate-ri-2026/admin/routes"),
       env(),
     );
+    const publishResponse = await handleActivateRiApi(
+      adminRequest("/api/activate-ri-2026/admin/publish", {
+        method: "POST",
+      }),
+      env(),
+    );
     const approveResponse = await handleActivateRiApi(
       adminRequest("/api/activate-ri-2026/admin/routes/route-1/approve", {
         method: "POST",
@@ -420,6 +442,11 @@ describe("handleActivateRiApi", () => {
       "application/json",
     );
     await expect(listResponse.json()).resolves.toEqual({
+      ok: false,
+      error: "Unauthorized",
+    });
+    expect(publishResponse.status).toBe(401);
+    await expect(publishResponse.json()).resolves.toEqual({
       ok: false,
       error: "Unauthorized",
     });
@@ -528,6 +555,53 @@ describe("handleActivateRiApi", () => {
     expect(preparedSql).not.toContain("SELECT *");
     expect(preparedSql).not.toContain("edit_token_hash");
     expect(preparedSql).not.toContain("approval_operation_id");
+  });
+
+  it("exports public publish rows for authenticated admins", async () => {
+    const testEnv = adminEnv();
+    testEnv.DB = adminDb();
+
+    const response = await handleActivateRiApi(
+      adminRequest("/api/activate-ri-2026/admin/publish", {
+        method: "POST",
+        headers: { "Cf-Access-Authenticated-User-Email": "admin@example.com" },
+      }),
+      testEnv,
+    );
+
+    const body = await response.json() as { rows: unknown[] };
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({
+      ok: true,
+      rows: [publicStopRow],
+    });
+    expect(JSON.stringify(body)).not.toMatch(
+      /submitter_email|submitter_phone|edit_token_hash|approval_operation_id|organizer_notes|audit|log/i,
+    );
+
+    const statement = vi.mocked(testEnv.DB.prepare).mock.results[0].value as {
+      bind: { mock: { calls: unknown[][] } };
+    };
+    expect(statement.bind.mock.calls[0]).toEqual([
+      "activate-ri-2026",
+      "activate-ri-2026",
+    ]);
+
+    const preparedSql = vi.mocked(testEnv.DB.prepare).mock.calls
+      .map(([sql]) => sql)
+      .join("\n");
+    expect(preparedSql).toContain("INNER JOIN activate_ri_routes r");
+    expect(preparedSql).toContain("r.status = 'approved'");
+    expect(preparedSql).toContain(
+      "s.status IN ('scheduled', 'delayed', 'cancelled', 'completed')",
+    );
+    expect(preparedSql).toContain("s.event_id = ?");
+    expect(preparedSql).toContain("r.event_id = ?");
+    expect(preparedSql).not.toContain("SELECT *");
+    expect(preparedSql).not.toMatch(
+      /submitter_email|submitter_phone|edit_token_hash|approval_operation_id|organizer_notes|activate_ri_audit_events|raw_logs/i,
+    );
   });
 
   it("approves pending routes for authenticated admins", async () => {

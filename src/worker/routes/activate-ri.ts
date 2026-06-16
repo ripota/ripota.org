@@ -5,6 +5,7 @@ import {
   cancelStopByToken,
   insertPendingRoute,
   listPendingRoutes,
+  listPublicStopRows,
   updateStopByToken,
   type EditStopFields,
 } from "../db";
@@ -33,6 +34,18 @@ export async function handleActivateRiApi(
     }
 
     return json({ ok: true, routes: await listPendingRoutes(env) });
+  }
+
+  if (
+    request.method === "POST" &&
+    url.pathname === "/api/activate-ri-2026/admin/publish"
+  ) {
+    const identity = await requireAccessIdentity(request, env);
+    if (identity instanceof Response) {
+      return identity;
+    }
+
+    return json({ ok: true, rows: await listPublicStopRows(env) });
   }
 
   const approveMatch = url.pathname.match(
