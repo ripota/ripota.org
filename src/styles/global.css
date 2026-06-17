@@ -1071,6 +1071,20 @@ p {
   min-width: 0;
 }
 
+.required-marker {
+  display: inline-block;
+  color: color-mix(in srgb, var(--accent) 88%, var(--surface-ink));
+  cursor: help;
+  font-size: 1.05rem;
+  font-weight: 900;
+  line-height: 1;
+  transform: translateY(-0.08em);
+}
+
+.form-required-note {
+  margin: 0;
+}
+
 .help-popover {
   position: relative;
   display: inline-flex;
@@ -1197,6 +1211,14 @@ p {
   background: var(--surface-raised);
   color: var(--text-primary);
   padding: 0.7rem;
+}
+
+.event-form input[aria-invalid="true"],
+.event-form select[aria-invalid="true"],
+.event-form textarea[aria-invalid="true"],
+.multi-select__button[aria-invalid="true"] {
+  border-color: color-mix(in srgb, #b42318 74%, var(--border-subtle));
+  box-shadow: 0 0 0 3px color-mix(in srgb, #b42318 18%, transparent);
 }
 
 .event-form .callsign-input {
@@ -1355,8 +1377,28 @@ p {
   font-weight: 500;
 }
 
+.form-error {
+  color: #b42318;
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
+.form-error:empty {
+  display: none;
+}
+
 .form-status {
   min-height: 1.5rem;
+}
+
+.form-status[data-status="error"] {
+  color: #b42318;
+  font-weight: 800;
+}
+
+.form-status[data-status="success"] {
+  color: color-mix(in srgb, #126d3a 84%, var(--surface-ink));
+  font-weight: 800;
 }
 
 .form-actions {

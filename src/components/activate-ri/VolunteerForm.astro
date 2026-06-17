@@ -32,41 +32,60 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
   defer
 ></script>
 
-<form class="event-form" method="post" action="/api/activate-ri-2026/plans" data-activate-ri-volunteer>
+<form class="event-form" method="post" action="/api/activate-ri-2026/plans" data-activate-ri-volunteer novalidate>
+  <p class="form-help form-required-note">* Required fields</p>
   <div class="form-grid form-grid--identity">
     <label>
-      Callsign
+      <span class="field-label-row">
+        <span>Callsign</span>
+        <span class="required-marker" aria-label="Required field" title="Required">*</span>
+      </span>
       <input
         class="callsign-input"
         id="activate-ri-callsign"
         name="submitterCallsign"
         autocomplete="nickname"
         autocapitalize="characters"
-        aria-describedby="activate-ri-callsign-help"
+        aria-describedby="activate-ri-callsign-help activate-ri-callsign-error"
         spellcheck="false"
         required
       />
       <span id="activate-ri-callsign-help" class="form-help">
         Use the callsign that should appear on the public schedule.
       </span>
+      <span id="activate-ri-callsign-error" class="form-error" data-field-error></span>
     </label>
     <label>
-      Name
-      <input name="submitterName" autocomplete="name" required />
+      <span class="field-label-row">
+        <span>Name</span>
+        <span class="required-marker" aria-label="Required field" title="Required">*</span>
+      </span>
+      <input
+        id="activate-ri-name"
+        name="submitterName"
+        autocomplete="name"
+        aria-describedby="activate-ri-name-error"
+        required
+      />
+      <span id="activate-ri-name-error" class="form-error" data-field-error></span>
     </label>
     <label>
-      Email
+      <span class="field-label-row">
+        <span>Email</span>
+        <span class="required-marker" aria-label="Required field" title="Required">*</span>
+      </span>
       <input
         id="activate-ri-email"
         name="submitterEmail"
         type="email"
         autocomplete="email"
-        aria-describedby="activate-ri-email-help"
+        aria-describedby="activate-ri-email-help activate-ri-email-error"
         required
       />
       <span id="activate-ri-email-help" class="form-help">
         Used for your private edit link. It is not shown publicly.
       </span>
+      <span id="activate-ri-email-error" class="form-error" data-field-error></span>
     </label>
     <label>
       Club / group affiliation
@@ -87,6 +106,7 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
         <div class="form-field form-field--wide">
           <span class="field-label-row">
             <span class="form-label">Park</span>
+            <span class="required-marker" aria-label="Required field" title="Required">*</span>
             <span class="help-popover">
               <button
                 class="help-popover__button"
@@ -108,6 +128,7 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
               role="combobox"
               aria-autocomplete="list"
               aria-expanded="false"
+              aria-required="true"
               required
             />
             <input data-park-reference type="hidden" />
@@ -147,19 +168,25 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
           <span class="form-help">
             Select a park from the suggestions before submitting.
           </span>
+          <span class="form-error" data-field-error data-error-for="park"></span>
         </div>
         <label>
-          Date
+          <span class="field-label-row">
+            <span>Date</span>
+            <span class="required-marker" aria-label="Required field" title="Required">*</span>
+          </span>
           <select data-planned-date required>
             <option value="2026-09-10">Thursday, September 10 soft start</option>
             <option value="2026-09-11">Friday, September 11</option>
             <option value="2026-09-12">Saturday, September 12</option>
             <option value="2026-09-13">Sunday, September 13</option>
           </select>
+          <span class="form-error" data-field-error data-error-for="plannedDate"></span>
         </label>
         <div class="form-field">
           <span class="field-label-row">
             <span class="form-label">Time block</span>
+            <span class="required-marker" aria-label="Required field" title="Required">*</span>
             <span class="help-popover">
               <button
                 class="help-popover__button"
@@ -176,18 +203,20 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
             <option value="">Choose a 3-hour block</option>
             {
               activateRiTimeBlocks.map((block) => (
-                <option value={block.value}>{block.value} ET</option>
+                <option value={block.value}>{block.value} UTC</option>
               ))
             }
           </select>
           <span class="form-help">
-            Pick the closest planned operating window. Update it later if plans
+            Pick the closest planned operating window in UTC. Update it later if plans
             change.
           </span>
+          <span class="form-error" data-field-error data-error-for="timeBlock"></span>
         </div>
         <div class="form-field">
           <span class="field-label-row">
             <span class="form-label">Bands</span>
+            <span class="required-marker" aria-label="Required field" title="Required">*</span>
             <span class="help-popover">
               <button
                 class="help-popover__button"
@@ -206,6 +235,7 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
               type="button"
               data-multi-toggle
               aria-expanded="false"
+              aria-required="true"
             >
               Choose bands
             </button>
@@ -223,10 +253,12 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
           <span class="form-help">
             Select every band you expect to use.
           </span>
+          <span class="form-error" data-field-error data-error-for="bands"></span>
         </div>
         <div class="form-field">
           <span class="field-label-row">
             <span class="form-label">Modes</span>
+            <span class="required-marker" aria-label="Required field" title="Required">*</span>
             <span class="help-popover">
               <button
                 class="help-popover__button"
@@ -245,6 +277,7 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
               type="button"
               data-multi-toggle
               aria-expanded="false"
+              aria-required="true"
             >
               Choose modes
             </button>
@@ -262,6 +295,7 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
           <span class="form-help">
             Digital covers FT8, FT4, RTTY, JS8, and similar modes.
           </span>
+          <span class="form-error" data-field-error data-error-for="modes"></span>
         </div>
       </div>
       <div class="form-field">
@@ -336,14 +370,22 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
 </form>
 
 <script>
+  import {
+    formatVolunteerMissingFieldSummary,
+    formatVolunteerProblemFieldSummary,
+    volunteerRequiredFieldMessage,
+    type VolunteerRequiredField,
+  } from "../../lib/activate-ri/volunteer-form-validation";
+
   const form = document.querySelector("[data-activate-ri-volunteer]") as HTMLFormElement | null;
-  const status = document.querySelector("[data-form-status]");
+  const status = document.querySelector("[data-form-status]") as HTMLOutputElement | null;
   const submitButton = document.querySelector("[data-submit-button]") as HTMLButtonElement | null;
   const stopsContainer = document.querySelector("[data-stops]");
   const addStopButton = document.querySelector("[data-add-stop]");
   let isSubmitting = false;
 
   setupCallsignFields();
+  setupRequiredFieldValidation();
   void populateClubDatalist("activate-ri-clubs");
   setupStopCards();
   prefillParkFromUrl();
@@ -387,8 +429,7 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
       return;
     }
 
-    if (!validateStopCards()) {
-      status?.replaceChildren("Choose each park from the park suggestions before submitting.");
+    if (!validateVolunteerForm()) {
       return;
     }
 
@@ -397,7 +438,7 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
       submitButton.disabled = true;
     }
 
-    status?.replaceChildren("Submitting...");
+    setFormStatus("Submitting...");
 
     try {
       const response = await fetch(form.action, {
@@ -409,14 +450,15 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
 
       if (response.ok && data.ok) {
         form.reset();
-        status?.replaceChildren(data.message ?? "Submission received for organizer review.");
+        setupStopCards();
+        setFormStatus(data.message ?? "Submission received for organizer review.", "success");
         resetTurnstile();
       } else {
-        status?.replaceChildren(data.errors?.join(" ") ?? data.message ?? "Submission failed.");
+        setFormStatus(data.errors?.join(" ") ?? data.message ?? "Submission failed.", "error");
         resetTurnstile();
       }
     } catch {
-      status?.replaceChildren("Submission failed. Please try again later.");
+      setFormStatus("Submission failed. Please try again later.", "error");
       resetTurnstile();
     } finally {
       isSubmitting = false;
@@ -468,6 +510,19 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
       field.addEventListener("input", uppercaseValue);
       field.addEventListener("change", uppercaseValue);
       uppercaseValue();
+    });
+  }
+
+  function setupRequiredFieldValidation(): void {
+    ["submitterCallsign", "submitterName", "submitterEmail"].forEach((name) => {
+      const field = form?.elements.namedItem(name) as HTMLInputElement | null;
+      const errorElement = fieldErrorElement(field);
+
+      field?.addEventListener("input", () => {
+        if (field.value.trim()) {
+          clearFieldError(field, errorElement);
+        }
+      });
     });
   }
 
@@ -524,8 +579,11 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
       const parkInput = stop.querySelector<HTMLInputElement>("[data-park-input]");
       const parkReference = stop.querySelector<HTMLInputElement>("[data-park-reference]");
       const parkCombobox = stop.querySelector<HTMLElement>("[data-park-combobox]");
+      const plannedDate = stop.querySelector("[data-planned-date]") as HTMLSelectElement | null;
+      const timeBlock = stop.querySelector("[data-time-block]") as HTMLSelectElement | null;
 
       title?.replaceChildren(`Activation stop ${index + 1}`);
+      setupStopErrorDescriptions(stop, index);
 
       if (removeButton) {
         removeButton.hidden = stops.length === 1;
@@ -541,6 +599,9 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
           parkInput.setCustomValidity(
             parkReference.value ? "" : "Choose a park from the suggestions.",
           );
+          if (parkReference.value) {
+            clearFieldError(parkInput, stopErrorElement(stop, "park"));
+          }
           filterParkOptions(parkCombobox, parkInput.value);
         };
 
@@ -557,24 +618,41 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
             const label = option.dataset.label ?? "";
             parkInput.value = label;
             parkReference.value = option.dataset.reference ?? "";
-            parkInput.setCustomValidity("");
+            clearFieldError(parkInput, stopErrorElement(stop, "park"));
             setParkPopupOpen(parkCombobox, false);
           };
         });
       }
 
+      plannedDate?.addEventListener("change", () => {
+        if (plannedDate.value) {
+          clearFieldError(plannedDate, stopErrorElement(stop, "plannedDate"));
+        }
+      });
+
+      timeBlock?.addEventListener("change", () => {
+        if (timeBlock.value) {
+          clearFieldError(timeBlock, stopErrorElement(stop, "timeBlock"));
+        }
+      });
+
       stop.querySelectorAll<HTMLElement>("[data-multi-select]").forEach((multiSelect) => {
         const toggle = multiSelect.querySelector<HTMLButtonElement>("[data-multi-toggle]");
         if (toggle) {
           toggle.onclick = () => {
-          setMultiSelectOpen(multiSelect, toggle.getAttribute("aria-expanded") !== "true");
+            setMultiSelectOpen(multiSelect, toggle.getAttribute("aria-expanded") !== "true");
           };
         }
 
         multiSelect.querySelectorAll<HTMLInputElement>("[data-multi-option]").forEach((option) => {
           option.onchange = () => {
             updateMultiSelectLabel(multiSelect);
-            toggle?.setCustomValidity(selectedValues(multiSelect).length > 0 ? "" : "Choose at least one option.");
+            if (selectedValues(multiSelect).length > 0) {
+              clearFieldError(
+                toggle,
+                stopErrorElement(stop, multiSelect.hasAttribute("data-bands") ? "bands" : "modes"),
+              );
+            }
           };
         });
         updateMultiSelectLabel(multiSelect);
@@ -613,7 +691,7 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
     const selected = selectParkReference(targetStop, reference);
     if (!selected) {
       if (!options.silentInvalid) {
-        status?.replaceChildren(`Could not find ${reference} in the park list.`);
+        setFormStatus(`Could not find ${reference} in the park list.`, "error");
       }
       return;
     }
@@ -621,7 +699,7 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
     setupStopCards();
     targetStop.scrollIntoView({ behavior: "smooth", block: "center" });
     (targetStop.querySelector("[data-planned-date]") as HTMLSelectElement | null)?.focus();
-    status?.replaceChildren(`${reference} added to the activation plan. Choose the date, time, bands, and modes before submitting.`);
+    setFormStatus(`${reference} added to the activation plan. Choose the date, time, bands, and modes before submitting.`);
   }
 
   function firstEmptyStopCard(): HTMLElement | null {
@@ -645,42 +723,208 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
     return true;
   }
 
-  function validateStopCards(): boolean {
-    let isValid = true;
+  type ValidationControl = HTMLInputElement | HTMLSelectElement | HTMLButtonElement | HTMLTextAreaElement;
+
+  function validateVolunteerForm(): boolean {
+    const invalidFields: VolunteerRequiredField[] = [];
+    const problemFields: VolunteerRequiredField[] = [];
+    const invalidControls: ValidationControl[] = [];
+
+    const recordField = (
+      field: VolunteerRequiredField,
+      control: ValidationControl | null,
+      errorElement: HTMLElement | null,
+      message = volunteerRequiredFieldMessage(field),
+      problem = false,
+    ) => {
+      if (!control) {
+        return;
+      }
+
+      control.setAttribute("aria-invalid", "true");
+      setControlValidity(control, message);
+      errorElement?.replaceChildren(message);
+      invalidFields.push(field);
+      if (problem) {
+        problemFields.push(field);
+      }
+      invalidControls.push(control);
+    };
+
+    const validateNamedRequiredField = (field: Extract<VolunteerRequiredField, "submitterCallsign" | "submitterName" | "submitterEmail">) => {
+      const control = form?.elements.namedItem(field) as HTMLInputElement | null;
+      const errorElement = fieldErrorElement(control);
+
+      if (!control) {
+        return;
+      }
+
+      clearFieldError(control, errorElement);
+
+      if (!control.value.trim()) {
+        recordField(field, control, errorElement);
+      } else if (field === "submitterEmail" && !control.validity.valid) {
+        recordField(field, control, errorElement, "Enter a valid email address.", true);
+      }
+    };
+
+    validateNamedRequiredField("submitterCallsign");
+    validateNamedRequiredField("submitterName");
+    validateNamedRequiredField("submitterEmail");
+
     const stops = Array.from(document.querySelectorAll<HTMLElement>("[data-stop-card]"));
 
-    for (const stop of stops) {
+    stops.forEach((stop, index) => {
       const parkInput = stop.querySelector<HTMLInputElement>("[data-park-input]");
       const parkReference = stop.querySelector<HTMLInputElement>("[data-park-reference]");
       const parkCombobox = stop.querySelector<HTMLElement>("[data-park-combobox]");
+      const plannedDate = stop.querySelector("[data-planned-date]") as HTMLSelectElement | null;
+      const timeBlock = stop.querySelector("[data-time-block]") as HTMLSelectElement | null;
 
-      if (!parkInput || !parkReference || !parkCombobox) {
-        continue;
+      if (parkInput && parkReference && parkCombobox) {
+        clearFieldError(parkInput, stopErrorElement(stop, "park"));
+        parkReference.value = selectedParkReference(parkInput.value.trim(), parkCombobox);
+
+        if (!parkReference.value) {
+          recordField(`stop.${index}.park`, parkInput, stopErrorElement(stop, "park"));
+        }
       }
 
-      parkReference.value = selectedParkReference(parkInput.value.trim(), parkCombobox);
-      parkInput.setCustomValidity(
-        parkReference.value ? "" : "Choose a park from the suggestions.",
-      );
+      if (plannedDate) {
+        clearFieldError(plannedDate, stopErrorElement(stop, "plannedDate"));
+        if (!plannedDate.value) {
+          recordField(`stop.${index}.plannedDate`, plannedDate, stopErrorElement(stop, "plannedDate"));
+        }
+      }
 
-      if (!parkReference.value) {
-        parkInput.reportValidity();
-        isValid = false;
+      if (timeBlock) {
+        clearFieldError(timeBlock, stopErrorElement(stop, "timeBlock"));
+        if (!timeBlock.value) {
+          recordField(`stop.${index}.timeBlock`, timeBlock, stopErrorElement(stop, "timeBlock"));
+        }
       }
 
       stop.querySelectorAll<HTMLElement>("[data-multi-select]").forEach((multiSelect) => {
         const toggle = multiSelect.querySelector<HTMLButtonElement>("[data-multi-toggle]");
         const hasSelection = selectedValues(multiSelect).length > 0;
-        toggle?.setCustomValidity(hasSelection ? "" : "Choose at least one option.");
+        const field = multiSelect.hasAttribute("data-bands")
+          ? `stop.${index}.bands`
+          : `stop.${index}.modes`;
+
+        clearFieldError(toggle, stopErrorElement(stop, multiSelect.hasAttribute("data-bands") ? "bands" : "modes"));
 
         if (!hasSelection) {
-          toggle?.reportValidity();
-          isValid = false;
+          recordField(
+            field as VolunteerRequiredField,
+            toggle,
+            stopErrorElement(stop, multiSelect.hasAttribute("data-bands") ? "bands" : "modes"),
+          );
         }
       });
+    });
+
+    if (invalidFields.length === 0) {
+      setFormStatus("");
+      return true;
     }
 
-    return isValid;
+    const summary = problemFields.length > 0
+      ? formatVolunteerProblemFieldSummary(invalidFields)
+      : formatVolunteerMissingFieldSummary(invalidFields);
+    setFormStatus(summary, "error");
+    const firstInvalidControl = invalidControls[0] ?? null;
+    firstInvalidControl?.focus();
+    reportControlValidity(firstInvalidControl);
+    return false;
+  }
+
+  type StopErrorKey = "park" | "plannedDate" | "timeBlock" | "bands" | "modes";
+
+  function setupStopErrorDescriptions(stop: HTMLElement, index: number): void {
+    (["park", "plannedDate", "timeBlock", "bands", "modes"] as StopErrorKey[]).forEach((key) => {
+      const errorElement = stopErrorElement(stop, key);
+      if (!errorElement) {
+        return;
+      }
+
+      errorElement.id = `activate-ri-stop-${index + 1}-${key}-error`;
+
+      const control = stopControl(stop, key);
+      if (control) {
+        appendDescribedBy(control, errorElement.id);
+      }
+    });
+  }
+
+  function stopControl(stop: HTMLElement, key: StopErrorKey): ValidationControl | null {
+    if (key === "park") {
+      return stop.querySelector<HTMLInputElement>("[data-park-input]");
+    }
+
+    if (key === "plannedDate") {
+      return stop.querySelector("[data-planned-date]") as HTMLSelectElement | null;
+    }
+
+    if (key === "timeBlock") {
+      return stop.querySelector("[data-time-block]") as HTMLSelectElement | null;
+    }
+
+    const multiSelect = stop.querySelector<HTMLElement>(
+      key === "bands" ? "[data-bands]" : "[data-modes]",
+    );
+
+    return multiSelect?.querySelector<HTMLButtonElement>("[data-multi-toggle]") ?? null;
+  }
+
+  function stopErrorElement(stop: HTMLElement, key: StopErrorKey): HTMLElement | null {
+    return stop.querySelector<HTMLElement>(`[data-field-error][data-error-for="${key}"]`);
+  }
+
+  function fieldErrorElement(control: Element | null): HTMLElement | null {
+    const describedBy = control?.getAttribute("aria-describedby") ?? "";
+
+    return describedBy
+      .split(/\s+/)
+      .map((id) => document.getElementById(id))
+      .find((element): element is HTMLElement => element?.hasAttribute("data-field-error") ?? false) ?? null;
+  }
+
+  function clearFieldError(control: ValidationControl | null, errorElement: HTMLElement | null): void {
+    control?.removeAttribute("aria-invalid");
+    setControlValidity(control, "");
+    errorElement?.replaceChildren();
+  }
+
+  function setControlValidity(control: ValidationControl | null, message: string): void {
+    control?.setCustomValidity(message);
+  }
+
+  function reportControlValidity(control: ValidationControl | null): void {
+    control?.reportValidity();
+  }
+
+  function appendDescribedBy(control: ValidationControl, id: string): void {
+    const ids = new Set(
+      (control.getAttribute("aria-describedby") ?? "")
+        .split(/\s+/)
+        .filter(Boolean),
+    );
+    ids.add(id);
+    control.setAttribute("aria-describedby", Array.from(ids).join(" "));
+  }
+
+  function setFormStatus(message: string, kind?: "error" | "success"): void {
+    status?.replaceChildren(message);
+
+    if (!status) {
+      return;
+    }
+
+    if (kind) {
+      status.dataset.status = kind;
+    } else {
+      delete status.dataset.status;
+    }
   }
 
   function clearStopCard(stop: HTMLElement): void {
@@ -697,6 +941,12 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
       popup.hidden = true;
     });
     stop.querySelectorAll<HTMLElement>("[data-multi-select]").forEach(updateMultiSelectLabel);
+    stop.querySelectorAll("[aria-invalid]").forEach((field) => {
+      clearFieldError(field as ValidationControl, fieldErrorElement(field));
+    });
+    stop.querySelectorAll<HTMLElement>("[data-field-error]").forEach((error) => {
+      error.replaceChildren();
+    });
   }
 
   function selectedParkReference(value: string, combobox: HTMLElement): string {
