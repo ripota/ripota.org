@@ -2,8 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   defaultShareImage,
   footerLinkGroups,
-  referenceMapZoomBehavior,
-  referenceMapZoomOffset,
   resourceIntro,
   officialLinks,
   primaryCallsToAction,
@@ -101,8 +99,4 @@ describe("site content", () => {
     expect(resourceIntro).not.toMatch(/local convenience|source of truth/i);
   });
 
-  it("starts the reference map one zoom level tighter than default bounds fitting", () => {
-    expect(referenceMapZoomOffset).toBe(1);
-    expect(referenceMapZoomBehavior).toBe("always-after-fit");
-  });
 });

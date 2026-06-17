@@ -87,6 +87,16 @@ export const referenceMapStatusColors: Record<ParkCoverageStatus, string> = {
   completed: "#5f6f76",
 };
 
+export const referenceMapLeafletOptions = {
+  scrollWheelZoom: false,
+  zoomSnap: 0.25,
+} as const;
+
+export const referenceMapFitBoundsOptions = {
+  padding: [16, 16] as [number, number],
+  maxZoom: 10,
+} as const;
+
 export function buildReferenceMapItems({
   references,
   boundaries,

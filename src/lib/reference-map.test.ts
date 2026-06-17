@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildReferenceMapItems,
   coverageStatusLabels,
+  referenceMapFitBoundsOptions,
+  referenceMapLeafletOptions,
   referenceMapStatusColors,
   type ReferenceBoundaryRecord,
 } from "./reference-map";
@@ -175,5 +177,13 @@ describe("buildReferenceMapItems", () => {
       "K1EARLY",
       "K1LATE",
     ]);
+  });
+});
+
+describe("reference map viewport configuration", () => {
+  it("allows fitBounds to choose a tighter fractional zoom without clipping points", () => {
+    expect(referenceMapLeafletOptions.zoomSnap).toBeLessThan(1);
+    expect(referenceMapFitBoundsOptions.padding).toEqual([16, 16]);
+    expect(referenceMapFitBoundsOptions.maxZoom).toBe(10);
   });
 });
