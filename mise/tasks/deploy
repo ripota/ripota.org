@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; -*-
+#MISE description="Apply remote D1 migrations and deploy the base Cloudflare Worker"
+#MISE raw=true
+#USAGE flag "--dry-run" help="Check pending remote migrations and compile without deploying"
+
+set -euo pipefail
+
+database_name="ripota-org"
+worker_name="ripota-org"
+wrangler=(npx wrangler)
+base_env=(--env "")
+
+if [[ "${usage_dry_run:-false}" == "true" ]]; then
+  echo "Checking remote D1 migrations for ${database_name}."
+  "${wrangler[@]}" d1 migrations list "${database_name}" --remote "${base_env[@]}"
+
+  echo "Compiling ${worker_name} without applying migrations or uploading."
+  "${wrangler[@]}" deploy "${base_env[@]}" --dry-run
+  exit 0
+fi
+
+echo "Checking Cloudflare Wrangler authentication."
+"${wrangler[@]}" whoami
+
+echo "Applying pending remote D1 migrations for ${database_name}."
+"${wrangler[@]}" d1 migrations apply "${database_name}" --remote "${base_env[@]}"
+
+echo "Deploying base Worker ${worker_name}."
+"${wrangler[@]}" deploy "${base_env[@]}"

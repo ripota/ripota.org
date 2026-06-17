@@ -57,26 +57,6 @@
         "PUBLIC_TURNSTILE_SITE_KEY": "1x00000000000000000000AA",
         "TURNSTILE_REQUIRED": "false"
       }
-    },
-    "production": {
-      "send_email": [
-        {
-          "name": "EMAIL"
-        }
-      ],
-      "d1_databases": [
-        {
-          "binding": "DB",
-          "database_name": "ripota-org",
-          "database_id": "5fa75a4d-9387-437d-9f81-ebb06b645747"
-        }
-      ],
-      "vars": {
-        "ACTIVATE_RI_EVENT_ID": "activate-ri-2026",
-        "ACTIVATE_RI_EMAIL_FROM": "activate-ri-2026@ripota.org",
-        "ACTIVATE_RI_EMAIL_FROM_NAME": "RI POTA",
-        "TURNSTILE_REQUIRED": "true"
-      }
     }
   },
   "observability": {

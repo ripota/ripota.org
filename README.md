@@ -32,6 +32,17 @@ The site is built with Astro and outputs static files to `dist/`.
 
 The launch target is Cloudflare Workers Static Assets. `wrangler.jsonc` points Wrangler at the Astro `dist/` output through the `assets.directory` setting.
 
+Deploy with:
+
+```bash
+mise run deploy
+```
+
+The deploy task applies pending remote D1 migrations before deploying the base
+Worker. Do not use `wrangler deploy --env production`; production is the
+top-level Worker config named `ripota-org`. See
+[docs/deployment.md](docs/deployment.md).
+
 Deployments need Cloudflare account configuration outside this repository. Do not commit account IDs, API tokens, `.env`, `.dev.vars`, private exports, or unpublished community files.
 
 Activate RI admin routes require Cloudflare Access in production. See [docs/cloudflare-access.md](docs/cloudflare-access.md).
