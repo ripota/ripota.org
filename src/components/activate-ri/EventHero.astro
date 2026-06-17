@@ -1,5 +1,13 @@
 ---
+import parks from "../../../public/data/activate-ri-2026/parks.json";
+import schedule from "../../../public/data/activate-ri-2026/schedule.json";
+import ReferenceMap from "../ReferenceMap.astro";
 import { activateRi2026Event } from "../../data/activate-ri-2026/event";
+import { summarizeParkCoverage } from "../../lib/activate-ri/coverage";
+import type {
+  PublicActivationStop,
+  PublicParkSummary,
+} from "../../lib/activate-ri/types";
 
 const ctas = activateRi2026Event.phaseCtas[activateRi2026Event.phase];
 const dateRangeLabel = formatDateRange(
@@ -7,6 +15,10 @@ const dateRangeLabel = formatDateRange(
   activateRi2026Event.mainEndDate,
 );
 const softStartLabel = formatMonthDay(activateRi2026Event.softStartDate);
+const coverageSummary = summarizeParkCoverage(
+  parks as PublicParkSummary[],
+  schedule as PublicActivationStop[],
+);
 
 function parseEventDate(date: string) {
   const [year, month, day] = date.split("-").map(Number);
@@ -41,20 +53,43 @@ function formatDateRange(startDate: string, endDate: string) {
 
 <section class="event-hero" aria-labelledby="event-title">
   <div class="container event-hero__inner">
-    <p class="eyebrow">{dateRangeLabel}</p>
-    <h1 id="event-title">{activateRi2026Event.name}</h1>
-    <p class="event-hero__copy">
-      Help the Rhode Island POTA community cover all {activateRi2026Event.goalParkCount}
-      Rhode Island references during one coordinated weekend. A soft start is
-      planned for {softStartLabel}.
-    </p>
-    <div class="button-row" aria-label="Event actions">
-      <a class="button" data-variant="primary" href={ctas.primary.href}>
-        {ctas.primary.label}
-      </a>
-      <a class="button" data-variant="light" href={ctas.secondary.href}>
-        {ctas.secondary.label}
-      </a>
+    <div class="event-hero__content">
+      <p class="eyebrow">{dateRangeLabel}</p>
+      <h1 id="event-title">Activate All RI</h1>
+      <p class="event-hero__copy">
+        Help the Rhode Island POTA community cover all {activateRi2026Event.goalParkCount}
+        Rhode Island references during one coordinated weekend. A soft start is
+        planned for {softStartLabel}.
+      </p>
+      <dl class="event-hero__stats" aria-label="Activate All RI coverage progress">
+        <div>
+          <dt>Parks scheduled</dt>
+          <dd>{coverageSummary.scheduled} / {coverageSummary.total}</dd>
+        </div>
+        <div>
+          <dt>Coverage gaps</dt>
+          <dd>{coverageSummary.gaps}</dd>
+        </div>
+      </dl>
+      <div class="button-row" aria-label="Event actions">
+        <a class="button" data-variant="primary" href={ctas.primary.href}>
+          {ctas.primary.label}
+        </a>
+        <a class="button" data-variant="light" href={ctas.secondary.href}>
+          {ctas.secondary.label}
+        </a>
+      </div>
+    </div>
+    <div class="event-hero__map">
+      <ReferenceMap
+        id="activate-ri-hero-coverage-map"
+        variant="coverage"
+        title="Map of Activate All RI 2026 coverage"
+        caption="Coverage means a planned activation window for community coordination. Official Parks on the Air resources remain authoritative for rules, spots, logs, awards, and activation validity."
+        phaseFocus="volunteer"
+        legendPlacement="overlay"
+        legendTitle="Volunteer coverage"
+      />
     </div>
   </div>
 </section>
