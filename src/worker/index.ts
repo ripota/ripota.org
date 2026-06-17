@@ -5,7 +5,7 @@ import { handleActivateRiApi } from "./routes/activate-ri";
 
 const activateRiAdminPathPattern = /^\/activate-ri-2026\/admin\/?$/;
 const activateRiEditPathPattern = /^\/activate-ri-2026\/edit\/[^/]+\/?$/;
-const activateRiEditShellPath = "/activate-ri-2026/edit/[token]/";
+const activateRiEditShellPath = "/activate-ri-2026/edit-shell/";
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -43,9 +43,27 @@ export default {
       shellUrl.pathname = activateRiEditShellPath;
       shellUrl.search = "";
 
-      return env.ASSETS.fetch(new Request(shellUrl, request));
+      return fetchAssetWithoutRedirect(env, new Request(shellUrl, request));
     }
 
     return env.ASSETS.fetch(request);
   },
 };
+
+async function fetchAssetWithoutRedirect(
+  env: Env,
+  request: Request,
+): Promise<Response> {
+  const response = await env.ASSETS.fetch(request);
+  if (response.status < 300 || response.status >= 400) {
+    return response;
+  }
+
+  const location = response.headers.get("location");
+  if (!location) {
+    return response;
+  }
+
+  const redirectedUrl = new URL(location, request.url);
+  return env.ASSETS.fetch(new Request(redirectedUrl, request));
+}

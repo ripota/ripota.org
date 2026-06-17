@@ -36,7 +36,7 @@ describe("worker routing", () => {
       .calls[0][0] as Request;
     expect(assetRequest.method).toBe("GET");
     expect(new URL(assetRequest.url).pathname).toBe(
-      "/activate-ri-2026/edit/[token]/",
+      "/activate-ri-2026/edit-shell/",
     );
     expect(new URL(assetRequest.url).search).toBe("");
   });
@@ -53,8 +53,32 @@ describe("worker routing", () => {
       .calls[0][0] as Request;
     expect(assetRequest.method).toBe("HEAD");
     expect(new URL(assetRequest.url).pathname).toBe(
-      "/activate-ri-2026/edit/[token]/",
+      "/activate-ri-2026/edit-shell/",
     );
+  });
+
+  it("follows edit shell asset redirects internally", async () => {
+    const testEnv = env();
+    testEnv.ASSETS = {
+      fetch: vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(null, {
+            status: 307,
+            headers: { location: "/activate-ri-2026/edit-shell/" },
+          }),
+        )
+        .mockResolvedValueOnce(new Response("asset shell")),
+    } as unknown as Fetcher;
+
+    const response = await worker.fetch(
+      request("/activate-ri-2026/edit/abc123/"),
+      testEnv,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.text()).resolves.toBe("asset shell");
+    expect(testEnv.ASSETS.fetch).toHaveBeenCalledTimes(2);
   });
 
   it("keeps API requests on API routing", async () => {
