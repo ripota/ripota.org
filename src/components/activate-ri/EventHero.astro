@@ -1,13 +1,10 @@
 ---
 import parks from "../../../public/data/activate-ri-2026/parks.json";
-import schedule from "../../../public/data/activate-ri-2026/schedule.json";
 import ReferenceMap from "../ReferenceMap.astro";
 import { activateRi2026Event } from "../../data/activate-ri-2026/event";
+import { sampleActivationStops } from "../../data/activate-ri-2026/sample-stops";
 import { summarizeParkCoverage } from "../../lib/activate-ri/coverage";
-import type {
-  PublicActivationStop,
-  PublicParkSummary,
-} from "../../lib/activate-ri/types";
+import type { PublicParkSummary } from "../../lib/activate-ri/types";
 
 const ctas = activateRi2026Event.phaseCtas[activateRi2026Event.phase];
 const dateRangeLabel = formatDateRange(
@@ -17,7 +14,7 @@ const dateRangeLabel = formatDateRange(
 const softStartLabel = formatMonthDay(activateRi2026Event.softStartDate);
 const coverageSummary = summarizeParkCoverage(
   parks as PublicParkSummary[],
-  schedule as PublicActivationStop[],
+  sampleActivationStops,
 );
 
 function parseEventDate(date: string) {
