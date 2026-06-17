@@ -74,6 +74,13 @@ No Activate RI event copy belongs in the homepage popup.
 Add the shared map to `/activate-ri-2026/` near the coverage summary. It should
 support a quick statewide coverage scan before users go to the full park table.
 
+The overview map must be phase-aware. During the current planning phase, its
+primary job is to help volunteers find coverage gaps. As the event gets closer,
+the same map should be able to shift emphasis toward hunters by highlighting
+where and when activators plan to operate. This design should keep that shift
+to copy, legend, color emphasis, popup ordering, or variant configuration rather
+than requiring a different map implementation.
+
 Color references by derived coverage status:
 
 - `uncovered`: needs coverage.
