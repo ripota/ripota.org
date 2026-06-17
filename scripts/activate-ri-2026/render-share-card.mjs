@@ -140,6 +140,13 @@ export function chromiumLaunchOptions(env = process.env) {
   return { channel };
 }
 
+export function previewProcessOptions(platform = process.platform) {
+  return {
+    detached: platform !== "win32",
+    shell: platform === "win32",
+  };
+}
+
 async function readStopsInput() {
   if (stopsUrl) {
     try {
@@ -231,6 +238,7 @@ async function startPreviewServer() {
     {
       cwd: root.pathname,
       env: process.env,
+      ...previewProcessOptions(),
       stdio: ["ignore", "pipe", "pipe"],
     },
   );
@@ -239,7 +247,7 @@ async function startPreviewServer() {
   try {
     await waitForPreview(child, origin);
   } catch (error) {
-    child.kill("SIGTERM");
+    signalProcess(child, "SIGTERM");
     throw error;
   }
 
@@ -382,12 +390,36 @@ async function stopProcess(child) {
     exited = true;
   });
 
-  child.kill("SIGTERM");
+  signalProcess(child, "SIGTERM");
   await Promise.race([exitPromise, delay(3000)]);
 
   if (!exited) {
-    child.kill("SIGKILL");
+    signalProcess(child, "SIGKILL");
     await Promise.race([exitPromise, delay(1000)]);
+  }
+}
+
+export function terminationSignalTarget(child, platform = process.platform) {
+  if (platform === "win32" || typeof child.pid !== "number") {
+    return child.pid;
+  }
+
+  return -child.pid;
+}
+
+function signalProcess(child, signal) {
+  const target = terminationSignalTarget(child);
+
+  try {
+    if (typeof target === "number") {
+      process.kill(target, signal);
+    } else {
+      child.kill(signal);
+    }
+  } catch (error) {
+    if (error?.code !== "ESRCH") {
+      throw error;
+    }
   }
 }
 
