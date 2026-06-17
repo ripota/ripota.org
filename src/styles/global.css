@@ -894,6 +894,25 @@ p {
   flex: 0 0 auto;
 }
 
+.admin-activity {
+  display: grid;
+  gap: 1rem;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 1rem;
+}
+
+.admin-activity h3 {
+  font-size: 1.6rem;
+}
+
+.admin-card--activity {
+  display: block;
+}
+
+.resend-panel {
+  margin-top: 2rem;
+}
+
 .button:disabled {
   cursor: not-allowed;
   filter: grayscale(0.25);

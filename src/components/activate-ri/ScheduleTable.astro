@@ -87,7 +87,7 @@ function stopCounties(stop: PublicActivationStop) {
 </form>
 
 <div class="event-table-wrap">
-  <table class="event-table" data-filtered-table>
+  <table class="event-table" data-filtered-table data-live-schedule data-parks={JSON.stringify(publicParks)}>
     <thead>
       <tr>
         <th scope="col">Date</th>
@@ -139,6 +139,7 @@ function stopCounties(stop: PublicActivationStop) {
 
 <script>
   document.querySelectorAll("[data-event-filters]").forEach(setupEventFilters);
+  document.querySelectorAll<HTMLTableElement>("[data-live-schedule]").forEach(setupLiveSchedule);
 
   function setupEventFilters(root: Element): void {
     const filters = root as HTMLFormElement;
@@ -173,6 +174,135 @@ function stopCounties(stop: PublicActivationStop) {
 
     controls.forEach((control) => control.addEventListener("change", applyFilters));
     applyFilters();
+  }
+
+  async function setupLiveSchedule(table: HTMLTableElement): Promise<void> {
+    const body = table.querySelector("tbody");
+    if (!body) {
+      return;
+    }
+
+    let parks: Array<{ reference: string; name: string; counties?: string[] }> = [];
+    try {
+      parks = JSON.parse(table.dataset.parks ?? "[]");
+    } catch {
+      parks = [];
+    }
+
+    try {
+      const response = await fetch("/api/activate-ri-2026/public/stops", {
+        headers: { accept: "application/json" },
+      });
+      const data = await response.json() as { ok?: boolean; stops?: PublicStop[] };
+      if (!response.ok || !data.ok || !Array.isArray(data.stops)) {
+        return;
+      }
+
+      const visibleStops = data.stops.filter((stop) => !stop.id.startsWith("sample-"));
+      renderLiveSchedule(body, visibleStops, parks);
+      setupEventFilters(document.querySelector("[data-event-filters]") as Element);
+    } catch {
+      return;
+    }
+  }
+
+  type PublicStop = {
+    id: string;
+    parkReference: string;
+    plannedDate: string;
+    startTime: string;
+    endTime: string;
+    activatorCallsign: string;
+    bands: string[];
+    modes: string[];
+    status: string;
+  };
+
+  function renderLiveSchedule(
+    body: HTMLTableSectionElement,
+    stops: PublicStop[],
+    parks: Array<{ reference: string; name: string; counties?: string[] }>,
+  ): void {
+    const parkByReference = new Map(parks.map((park) => [park.reference, park]));
+    body.replaceChildren();
+
+    if (stops.length === 0) {
+      const row = document.createElement("tr");
+      const cell = document.createElement("td");
+      cell.colSpan = 7;
+      cell.textContent = "Approved activation windows will appear here after organizer review.";
+      row.appendChild(cell);
+      body.appendChild(row);
+    } else {
+      body.replaceChildren(...stops.map((stop) => createScheduleRow(stop, parkByReference)));
+    }
+
+    const empty = document.createElement("tr");
+    empty.dataset.filterEmpty = "";
+    empty.hidden = true;
+    const emptyCell = document.createElement("td");
+    emptyCell.colSpan = 7;
+    emptyCell.textContent = "No scheduled activation windows match these filters.";
+    empty.appendChild(emptyCell);
+    body.appendChild(empty);
+  }
+
+  function createScheduleRow(
+    stop: PublicStop,
+    parkByReference: Map<string, { reference: string; name: string; counties?: string[] }>,
+  ): HTMLTableRowElement {
+    const park = parkByReference.get(stop.parkReference);
+    const row = document.createElement("tr");
+    row.dataset.filterRow = "";
+    row.dataset.bands = stop.bands.join("|");
+    row.dataset.counties = (park?.counties?.length ? park.counties : ["Unknown county"]).join("|");
+    row.dataset.date = stop.plannedDate;
+    row.dataset.modes = stop.modes.join("|");
+
+    appendCell(row, formatDate(stop.plannedDate));
+    appendCell(row, `${stop.startTime}-${stop.endTime} ET`);
+
+    const parkHeader = document.createElement("th");
+    parkHeader.scope = "row";
+    parkHeader.append(park?.name ?? stop.parkReference);
+    const reference = document.createElement("span");
+    reference.textContent = stop.parkReference;
+    parkHeader.appendChild(reference);
+    row.appendChild(parkHeader);
+
+    appendCell(row, `${stop.activatorCallsign}${stop.modes.length > 0 ? ` (${stop.modes.join(", ")})` : ""}`);
+    appendCell(row, stop.bands.length > 0 ? stop.bands.join(", ") : "TBD");
+    appendCell(row, stop.modes.length > 0 ? stop.modes.join(", ") : "TBD");
+    appendCell(row, statusLabel(stop.status));
+
+    return row;
+  }
+
+  function appendCell(row: HTMLTableRowElement, text: string): void {
+    const cell = document.createElement("td");
+    cell.textContent = text;
+    row.appendChild(cell);
+  }
+
+  function formatDate(date: string): string {
+    return new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      timeZone: "UTC",
+    }).format(new Date(`${date}T00:00:00Z`));
+  }
+
+  function statusLabel(status: string): string {
+    const labels: Record<string, string> = {
+      "pending-review": "Pending review",
+      scheduled: "Scheduled",
+      delayed: "Delayed",
+      cancelled: "Cancelled",
+      completed: "Completed",
+    };
+
+    return labels[status] ?? status;
   }
 
   function matchesList(value: string | undefined, filter: string | undefined): boolean {

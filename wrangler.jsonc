@@ -38,6 +38,11 @@
       "build": {
         "command": "npm run build:local"
       },
+      "send_email": [
+        {
+          "name": "EMAIL"
+        }
+      ],
       "d1_databases": [
         {
           "binding": "DB",
@@ -54,6 +59,11 @@
       }
     },
     "production": {
+      "send_email": [
+        {
+          "name": "EMAIL"
+        }
+      ],
       "d1_databases": [
         {
           "binding": "DB",

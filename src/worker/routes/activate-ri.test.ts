@@ -84,6 +84,7 @@ type AdminDbOptions = {
   routeRows?: unknown[];
   stopRows?: unknown[];
   publicStopRows?: unknown[];
+  activityRows?: unknown[];
   routeStatus?: string | null;
   routeUpdateChanges?: number;
 };
@@ -157,6 +158,19 @@ const publicStopRow = {
   status: "scheduled",
 };
 
+const activityRow = {
+  id: "event-1",
+  event_id: "activate-ri-2026",
+  route_id: "route-1",
+  stop_id: null,
+  actor_type: "activator",
+  actor_email: "rob@example.com",
+  action: "route-created",
+  summary: "N1RWJ submitted 1 activation stop.",
+  details_json: '{"stopCount":1}',
+  created_at: "2026-06-16T12:00:00.000Z",
+};
+
 function adminDb(options: AdminDbOptions = {}): D1Database {
   const batch = vi.fn(async (statements: unknown[]) =>
     statements.map((_, index) => ({
@@ -172,7 +186,9 @@ function adminDb(options: AdminDbOptions = {}): D1Database {
         meta: { changes: options.routeUpdateChanges ?? 1 },
       })),
       all: vi.fn(async () => ({
-        results: sql.includes("INNER JOIN activate_ri_routes r")
+        results: sql.includes("FROM activate_ri_activity_events")
+          ? (options.activityRows ?? [activityRow])
+          : sql.includes("INNER JOIN activate_ri_routes r")
           ? (options.publicStopRows ?? [publicStopRow])
           : sql.includes("FROM activate_ri_stops")
             ? (options.stopRows ?? [pendingStopRow])
@@ -262,7 +278,9 @@ describe("handleActivateRiApi", () => {
       ok: true,
       message: "Submission received for organizer review.",
     });
-    expect(testEnv.DB.batch).toHaveBeenCalledOnce();
+    expect(testEnv.DB.batch).toHaveBeenCalledTimes(2);
+    const insertStatements = vi.mocked(testEnv.DB.batch).mock.calls[0][0];
+    expect(insertStatements).toHaveLength(3);
   });
 
   it("returns validation errors for invalid route submissions", async () => {
@@ -411,7 +429,7 @@ describe("handleActivateRiApi", () => {
       ok: true,
       message: "Submission received for organizer review.",
     });
-    expect(testEnv.DB.batch).toHaveBeenCalledOnce();
+    expect(testEnv.DB.batch).toHaveBeenCalledTimes(2);
     expect(fetch).toHaveBeenCalledOnce();
 
     const [url, init] = fetch.mock.calls[0] as unknown as [
@@ -665,6 +683,70 @@ describe("handleActivateRiApi", () => {
     );
   });
 
+  it("returns public live stops without private route fields", async () => {
+    const testEnv = env();
+    testEnv.DB = adminDb();
+
+    const response = await handleActivateRiApi(
+      adminRequest("/api/activate-ri-2026/public/stops"),
+      testEnv,
+    );
+
+    const body = await response.json() as { stops: unknown[] };
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({
+      ok: true,
+      generatedAt: expect.any(String),
+      stops: [
+        {
+          id: "stop-public-1",
+          parkReference: "US-2868",
+          plannedDate: "2026-09-11",
+          startTime: "09:00",
+          endTime: "11:00",
+          activatorCallsign: "N1RWJ",
+          bands: ["40m", "20m"],
+          modes: ["SSB", "CW"],
+          publicNotes: "Meet near the trailhead.",
+          status: "scheduled",
+        },
+      ],
+    });
+    expect(JSON.stringify(body)).not.toMatch(/submitter_email|edit_token_hash|organizer_notes/i);
+  });
+
+  it("lists admin activity events for authenticated admins", async () => {
+    const testEnv = adminEnv();
+    testEnv.DB = adminDb();
+
+    const response = await handleActivateRiApi(
+      adminRequest("/api/activate-ri-2026/admin/activity", {
+        headers: { "Cf-Access-Authenticated-User-Email": "admin@example.com" },
+      }),
+      testEnv,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      events: [
+        {
+          id: "event-1",
+          event_id: "activate-ri-2026",
+          route_id: "route-1",
+          stop_id: null,
+          actor_type: "activator",
+          actor_email: "rob@example.com",
+          action: "route-created",
+          summary: "N1RWJ submitted 1 activation stop.",
+          details: { stopCount: 1 },
+          created_at: "2026-06-16T12:00:00.000Z",
+        },
+      ],
+    });
+  });
+
   it("approves pending routes for authenticated admins", async () => {
     const testEnv = adminEnv();
     testEnv.DB = adminDb({ routeStatus: "pending", routeUpdateChanges: 1 });
@@ -678,12 +760,9 @@ describe("handleActivateRiApi", () => {
     );
 
     expect(response.status).toBe(200);
-    const body = await response.json() as { ok: boolean; editUrl?: string };
+    const body = await response.json() as { ok: boolean };
     expect(body).toEqual({
       ok: true,
-      editUrl: expect.stringMatching(
-        /^\/activate-ri-2026\/edit\/[a-f0-9]{64}\/$/,
-      ),
     });
     expect(JSON.stringify(body)).not.toContain("edit_token_hash");
     expect(testEnv.DB.prepare).toHaveBeenCalledWith(
@@ -700,14 +779,12 @@ describe("handleActivateRiApi", () => {
     const stopUpdateSql = prepareCalls[2][0];
     const auditInsertSql = prepareCalls[3][0];
     expect(routeUpdateSql).toContain("UPDATE activate_ri_routes");
-    expect(routeUpdateSql).toContain("edit_token_hash = ?");
     expect(routeUpdateSql).toContain("approval_operation_id = ?");
     expect(stopUpdateSql).toContain("UPDATE activate_ri_stops");
     expect(stopUpdateSql).toContain("AND approval_operation_id = ?");
     expect(stopUpdateSql).not.toContain("AND approved_at = ?");
     expect(stopUpdateSql).not.toContain("AND approved_by = ?");
-    expect(auditInsertSql).toContain("INSERT INTO activate_ri_audit_events");
-    expect(auditInsertSql).toContain("AND approval_operation_id = ?");
+    expect(auditInsertSql).toContain("INSERT INTO activate_ri_activity_events");
     expect(auditInsertSql).not.toContain("AND approved_at = ?");
     expect(auditInsertSql).not.toContain("AND approved_by = ?");
 
@@ -718,16 +795,11 @@ describe("handleActivateRiApi", () => {
     const routeUpdateBinds = batchStatements[0].bind.mock.calls[0];
     const stopUpdateBinds = batchStatements[1].bind.mock.calls[0];
     const auditInsertBinds = batchStatements[2].bind.mock.calls[0];
-    const rawEditToken = body.editUrl?.match(
-      /^\/activate-ri-2026\/edit\/([a-f0-9]{64})\/$/,
-    )?.[1];
-    expect(rawEditToken).toBeDefined();
-    expect(routeUpdateBinds[2]).toBe(await sha256Hex(rawEditToken ?? ""));
-    expect(routeUpdateBinds[2]).not.toBe(rawEditToken);
-    const approvalOperationId = routeUpdateBinds[3];
+    const approvalOperationId = routeUpdateBinds[2];
     expect(typeof approvalOperationId).toBe("string");
     expect(stopUpdateBinds.at(-1)).toBe(approvalOperationId);
-    expect(auditInsertBinds.at(-1)).toBe(approvalOperationId);
+    expect(auditInsertBinds[6]).toBe("route-approved");
+    expect(String(auditInsertBinds[8])).toContain(String(approvalOperationId));
   });
 
   it("returns 409 without scheduling stops or audit when the route transition loses a race", async () => {
@@ -755,12 +827,11 @@ describe("handleActivateRiApi", () => {
     const routeUpdateSql = prepareCalls[1][0];
     const stopUpdateSql = prepareCalls[2][0];
     const auditInsertSql = prepareCalls[3][0];
-    expect(routeUpdateSql).toContain("edit_token_hash = ?");
     expect(routeUpdateSql).toContain("approval_operation_id = ?");
     expect(stopUpdateSql).toContain("AND approval_operation_id = ?");
     expect(stopUpdateSql).not.toContain("AND approved_at = ?");
     expect(stopUpdateSql).not.toContain("AND approved_by = ?");
-    expect(auditInsertSql).toContain("AND approval_operation_id = ?");
+    expect(auditInsertSql).toContain("INSERT INTO activate_ri_activity_events");
     expect(auditInsertSql).not.toContain("AND approved_at = ?");
     expect(auditInsertSql).not.toContain("AND approved_by = ?");
 
@@ -771,9 +842,10 @@ describe("handleActivateRiApi", () => {
     const routeUpdateBinds = batchStatements[0].bind.mock.calls[0];
     const stopUpdateBinds = batchStatements[1].bind.mock.calls[0];
     const auditInsertBinds = batchStatements[2].bind.mock.calls[0];
-    const approvalOperationId = routeUpdateBinds[3];
+    const approvalOperationId = routeUpdateBinds[2];
     expect(stopUpdateBinds.at(-1)).toBe(approvalOperationId);
-    expect(auditInsertBinds.at(-1)).toBe(approvalOperationId);
+    expect(auditInsertBinds[6]).toBe("route-approved");
+    expect(String(auditInsertBinds[8])).toContain(String(approvalOperationId));
   });
 
   it("returns 404 for missing route approvals without scheduling stops or audit", async () => {

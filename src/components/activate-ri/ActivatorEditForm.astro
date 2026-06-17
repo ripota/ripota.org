@@ -1,37 +1,425 @@
-<section class="admin-panel" aria-labelledby="activator-edit-title" data-activator-edit>
+---
+import references from "../../data/ri-references.json";
+import { activateRiTimeBlocks } from "../../lib/activate-ri/time-blocks";
+
+function parkOptionLabel(reference: (typeof references)[number]): string {
+  const counties = reference.counties?.join(", ");
+  const countyLabel = counties ? ` (${counties})` : "";
+
+  return `${reference.reference} - ${reference.name}${countyLabel}`;
+}
+---
+
+<form class="event-form" data-activator-edit>
   <div class="admin-panel__header">
     <div>
       <p class="eyebrow">Activator edits</p>
-      <h2 id="activator-edit-title">Edit your activation stop</h2>
+      <h2 id="activator-edit-title">Edit your activation route</h2>
       <p class="lead">
-        This private page will load your approved route before edit and
-        cancellation controls are shown.
+        This private link lets you update your Activate All RI 2026 route.
       </p>
     </div>
   </div>
 
-  <p class="admin-status" data-edit-status aria-live="polite">
-    Approved route lookup is not connected yet. Full controls will load here
-    after that lookup is added.
-  </p>
-</section>
+  <datalist id="activate-ri-edit-parks">
+    {
+      references.map((reference) => (
+        <option value={parkOptionLabel(reference)} data-reference={reference.reference}>
+          {reference.reference}
+        </option>
+      ))
+    }
+  </datalist>
+
+  <p class="form-status" data-edit-status aria-live="polite">Loading route...</p>
+
+  <div class="form-grid form-grid--identity" data-edit-fields hidden>
+    <label>
+      Callsign
+      <input name="submitterCallsign" autocomplete="nickname" required />
+    </label>
+    <label>
+      Name
+      <input name="submitterName" autocomplete="name" required />
+    </label>
+    <label>
+      Email
+      <input name="submitterEmail" type="email" autocomplete="email" required />
+    </label>
+    <label>
+      Club / group affiliation
+      <input name="club" autocomplete="organization" />
+    </label>
+  </div>
+
+  <div class="activation-stops" data-edit-stops hidden></div>
+
+  <div class="form-actions" data-edit-actions hidden>
+    <button class="button" data-variant="light" type="button" data-add-stop>
+      Add another park
+    </button>
+    <button class="button" data-variant="light" type="button" data-cancel-route>
+      Cancel route
+    </button>
+    <button class="button" data-variant="primary" type="submit" data-save-route>
+      Save changes
+    </button>
+  </div>
+</form>
+
+<template data-stop-template>
+  <fieldset class="activation-stop-fieldset activation-stop-card" data-stop-card>
+    <input data-stop-id type="hidden" />
+    <div class="activation-stop-card__header">
+      <legend data-stop-title>Activation stop</legend>
+      <button class="button activation-stop-card__remove" type="button" data-remove-stop>
+        Remove
+      </button>
+    </div>
+    <div class="form-grid">
+      <label>
+        Park
+        <input
+          data-park-input
+          list="activate-ri-edit-parks"
+          placeholder="Type a reference, park, or county"
+          autocomplete="off"
+          required
+        />
+        <input data-park-reference type="hidden" />
+      </label>
+      <label>
+        Date
+        <select data-planned-date required>
+          <option value="2026-09-10">Thursday, September 10 soft start</option>
+          <option value="2026-09-11">Friday, September 11</option>
+          <option value="2026-09-12">Saturday, September 12</option>
+          <option value="2026-09-13">Sunday, September 13</option>
+        </select>
+      </label>
+      <label>
+        Time block
+        <select data-time-block>
+          <option value="">Choose a 3-hour block</option>
+          {
+            activateRiTimeBlocks.map((block) => (
+              <option value={block.value}>{block.value} ET</option>
+            ))
+          }
+        </select>
+      </label>
+      <label>
+        Start time
+        <input data-start-time pattern="[0-2][0-9]:[0-5][0-9]" required />
+      </label>
+      <label>
+        End time
+        <input data-end-time pattern="[0-2][0-9]:[0-5][0-9]" required />
+      </label>
+      <label>
+        Bands
+        <input data-bands placeholder="40m, 20m, 15m" required />
+      </label>
+      <label>
+        Modes
+        <input data-modes placeholder="SSB, CW, FT8" required />
+      </label>
+    </div>
+    <label>
+      Public notes for hunters
+      <textarea data-public-notes rows="3"></textarea>
+    </label>
+  </fieldset>
+</template>
 
 <script>
-  const editShell = document.querySelector("[data-activator-edit]");
-  const editStatus = editShell?.querySelector("[data-edit-status]");
+  type StopDto = {
+    id?: unknown;
+    park_reference?: unknown;
+    planned_date?: unknown;
+    start_time?: unknown;
+    end_time?: unknown;
+    bands?: unknown;
+    modes?: unknown;
+    public_notes?: unknown;
+  };
 
-  if (editStatus) {
+  type RouteDto = {
+    submitter_callsign?: unknown;
+    submitter_name?: unknown;
+    submitter_email?: unknown;
+    club?: unknown;
+    public_notes?: unknown;
+    organizer_notes?: unknown;
+    stops?: unknown;
+  };
+
+  const editForm = document.querySelector<HTMLFormElement>("[data-activator-edit]");
+  const editStatus = editForm?.querySelector("[data-edit-status]");
+  const editFields = editForm?.querySelector<HTMLElement>("[data-edit-fields]");
+  const editStops = editForm?.querySelector<HTMLElement>("[data-edit-stops]");
+  const editActions = editForm?.querySelector<HTMLElement>("[data-edit-actions]");
+  const stopTemplate = document.querySelector<HTMLTemplateElement>("[data-stop-template]");
+  const parkOptions = new Map(
+    Array.from(document.querySelectorAll<HTMLOptionElement>("#activate-ri-edit-parks option"))
+      .flatMap((option) => {
+        const reference = option.dataset.reference;
+
+        return reference ? [[option.value, reference], [reference, reference]] : [];
+      }),
+  );
+  let isSaving = false;
+
+  void loadRoute();
+
+  editForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    if (!editForm || isSaving) {
+      return;
+    }
+
+    isSaving = true;
+    editStatus?.replaceChildren("Saving changes...");
+
+    try {
+      const response = await fetch(apiUrl(), {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(formToPayload(new FormData(editForm))),
+      });
+      const data = await parseResponse(response);
+
+      if (!response.ok || !data.ok) {
+        editStatus?.replaceChildren(data.errors?.join(" ") ?? data.error ?? "Unable to save changes.");
+        return;
+      }
+
+      editStatus?.replaceChildren("Changes saved.");
+      await loadRoute(false);
+    } catch {
+      editStatus?.replaceChildren("Unable to save changes. Please try again later.");
+    } finally {
+      isSaving = false;
+    }
+  });
+
+  editForm?.querySelector("[data-add-stop]")?.addEventListener("click", () => {
+    appendStop({});
+    setupStopCards();
+  });
+
+  editForm?.querySelector("[data-cancel-route]")?.addEventListener("click", async () => {
+    if (!window.confirm("Cancel this activation route? This will mark active stops as cancelled.")) {
+      return;
+    }
+
+    editStatus?.replaceChildren("Cancelling route...");
+    try {
+      const response = await fetch(`${apiUrl()}/cancel`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ cancelReason: "Cancelled by activator." }),
+      });
+      const data = await parseResponse(response);
+
+      if (!response.ok || !data.ok) {
+        editStatus?.replaceChildren(data.errors?.join(" ") ?? data.error ?? "Unable to cancel route.");
+        return;
+      }
+
+      editStatus?.replaceChildren("Route cancelled.");
+      await loadRoute(false);
+    } catch {
+      editStatus?.replaceChildren("Unable to cancel route. Please try again later.");
+    }
+  });
+
+  async function loadRoute(showLoading = true): Promise<void> {
+    if (!editForm || !editFields || !editStops || !editActions) {
+      return;
+    }
+
+    const token = editToken();
+    if (!token) {
+      editStatus?.replaceChildren("This edit link is missing its private token.");
+      return;
+    }
+
+    if (showLoading) {
+      editStatus?.replaceChildren("Loading route...");
+    }
+
+    try {
+      const response = await fetch(apiUrl(), {
+        headers: { accept: "application/json" },
+      });
+      const data = await parseResponse(response);
+
+      if (!response.ok || !data.ok || typeof data.route !== "object" || data.route === null) {
+        editStatus?.replaceChildren(data.error ?? "Unable to load this edit link.");
+        return;
+      }
+
+      renderRoute(data.route as RouteDto);
+      editFields.hidden = false;
+      editStops.hidden = false;
+      editActions.hidden = false;
+      if (showLoading) {
+        editStatus?.replaceChildren("Loaded. Make any changes and save.");
+      }
+    } catch {
+      editStatus?.replaceChildren("Unable to load this edit link.");
+    }
+  }
+
+  function renderRoute(route: RouteDto): void {
+    setNamedValue("submitterCallsign", stringValue(route.submitter_callsign));
+    setNamedValue("submitterName", stringValue(route.submitter_name));
+    setNamedValue("submitterEmail", stringValue(route.submitter_email));
+    setNamedValue("club", stringValue(route.club));
+
+    editStops?.replaceChildren();
+    const stops = Array.isArray(route.stops)
+      ? route.stops.filter((stop): stop is StopDto => typeof stop === "object" && stop !== null)
+      : [];
+    for (const stop of stops) {
+      appendStop(stop);
+    }
+    if (stops.length === 0) {
+      appendStop({});
+    }
+    setupStopCards();
+  }
+
+  function appendStop(stop: StopDto): void {
+    if (!stopTemplate || !editStops) {
+      return;
+    }
+
+    const node = stopTemplate.content.firstElementChild?.cloneNode(true) as HTMLElement | undefined;
+    if (!node) {
+      return;
+    }
+
+    setValue(node, "[data-stop-id]", stringValue(stop.id));
+    setValue(node, "[data-park-reference]", stringValue(stop.park_reference));
+    setValue(node, "[data-park-input]", stringValue(stop.park_reference));
+    setValue(node, "[data-planned-date]", stringValue(stop.planned_date) || "2026-09-11");
+    setValue(node, "[data-start-time]", stringValue(stop.start_time));
+    setValue(node, "[data-end-time]", stringValue(stop.end_time));
+    setValue(node, "[data-bands]", arrayValue(stop.bands).join(", "));
+    setValue(node, "[data-modes]", arrayValue(stop.modes).join(", "));
+    setValue(node, "[data-public-notes]", stringValue(stop.public_notes));
+    editStops.appendChild(node);
+  }
+
+  function setupStopCards(): void {
+    const stops = Array.from(document.querySelectorAll<HTMLElement>("[data-stop-card]"));
+    stops.forEach((stop, index) => {
+      stop.querySelector("[data-stop-title]")?.replaceChildren(`Activation stop ${index + 1}`);
+      const removeButton = stop.querySelector<HTMLButtonElement>("[data-remove-stop]");
+      if (removeButton) {
+        removeButton.disabled = stops.length === 1;
+        removeButton.onclick = () => {
+          stop.remove();
+          setupStopCards();
+        };
+      }
+
+      const parkInput = stop.querySelector<HTMLInputElement>("[data-park-input]");
+      const parkReference = stop.querySelector<HTMLInputElement>("[data-park-reference]");
+      if (parkInput && parkReference) {
+        const syncParkReference = () => {
+          parkReference.value = parkOptions.get(parkInput.value.trim()) ?? parkInput.value.trim();
+        };
+        parkInput.oninput = syncParkReference;
+        parkInput.onchange = syncParkReference;
+      }
+
+      const blockSelect = stop.querySelector<HTMLSelectElement>("[data-time-block]");
+      blockSelect?.addEventListener("change", () => {
+        const [startTime, endTime] = blockSelect.value.split("-");
+        if (startTime && endTime) {
+          setValue(stop, "[data-start-time]", startTime);
+          setValue(stop, "[data-end-time]", endTime);
+        }
+      });
+    });
+  }
+
+  function formToPayload(data: FormData) {
+    return {
+      submitterCallsign: data.get("submitterCallsign"),
+      submitterName: data.get("submitterName"),
+      submitterEmail: data.get("submitterEmail"),
+      club: data.get("club"),
+      publicNotes: "",
+      organizerNotes: "",
+      stops: Array.from(document.querySelectorAll<HTMLElement>("[data-stop-card]")).map((stop) => ({
+        id: stop.querySelector<HTMLInputElement>("[data-stop-id]")?.value,
+        parkReference: stop.querySelector<HTMLInputElement>("[data-park-reference]")?.value,
+        plannedDate: stop.querySelector<HTMLSelectElement>("[data-planned-date]")?.value,
+        startTime: stop.querySelector<HTMLInputElement>("[data-start-time]")?.value,
+        endTime: stop.querySelector<HTMLInputElement>("[data-end-time]")?.value,
+        bands: splitList(stop.querySelector<HTMLInputElement>("[data-bands]")?.value ?? ""),
+        modes: splitList(stop.querySelector<HTMLInputElement>("[data-modes]")?.value ?? ""),
+        publicNotes: stop.querySelector<HTMLTextAreaElement>("[data-public-notes]")?.value ?? "",
+      })),
+    };
+  }
+
+  function apiUrl(): string {
+    return `/api/activate-ri-2026/edit/${encodeURIComponent(editToken())}/route`;
+  }
+
+  function editToken(): string {
     const pathParts = window.location.pathname.split("/").filter(Boolean);
-    const hasToken =
-      pathParts[0] === "activate-ri-2026" &&
-      pathParts[1] === "edit" &&
-      typeof pathParts[2] === "string" &&
-      pathParts[2].length > 0;
 
-    editStatus.replaceChildren(
-      hasToken
-        ? "Approved route lookup is not connected yet. Full controls will load here after that lookup is added."
-        : "This edit link is missing its private token.",
-    );
+    return pathParts[0] === "activate-ri-2026" && pathParts[1] === "edit"
+      ? pathParts[2] ?? ""
+      : "";
+  }
+
+  async function parseResponse(response: Response): Promise<{
+    ok?: boolean;
+    route?: unknown;
+    error?: string;
+    errors?: string[];
+  }> {
+    const contentType = response.headers.get("content-type") ?? "";
+
+    return contentType.includes("application/json") ? response.json() : {};
+  }
+
+  function setNamedValue(name: string, value: string): void {
+    const field = editForm?.elements.namedItem(name);
+    if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) {
+      field.value = value;
+    }
+  }
+
+  function setValue(root: ParentNode, selector: string, value: string): void {
+    const field = root.querySelector<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(selector);
+    if (field) {
+      field.value = value;
+    }
+  }
+
+  function splitList(value: string): string[] {
+    return value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  function arrayValue(value: unknown): string[] {
+    return Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === "string")
+      : [];
+  }
+
+  function stringValue(value: unknown): string {
+    return typeof value === "string" ? value : "";
   }
 </script>

@@ -94,7 +94,7 @@ function parkCounties(park: ParkCoverage) {
 </form>
 
 <div class="event-table-wrap">
-  <table class="event-table" data-filtered-table>
+  <table class="event-table" data-filtered-table data-live-coverage data-parks={JSON.stringify(publicParks)}>
     <thead>
       <tr>
         <th scope="col">Park</th>
@@ -188,6 +188,7 @@ function parkCounties(park: ParkCoverage) {
 
 <script>
   document.querySelectorAll("[data-event-filters]").forEach(setupParkFilters);
+  document.querySelectorAll<HTMLTableElement>("[data-live-coverage]").forEach(setupLiveCoverage);
 
   function setupParkFilters(root: Element): void {
     const filters = root as HTMLFormElement;
@@ -232,6 +233,219 @@ function parkCounties(park: ParkCoverage) {
 
     controls.forEach((control) => control.addEventListener("change", applyFilters));
     applyFilters();
+  }
+
+  async function setupLiveCoverage(table: HTMLTableElement): Promise<void> {
+    const body = table.querySelector("tbody");
+    if (!body) {
+      return;
+    }
+
+    let parks: PublicPark[] = [];
+    try {
+      parks = JSON.parse(table.dataset.parks ?? "[]");
+    } catch {
+      parks = [];
+    }
+
+    try {
+      const response = await fetch("/api/activate-ri-2026/public/stops", {
+        headers: { accept: "application/json" },
+      });
+      const data = await response.json() as { ok?: boolean; stops?: PublicStop[] };
+      if (!response.ok || !data.ok || !Array.isArray(data.stops)) {
+        return;
+      }
+
+      renderLiveCoverage(body, parks, data.stops.filter((stop) => !stop.id.startsWith("sample-")));
+      setupParkFilters(document.querySelector("[data-event-filters]") as Element);
+    } catch {
+      return;
+    }
+  }
+
+  type PublicPark = {
+    reference: string;
+    name: string;
+    counties?: string[];
+  };
+
+  type PublicStop = {
+    id: string;
+    parkReference: string;
+    plannedDate: string;
+    startTime: string;
+    endTime: string;
+    activatorCallsign: string;
+    bands: string[];
+    modes: string[];
+    status: string;
+  };
+
+  type CoverageRow = PublicPark & {
+    status: string;
+    stops: PublicStop[];
+  };
+
+  function renderLiveCoverage(
+    body: HTMLTableSectionElement,
+    parks: PublicPark[],
+    stops: PublicStop[],
+  ): void {
+    body.replaceChildren(
+      ...deriveCoverage(parks, stops).map(createCoverageRow),
+      createCoverageEmptyRow(),
+    );
+  }
+
+  function deriveCoverage(parks: PublicPark[], stops: PublicStop[]): CoverageRow[] {
+    return parks.map((park) => {
+      const parkStops = stops
+        .filter((stop) => stop.parkReference === park.reference)
+        .sort((left, right) =>
+          `${left.plannedDate}T${left.startTime}`.localeCompare(`${right.plannedDate}T${right.startTime}`),
+        );
+      const scheduledCount = parkStops.filter((stop) => stop.status === "scheduled" || stop.status === "delayed").length;
+      const cancelledCount = parkStops.filter((stop) => stop.status === "cancelled").length;
+      const completedCount = parkStops.filter((stop) => stop.status === "completed").length;
+
+      return {
+        ...park,
+        stops: parkStops,
+        status: coverageStatus(scheduledCount, cancelledCount, completedCount),
+      };
+    });
+  }
+
+  function createCoverageRow(park: CoverageRow): HTMLTableRowElement {
+    const row = document.createElement("tr");
+    row.dataset.filterRow = "";
+    row.dataset.counties = countyList(park).join("|");
+    row.dataset.hasStops = park.stops.length > 0 ? "true" : "false";
+
+    const heading = document.createElement("th");
+    heading.scope = "row";
+    heading.append(park.name);
+    for (const value of [park.reference, countyList(park).join(", ")]) {
+      const span = document.createElement("span");
+      span.textContent = value;
+      heading.appendChild(span);
+    }
+    row.appendChild(heading);
+
+    appendCell(row, coverageStatusLabel(park.status));
+    appendStopListCell(row, park.stops, (stop) => [
+      `${formatDate(stop.plannedDate)}, ${stop.startTime}-${stop.endTime} ET`,
+      stopStatusLabel(stop.status),
+    ]);
+    appendStopListCell(row, park.stops, (stop) => [
+      `${stop.activatorCallsign}${stop.modes.length > 0 ? ` (${stop.modes.join(", ")})` : ""}`,
+    ]);
+    appendStopListCell(row, park.stops, (stop) => [
+      `${stop.bands.length ? stop.bands.join(", ") : "TBD"} / ${stop.modes.length ? stop.modes.join(", ") : "TBD"}`,
+    ]);
+
+    return row;
+  }
+
+  function appendStopListCell(
+    row: HTMLTableRowElement,
+    stops: PublicStop[],
+    format: (stop: PublicStop) => string[],
+  ): void {
+    const cell = document.createElement("td");
+    if (stops.length === 0) {
+      cell.textContent = row.children.length === 2 ? "Needs coverage" : "TBD";
+      row.appendChild(cell);
+      return;
+    }
+
+    const list = document.createElement("div");
+    list.className = "event-stop-list";
+    for (const stop of stops) {
+      const item = document.createElement("div");
+      item.className = "event-stop-list__item";
+      item.dataset.filterStop = "";
+      item.dataset.bands = stop.bands.join("|");
+      item.dataset.date = stop.plannedDate;
+      item.dataset.modes = stop.modes.join("|");
+      const [primary, secondary] = format(stop);
+      item.append(primary);
+      if (secondary) {
+        const span = document.createElement("span");
+        span.textContent = secondary;
+        item.appendChild(span);
+      }
+      list.appendChild(item);
+    }
+    cell.appendChild(list);
+    row.appendChild(cell);
+  }
+
+  function appendCell(row: HTMLTableRowElement, text: string): void {
+    const cell = document.createElement("td");
+    cell.textContent = text;
+    row.appendChild(cell);
+  }
+
+  function createCoverageEmptyRow(): HTMLTableRowElement {
+    const row = document.createElement("tr");
+    row.dataset.filterEmpty = "";
+    row.hidden = true;
+    const cell = document.createElement("td");
+    cell.colSpan = 5;
+    cell.textContent = "No parks match these filters.";
+    row.appendChild(cell);
+    return row;
+  }
+
+  function coverageStatus(scheduledCount: number, cancelledCount: number, completedCount: number): string {
+    if (scheduledCount > 1) {
+      return "multiple-scheduled";
+    }
+    if (scheduledCount === 1) {
+      return "scheduled";
+    }
+    if (completedCount > 0) {
+      return "completed";
+    }
+    if (cancelledCount > 0) {
+      return "cancelled-needs-replacement";
+    }
+    return "uncovered";
+  }
+
+  function countyList(park: PublicPark): string[] {
+    return park.counties?.length ? park.counties : ["Unknown county"];
+  }
+
+  function formatDate(date: string): string {
+    return new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      timeZone: "UTC",
+    }).format(new Date(`${date}T00:00:00Z`));
+  }
+
+  function coverageStatusLabel(status: string): string {
+    return {
+      uncovered: "Needs coverage",
+      scheduled: "Scheduled",
+      "multiple-scheduled": "Multiple scheduled",
+      "cancelled-needs-replacement": "Needs replacement",
+      completed: "Completed",
+    }[status] ?? status;
+  }
+
+  function stopStatusLabel(status: string): string {
+    return {
+      "pending-review": "Pending review",
+      scheduled: "Scheduled",
+      delayed: "Delayed",
+      cancelled: "Cancelled",
+      completed: "Completed",
+    }[status] ?? status;
   }
 
   function active(value: string | undefined): boolean {

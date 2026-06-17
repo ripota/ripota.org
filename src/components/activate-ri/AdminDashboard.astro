@@ -16,6 +16,22 @@
     Load the queue to review pending activation submissions.
   </p>
   <div class="admin-list" data-admin-list></div>
+
+  <section class="admin-activity" aria-labelledby="admin-activity-title">
+    <div class="admin-panel__header">
+      <div>
+        <h3 id="admin-activity-title">Activity log</h3>
+        <p class="lead">Recent submissions, approvals, email events, and activator changes.</p>
+      </div>
+      <button class="button" data-variant="light" type="button" data-load-activity>
+        Load activity
+      </button>
+    </div>
+    <p class="admin-status" data-activity-status aria-live="polite">
+      Load activity to review recent route events.
+    </p>
+    <div class="admin-list" data-activity-list></div>
+  </section>
 </section>
 
 <script>
@@ -45,18 +61,35 @@
   type AdminResponse = {
     ok?: boolean;
     routes?: PendingRoute[];
+    events?: ActivityEvent[];
     error?: string;
     message?: string;
     editUrl?: string;
   };
 
+  type ActivityEvent = {
+    action?: unknown;
+    actor_email?: unknown;
+    actor_type?: unknown;
+    created_at?: unknown;
+    route_id?: unknown;
+    stop_id?: unknown;
+    summary?: unknown;
+  };
+
   const dashboard = document.querySelector("[data-admin-dashboard]");
   const loadButton = dashboard?.querySelector<HTMLButtonElement>("[data-load-routes]");
+  const activityButton = dashboard?.querySelector<HTMLButtonElement>("[data-load-activity]");
   const status = dashboard?.querySelector("[data-admin-status]");
+  const activityStatus = dashboard?.querySelector("[data-activity-status]");
   const list = dashboard?.querySelector("[data-admin-list]");
+  const activityList = dashboard?.querySelector("[data-activity-list]");
 
   loadButton?.addEventListener("click", () => {
     void loadPendingRoutes();
+  });
+  activityButton?.addEventListener("click", () => {
+    void loadActivity();
   });
 
   async function loadPendingRoutes() {
@@ -264,43 +297,94 @@
 
       card.remove();
       nextFocusTarget?.focus();
-      showApprovalSuccess(stringValue(data.editUrl), list.children.length);
+      showApprovalSuccess(list.children.length);
+      void loadActivity();
     } catch {
       status.replaceChildren("Unable to approve submission. Please try again later.");
       button.disabled = false;
     }
   }
 
-  function showApprovalSuccess(editUrl: string, remainingCount: number) {
+  function showApprovalSuccess(remainingCount: number) {
     if (!status) {
       return;
     }
 
-    if (!editUrl) {
-      status.replaceChildren(
-        remainingCount === 0 ? "No pending submissions." : "Submission approved.",
-      );
+    status.replaceChildren(
+      remainingCount === 0 ? "No pending submissions." : "Submission approved.",
+    );
+  }
+
+  async function loadActivity() {
+    if (!activityButton || !activityStatus || !activityList) {
       return;
     }
 
-    const link = document.createElement("a");
-    link.href = editUrl;
-    link.textContent = editUrl;
+    activityButton.disabled = true;
+    activityStatus.replaceChildren("Loading activity...");
+    activityList.replaceChildren();
 
-    const copyButton = document.createElement("button");
-    copyButton.className = "button admin-status__copy";
-    copyButton.type = "button";
-    copyButton.textContent = "Copy";
-    copyButton.addEventListener("click", async () => {
-      try {
-        await navigator.clipboard.writeText(new URL(editUrl, window.location.href).href);
-        copyButton.textContent = "Copied";
-      } catch {
-        copyButton.textContent = "Copy failed";
+    try {
+      const response = await fetch("/api/activate-ri-2026/admin/activity", {
+        headers: { accept: "application/json" },
+      });
+      const data = await parseResponse(response);
+
+      if (!response.ok || !data.ok) {
+        showActivityError(response, data, "Unable to load activity.");
+        return;
       }
-    });
 
-    status.replaceChildren("Submission approved. Edit link: ", link, " ", copyButton);
+      const events = Array.isArray(data.events) ? data.events : [];
+      renderActivity(events);
+    } catch {
+      activityStatus.replaceChildren("Unable to load activity. Please try again later.");
+    } finally {
+      activityButton.disabled = false;
+    }
+  }
+
+  function renderActivity(events: ActivityEvent[]) {
+    if (!activityStatus || !activityList) {
+      return;
+    }
+
+    activityList.replaceChildren();
+    if (events.length === 0) {
+      activityStatus.replaceChildren("No activity events yet.");
+      return;
+    }
+
+    activityStatus.replaceChildren(`${events.length} recent event${events.length === 1 ? "" : "s"}.`);
+    activityList.replaceChildren(...events.map(createActivityCard));
+  }
+
+  function createActivityCard(event: ActivityEvent) {
+    const article = document.createElement("article");
+    article.className = "admin-card admin-card--activity";
+
+    const body = document.createElement("div");
+    body.className = "admin-card__body";
+
+    const title = document.createElement("h3");
+    title.textContent = stringValue(event.action) || "activity";
+
+    const summary = document.createElement("p");
+    summary.textContent = stringValue(event.summary) || "No summary provided.";
+
+    const meta = document.createElement("dl");
+    meta.className = "admin-meta admin-meta--compact";
+    addMeta(meta, "Time", formatEventTime(stringValue(event.created_at)));
+    addMeta(meta, "Actor", [stringValue(event.actor_type), stringValue(event.actor_email)].filter(Boolean).join(" - ") || "system");
+    addMeta(meta, "Route", stringValue(event.route_id) || "Not provided");
+    addMeta(meta, "Stop", stringValue(event.stop_id) || "Not provided");
+
+    body.appendChild(title);
+    body.appendChild(summary);
+    body.appendChild(meta);
+    article.appendChild(body);
+
+    return article;
   }
 
   async function parseResponse(response: Response): Promise<AdminResponse> {
@@ -326,6 +410,30 @@
     }
 
     status.replaceChildren(data.error ?? data.message ?? fallback);
+  }
+
+  function showActivityError(response: Response, data: AdminResponse, fallback: string) {
+    if (!activityStatus) {
+      return;
+    }
+
+    if (response.status === 401 || response.status === 403) {
+      activityStatus.replaceChildren(
+        "Admin access is protected. Sign in with an authorized Cloudflare Access account, then try again.",
+      );
+      return;
+    }
+
+    activityStatus.replaceChildren(data.error ?? data.message ?? fallback);
+  }
+
+  function formatEventTime(value: string): string {
+    if (!value) {
+      return "Not provided";
+    }
+
+    const date = new Date(value);
+    return Number.isNaN(date.valueOf()) ? value : date.toLocaleString();
   }
 
   function stringValue(value: unknown): string {

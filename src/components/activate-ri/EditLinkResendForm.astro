@@ -1,0 +1,86 @@
+<section class="admin-panel resend-panel" aria-labelledby="resend-link-title">
+  <div>
+    <p class="eyebrow">Private link</p>
+    <h2 id="resend-link-title">Need your edit link?</h2>
+    <p class="lead">
+      Enter the callsign and email used on the signup. If there is a match, the
+      private edit link will be emailed again.
+    </p>
+  </div>
+
+  <form class="event-form" data-resend-edit-link>
+    <div class="form-grid">
+      <label>
+        Callsign
+        <input name="callsign" autocomplete="nickname" required />
+      </label>
+      <label>
+        Email
+        <input name="email" type="email" autocomplete="email" required />
+      </label>
+    </div>
+    <button class="button" data-variant="primary" type="submit" data-resend-button>
+      Send edit link
+    </button>
+    <output class="form-status" data-resend-status aria-live="polite"></output>
+  </form>
+</section>
+
+<script>
+  const resendForm = document.querySelector<HTMLFormElement>("[data-resend-edit-link]");
+  const resendStatus = document.querySelector("[data-resend-status]");
+  const resendButton = document.querySelector<HTMLButtonElement>("[data-resend-button]");
+  let resendSubmitting = false;
+
+  resendForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    if (!resendForm || resendSubmitting) {
+      return;
+    }
+
+    resendSubmitting = true;
+    if (resendButton) {
+      resendButton.disabled = true;
+    }
+    resendStatus?.replaceChildren("Sending...");
+
+    try {
+      const data = new FormData(resendForm);
+      const response = await fetch("/api/activate-ri-2026/resend-edit-link", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          callsign: data.get("callsign"),
+          email: data.get("email"),
+        }),
+      });
+      const body = await parseResendResponse(response);
+
+      if (!response.ok || !body.ok) {
+        resendStatus?.replaceChildren(body.errors?.join(" ") ?? "Unable to request edit link.");
+        return;
+      }
+
+      resendForm.reset();
+      resendStatus?.replaceChildren(body.message ?? "If we found a matching signup, we sent the private edit link.");
+    } catch {
+      resendStatus?.replaceChildren("Unable to request edit link. Please try again later.");
+    } finally {
+      resendSubmitting = false;
+      if (resendButton) {
+        resendButton.disabled = false;
+      }
+    }
+  });
+
+  async function parseResendResponse(response: Response): Promise<{
+    ok?: boolean;
+    message?: string;
+    errors?: string[];
+  }> {
+    const contentType = response.headers.get("content-type") ?? "";
+
+    return contentType.includes("application/json") ? response.json() : {};
+  }
+</script>
