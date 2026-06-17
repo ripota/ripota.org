@@ -4,6 +4,7 @@ import EventHero from "../../components/activate-ri/EventHero.astro";
 import EventNav from "../../components/activate-ri/EventNav.astro";
 import Footer from "../../components/Footer.astro";
 import Notice from "../../components/Notice.astro";
+import ReferenceMap from "../../components/ReferenceMap.astro";
 import SiteHeader from "../../components/SiteHeader.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
 ---
@@ -71,6 +72,13 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
           </p>
         </div>
         <CoverageSummary />
+        <ReferenceMap
+          id="activate-ri-coverage-map"
+          variant="coverage"
+          title="Map of Activate All RI 2026 coverage"
+          caption="Coverage means a planned activation window for community coordination. Official Parks on the Air resources remain authoritative for rules, spots, logs, awards, and activation validity."
+          phaseFocus="volunteer"
+        />
       </div>
     </section>
     <Notice />
