@@ -39,3 +39,15 @@ describe("production database backup tasks", () => {
     expect(task).toContain("--env \"\"");
   });
 });
+
+describe("share card asset tasks", () => {
+  it("defines an Activate RI share card task with force support and metadata output", () => {
+    const task = readTask("assets/activate-ri-share-card");
+
+    expect(task).toContain('description="Regenerate the Activate RI 2026 social share card image"');
+    expect(task).toContain('#USAGE flag "--force"');
+    expect(task).toContain('#USAGE flag "--local-stops"');
+    expect(task).toContain("scripts/activate-ri-2026/render-share-card.mjs");
+    expect(task).not.toContain("#MISE outputs=");
+  });
+});

@@ -1,0 +1,64 @@
+name: Update Activate RI Share Card
+
+on:
+  schedule:
+    - cron: "0 */3 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Regenerate even when the fingerprint is unchanged"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: activate-ri-share-card
+  cancel-in-progress: false
+
+jobs:
+  update-share-card:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Set up mise
+        uses: jdx/mise-action@v2
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Regenerate share card
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.force }}" == "true" ]]; then
+            mise run assets:activate-ri-share-card -- --force
+          else
+            mise run assets:activate-ri-share-card
+          fi
+
+      - name: Commit updated share card
+        run: |
+          if git diff --quiet -- public/assets/activate-ri-2026-share-card.png public/assets/activate-ri-2026-share-card.meta.json; then
+            echo "Share card is already current."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/assets/activate-ri-2026-share-card.png public/assets/activate-ri-2026-share-card.meta.json
+          git commit -m "Update Activate RI share card"
+          git push

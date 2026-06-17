@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; -*-
+#MISE description="Regenerate the Activate RI 2026 social share card image"
+#MISE raw=true
+#USAGE flag "--force" help="Regenerate even when the share card fingerprint is unchanged"
+#USAGE flag "--local-stops" help="Use committed static stops JSON instead of the production public stops API"
+
+set -euo pipefail
+
+args=()
+if [[ "${usage_force:-false}" == "true" ]]; then
+  args+=(--force)
+fi
+if [[ "${usage_local_stops:-false}" == "true" ]]; then
+  args+=(--local-stops)
+fi
+
+if [[ "${#args[@]}" -gt 0 ]]; then
+  node scripts/activate-ri-2026/render-share-card.mjs "${args[@]}" "$@"
+else
+  node scripts/activate-ri-2026/render-share-card.mjs "$@"
+fi

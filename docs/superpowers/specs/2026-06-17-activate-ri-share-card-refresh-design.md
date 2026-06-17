@@ -92,20 +92,22 @@ depends on another shared helper.
 
 ## Task Interface
 
-Add a mise task named `assets/activate-ri-share-card`.
+Add a mise task named `assets:activate-ri-share-card`.
 
 Expected usage:
 
 ```sh
-mise run assets/activate-ri-share-card
-mise run assets/activate-ri-share-card -- --force
+mise run assets:activate-ri-share-card
+mise run assets:activate-ri-share-card -- --force
+mise run assets:activate-ri-share-card -- --local-stops
 ```
 
-Expected environment:
+Expected flags and environment:
 
-- `ACTIVATE_RI_SHARE_CARD_STOPS_URL` optionally overrides the stops source.
-- CI should set `ACTIVATE_RI_SHARE_CARD_STOPS_URL` to the production public
-  stops API.
+- The default stops source is the production public stops API.
+- `--local-stops` uses the committed static stops JSON instead.
+- `ACTIVATE_RI_SHARE_CARD_STOPS_URL` optionally overrides the remote stops
+  source.
 
 The task should invoke a Node script rather than carrying complex logic in
 bash. Node is a better fit for hashing, JSON normalization, HTTP fetches,
@@ -198,7 +200,7 @@ Use one local task run as integration verification.
 
 ## Local And CI Data Sources
 
-The default local stops source should be the local preview endpoint with static
-fallback, while scheduled CI should use the production public stops API. This
-keeps local development self-contained and lets the scheduled workflow track
-the live production state without requiring D1 credentials.
+The default stops source should be the production public stops API for both
+local and scheduled CI runs. This matches the task's purpose: refreshing the
+public social image. Local static fallback remains available through
+`--local-stops` for offline development or debugging.
