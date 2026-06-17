@@ -23,12 +23,8 @@ const publicParks = parks as PublicParkSummary[];
 
 <script>
   import { deriveParkCoverage } from "../../lib/activate-ri/coverage";
-  import type { PublicActivationStop, PublicParkSummary } from "../../lib/activate-ri/types";
-
-  type LiveStopsResponse = {
-    ok?: boolean;
-    stops?: PublicActivationStop[];
-  };
+  import { fetchPublicActivationStops } from "../../lib/activate-ri/public-stops-client";
+  import type { PublicParkSummary } from "../../lib/activate-ri/types";
 
   function setSummaryText(summary: Element, scheduled: string, gaps: string): void {
     const scheduledValue = summary.querySelector("[data-summary-scheduled]");
@@ -46,15 +42,9 @@ const publicParks = parks as PublicParkSummary[];
   async function setupLiveCoverageSummary(summary: HTMLElement): Promise<void> {
     try {
       const parks = JSON.parse(summary.dataset.parks ?? "[]") as PublicParkSummary[];
-      const response = await fetch("/api/activate-ri-2026/public/stops", {
-        headers: { accept: "application/json" },
-      });
-      const data = (await response.json()) as LiveStopsResponse;
-      if (!response.ok || !data.ok || !Array.isArray(data.stops)) {
-        throw new Error("Live coverage summary response was unavailable.");
-      }
+      const stops = await fetchPublicActivationStops();
 
-      const visibleStops = data.stops.filter((stop) => !stop.id.startsWith("sample-"));
+      const visibleStops = stops.filter((stop) => !stop.id.startsWith("sample-"));
       const coverage = deriveParkCoverage(parks, visibleStops);
       const scheduledCount = coverage.filter((park) =>
         ["scheduled", "multiple-scheduled", "completed"].includes(park.status),

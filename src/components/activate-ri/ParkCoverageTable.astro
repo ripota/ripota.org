@@ -179,6 +179,8 @@ function parkCounties(park: ParkCoverage) {
 </div>
 
 <script>
+  import { fetchPublicActivationStops } from "../../lib/activate-ri/public-stops-client";
+
   document.querySelectorAll("[data-event-filters]").forEach(setupParkFilters);
   document.querySelectorAll<HTMLTableElement>("[data-live-coverage]").forEach(setupLiveCoverage);
 
@@ -241,15 +243,8 @@ function parkCounties(park: ParkCoverage) {
     }
 
     try {
-      const response = await fetch("/api/activate-ri-2026/public/stops", {
-        headers: { accept: "application/json" },
-      });
-      const data = await response.json() as { ok?: boolean; stops?: PublicStop[] };
-      if (!response.ok || !data.ok || !Array.isArray(data.stops)) {
-        throw new Error("Live coverage response was unavailable.");
-      }
-
-      const visibleStops = data.stops.filter((stop) => !stop.id.startsWith("sample-"));
+      const stops = await fetchPublicActivationStops();
+      const visibleStops = stops.filter((stop) => !stop.id.startsWith("sample-"));
       const filters = document.querySelector("[data-event-filters]") as HTMLFormElement | null;
       renderLiveCoverage(body, parks, visibleStops);
       if (filters) {

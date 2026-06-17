@@ -20,6 +20,17 @@ const logoDownloads = [
     detail: "Full-color vector master for web pages, print layouts, and future exports.",
   },
 ];
+
+const sharePreviews = [
+  {
+    label: "Activate All RI 2026",
+    href: "/assets/activate-ri-2026-share-card.png",
+    previewSrc: "/assets/activate-ri-2026-share-card.png",
+    previewAlt:
+      "Activate All RI 2026 hero preview with event dates, coverage totals, and the Rhode Island volunteer coverage map.",
+    detail: "Social preview image used by the Activate All RI 2026 overview page.",
+  },
+];
 ---
 
 <BaseLayout
@@ -62,6 +73,34 @@ const logoDownloads = [
           {
             logoDownloads.map((asset) => (
               <a class="asset-download" href={asset.href} download>
+                <span class="asset-download__preview">
+                  <img src={asset.previewSrc} alt={asset.previewAlt} loading="lazy" />
+                </span>
+                <span class="asset-download__body">
+                  <strong>{asset.label}</strong>
+                  <span>{asset.detail}</span>
+                </span>
+              </a>
+            ))
+          }
+        </div>
+      </div>
+    </section>
+
+    <section class="section asset-downloads-section" aria-labelledby="share-previews-title">
+      <div class="container">
+        <div class="section-header">
+          <p class="eyebrow">Social previews</p>
+          <h2 id="share-previews-title">Open Graph cards</h2>
+          <p class="lead">
+            Local previews for page-specific share images. Social platforms still
+            need a public URL to scrape the full share sheet.
+          </p>
+        </div>
+        <div class="asset-downloads asset-downloads--wide">
+          {
+            sharePreviews.map((asset) => (
+              <a class="asset-download asset-download--wide" href={asset.href}>
                 <span class="asset-download__preview">
                   <img src={asset.previewSrc} alt={asset.previewAlt} loading="lazy" />
                 </span>

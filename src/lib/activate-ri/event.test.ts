@@ -31,5 +31,6 @@ describe("Activate RI event config", () => {
   it("centralizes event routes and generated JSON paths", () => {
     expect(eventRoute("parks")).toBe("/activate-ri-2026/parks/");
     expect(publicDataPath("parks")).toBe("/data/activate-ri-2026/parks.json");
+    expect(publicDataPath("stops")).toBe("/data/activate-ri-2026/stops.json");
   });
 });

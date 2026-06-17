@@ -65,6 +65,8 @@ const countyOptions = uniqueSortedValues(
 </div>
 
 <script>
+  import { fetchPublicActivationStops } from "../../lib/activate-ri/public-stops-client";
+
   document.querySelectorAll("[data-event-filters]").forEach(setupEventFilters);
   document.querySelectorAll<HTMLTableElement>("[data-live-schedule]").forEach(setupLiveSchedule);
 
@@ -117,15 +119,8 @@ const countyOptions = uniqueSortedValues(
     }
 
     try {
-      const response = await fetch("/api/activate-ri-2026/public/stops", {
-        headers: { accept: "application/json" },
-      });
-      const data = await response.json() as { ok?: boolean; stops?: PublicStop[] };
-      if (!response.ok || !data.ok || !Array.isArray(data.stops)) {
-        throw new Error("Live schedule response was unavailable.");
-      }
-
-      const visibleStops = data.stops.filter((stop) => !stop.id.startsWith("sample-"));
+      const stops = await fetchPublicActivationStops();
+      const visibleStops = stops.filter((stop) => !stop.id.startsWith("sample-"));
       const filters = document.querySelector("[data-event-filters]") as HTMLFormElement | null;
       if (filters) {
         updateSelectOptions(filters, "mode", uniqueSortedValues(visibleStops.map((stop) => stop.modes)));

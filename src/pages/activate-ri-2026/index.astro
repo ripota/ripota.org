@@ -6,12 +6,21 @@ import Footer from "../../components/Footer.astro";
 import Notice from "../../components/Notice.astro";
 import SiteHeader from "../../components/SiteHeader.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
+
+const activateRiShareImage = {
+  src: "/assets/activate-ri-2026-share-card.png",
+  alt: "Activate All RI 2026 hero preview with event dates, coverage totals, and the Rhode Island volunteer coverage map.",
+  width: 1200,
+  height: 630,
+  type: "image/png",
+};
 ---
 
 <BaseLayout
   title="Activate All RI 2026"
   description="A Rhode Island POTA community weekend to cover all 61 Rhode Island references."
   canonicalPath="/activate-ri-2026/"
+  image={activateRiShareImage}
 >
   <SiteHeader variant="solid" showEventLink />
   <main id="main">

@@ -23,7 +23,8 @@ const {
 } = Astro.props;
 const pageTitle = title === siteIdentity.name ? title : `${title} | ${siteIdentity.name}`;
 const canonicalUrl = new URL(canonicalPath, siteIdentity.url).toString();
-const imageUrl = new URL(image.src, siteIdentity.url).toString();
+const socialImageBaseUrl = import.meta.env.DEV ? Astro.url.origin : siteIdentity.url;
+const imageUrl = new URL(image.src, socialImageBaseUrl).toString();
 ---
 
 <!doctype html>

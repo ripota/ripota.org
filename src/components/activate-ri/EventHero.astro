@@ -93,15 +93,8 @@ function formatDateRange(startDate: string, endDate: string) {
 
 <script>
   import { summarizeParkCoverage } from "../../lib/activate-ri/coverage";
-  import type {
-    PublicActivationStop,
-    PublicParkSummary,
-  } from "../../lib/activate-ri/types";
-
-  type LiveStopsResponse = {
-    ok?: boolean;
-    stops?: PublicActivationStop[];
-  };
+  import { fetchPublicActivationStops } from "../../lib/activate-ri/public-stops-client";
+  import type { PublicParkSummary } from "../../lib/activate-ri/types";
 
   function setHeroCoverageText(
     summary: Element,
@@ -123,15 +116,9 @@ function formatDateRange(startDate: string, endDate: string) {
   async function setupLiveHeroCoverage(summary: HTMLElement): Promise<void> {
     try {
       const parks = JSON.parse(summary.dataset.parks ?? "[]") as PublicParkSummary[];
-      const response = await fetch("/api/activate-ri-2026/public/stops", {
-        headers: { accept: "application/json" },
-      });
-      const data = (await response.json()) as LiveStopsResponse;
-      if (!response.ok || !data.ok || !Array.isArray(data.stops)) {
-        throw new Error("Live hero coverage response was unavailable.");
-      }
+      const stops = await fetchPublicActivationStops();
 
-      const coverageSummary = summarizeParkCoverage(parks, data.stops);
+      const coverageSummary = summarizeParkCoverage(parks, stops);
       setHeroCoverageText(
         summary,
         `${coverageSummary.scheduled} / ${coverageSummary.total}`,

@@ -101,6 +101,7 @@ const payload = JSON.stringify({
 <script is:inline type="application/json" id={dataId} set:html={payload} />
 <script>
   import L from "leaflet";
+  import { fetchPublicActivationStops } from "../lib/activate-ri/public-stops-client";
   import {
     referenceMapFitBoundsOptions,
     referenceMapLeafletOptions,
@@ -329,17 +330,11 @@ const payload = JSON.stringify({
     layersByReference: Map<string, { boundaries: L.Path[]; markers: L.CircleMarker[] }>,
   ): Promise<void> {
     try {
-      const response = await fetch("/api/activate-ri-2026/public/stops", {
-        headers: { accept: "application/json" },
-      });
-      const data = (await response.json()) as { ok?: boolean; stops?: PublicStop[] };
-      if (!response.ok || !data.ok || !Array.isArray(data.stops)) {
-        return;
-      }
+      const stops = await fetchPublicActivationStops();
 
       const coverageByReference = deriveCoverage(
         payload.parks,
-        data.stops.filter((stop) => !stop.id.startsWith("sample-")),
+        stops.filter((stop) => !stop.id.startsWith("sample-")),
         payload,
       );
 

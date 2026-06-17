@@ -17,7 +17,7 @@ const routes: Record<EventPageKey, string> = {
   admin: "/activate-ri-2026/admin/",
 };
 
-export type PublicDataKey = "event" | "parks";
+export type PublicDataKey = "event" | "parks" | "stops";
 
 export function eventRoute(key: EventPageKey): string {
   return routes[key];
