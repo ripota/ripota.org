@@ -19,6 +19,7 @@ export function deriveParkCoverage(
     return {
       reference: park.reference,
       name: park.name,
+      counties: park.counties,
       status: coverageStatus(
         scheduledStops.length,
         cancelledStops.length,

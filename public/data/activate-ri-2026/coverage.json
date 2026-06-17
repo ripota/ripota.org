@@ -2,6 +2,9 @@
   {
     "reference": "US-0513",
     "name": "Block Island National Wildlife Refuge",
+    "counties": [
+      "Washington County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -11,6 +14,9 @@
   {
     "reference": "US-0514",
     "name": "John H. Chafee National Wildlife Refuge",
+    "counties": [
+      "Washington County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -20,6 +26,9 @@
   {
     "reference": "US-0515",
     "name": "Ninigret National Wildlife Refuge",
+    "counties": [
+      "Washington County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -29,6 +38,9 @@
   {
     "reference": "US-0516",
     "name": "Sachuest Point National Wildlife Refuge",
+    "counties": [
+      "Newport County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -38,6 +50,9 @@
   {
     "reference": "US-0517",
     "name": "Trustom Pond National Wildlife Refuge",
+    "counties": [
+      "Washington County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -47,6 +62,9 @@
   {
     "reference": "US-0789",
     "name": "Roger Williams National Memorial",
+    "counties": [
+      "Providence County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -56,6 +74,9 @@
   {
     "reference": "US-10541",
     "name": "Gull Cove State Recreation Area",
+    "counties": [
+      "Newport County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -65,6 +86,9 @@
   {
     "reference": "US-10542",
     "name": "Camp Cronin State Recreation Area",
+    "counties": [
+      "Washington County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -74,6 +98,9 @@
   {
     "reference": "US-10543",
     "name": "Patriots Park State Historic Site",
+    "counties": [
+      "Newport County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -83,6 +110,9 @@
   {
     "reference": "US-10544",
     "name": "Jerimoth Hill State Recreation Area",
+    "counties": [
+      "Providence County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -92,6 +122,9 @@
   {
     "reference": "US-10545",
     "name": "Hillsdale Preserve Management Area",
+    "counties": [
+      "Washington County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -101,6 +134,9 @@
   {
     "reference": "US-10546",
     "name": "Eight Rod Farm Wildlife Management Area",
+    "counties": [
+      "Newport County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -110,6 +146,9 @@
   {
     "reference": "US-10547",
     "name": "Silver Spring State Recreation Area",
+    "counties": [
+      "Washington County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -119,6 +158,9 @@
   {
     "reference": "US-10548",
     "name": "Barber Pond State Recreation Area",
+    "counties": [
+      "Washington County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -128,6 +170,9 @@
   {
     "reference": "US-2868",
     "name": "Beavertail State Park",
+    "counties": [
+      "Newport County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -137,6 +182,9 @@
   {
     "reference": "US-2869",
     "name": "Blackstone River State Park",
+    "counties": [
+      "Providence County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -146,6 +194,9 @@
   {
     "reference": "US-2870",
     "name": "Brenton Point State Park",
+    "counties": [
+      "Newport County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -155,6 +206,9 @@
   {
     "reference": "US-2871",
     "name": "Burlingame State Park",
+    "counties": [
+      "Washington County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -164,6 +218,9 @@
   {
     "reference": "US-2872",
     "name": "Colt State Park",
+    "counties": [
+      "Bristol County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -173,6 +230,9 @@
   {
     "reference": "US-2873",
     "name": "Fishermen's Memorial State Park",
+    "counties": [
+      "Washington County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -182,6 +242,9 @@
   {
     "reference": "US-2874",
     "name": "Fort Adams State Park",
+    "counties": [
+      "Newport County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -191,6 +254,9 @@
   {
     "reference": "US-2875",
     "name": "Fort Wetherill State Park",
+    "counties": [
+      "Newport County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -200,6 +266,9 @@
   {
     "reference": "US-2876",
     "name": "Goddard Memorial State Park",
+    "counties": [
+      "Kent County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -209,6 +278,10 @@
   {
     "reference": "US-2877",
     "name": "Haines Memorial State Park",
+    "counties": [
+      "Bristol County",
+      "Providence County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -218,6 +291,9 @@
   {
     "reference": "US-2878",
     "name": "Lincoln Woods State Park",
+    "counties": [
+      "Providence County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -227,6 +303,9 @@
   {
     "reference": "US-2879",
     "name": "Rocky Point State Park",
+    "counties": [
+      "Kent County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -236,6 +315,9 @@
   {
     "reference": "US-2880",
     "name": "Snake Den State Park",
+    "counties": [
+      "Providence County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -245,6 +327,9 @@
   {
     "reference": "US-2881",
     "name": "World War II Veterans Memorial State Park",
+    "counties": [
+      "Providence County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -254,6 +339,12 @@
   {
     "reference": "US-4582",
     "name": "Washington-Rochambeau Revolutionary Route National Historic Trail",
+    "counties": [
+      "Bristol County",
+      "Kent County",
+      "Newport County",
+      "Providence County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -263,6 +354,9 @@
   {
     "reference": "US-5482",
     "name": "Wickaboxet Wildlife Management Area",
+    "counties": [
+      "Kent County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -272,6 +366,9 @@
   {
     "reference": "US-5483",
     "name": "Lincoln Woods State Forest",
+    "counties": [
+      "Providence County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -281,6 +378,9 @@
   {
     "reference": "US-5484",
     "name": "George Washington Memorial State Forest",
+    "counties": [
+      "Providence County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -290,6 +390,10 @@
   {
     "reference": "US-6979",
     "name": "Arcadia Management Area",
+    "counties": [
+      "Kent County",
+      "Washington County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -299,6 +403,9 @@
   {
     "reference": "US-6980",
     "name": "Beach Pond Wildlife Management Area",
+    "counties": [
+      "Washington County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -308,6 +415,9 @@
   {
     "reference": "US-6981",
     "name": "Great Swamp Wildlife Management Area",
+    "counties": [
+      "Washington County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -317,6 +427,10 @@
   {
     "reference": "US-6982",
     "name": "Big River Wildlife Management Area",
+    "counties": [
+      "Kent County",
+      "Washington County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -326,6 +440,9 @@
   {
     "reference": "US-6983",
     "name": "Woody Hill Wildlife Management Area",
+    "counties": [
+      "Washington County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -335,6 +452,9 @@
   {
     "reference": "US-6984",
     "name": "Black Hut Wildlife Management Area",
+    "counties": [
+      "Providence County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -344,6 +464,9 @@
   {
     "reference": "US-6985",
     "name": "Round Top Wildlife Management Area",
+    "counties": [
+      "Providence County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -353,6 +476,9 @@
   {
     "reference": "US-6986",
     "name": "Simmons Mill Wildlife Management Area",
+    "counties": [
+      "Newport County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -362,6 +488,9 @@
   {
     "reference": "US-6987",
     "name": "Cocumcussoc State Park",
+    "counties": [
+      "Washington County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -371,6 +500,9 @@
   {
     "reference": "US-6988",
     "name": "Grills State Preserve",
+    "counties": [
+      "Washington County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -380,6 +512,9 @@
   {
     "reference": "US-6989",
     "name": "Black Farm Wildlife Management Area",
+    "counties": [
+      "Washington County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -389,6 +524,9 @@
   {
     "reference": "US-6990",
     "name": "Nicholas Farm Wildlife Management Area",
+    "counties": [
+      "Kent County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -398,6 +536,9 @@
   {
     "reference": "US-6991",
     "name": "Rockville Wildlife Management Area",
+    "counties": [
+      "Washington County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -407,6 +548,9 @@
   {
     "reference": "US-6992",
     "name": "JL Curran State Park",
+    "counties": [
+      "Providence County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -416,6 +560,9 @@
   {
     "reference": "US-7508",
     "name": "Pulaski State Park",
+    "counties": [
+      "Providence County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -425,6 +572,9 @@
   {
     "reference": "US-7518",
     "name": "Kimball Wildlife Refuge",
+    "counties": [
+      "Washington County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -434,6 +584,9 @@
   {
     "reference": "US-7714",
     "name": "Buck Hill Wildlife Management Area",
+    "counties": [
+      "Providence County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -443,6 +596,9 @@
   {
     "reference": "US-7715",
     "name": "Durfee Hill Wildlife Management Area",
+    "counties": [
+      "Providence County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -452,6 +608,9 @@
   {
     "reference": "US-7716",
     "name": "Carolina Wildlife Management Area",
+    "counties": [
+      "Washington County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -461,6 +620,9 @@
   {
     "reference": "US-7717",
     "name": "Charlestown Breachway State Park",
+    "counties": [
+      "Washington County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -470,6 +632,9 @@
   {
     "reference": "US-7718",
     "name": "East Matunuck State Beach",
+    "counties": [
+      "Washington County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -479,6 +644,9 @@
   {
     "reference": "US-7719",
     "name": "Misquamicut State Beach",
+    "counties": [
+      "Washington County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -488,6 +656,9 @@
   {
     "reference": "US-7720",
     "name": "Roger W. Wheeler State Beach",
+    "counties": [
+      "Washington County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -497,6 +668,9 @@
   {
     "reference": "US-7721",
     "name": "Salty Brine State Beach",
+    "counties": [
+      "Washington County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -506,6 +680,9 @@
   {
     "reference": "US-7722",
     "name": "Scarborough North State Beach",
+    "counties": [
+      "Washington County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -515,6 +692,9 @@
   {
     "reference": "US-7723",
     "name": "John H. Chaffee Rome Point State Nature Preserve",
+    "counties": [
+      "Washington County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -524,6 +704,9 @@
   {
     "reference": "US-7865",
     "name": "East State Beach",
+    "counties": [
+      "Washington County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -533,6 +716,9 @@
   {
     "reference": "US-7971",
     "name": "Blackstone River Valley National Historical Park",
+    "counties": [
+      "Providence County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,
@@ -542,6 +728,9 @@
   {
     "reference": "US-8293",
     "name": "Sapowet Marsh State Wildlife Area",
+    "counties": [
+      "Newport County"
+    ],
     "status": "uncovered",
     "scheduledStopCount": 0,
     "cancelledStopCount": 0,

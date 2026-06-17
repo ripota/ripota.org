@@ -58,6 +58,7 @@ export type ParkCoverageStatus =
 export type ParkCoverage = {
   reference: string;
   name: string;
+  counties: string[];
   status: ParkCoverageStatus;
   scheduledStopCount: number;
   cancelledStopCount: number;
@@ -68,6 +69,7 @@ export type ParkCoverage = {
 export type ActivationStopInput = {
   parkReference: string;
   plannedDate: string;
+  timeBlock?: string;
   startTime: string;
   endTime: string;
   bands: string[];
@@ -105,6 +107,7 @@ export type ValidationResult<T> =
 export type PublicParkSummary = {
   reference: string;
   name: string;
+  counties: string[];
   latitude?: number;
   longitude?: number;
   grid?: string;

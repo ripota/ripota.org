@@ -58,6 +58,67 @@ describe("validateRouteSubmission", () => {
     }
   });
 
+  it("normalizes allowed three-hour blocks to start and end times", () => {
+    const result = validateRouteSubmission({
+      ...validSubmission,
+      stops: [
+        {
+          parkReference: "US-2868",
+          plannedDate: "2026-09-11",
+          timeBlock: "09:00-12:00",
+          bands: ["40m", "20m"],
+          modes: ["ssb", "cw"],
+        },
+        {
+          parkReference: "US-2872",
+          plannedDate: "2026-09-11",
+          timeBlock: "12:00-15:00",
+          bands: ["20m"],
+          modes: ["SSB"],
+        },
+      ],
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.stops).toEqual([
+        expect.objectContaining({
+          parkReference: "US-2868",
+          startTime: "09:00",
+          endTime: "12:00",
+          modes: ["SSB", "CW"],
+        }),
+        expect.objectContaining({
+          parkReference: "US-2872",
+          startTime: "12:00",
+          endTime: "15:00",
+          modes: ["SSB"],
+        }),
+      ]);
+    }
+  });
+
+  it("rejects invalid time block values", () => {
+    const result = validateRouteSubmission({
+      ...validSubmission,
+      stops: [
+        {
+          ...validSubmission.stops[0],
+          startTime: undefined,
+          endTime: undefined,
+          timeBlock: "10:00-13:00",
+        },
+      ],
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors).toContain(
+        "Stop 1 time block must be one of 06:00-09:00, 09:00-12:00, 12:00-15:00, 15:00-18:00, 18:00-21:00.",
+      );
+    }
+  });
+
   it("rejects non-object route submissions", () => {
     const result = validateRouteSubmission(null);
 

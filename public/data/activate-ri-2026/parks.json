@@ -2,6 +2,9 @@
   {
     "reference": "US-0513",
     "name": "Block Island National Wildlife Refuge",
+    "counties": [
+      "Washington County"
+    ],
     "latitude": 41.2133,
     "longitude": -71.5724,
     "grid": "FN41ff",
@@ -10,6 +13,9 @@
   {
     "reference": "US-0514",
     "name": "John H. Chafee National Wildlife Refuge",
+    "counties": [
+      "Washington County"
+    ],
     "latitude": 41.443,
     "longitude": -71.4707,
     "grid": "FN41gk",
@@ -18,6 +24,9 @@
   {
     "reference": "US-0515",
     "name": "Ninigret National Wildlife Refuge",
+    "counties": [
+      "Washington County"
+    ],
     "latitude": 41.3682,
     "longitude": -71.6716,
     "grid": "FN41di",
@@ -26,6 +35,9 @@
   {
     "reference": "US-0516",
     "name": "Sachuest Point National Wildlife Refuge",
+    "counties": [
+      "Newport County"
+    ],
     "latitude": 41.4798,
     "longitude": -71.2436,
     "grid": "FN41jl",
@@ -34,6 +46,9 @@
   {
     "reference": "US-0517",
     "name": "Trustom Pond National Wildlife Refuge",
+    "counties": [
+      "Washington County"
+    ],
     "latitude": 41.3834,
     "longitude": -71.5846,
     "grid": "FN41ej",
@@ -42,6 +57,9 @@
   {
     "reference": "US-0789",
     "name": "Roger Williams National Memorial",
+    "counties": [
+      "Providence County"
+    ],
     "latitude": 41.831,
     "longitude": -71.411,
     "grid": "FN41ht",
@@ -50,6 +68,9 @@
   {
     "reference": "US-10541",
     "name": "Gull Cove State Recreation Area",
+    "counties": [
+      "Newport County"
+    ],
     "latitude": 41.6339,
     "longitude": -71.231,
     "grid": "FN41jp",
@@ -58,6 +79,9 @@
   {
     "reference": "US-10542",
     "name": "Camp Cronin State Recreation Area",
+    "counties": [
+      "Washington County"
+    ],
     "latitude": 41.3625,
     "longitude": -71.4873,
     "grid": "FN41gi",
@@ -66,6 +90,9 @@
   {
     "reference": "US-10543",
     "name": "Patriots Park State Historic Site",
+    "counties": [
+      "Newport County"
+    ],
     "latitude": 41.6018,
     "longitude": -71.2583,
     "grid": "FN41io",
@@ -74,6 +101,9 @@
   {
     "reference": "US-10544",
     "name": "Jerimoth Hill State Recreation Area",
+    "counties": [
+      "Providence County"
+    ],
     "latitude": 41.8512,
     "longitude": -71.7786,
     "grid": "FN41cu",
@@ -82,6 +112,9 @@
   {
     "reference": "US-10545",
     "name": "Hillsdale Preserve Management Area",
+    "counties": [
+      "Washington County"
+    ],
     "latitude": 41.522,
     "longitude": -71.6411,
     "grid": "FN41em",
@@ -90,6 +123,9 @@
   {
     "reference": "US-10546",
     "name": "Eight Rod Farm Wildlife Management Area",
+    "counties": [
+      "Newport County"
+    ],
     "latitude": 41.5521,
     "longitude": -71.1899,
     "grid": "FN41jn",
@@ -98,6 +134,9 @@
   {
     "reference": "US-10547",
     "name": "Silver Spring State Recreation Area",
+    "counties": [
+      "Washington County"
+    ],
     "latitude": 41.5388,
     "longitude": -71.4705,
     "grid": "FN41gm",
@@ -106,6 +145,9 @@
   {
     "reference": "US-10548",
     "name": "Barber Pond State Recreation Area",
+    "counties": [
+      "Washington County"
+    ],
     "latitude": 41.4994,
     "longitude": -71.5639,
     "grid": "FN41fl",
@@ -114,6 +156,9 @@
   {
     "reference": "US-2868",
     "name": "Beavertail State Park",
+    "counties": [
+      "Newport County"
+    ],
     "latitude": 41.446,
     "longitude": -71.3993,
     "grid": "FN41hk",
@@ -122,6 +167,9 @@
   {
     "reference": "US-2869",
     "name": "Blackstone River State Park",
+    "counties": [
+      "Providence County"
+    ],
     "latitude": 41.9379,
     "longitude": -71.4343,
     "grid": "FN41gw",
@@ -130,6 +178,9 @@
   {
     "reference": "US-2870",
     "name": "Brenton Point State Park",
+    "counties": [
+      "Newport County"
+    ],
     "latitude": 41.452,
     "longitude": -71.3542,
     "grid": "FN41hk",
@@ -138,6 +189,9 @@
   {
     "reference": "US-2871",
     "name": "Burlingame State Park",
+    "counties": [
+      "Washington County"
+    ],
     "latitude": 41.3756,
     "longitude": -71.6986,
     "grid": "FN41dj",
@@ -146,6 +200,9 @@
   {
     "reference": "US-2872",
     "name": "Colt State Park",
+    "counties": [
+      "Bristol County"
+    ],
     "latitude": 41.6769,
     "longitude": -71.2985,
     "grid": "FN41iq",
@@ -154,6 +211,9 @@
   {
     "reference": "US-2873",
     "name": "Fishermen's Memorial State Park",
+    "counties": [
+      "Washington County"
+    ],
     "latitude": 41.3805,
     "longitude": -71.4897,
     "grid": "FN41gj",
@@ -162,6 +222,9 @@
   {
     "reference": "US-2874",
     "name": "Fort Adams State Park",
+    "counties": [
+      "Newport County"
+    ],
     "latitude": 41.4778,
     "longitude": -71.3355,
     "grid": "FN41hl",
@@ -170,6 +233,9 @@
   {
     "reference": "US-2875",
     "name": "Fort Wetherill State Park",
+    "counties": [
+      "Newport County"
+    ],
     "latitude": 41.4778,
     "longitude": -71.3585,
     "grid": "FN41hl",
@@ -178,6 +244,9 @@
   {
     "reference": "US-2876",
     "name": "Goddard Memorial State Park",
+    "counties": [
+      "Kent County"
+    ],
     "latitude": 41.657,
     "longitude": -71.4377,
     "grid": "FN41gp",
@@ -186,6 +255,10 @@
   {
     "reference": "US-2877",
     "name": "Haines Memorial State Park",
+    "counties": [
+      "Bristol County",
+      "Providence County"
+    ],
     "latitude": 41.7539,
     "longitude": -71.3508,
     "grid": "FN41hs",
@@ -194,6 +267,9 @@
   {
     "reference": "US-2878",
     "name": "Lincoln Woods State Park",
+    "counties": [
+      "Providence County"
+    ],
     "latitude": 41.8975,
     "longitude": -71.4329,
     "grid": "FN41gv",
@@ -202,6 +278,9 @@
   {
     "reference": "US-2879",
     "name": "Rocky Point State Park",
+    "counties": [
+      "Kent County"
+    ],
     "latitude": 41.6915,
     "longitude": -71.3634,
     "grid": "FN41hq",
@@ -210,6 +289,9 @@
   {
     "reference": "US-2880",
     "name": "Snake Den State Park",
+    "counties": [
+      "Providence County"
+    ],
     "latitude": 41.8303,
     "longitude": -71.5373,
     "grid": "FN41ft",
@@ -218,6 +300,9 @@
   {
     "reference": "US-2881",
     "name": "World War II Veterans Memorial State Park",
+    "counties": [
+      "Providence County"
+    ],
     "latitude": 42.0101,
     "longitude": -71.5097,
     "grid": "FN42fa",
@@ -226,6 +311,12 @@
   {
     "reference": "US-4582",
     "name": "Washington-Rochambeau Revolutionary Route National Historic Trail",
+    "counties": [
+      "Bristol County",
+      "Kent County",
+      "Newport County",
+      "Providence County"
+    ],
     "latitude": 41.312,
     "longitude": -73.9709,
     "grid": "FN31ah",
@@ -234,6 +325,9 @@
   {
     "reference": "US-5482",
     "name": "Wickaboxet Wildlife Management Area",
+    "counties": [
+      "Kent County"
+    ],
     "latitude": 41.6364,
     "longitude": -71.7359,
     "grid": "FN41dp",
@@ -242,6 +336,9 @@
   {
     "reference": "US-5483",
     "name": "Lincoln Woods State Forest",
+    "counties": [
+      "Providence County"
+    ],
     "latitude": 41.8962,
     "longitude": -71.4327,
     "grid": "FN41gv",
@@ -250,6 +347,9 @@
   {
     "reference": "US-5484",
     "name": "George Washington Memorial State Forest",
+    "counties": [
+      "Providence County"
+    ],
     "latitude": 41.9259,
     "longitude": -71.7359,
     "grid": "FN41dw",
@@ -258,6 +358,10 @@
   {
     "reference": "US-6979",
     "name": "Arcadia Management Area",
+    "counties": [
+      "Kent County",
+      "Washington County"
+    ],
     "latitude": 41.5561,
     "longitude": -71.685,
     "grid": "FN41dn",
@@ -266,6 +370,9 @@
   {
     "reference": "US-6980",
     "name": "Beach Pond Wildlife Management Area",
+    "counties": [
+      "Washington County"
+    ],
     "latitude": 41.5739,
     "longitude": -71.7864,
     "grid": "FN41cn",
@@ -274,6 +381,9 @@
   {
     "reference": "US-6981",
     "name": "Great Swamp Wildlife Management Area",
+    "counties": [
+      "Washington County"
+    ],
     "latitude": 41.4691,
     "longitude": -71.5796,
     "grid": "FN41fl",
@@ -282,6 +392,10 @@
   {
     "reference": "US-6982",
     "name": "Big River Wildlife Management Area",
+    "counties": [
+      "Kent County",
+      "Washington County"
+    ],
     "latitude": 41.6311,
     "longitude": -71.5714,
     "grid": "FN41fp",
@@ -290,6 +404,9 @@
   {
     "reference": "US-6983",
     "name": "Woody Hill Wildlife Management Area",
+    "counties": [
+      "Washington County"
+    ],
     "latitude": 41.3694,
     "longitude": -71.7448,
     "grid": "FN41di",
@@ -298,6 +415,9 @@
   {
     "reference": "US-6984",
     "name": "Black Hut Wildlife Management Area",
+    "counties": [
+      "Providence County"
+    ],
     "latitude": 41.9928,
     "longitude": -71.6568,
     "grid": "FN41ex",
@@ -306,6 +426,9 @@
   {
     "reference": "US-6985",
     "name": "Round Top Wildlife Management Area",
+    "counties": [
+      "Providence County"
+    ],
     "latitude": 42.0014,
     "longitude": -71.7011,
     "grid": "FN42da",
@@ -314,6 +437,9 @@
   {
     "reference": "US-6986",
     "name": "Simmons Mill Wildlife Management Area",
+    "counties": [
+      "Newport County"
+    ],
     "latitude": 41.5358,
     "longitude": -71.1341,
     "grid": "FN41km",
@@ -322,6 +448,9 @@
   {
     "reference": "US-6987",
     "name": "Cocumcussoc State Park",
+    "counties": [
+      "Washington County"
+    ],
     "latitude": 41.5823,
     "longitude": -71.4599,
     "grid": "FN41gn",
@@ -330,6 +459,9 @@
   {
     "reference": "US-6988",
     "name": "Grills State Preserve",
+    "counties": [
+      "Washington County"
+    ],
     "latitude": 41.3997,
     "longitude": -71.7591,
     "grid": "FN41cj",
@@ -338,6 +470,9 @@
   {
     "reference": "US-6989",
     "name": "Black Farm Wildlife Management Area",
+    "counties": [
+      "Washington County"
+    ],
     "latitude": 41.4674,
     "longitude": -71.7285,
     "grid": "FN41dl",
@@ -346,6 +481,9 @@
   {
     "reference": "US-6990",
     "name": "Nicholas Farm Wildlife Management Area",
+    "counties": [
+      "Kent County"
+    ],
     "latitude": 41.6804,
     "longitude": -71.7739,
     "grid": "FN41cq",
@@ -354,6 +492,9 @@
   {
     "reference": "US-6991",
     "name": "Rockville Wildlife Management Area",
+    "counties": [
+      "Washington County"
+    ],
     "latitude": 41.5054,
     "longitude": -71.7591,
     "grid": "FN41cm",
@@ -362,6 +503,9 @@
   {
     "reference": "US-6992",
     "name": "JL Curran State Park",
+    "counties": [
+      "Providence County"
+    ],
     "latitude": 41.7507,
     "longitude": -71.5516,
     "grid": "FN41fs",
@@ -370,6 +514,9 @@
   {
     "reference": "US-7508",
     "name": "Pulaski State Park",
+    "counties": [
+      "Providence County"
+    ],
     "latitude": 41.9281,
     "longitude": -71.7969,
     "grid": "FN41cw",
@@ -378,6 +525,9 @@
   {
     "reference": "US-7518",
     "name": "Kimball Wildlife Refuge",
+    "counties": [
+      "Washington County"
+    ],
     "latitude": 41.3745,
     "longitude": -71.6868,
     "grid": "FN41di",
@@ -386,6 +536,9 @@
   {
     "reference": "US-7714",
     "name": "Buck Hill Wildlife Management Area",
+    "counties": [
+      "Providence County"
+    ],
     "latitude": 41.9851,
     "longitude": -71.7893,
     "grid": "FN41cx",
@@ -394,6 +547,9 @@
   {
     "reference": "US-7715",
     "name": "Durfee Hill Wildlife Management Area",
+    "counties": [
+      "Providence County"
+    ],
     "latitude": 41.9025,
     "longitude": -71.7841,
     "grid": "FN41cv",
@@ -402,6 +558,9 @@
   {
     "reference": "US-7716",
     "name": "Carolina Wildlife Management Area",
+    "counties": [
+      "Washington County"
+    ],
     "latitude": 41.4665,
     "longitude": -71.689,
     "grid": "FN41dl",
@@ -410,6 +569,9 @@
   {
     "reference": "US-7717",
     "name": "Charlestown Breachway State Park",
+    "counties": [
+      "Washington County"
+    ],
     "latitude": 41.3567,
     "longitude": -71.6382,
     "grid": "FN41ei",
@@ -418,6 +580,9 @@
   {
     "reference": "US-7718",
     "name": "East Matunuck State Beach",
+    "counties": [
+      "Washington County"
+    ],
     "latitude": 41.3776,
     "longitude": -71.5251,
     "grid": "FN41fj",
@@ -426,6 +591,9 @@
   {
     "reference": "US-7719",
     "name": "Misquamicut State Beach",
+    "counties": [
+      "Washington County"
+    ],
     "latitude": 41.3234,
     "longitude": -71.8025,
     "grid": "FN41ch",
@@ -434,6 +602,9 @@
   {
     "reference": "US-7720",
     "name": "Roger W. Wheeler State Beach",
+    "counties": [
+      "Washington County"
+    ],
     "latitude": 41.3735,
     "longitude": -71.5004,
     "grid": "FN41fi",
@@ -442,6 +613,9 @@
   {
     "reference": "US-7721",
     "name": "Salty Brine State Beach",
+    "counties": [
+      "Washington County"
+    ],
     "latitude": 41.3761,
     "longitude": -71.5127,
     "grid": "FN41fj",
@@ -450,6 +624,9 @@
   {
     "reference": "US-7722",
     "name": "Scarborough North State Beach",
+    "counties": [
+      "Washington County"
+    ],
     "latitude": 41.3897,
     "longitude": -71.4731,
     "grid": "FN41gj",
@@ -458,6 +635,9 @@
   {
     "reference": "US-7723",
     "name": "John H. Chaffee Rome Point State Nature Preserve",
+    "counties": [
+      "Washington County"
+    ],
     "latitude": 41.5372,
     "longitude": -71.4374,
     "grid": "FN41gm",
@@ -466,6 +646,9 @@
   {
     "reference": "US-7865",
     "name": "East State Beach",
+    "counties": [
+      "Washington County"
+    ],
     "latitude": 41.3481,
     "longitude": -71.6733,
     "grid": "FN41di",
@@ -474,6 +657,9 @@
   {
     "reference": "US-7971",
     "name": "Blackstone River Valley National Historical Park",
+    "counties": [
+      "Providence County"
+    ],
     "latitude": 42.015,
     "longitude": -71.5529,
     "grid": "FN42fa",
@@ -482,6 +668,9 @@
   {
     "reference": "US-8293",
     "name": "Sapowet Marsh State Wildlife Area",
+    "counties": [
+      "Newport County"
+    ],
     "latitude": 41.5825,
     "longitude": -71.2089,
     "grid": "FN41jn",

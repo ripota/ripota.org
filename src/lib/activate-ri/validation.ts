@@ -1,5 +1,6 @@
 import references from "../../data/ri-references.json";
 import { normalizePotaReference } from "../pota/references";
+import { allowedTimeBlockMessage, timeBlockToRange } from "./time-blocks";
 import type {
   ActivationStopInput,
   NormalizedRouteSubmission,
@@ -112,16 +113,24 @@ function normalizeStop(
     readStringField(stop.parkReference, `${label} park reference`, errors),
   );
   const plannedDate = readStringField(stop.plannedDate, `${label} date`, errors).trim();
-  const startTime = readStringField(
+  const timeBlock = readStringField(
+    stop.timeBlock,
+    `${label} time block`,
+    errors,
+  ).trim();
+  const submittedStartTime = readStringField(
     stop.startTime,
     `${label} start time`,
     errors,
   ).trim();
-  const endTime = readStringField(
+  const submittedEndTime = readStringField(
     stop.endTime,
     `${label} end time`,
     errors,
   ).trim();
+  const blockRange = timeBlock.length > 0 ? timeBlockToRange(timeBlock) : null;
+  const startTime = blockRange?.startTime ?? submittedStartTime;
+  const endTime = blockRange?.endTime ?? submittedEndTime;
   const bands = cleanList(stop.bands, `${label} bands`, errors);
   const modes = cleanList(stop.modes, `${label} modes`, errors).map((mode) =>
     mode.toUpperCase(),
@@ -135,11 +144,15 @@ function normalizeStop(
     errors.push(`${label} date must be September 10-13, 2026.`);
   }
 
-  if (!timePattern.test(startTime)) {
+  if (timeBlock.length > 0 && blockRange === null) {
+    errors.push(allowedTimeBlockMessage(label));
+  }
+
+  if (!timePattern.test(startTime) && blockRange === null) {
     errors.push(`${label} start time must use HH:MM 24-hour format.`);
   }
 
-  if (!timePattern.test(endTime)) {
+  if (!timePattern.test(endTime) && blockRange === null) {
     errors.push(`${label} end time must use HH:MM 24-hour format.`);
   }
 
@@ -164,6 +177,7 @@ function normalizeStop(
     plannedDate,
     startTime,
     endTime,
+    timeBlock,
     bands,
     modes,
     publicNotes: readStringField(
@@ -216,6 +230,7 @@ function emptyStop(): Required<ActivationStopInput> {
   return {
     parkReference: "",
     plannedDate: "",
+    timeBlock: "",
     startTime: "",
     endTime: "",
     bands: [],

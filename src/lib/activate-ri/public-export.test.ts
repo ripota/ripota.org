@@ -14,6 +14,7 @@ const validRow = {
   submitter_callsign: "N1RWJ",
   submitter_email: "private@example.com",
   submitter_phone: "555-0100",
+  club: "Private Club",
   bands_json: "[\"40m\",\"20m\"]",
   modes_json: "[\"SSB\"]",
   public_notes: "Will spot through POTA.",
@@ -39,7 +40,7 @@ describe("routeRowsToPublicStops", () => {
         status: "scheduled",
       },
     ]);
-    expect(JSON.stringify(stops)).not.toMatch(/private|555|Organizer/i);
+    expect(JSON.stringify(stops)).not.toMatch(/private|555|Organizer|Private Club/i);
   });
 
   it("does not export pending-review rows", () => {

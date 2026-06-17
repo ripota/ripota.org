@@ -2,12 +2,23 @@
 import parks from "../../../public/data/activate-ri-2026/parks.json";
 import schedule from "../../../public/data/activate-ri-2026/schedule.json";
 import { deriveParkCoverage } from "../../lib/activate-ri/coverage";
+import {
+  formatActivatorModes,
+  timelineOptions,
+  uniqueSortedValues,
+} from "../../lib/activate-ri/listing";
 import type { ParkCoverage, PublicActivationStop, PublicParkSummary } from "../../lib/activate-ri/types";
 
 const visibleSchedule = (schedule as PublicActivationStop[]).filter(
   (stop) => !stop.id.startsWith("sample-"),
 );
-const visibleCoverage = deriveParkCoverage(parks as PublicParkSummary[], visibleSchedule);
+const publicParks = parks as PublicParkSummary[];
+const visibleCoverage = deriveParkCoverage(publicParks, visibleSchedule);
+const modeOptions = uniqueSortedValues(visibleSchedule.map((stop) => stop.modes));
+const bandOptions = uniqueSortedValues(visibleSchedule.map((stop) => stop.bands));
+const countyOptions = uniqueSortedValues(
+  publicParks.map((park) => (park.counties?.length ? park.counties : ["Unknown county"])),
+);
 
 const statusLabels: Record<string, string> = {
   uncovered: "Needs coverage",
@@ -39,10 +50,51 @@ function formatStop(stop: ParkCoverage["nextStop"]) {
 function formatList(items: string[]) {
   return items.length > 0 ? items.join(", ") : "TBD";
 }
+
+function dataList(items: string[]) {
+  return items.join("|");
+}
+
+function parkCounties(park: ParkCoverage) {
+  const source = publicParks.find((candidate) => candidate.reference === park.reference);
+  const counties = source?.counties ?? [];
+
+  return counties.length > 0 ? counties : ["Unknown county"];
+}
 ---
 
+<form class="event-filters" data-event-filters aria-label="Park coverage filters">
+  <label class="event-filter">
+    Mode
+    <select class="event-filter__control" data-filter="mode">
+      <option value="all">Any mode</option>
+      {modeOptions.map((mode) => <option value={mode}>{mode}</option>)}
+    </select>
+  </label>
+  <label class="event-filter">
+    Band
+    <select class="event-filter__control" data-filter="band">
+      <option value="all">Any band</option>
+      {bandOptions.map((band) => <option value={band}>{band}</option>)}
+    </select>
+  </label>
+  <label class="event-filter">
+    Timeline
+    <select class="event-filter__control" data-filter="timeline">
+      {timelineOptions.map((option) => <option value={option.value}>{option.label}</option>)}
+    </select>
+  </label>
+  <label class="event-filter">
+    County
+    <select class="event-filter__control" data-filter="county">
+      <option value="all">Any county</option>
+      {countyOptions.map((county) => <option value={county}>{county}</option>)}
+    </select>
+  </label>
+</form>
+
 <div class="event-table-wrap">
-  <table class="event-table">
+  <table class="event-table" data-filtered-table>
     <thead>
       <tr>
         <th scope="col">Park</th>
@@ -55,22 +107,154 @@ function formatList(items: string[]) {
     <tbody>
       {
         visibleCoverage.map((park) => (
-          <tr>
+          <tr
+            data-filter-row
+            data-counties={dataList(parkCounties(park))}
+            data-has-stops={park.stops.length > 0 ? "true" : "false"}
+          >
             <th scope="row">
               {park.name}
               <span>{park.reference}</span>
+              <span>{formatList(parkCounties(park))}</span>
             </th>
             <td>{statusLabels[park.status] ?? park.status}</td>
-            <td>{formatStop(park.nextStop)}</td>
-            <td>{park.nextStop?.activatorCallsign ?? "TBD"}</td>
             <td>
-              {park.nextStop
-                ? `${formatList(park.nextStop.bands)} / ${formatList(park.nextStop.modes)}`
-                : "TBD"}
+              {park.stops.length > 0 ? (
+                <div class="event-stop-list">
+                  {park.stops.map((stop) => (
+                    <div
+                      class="event-stop-list__item"
+                      data-filter-stop
+                      data-bands={dataList(stop.bands)}
+                      data-date={stop.plannedDate}
+                      data-modes={dataList(stop.modes)}
+                    >
+                      {formatStop(stop)}
+                      <span>{statusLabels[stop.status] ?? stop.status}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                "Needs coverage"
+              )}
+            </td>
+            <td>
+              {park.stops.length > 0 ? (
+                <div class="event-stop-list">
+                  {park.stops.map((stop) => (
+                    <div
+                      class="event-stop-list__item"
+                      data-filter-stop
+                      data-bands={dataList(stop.bands)}
+                      data-date={stop.plannedDate}
+                      data-modes={dataList(stop.modes)}
+                    >
+                      {formatActivatorModes(stop)}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                "TBD"
+              )}
+            </td>
+            <td>
+              {park.stops.length > 0 ? (
+                <div class="event-stop-list">
+                  {park.stops.map((stop) => (
+                    <div
+                      class="event-stop-list__item"
+                      data-filter-stop
+                      data-bands={dataList(stop.bands)}
+                      data-date={stop.plannedDate}
+                      data-modes={dataList(stop.modes)}
+                    >
+                      {formatList(stop.bands)} / {formatList(stop.modes)}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                "TBD"
+              )}
             </td>
           </tr>
         ))
       }
+      <tr data-filter-empty hidden>
+        <td colspan="5">No parks match these filters.</td>
+      </tr>
     </tbody>
   </table>
 </div>
+
+<script>
+  document.querySelectorAll("[data-event-filters]").forEach(setupParkFilters);
+
+  function setupParkFilters(root: Element): void {
+    const filters = root as HTMLFormElement;
+    const table = filters.nextElementSibling?.querySelector("[data-filtered-table]");
+    const rows = Array.from(table?.querySelectorAll<HTMLElement>("[data-filter-row]") ?? []);
+    const empty = table?.querySelector<HTMLElement>("[data-filter-empty]");
+    const controls = Array.from(
+      filters.querySelectorAll("[data-filter]"),
+    ) as unknown as HTMLSelectElement[];
+
+    const applyFilters = () => {
+      const values = Object.fromEntries(
+        controls.map((control) => [control.dataset.filter ?? "", control.value]),
+      );
+      const hasStopFilters =
+        active(values.mode) || active(values.band) || active(values.timeline);
+      let visibleCount = 0;
+
+      for (const row of rows) {
+        const countyMatches = matchesList(row.dataset.counties, values.county);
+        const stops = Array.from(row.querySelectorAll<HTMLElement>("[data-filter-stop]"));
+        const matchingStops = stops.filter(
+          (stop) =>
+            matchesList(stop.dataset.modes, values.mode) &&
+            matchesList(stop.dataset.bands, values.band) &&
+            matchesTimeline(stop.dataset.date, values.timeline),
+        );
+
+        for (const stop of stops) {
+          stop.hidden = hasStopFilters && !matchingStops.includes(stop);
+        }
+
+        const isVisible = countyMatches && (!hasStopFilters || matchingStops.length > 0);
+        row.hidden = !isVisible;
+        visibleCount += isVisible ? 1 : 0;
+      }
+
+      if (empty) {
+        empty.hidden = visibleCount > 0 || rows.length === 0;
+      }
+    };
+
+    controls.forEach((control) => control.addEventListener("change", applyFilters));
+    applyFilters();
+  }
+
+  function active(value: string | undefined): boolean {
+    return Boolean(value && value !== "all");
+  }
+
+  function matchesList(value: string | undefined, filter: string | undefined): boolean {
+    return !filter || filter === "all" || String(value ?? "").split("|").includes(filter);
+  }
+
+  function matchesTimeline(date: string | undefined, filter: string | undefined): boolean {
+    if (!filter || filter === "all") {
+      return true;
+    }
+
+    if (filter === "soft-start") {
+      return date === "2026-09-10";
+    }
+
+    if (filter === "main") {
+      return date === "2026-09-11" || date === "2026-09-12" || date === "2026-09-13";
+    }
+
+    return date === filter;
+  }
+</script>

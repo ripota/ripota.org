@@ -610,6 +610,29 @@ p {
   background: var(--surface-raised);
 }
 
+.event-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.8rem;
+  margin-bottom: 1rem;
+}
+
+.event-filter {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--surface-ink);
+  font-weight: 800;
+}
+
+.event-filter__control {
+  width: 100%;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  padding: 0.65rem;
+}
+
 .event-table {
   width: 100%;
   min-width: 760px;
@@ -636,6 +659,21 @@ p {
   font-weight: 500;
 }
 
+.event-stop-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.event-stop-list__item {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.event-stop-list__item span {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
 .event-form {
   display: grid;
   gap: 1.2rem;
@@ -646,6 +684,10 @@ p {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 1rem;
+}
+
+.form-grid--identity {
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
 }
 
 .event-form label,
@@ -662,8 +704,32 @@ p {
   padding: 1rem;
 }
 
+.activation-stops {
+  display: grid;
+  gap: 1rem;
+}
+
+.activation-stop-card {
+  display: grid;
+  gap: 1rem;
+}
+
+.activation-stop-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.activation-stop-card__header legend,
 .activation-stop-fieldset legend {
   padding: 0 0.35rem;
+}
+
+.activation-stop-card__remove {
+  min-height: 40px;
+  padding: 0.45rem 0.7rem;
+  font-size: 0.9rem;
 }
 
 .event-form input,
@@ -690,6 +756,12 @@ p {
 
 .form-status {
   min-height: 1.5rem;
+}
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
 }
 
 .admin-panel {
@@ -915,12 +987,17 @@ p {
   }
 
   .admin-panel__header,
-  .admin-card {
+  .admin-card,
+  .activation-stop-card__header {
     flex-direction: column;
   }
 
   .admin-card__actions {
     width: 100%;
+  }
+
+  .form-grid--identity {
+    grid-template-columns: 1fr;
   }
 
   .path-card,

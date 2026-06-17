@@ -2,13 +2,18 @@ import { describe, expect, it } from "vitest";
 import { deriveParkCoverage } from "./coverage";
 import type { PublicActivationStop } from "./types";
 
-const park = { reference: "US-2868", name: "Beavertail State Park" };
+const park = {
+  reference: "US-2868",
+  name: "Beavertail State Park",
+  counties: ["Newport County"],
+};
 
 describe("deriveParkCoverage", () => {
   it("marks parks with no stops as uncovered", () => {
     expect(deriveParkCoverage([park], [])).toEqual([
       expect.objectContaining({
         reference: "US-2868",
+        counties: ["Newport County"],
         status: "uncovered",
         scheduledStopCount: 0,
         cancelledStopCount: 0,
@@ -50,6 +55,10 @@ describe("deriveParkCoverage", () => {
         status: "multiple-scheduled",
         scheduledStopCount: 2,
         nextStop: expect.objectContaining({ id: "early" }),
+        stops: [
+          expect.objectContaining({ id: "early" }),
+          expect.objectContaining({ id: "late" }),
+        ],
       }),
     ]);
   });

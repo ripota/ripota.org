@@ -1,8 +1,16 @@
 ---
 import references from "../../data/ri-references.json";
+import { activateRiTimeBlocks } from "../../lib/activate-ri/time-blocks";
 
 const turnstileSiteKey =
   import.meta.env.PUBLIC_TURNSTILE_SITE_KEY;
+
+function parkOptionLabel(reference: (typeof references)[number]): string {
+  const counties = reference.counties?.join(", ");
+  const countyLabel = counties ? ` (${counties})` : "";
+
+  return `${reference.reference} - ${reference.name}${countyLabel}`;
+}
 ---
 
 <script
@@ -13,7 +21,7 @@ const turnstileSiteKey =
 ></script>
 
 <form class="event-form" method="post" action="/api/activate-ri-2026/routes" data-activate-ri-volunteer>
-  <div class="form-grid">
+  <div class="form-grid form-grid--identity">
     <label>
       Callsign
       <input name="submitterCallsign" autocomplete="nickname" required />
@@ -27,65 +35,84 @@ const turnstileSiteKey =
       <input name="submitterEmail" type="email" autocomplete="email" required />
     </label>
     <label>
-      Club or group
+      Club / group affiliation
       <input name="club" autocomplete="organization" />
     </label>
   </div>
 
-  <fieldset class="activation-stop-fieldset">
-    <legend>Activation stop</legend>
-    <div class="form-grid">
+  <datalist id="activate-ri-parks">
+    {
+      references.map((reference) => (
+        <option value={parkOptionLabel(reference)} data-reference={reference.reference}>
+          {reference.reference}
+        </option>
+      ))
+    }
+  </datalist>
+
+  <div class="activation-stops" data-stops>
+    <fieldset class="activation-stop-fieldset activation-stop-card" data-stop-card>
+      <div class="activation-stop-card__header">
+        <legend data-stop-title>Activation stop 1</legend>
+        <button class="button activation-stop-card__remove" type="button" data-remove-stop hidden>
+          Remove
+        </button>
+      </div>
+      <div class="form-grid">
+        <label>
+          Park
+          <input
+            data-park-input
+            list="activate-ri-parks"
+            placeholder="Type a reference, park, or county"
+            autocomplete="off"
+            required
+          />
+          <input data-park-reference type="hidden" />
+        </label>
+        <label>
+          Date
+          <select data-planned-date required>
+            <option value="2026-09-10">Thursday, September 10 soft start</option>
+            <option value="2026-09-11">Friday, September 11</option>
+            <option value="2026-09-12">Saturday, September 12</option>
+            <option value="2026-09-13">Sunday, September 13</option>
+          </select>
+        </label>
+        <label>
+          Time block
+          <select data-time-block required>
+            <option value="">Choose a 3-hour block</option>
+            {
+              activateRiTimeBlocks.map((block) => (
+                <option value={block.value}>{block.value} ET</option>
+              ))
+            }
+          </select>
+        </label>
+        <label>
+          Bands
+          <input data-bands placeholder="40m, 20m, 15m" required />
+          <span class="form-help">Separate bands with commas.</span>
+        </label>
+        <label>
+          Modes
+          <input data-modes placeholder="SSB, CW, FT8" required />
+          <span class="form-help">Separate modes with commas.</span>
+        </label>
+      </div>
       <label>
-        Park
-        <select name="stops[0][parkReference]" required>
-          <option value="">Choose a RI POTA park</option>
-          {
-            references.map((reference) => (
-              <option value={reference.reference}>
-                {reference.reference} - {reference.name}
-              </option>
-            ))
-          }
-        </select>
+        Public notes for hunters
+        <textarea data-public-notes rows="3"></textarea>
       </label>
-      <label>
-        Date
-        <select name="stops[0][plannedDate]" required>
-          <option value="2026-09-10">Thursday, September 10 soft start</option>
-          <option value="2026-09-11">Friday, September 11</option>
-          <option value="2026-09-12">Saturday, September 12</option>
-          <option value="2026-09-13">Sunday, September 13</option>
-        </select>
-      </label>
-      <label>
-        Start time
-        <input name="stops[0][startTime]" type="time" required />
-      </label>
-      <label>
-        End time
-        <input name="stops[0][endTime]" type="time" required />
-      </label>
-      <label>
-        Bands
-        <input
-          name="stops[0][bands]"
-          aria-describedby="bands-help"
-          placeholder="40m, 20m, 15m"
-          required
-        />
-        <span id="bands-help" class="form-help">Separate bands with commas.</span>
-      </label>
-      <label>
-        Modes
-        <input name="stops[0][modes]" aria-describedby="modes-help" placeholder="SSB, CW, FT8" required />
-        <span id="modes-help" class="form-help">Separate modes with commas.</span>
-      </label>
-    </div>
-    <label>
-      Public notes for hunters
-      <textarea name="stops[0][publicNotes]" rows="3"></textarea>
-    </label>
-  </fieldset>
+    </fieldset>
+  </div>
+
+  <div class="form-actions">
+    <button class="button" data-variant="light" type="button" data-add-stop>
+      Add another park
+    </button>
+  </div>
 
   <label>
     Notes for organizers
@@ -113,12 +140,42 @@ const turnstileSiteKey =
   const form = document.querySelector("[data-activate-ri-volunteer]") as HTMLFormElement | null;
   const status = document.querySelector("[data-form-status]");
   const submitButton = document.querySelector("[data-submit-button]") as HTMLButtonElement | null;
+  const stopsContainer = document.querySelector("[data-stops]");
+  const addStopButton = document.querySelector("[data-add-stop]");
+  const parkOptions = new Map(
+    Array.from(document.querySelectorAll<HTMLOptionElement>("#activate-ri-parks option"))
+      .flatMap((option) => {
+        const reference = option.dataset.reference;
+
+        return reference ? [[option.value, reference], [reference, reference]] : [];
+      }),
+  );
   let isSubmitting = false;
+
+  setupStopCards();
+
+  addStopButton?.addEventListener("click", () => {
+    const firstStop = document.querySelector<HTMLElement>("[data-stop-card]");
+    if (!firstStop || !stopsContainer) {
+      return;
+    }
+
+    const nextStop = firstStop.cloneNode(true) as HTMLElement;
+    clearStopCard(nextStop);
+    stopsContainer.appendChild(nextStop);
+    setupStopCards();
+    nextStop.querySelector<HTMLInputElement>("[data-park-input]")?.focus();
+  });
 
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
 
     if (isSubmitting) {
+      return;
+    }
+
+    if (!validateStopCards()) {
+      status?.replaceChildren("Choose each park from the park suggestions before submitting.");
       return;
     }
 
@@ -174,17 +231,14 @@ const turnstileSiteKey =
       club: data.get("club"),
       organizerNotes: data.get("organizerNotes"),
       turnstileToken: data.get("cf-turnstile-response"),
-      stops: [
-        {
-          parkReference: data.get("stops[0][parkReference]"),
-          plannedDate: data.get("stops[0][plannedDate]"),
-          startTime: data.get("stops[0][startTime]"),
-          endTime: data.get("stops[0][endTime]"),
-          bands: splitList(data.get("stops[0][bands]")),
-          modes: splitList(data.get("stops[0][modes]")),
-          publicNotes: data.get("stops[0][publicNotes]"),
-        },
-      ],
+      stops: Array.from(document.querySelectorAll<HTMLElement>("[data-stop-card]")).map((stop) => ({
+        parkReference: stop.querySelector<HTMLInputElement>("[data-park-reference]")?.value,
+        plannedDate: (stop.querySelector("[data-planned-date]") as HTMLSelectElement | null)?.value,
+        timeBlock: (stop.querySelector("[data-time-block]") as HTMLSelectElement | null)?.value,
+        bands: splitList(stop.querySelector<HTMLInputElement>("[data-bands]")?.value ?? ""),
+        modes: splitList(stop.querySelector<HTMLInputElement>("[data-modes]")?.value ?? ""),
+        publicNotes: stop.querySelector<HTMLTextAreaElement>("[data-public-notes]")?.value ?? "",
+      })),
     };
   }
 
@@ -205,5 +259,74 @@ const turnstileSiteKey =
     ).turnstile;
 
     turnstile?.reset?.();
+  }
+
+  function setupStopCards(): void {
+    const stops = Array.from(document.querySelectorAll<HTMLElement>("[data-stop-card]"));
+
+    stops.forEach((stop, index) => {
+      const title = stop.querySelector("[data-stop-title]");
+      const removeButton = stop.querySelector<HTMLButtonElement>("[data-remove-stop]");
+      const parkInput = stop.querySelector<HTMLInputElement>("[data-park-input]");
+      const parkReference = stop.querySelector<HTMLInputElement>("[data-park-reference]");
+
+      title?.replaceChildren(`Activation stop ${index + 1}`);
+
+      if (removeButton) {
+        removeButton.hidden = stops.length === 1;
+        removeButton.onclick = () => {
+          stop.remove();
+          setupStopCards();
+        };
+      }
+
+      if (parkInput && parkReference) {
+        const syncParkReference = () => {
+          parkReference.value = parkOptions.get(parkInput.value.trim()) ?? "";
+          parkInput.setCustomValidity(
+            parkReference.value ? "" : "Choose a park from the suggestions.",
+          );
+        };
+
+        parkInput.oninput = syncParkReference;
+        parkInput.onchange = syncParkReference;
+        syncParkReference();
+      }
+    });
+  }
+
+  function validateStopCards(): boolean {
+    let isValid = true;
+    const stops = Array.from(document.querySelectorAll<HTMLElement>("[data-stop-card]"));
+
+    for (const stop of stops) {
+      const parkInput = stop.querySelector<HTMLInputElement>("[data-park-input]");
+      const parkReference = stop.querySelector<HTMLInputElement>("[data-park-reference]");
+
+      if (!parkInput || !parkReference) {
+        continue;
+      }
+
+      parkReference.value = parkOptions.get(parkInput.value.trim()) ?? "";
+      parkInput.setCustomValidity(
+        parkReference.value ? "" : "Choose a park from the suggestions.",
+      );
+
+      if (!parkReference.value) {
+        parkInput.reportValidity();
+        isValid = false;
+      }
+    }
+
+    return isValid;
+  }
+
+  function clearStopCard(stop: HTMLElement): void {
+    stop.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input, textarea").forEach((field) => {
+      field.value = "";
+    });
+    (Array.from(stop.querySelectorAll("select")) as HTMLSelectElement[]).forEach((field) => {
+      field.selectedIndex = 0;
+    });
   }
 </script>

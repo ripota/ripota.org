@@ -32,6 +32,7 @@ const { routeRowsToPublicStopsStrict } = await server.ssrLoadModule(
 const parks = references.map((reference) => ({
   reference: reference.reference,
   name: reference.name,
+  counties: reference.counties ?? [],
   latitude: reference.latitude,
   longitude: reference.longitude,
   grid: reference.grid,
