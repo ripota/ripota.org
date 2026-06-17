@@ -236,8 +236,9 @@ async function handlePublicStops(
 ): Promise<Response> {
   const cache = (globalThis.caches as WorkerCacheStorage | undefined)?.default;
   const cacheKey = publicStopsCacheKey(request);
+  const shouldBypassCache = publicStopsCacheBypassRequested(request);
 
-  if (cache) {
+  if (cache && !shouldBypassCache) {
     const cachedResponse = await cache.match(cacheKey);
     if (cachedResponse) {
       return cachedResponse;
@@ -250,7 +251,7 @@ async function handlePublicStops(
     generatedAt: new Date().toISOString(),
   }, { headers: publicJsonCacheHeaders });
 
-  if (!cache) {
+  if (!cache || shouldBypassCache) {
     return response;
   }
 
@@ -262,6 +263,14 @@ async function handlePublicStops(
   }
 
   return response;
+}
+
+function publicStopsCacheBypassRequested(request: Request): boolean {
+  const cacheControl = request.headers.get("cache-control")?.toLowerCase() ?? "";
+  return cacheControl
+    .split(",")
+    .map((directive) => directive.trim())
+    .some((directive) => directive === "no-cache" || directive === "no-store");
 }
 
 function publicStopsCacheKey(request: Request): Request {

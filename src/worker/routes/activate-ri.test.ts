@@ -971,6 +971,35 @@ describe("handleActivateRiApi", () => {
     expect(testEnv.DB.prepare).not.toHaveBeenCalled();
   });
 
+  it("bypasses cached public live stops when no-cache is requested", async () => {
+    const testEnv = env();
+    testEnv.DB = adminDb();
+    const cachedResponse = Response.json({
+      ok: true,
+      generatedAt: "2026-06-17T12:00:00.000Z",
+      stops: [],
+    });
+    const put = vi.fn(async () => undefined);
+    const match = vi.fn(async () => cachedResponse);
+    vi.stubGlobal("caches", {
+      default: { match, put },
+    });
+
+    const response = await handleActivateRiApi(
+      new Request("https://ripota.org/api/activate-ri-2026/public/stops", {
+        headers: { "cache-control": "no-cache" },
+      }),
+      testEnv,
+    );
+
+    expect(response.status).toBe(200);
+    const body = await response.json() as { stops: unknown[] };
+    expect(body.stops).toHaveLength(1);
+    expect(match).not.toHaveBeenCalled();
+    expect(put).not.toHaveBeenCalled();
+    expect(testEnv.DB.prepare).toHaveBeenCalledOnce();
+  });
+
   it("lists admin activity events for authenticated admins", async () => {
     const testEnv = adminEnv();
     testEnv.DB = adminDb();

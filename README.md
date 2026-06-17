@@ -35,6 +35,23 @@ mise run check
 mise run build
 ```
 
+Activate RI has a real-SQL API acceptance test in the normal Vitest suite. It
+applies the checked-in D1 migrations to a temporary SQLite database, submits a
+volunteer plan, approves it, and verifies the public stops API.
+
+Run it directly with:
+
+```bash
+mise run test -- --run src/worker/activate-ri.acceptance.test.ts
+```
+
+The browser smoke test is intentionally opt-in because it starts Wrangler and a
+real browser:
+
+```bash
+mise run e2e:activate-ri
+```
+
 The site is built with Astro and outputs static files to `dist/`.
 
 ## Deployment

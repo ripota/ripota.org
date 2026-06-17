@@ -110,6 +110,10 @@ site by itself.
 The submission succeeds even if email delivery fails. The email failure is
 visible to admins through the activity log.
 
+This path is covered by a real-SQL acceptance test that applies the checked-in
+D1 migrations to a temporary SQLite database. The browser path is covered by the
+opt-in `mise run e2e:activate-ri` smoke test.
+
 ## Admin Approval Flow
 
 1. An admin opens `/activate-ri-2026/admin/`.

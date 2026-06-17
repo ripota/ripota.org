@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; -*-
+#MISE description="Run slow Activate RI browser E2E smoke test"
+#MISE raw=true
+
+set -euo pipefail
+
+npm run e2e:activate-ri -- "$@"

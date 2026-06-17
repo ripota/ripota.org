@@ -52,9 +52,11 @@
         }
       ],
       "vars": {
+        "ALLOW_LOCAL_ADMIN_AUTH": "true",
         "ACTIVATE_RI_EVENT_ID": "activate-ri-2026",
         "ACTIVATE_RI_EMAIL_FROM": "activate-ri-2026@ripota.org",
         "ACTIVATE_RI_EMAIL_FROM_NAME": "RI POTA",
+        "LOCAL_ADMIN_EMAIL": "local-admin@ripota.org",
         "PUBLIC_TURNSTILE_SITE_KEY": "1x00000000000000000000AA",
         "TURNSTILE_REQUIRED": "false"
       }
