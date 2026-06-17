@@ -23,6 +23,8 @@ fi
 echo "Checking Cloudflare Wrangler authentication."
 "${wrangler[@]}" whoami
 
+mise run backup-production
+
 echo "Applying pending remote D1 migrations for ${database_name}."
 "${wrangler[@]}" d1 migrations apply "${database_name}" --remote "${base_env[@]}"
 

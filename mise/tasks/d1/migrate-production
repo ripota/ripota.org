@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; -*-
+#MISE description="Back up production and apply pending remote D1 migrations"
+#MISE raw=true
+
+set -euo pipefail
+
+database_name="ripota-org"
+wrangler=(npx wrangler)
+base_env=(--env "")
+
+echo "Checking Cloudflare Wrangler authentication."
+"${wrangler[@]}" whoami
+
+mise run backup-production
+
+echo "Applying pending remote D1 migrations for ${database_name}."
+"${wrangler[@]}" d1 migrations apply "${database_name}" --remote "${base_env[@]}"

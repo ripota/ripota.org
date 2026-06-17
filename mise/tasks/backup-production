@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; -*-
+#MISE description="Export the production D1 database and print a Time Travel bookmark"
+#MISE raw=true
+
+set -euo pipefail
+
+database_name="ripota-org"
+backup_dir="tmp/d1-backups"
+timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+backup_path="${backup_dir}/${database_name}-${timestamp}.sql"
+wrangler=(npx wrangler)
+base_env=(--env "")
+
+mkdir -p "${backup_dir}"
+
+echo "Capturing current Time Travel bookmark for ${database_name}."
+"${wrangler[@]}" d1 time-travel info "${database_name}" "${base_env[@]}"
+
+echo "Exporting production D1 database ${database_name} to ${backup_path}."
+"${wrangler[@]}" d1 export "${database_name}" --remote "${base_env[@]}" --output "${backup_path}"
+
+echo "Production D1 backup saved to ${backup_path}."

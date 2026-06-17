@@ -20,13 +20,17 @@ mise run deploy
 The task runs these operations in order:
 
 1. `npx wrangler whoami`
-2. `npx wrangler d1 migrations apply ripota-org --remote --env ""`
-3. `npx wrangler deploy --env ""`
+2. `mise run backup-production`
+3. `npx wrangler d1 migrations apply ripota-org --remote --env ""`
+4. `npx wrangler deploy --env ""`
 
 The migration step applies any unapplied files in `migrations/` to the remote
 D1 database before the Worker is deployed. Wrangler prompts for confirmation in
-an interactive shell and skips the confirmation in non-interactive CI. Wrangler
-also captures a backup when migrations are applied.
+an interactive shell and skips the confirmation in non-interactive CI.
+
+The backup step captures a D1 Time Travel bookmark and writes a SQL export under
+`tmp/d1-backups/`. The `tmp/` directory is gitignored, so production exports stay
+out of the repository.
 
 For a non-mutating check:
 
@@ -104,10 +108,11 @@ npx wrangler d1 migrations list ripota-org --remote
 ```
 
 Apply deployed migrations outside a full deploy only when intentionally doing a
-database-only operation:
+database-only operation. Use the mise task so the production database is backed
+up first:
 
 ```bash
-npx wrangler d1 migrations apply ripota-org --remote --env ""
+mise run d1:migrate-production
 ```
 
 Always include `--remote` for the deployed D1 database. Without it, D1
@@ -115,14 +120,16 @@ migration commands target local Wrangler storage. Use `--env ""` to select the
 top-level Wrangler config, and do not add `--env production` to migration
 commands for this project.
 
-For risky schema changes, capture a D1 Time Travel bookmark before applying:
+To manually capture a production backup without applying migrations or
+deploying:
 
 ```bash
-npx wrangler d1 time-travel info ripota-org
+mise run backup-production
 ```
 
-Store the bookmark outside the repo. D1 migrations are database changes; a
-Worker rollback does not undo them.
+This writes the SQL export to `tmp/d1-backups/` and prints a Time Travel restore
+bookmark. D1 migrations are database changes; a Worker rollback does not undo
+them.
 
 ## Verification
 
