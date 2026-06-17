@@ -2,8 +2,6 @@
 import parks from "../../../public/data/activate-ri-2026/parks.json";
 import ReferenceMap from "../ReferenceMap.astro";
 import { activateRi2026Event } from "../../data/activate-ri-2026/event";
-import { sampleActivationStops } from "../../data/activate-ri-2026/sample-stops";
-import { summarizeParkCoverage } from "../../lib/activate-ri/coverage";
 import type { PublicParkSummary } from "../../lib/activate-ri/types";
 
 const ctas = activateRi2026Event.phaseCtas[activateRi2026Event.phase];
@@ -12,10 +10,7 @@ const dateRangeLabel = formatDateRange(
   activateRi2026Event.mainEndDate,
 );
 const softStartLabel = formatMonthDay(activateRi2026Event.softStartDate);
-const coverageSummary = summarizeParkCoverage(
-  parks as PublicParkSummary[],
-  sampleActivationStops,
-);
+const publicParks = parks as PublicParkSummary[];
 
 function parseEventDate(date: string) {
   const [year, month, day] = date.split("-").map(Number);
@@ -58,14 +53,19 @@ function formatDateRange(startDate: string, endDate: string) {
         Rhode Island references during one coordinated weekend. A soft start is
         planned for {softStartLabel}.
       </p>
-      <dl class="event-hero__stats" aria-label="Activate All RI coverage progress">
+      <dl
+        class="event-hero__stats"
+        aria-label="Activate All RI coverage progress"
+        data-live-hero-coverage
+        data-parks={JSON.stringify(publicParks)}
+      >
         <div>
           <dt>Parks scheduled</dt>
-          <dd>{coverageSummary.scheduled} / {coverageSummary.total}</dd>
+          <dd data-hero-scheduled>Loading...</dd>
         </div>
         <div>
           <dt>Coverage gaps</dt>
-          <dd>{coverageSummary.gaps}</dd>
+          <dd data-hero-gaps>Loading...</dd>
         </div>
       </dl>
       <div class="button-row" aria-label="Event actions">
@@ -90,3 +90,61 @@ function formatDateRange(startDate: string, endDate: string) {
     </div>
   </div>
 </section>
+
+<script>
+  import { summarizeParkCoverage } from "../../lib/activate-ri/coverage";
+  import type {
+    PublicActivationStop,
+    PublicParkSummary,
+  } from "../../lib/activate-ri/types";
+
+  type LiveStopsResponse = {
+    ok?: boolean;
+    stops?: PublicActivationStop[];
+  };
+
+  function setHeroCoverageText(
+    summary: Element,
+    scheduled: string,
+    gaps: string,
+  ): void {
+    const scheduledValue = summary.querySelector("[data-hero-scheduled]");
+    const gapsValue = summary.querySelector("[data-hero-gaps]");
+
+    if (scheduledValue) {
+      scheduledValue.textContent = scheduled;
+    }
+
+    if (gapsValue) {
+      gapsValue.textContent = gaps;
+    }
+  }
+
+  async function setupLiveHeroCoverage(summary: HTMLElement): Promise<void> {
+    try {
+      const parks = JSON.parse(summary.dataset.parks ?? "[]") as PublicParkSummary[];
+      const response = await fetch("/api/activate-ri-2026/public/stops", {
+        headers: { accept: "application/json" },
+      });
+      const data = (await response.json()) as LiveStopsResponse;
+      if (!response.ok || !data.ok || !Array.isArray(data.stops)) {
+        throw new Error("Live hero coverage response was unavailable.");
+      }
+
+      const coverageSummary = summarizeParkCoverage(parks, data.stops);
+      setHeroCoverageText(
+        summary,
+        `${coverageSummary.scheduled} / ${coverageSummary.total}`,
+        `${coverageSummary.gaps}`,
+      );
+    } catch {
+      setHeroCoverageText(summary, "Unavailable", "Unavailable");
+    }
+  }
+
+  document
+    .querySelectorAll<HTMLElement>("[data-live-hero-coverage]")
+    .forEach((summary) => {
+      void setupLiveHeroCoverage(summary);
+    });
+</script>

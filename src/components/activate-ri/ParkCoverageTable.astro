@@ -1,21 +1,15 @@
 ---
 import parks from "../../../public/data/activate-ri-2026/parks.json";
-import schedule from "../../../public/data/activate-ri-2026/schedule.json";
 import { deriveParkCoverage } from "../../lib/activate-ri/coverage";
 import {
   formatActivatorModes,
   timelineOptions,
   uniqueSortedValues,
 } from "../../lib/activate-ri/listing";
-import type { ParkCoverage, PublicActivationStop, PublicParkSummary } from "../../lib/activate-ri/types";
+import type { ParkCoverage, PublicParkSummary } from "../../lib/activate-ri/types";
 
-const visibleSchedule = (schedule as PublicActivationStop[]).filter(
-  (stop) => !stop.id.startsWith("sample-"),
-);
 const publicParks = parks as PublicParkSummary[];
-const visibleCoverage = deriveParkCoverage(publicParks, visibleSchedule);
-const modeOptions = uniqueSortedValues(visibleSchedule.map((stop) => stop.modes));
-const bandOptions = uniqueSortedValues(visibleSchedule.map((stop) => stop.bands));
+const visibleCoverage = deriveParkCoverage(publicParks, []);
 const countyOptions = uniqueSortedValues(
   publicParks.map((park) => (park.counties?.length ? park.counties : ["Unknown county"])),
 );
@@ -68,14 +62,12 @@ function parkCounties(park: ParkCoverage) {
     Mode
     <select class="event-filter__control" data-filter="mode">
       <option value="all">Any mode</option>
-      {modeOptions.map((mode) => <option value={mode}>{mode}</option>)}
     </select>
   </label>
   <label class="event-filter">
     Band
     <select class="event-filter__control" data-filter="band">
       <option value="all">Any band</option>
-      {bandOptions.map((band) => <option value={band}>{band}</option>)}
     </select>
   </label>
   <label class="event-filter">
@@ -193,13 +185,13 @@ function parkCounties(park: ParkCoverage) {
   function setupParkFilters(root: Element): void {
     const filters = root as HTMLFormElement;
     const table = filters.nextElementSibling?.querySelector("[data-filtered-table]");
-    const rows = Array.from(table?.querySelectorAll<HTMLElement>("[data-filter-row]") ?? []);
-    const empty = table?.querySelector<HTMLElement>("[data-filter-empty]");
-    const controls = Array.from(
-      filters.querySelectorAll("[data-filter]"),
-    ) as unknown as HTMLSelectElement[];
 
     const applyFilters = () => {
+      const rows = Array.from(table?.querySelectorAll<HTMLElement>("[data-filter-row]") ?? []);
+      const empty = table?.querySelector<HTMLElement>("[data-filter-empty]");
+      const controls = Array.from(
+        filters.querySelectorAll("[data-filter]"),
+      ) as unknown as HTMLSelectElement[];
       const values = Object.fromEntries(
         controls.map((control) => [control.dataset.filter ?? "", control.value]),
       );
@@ -231,7 +223,7 @@ function parkCounties(park: ParkCoverage) {
       }
     };
 
-    controls.forEach((control) => control.addEventListener("change", applyFilters));
+    filters.onchange = () => applyFilters();
     applyFilters();
   }
 
@@ -254,14 +246,48 @@ function parkCounties(park: ParkCoverage) {
       });
       const data = await response.json() as { ok?: boolean; stops?: PublicStop[] };
       if (!response.ok || !data.ok || !Array.isArray(data.stops)) {
-        return;
+        throw new Error("Live coverage response was unavailable.");
       }
 
-      renderLiveCoverage(body, parks, data.stops.filter((stop) => !stop.id.startsWith("sample-")));
-      setupParkFilters(document.querySelector("[data-event-filters]") as Element);
+      const visibleStops = data.stops.filter((stop) => !stop.id.startsWith("sample-"));
+      const filters = document.querySelector("[data-event-filters]") as HTMLFormElement | null;
+      renderLiveCoverage(body, parks, visibleStops);
+      if (filters) {
+        updateSelectOptions(filters, "mode", uniqueSortedValues(visibleStops.map((stop) => stop.modes)));
+        updateSelectOptions(filters, "band", uniqueSortedValues(visibleStops.map((stop) => stop.bands)));
+        setupParkFilters(filters);
+      }
     } catch {
+      renderCoverageUnavailable(body);
+      const filters = document.querySelector("[data-event-filters]") as HTMLFormElement | null;
+      if (filters) {
+        setupParkFilters(filters);
+      }
+    }
+  }
+
+  function updateSelectOptions(
+    filters: HTMLFormElement,
+    filterName: "mode" | "band",
+    values: string[],
+  ): void {
+    const control = filters.querySelector(`[data-filter="${filterName}"]`) as HTMLSelectElement | null;
+    if (!control) {
       return;
     }
+
+    const current = control.value;
+    control.replaceChildren(new Option(filterName === "mode" ? "Any mode" : "Any band", "all"));
+    for (const value of values) {
+      control.appendChild(new Option(value, value));
+    }
+    control.value = values.includes(current) ? current : "all";
+  }
+
+  function uniqueSortedValues(values: string[][]): string[] {
+    return [...new Set(values.flat().filter(Boolean))].sort((left, right) =>
+      left.localeCompare(right),
+    );
   }
 
   type PublicPark = {
@@ -298,6 +324,16 @@ function parkCounties(park: ParkCoverage) {
     );
   }
 
+  function renderCoverageUnavailable(body: HTMLTableSectionElement): void {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 5;
+    cell.dataset.label = "Park coverage";
+    cell.textContent = "Live coverage is unavailable. Try refreshing this page.";
+    row.appendChild(cell);
+    body.replaceChildren(row);
+  }
+
   function deriveCoverage(parks: PublicPark[], stops: PublicStop[]): CoverageRow[] {
     return parks.map((park) => {
       const parkStops = stops
@@ -325,6 +361,7 @@ function parkCounties(park: ParkCoverage) {
 
     const heading = document.createElement("th");
     heading.scope = "row";
+    heading.dataset.label = "Park";
     heading.append(park.name);
     for (const value of [park.reference, countyList(park).join(", ")]) {
       const span = document.createElement("span");
@@ -333,15 +370,15 @@ function parkCounties(park: ParkCoverage) {
     }
     row.appendChild(heading);
 
-    appendCell(row, coverageStatusLabel(park.status));
-    appendStopListCell(row, park.stops, (stop) => [
+    appendCell(row, "Status", coverageStatusLabel(park.status));
+    appendStopListCell(row, "Next activation", park.stops, (stop) => [
       `${formatDate(stop.plannedDate)}, ${stop.startTime}-${stop.endTime} ET`,
       stopStatusLabel(stop.status),
     ]);
-    appendStopListCell(row, park.stops, (stop) => [
+    appendStopListCell(row, "Activator", park.stops, (stop) => [
       `${stop.activatorCallsign}${stop.modes.length > 0 ? ` (${stop.modes.join(", ")})` : ""}`,
     ]);
-    appendStopListCell(row, park.stops, (stop) => [
+    appendStopListCell(row, "Bands / modes", park.stops, (stop) => [
       `${stop.bands.length ? stop.bands.join(", ") : "TBD"} / ${stop.modes.length ? stop.modes.join(", ") : "TBD"}`,
     ]);
 
@@ -350,10 +387,12 @@ function parkCounties(park: ParkCoverage) {
 
   function appendStopListCell(
     row: HTMLTableRowElement,
+    label: string,
     stops: PublicStop[],
     format: (stop: PublicStop) => string[],
   ): void {
     const cell = document.createElement("td");
+    cell.dataset.label = label;
     if (stops.length === 0) {
       cell.textContent = row.children.length === 2 ? "Needs coverage" : "TBD";
       row.appendChild(cell);
@@ -382,8 +421,9 @@ function parkCounties(park: ParkCoverage) {
     row.appendChild(cell);
   }
 
-  function appendCell(row: HTMLTableRowElement, text: string): void {
+  function appendCell(row: HTMLTableRowElement, label: string, text: string): void {
     const cell = document.createElement("td");
+    cell.dataset.label = label;
     cell.textContent = text;
     row.appendChild(cell);
   }
@@ -394,6 +434,7 @@ function parkCounties(park: ParkCoverage) {
     row.hidden = true;
     const cell = document.createElement("td");
     cell.colSpan = 5;
+    cell.dataset.label = "Park coverage";
     cell.textContent = "No parks match these filters.";
     row.appendChild(cell);
     return row;

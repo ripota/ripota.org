@@ -2,7 +2,6 @@
 import "leaflet/dist/leaflet.css";
 
 import parks from "../../public/data/activate-ri-2026/parks.json";
-import schedule from "../../public/data/activate-ri-2026/schedule.json";
 import boundaries from "../data/ri-reference-boundaries.json";
 import references from "../data/ri-references.json";
 import {
@@ -12,7 +11,7 @@ import {
   type ReferenceBoundaryRecord,
   type ReferenceMapVariant,
 } from "../lib/reference-map";
-import type { PublicActivationStop, PublicParkSummary } from "../lib/activate-ri/types";
+import type { PublicParkSummary } from "../lib/activate-ri/types";
 
 type Props = {
   id: string;
@@ -45,16 +44,13 @@ const geojsonByPath = Object.fromEntries(
   ]),
 );
 const eventParks = parks as PublicParkSummary[];
-const visibleSchedule = (schedule as PublicActivationStop[]).filter(
-  (stop) => !stop.id.startsWith("sample-"),
-);
 const isEventMap = variant === "coverage" || variant === "volunteer";
 const mapItems = buildReferenceMapItems({
   references,
   boundaries: boundaries as ReferenceBoundaryRecord[],
   geojsonByPath,
   parks: isEventMap ? eventParks : undefined,
-  stops: isEventMap ? visibleSchedule : undefined,
+  stops: isEventMap ? [] : undefined,
 });
 const legendItems = isEventMap
   ? (Object.entries(coverageStatusLabels) as Array<[keyof typeof coverageStatusLabels, string]>)

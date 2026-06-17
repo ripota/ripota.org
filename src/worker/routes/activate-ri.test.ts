@@ -695,6 +695,9 @@ describe("handleActivateRiApi", () => {
     const body = await response.json() as { stops: unknown[] };
 
     expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe(
+      "public, max-age=60, s-maxage=60, stale-while-revalidate=300",
+    );
     expect(body).toEqual({
       ok: true,
       generatedAt: expect.any(String),
@@ -714,6 +717,65 @@ describe("handleActivateRiApi", () => {
       ],
     });
     expect(JSON.stringify(body)).not.toMatch(/submitter_email|edit_token_hash|organizer_notes/i);
+  });
+
+  it("stores public live stops in the Worker cache on a cache miss", async () => {
+    const testEnv = env();
+    testEnv.DB = adminDb();
+    const put = vi.fn(async () => undefined);
+    const match = vi.fn(async () => undefined);
+    vi.stubGlobal("caches", {
+      default: { match, put },
+    });
+    const waitUntil = vi.fn((promise: Promise<unknown>) => {
+      void promise;
+    });
+
+    const response = await handleActivateRiApi(
+      adminRequest("/api/activate-ri-2026/public/stops"),
+      testEnv,
+      { waitUntil } as unknown as ExecutionContext,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe(
+      "public, max-age=60, s-maxage=60, stale-while-revalidate=300",
+    );
+    expect(match).toHaveBeenCalledOnce();
+    expect(put).toHaveBeenCalledOnce();
+    expect(waitUntil).toHaveBeenCalledOnce();
+    expect(testEnv.DB.prepare).toHaveBeenCalledOnce();
+  });
+
+  it("returns cached public live stops without querying D1", async () => {
+    const testEnv = env();
+    const cachedBody = {
+      ok: true,
+      generatedAt: "2026-06-17T12:00:00.000Z",
+      stops: [],
+    };
+    const cachedResponse = new Response(JSON.stringify(cachedBody), {
+      headers: {
+        "content-type": "application/json; charset=utf-8",
+        "cache-control": "public, max-age=60, s-maxage=60, stale-while-revalidate=300",
+      },
+    });
+    const put = vi.fn(async () => undefined);
+    const match = vi.fn(async () => cachedResponse);
+    vi.stubGlobal("caches", {
+      default: { match, put },
+    });
+
+    const response = await handleActivateRiApi(
+      adminRequest("/api/activate-ri-2026/public/stops"),
+      testEnv,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual(cachedBody);
+    expect(match).toHaveBeenCalledOnce();
+    expect(put).not.toHaveBeenCalled();
+    expect(testEnv.DB.prepare).not.toHaveBeenCalled();
   });
 
   it("lists admin activity events for authenticated admins", async () => {

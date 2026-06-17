@@ -8,7 +8,11 @@ const activateRiEditPathPattern = /^\/activate-ri-2026\/edit\/[^/]+\/?$/;
 const activateRiEditShellPath = "/activate-ri-2026/edit-shell/";
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(
+    request: Request,
+    env: Env,
+    ctx?: ExecutionContext,
+  ): Promise<Response> {
     const url = new URL(request.url);
 
     if (url.pathname === "/api/activate-ri-2026/health") {
@@ -16,7 +20,7 @@ export default {
     }
 
     if (url.pathname.startsWith("/api/activate-ri-2026/")) {
-      return handleActivateRiApi(request, env);
+      return handleActivateRiApi(request, env, ctx);
     }
 
     if (url.pathname.startsWith("/api/")) {

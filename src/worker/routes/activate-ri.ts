@@ -34,10 +34,17 @@ const submissionReceivedMessage =
 const resendLinkMessage =
   "If we found a matching signup, we sent the private edit link.";
 const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
+const publicJsonCacheControl =
+  "public, max-age=60, s-maxage=60, stale-while-revalidate=300";
+const publicJsonCacheHeaders = {
+  "cache-control": publicJsonCacheControl,
+};
+type WorkerCacheStorage = CacheStorage & { default?: Cache };
 
 export async function handleActivateRiApi(
   request: Request,
   env: Env,
+  ctx?: ExecutionContext,
 ): Promise<Response> {
   const url = new URL(request.url);
 
@@ -85,11 +92,7 @@ export async function handleActivateRiApi(
     request.method === "GET" &&
     url.pathname === "/api/activate-ri-2026/public/stops"
   ) {
-    return json({
-      ok: true,
-      stops: planRowsToPublicStops(await listPublicStopRows(env)),
-      generatedAt: new Date().toISOString(),
-    });
+    return handlePublicStops(request, env, ctx);
   }
 
   const approveMatch = url.pathname.match(
@@ -172,6 +175,53 @@ export async function handleActivateRiApi(
   }
 
   return json({ ok: false, error: "Not found" }, { status: 404 });
+}
+
+async function handlePublicStops(
+  request: Request,
+  env: Env,
+  ctx?: ExecutionContext,
+): Promise<Response> {
+  const cache = (globalThis.caches as WorkerCacheStorage | undefined)?.default;
+  const cacheKey = publicStopsCacheKey(request);
+
+  if (cache) {
+    const cachedResponse = await cache.match(cacheKey);
+    if (cachedResponse) {
+      return cachedResponse;
+    }
+  }
+
+  const response = json({
+    ok: true,
+    stops: planRowsToPublicStops(await listPublicStopRows(env)),
+    generatedAt: new Date().toISOString(),
+  }, { headers: publicJsonCacheHeaders });
+
+  if (!cache) {
+    return response;
+  }
+
+  const cachePut = cache.put(cacheKey, response.clone());
+  if (ctx) {
+    ctx.waitUntil(cachePut);
+  } else {
+    await cachePut;
+  }
+
+  return response;
+}
+
+function publicStopsCacheKey(request: Request): Request {
+  const url = new URL(request.url);
+  url.search = "";
+
+  return new Request(url, {
+    method: "GET",
+    headers: {
+      accept: "application/json",
+    },
+  });
 }
 
 async function handleEditStop(

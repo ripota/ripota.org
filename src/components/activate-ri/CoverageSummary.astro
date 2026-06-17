@@ -1,22 +1,77 @@
 ---
 import parks from "../../../public/data/activate-ri-2026/parks.json";
-import schedule from "../../../public/data/activate-ri-2026/schedule.json";
-import { summarizeParkCoverage } from "../../lib/activate-ri/coverage";
-import type { PublicActivationStop, PublicParkSummary } from "../../lib/activate-ri/types";
+import type { PublicParkSummary } from "../../lib/activate-ri/types";
 
-const summary = summarizeParkCoverage(
-  parks as PublicParkSummary[],
-  schedule as PublicActivationStop[],
-);
+const publicParks = parks as PublicParkSummary[];
 ---
 
-<dl class="coverage-summary" aria-label="Activate All RI coverage summary">
+<dl
+  class="coverage-summary"
+  aria-label="Activate All RI coverage summary"
+  data-live-coverage-summary
+  data-parks={JSON.stringify(publicParks)}
+>
   <div>
     <dt>Parks scheduled</dt>
-    <dd>{summary.scheduled} / {summary.total}</dd>
+    <dd data-summary-scheduled>Loading...</dd>
   </div>
   <div>
     <dt>Coverage gaps</dt>
-    <dd>{summary.gaps}</dd>
+    <dd data-summary-gaps>Loading...</dd>
   </div>
 </dl>
+
+<script>
+  import { deriveParkCoverage } from "../../lib/activate-ri/coverage";
+  import type { PublicActivationStop, PublicParkSummary } from "../../lib/activate-ri/types";
+
+  type LiveStopsResponse = {
+    ok?: boolean;
+    stops?: PublicActivationStop[];
+  };
+
+  function setSummaryText(summary: Element, scheduled: string, gaps: string): void {
+    const scheduledValue = summary.querySelector("[data-summary-scheduled]");
+    const gapsValue = summary.querySelector("[data-summary-gaps]");
+
+    if (scheduledValue) {
+      scheduledValue.textContent = scheduled;
+    }
+
+    if (gapsValue) {
+      gapsValue.textContent = gaps;
+    }
+  }
+
+  async function setupLiveCoverageSummary(summary: HTMLElement): Promise<void> {
+    try {
+      const parks = JSON.parse(summary.dataset.parks ?? "[]") as PublicParkSummary[];
+      const response = await fetch("/api/activate-ri-2026/public/stops", {
+        headers: { accept: "application/json" },
+      });
+      const data = (await response.json()) as LiveStopsResponse;
+      if (!response.ok || !data.ok || !Array.isArray(data.stops)) {
+        throw new Error("Live coverage summary response was unavailable.");
+      }
+
+      const visibleStops = data.stops.filter((stop) => !stop.id.startsWith("sample-"));
+      const coverage = deriveParkCoverage(parks, visibleStops);
+      const scheduledCount = coverage.filter((park) =>
+        ["scheduled", "multiple-scheduled", "completed"].includes(park.status),
+      ).length;
+      const gapCount = coverage.filter((park) =>
+        ["uncovered", "cancelled-needs-replacement"].includes(park.status),
+      ).length;
+
+      setSummaryText(summary, `${scheduledCount} / ${coverage.length}`, `${gapCount}`);
+    } catch {
+      setSummaryText(summary, "Unavailable", "Unavailable");
+    }
+  }
+
+  document
+    .querySelectorAll<HTMLElement>("[data-live-coverage-summary]")
+    .forEach((summary) => {
+      void setupLiveCoverageSummary(summary);
+    });
+</script>

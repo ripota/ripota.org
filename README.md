@@ -48,7 +48,8 @@ Deployments need Cloudflare account configuration outside this repository. Do no
 Activate RI admin routes require Cloudflare Access in production. See [docs/cloudflare-access.md](docs/cloudflare-access.md).
 
 Activate RI D1 setup/reset notes live under `docs/activate-ri-2026/`, including
-the [database reset runbook](docs/activate-ri-2026/database-reset.md).
+the [data-flow overview](docs/activate-ri-2026/data-flow.md) and
+[database reset runbook](docs/activate-ri-2026/database-reset.md).
 
 ## Content Notes
 
