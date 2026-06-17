@@ -112,7 +112,7 @@ visible to admins through the activity log.
 
 This path is covered by a real-SQL acceptance test that applies the checked-in
 D1 migrations to a temporary SQLite database. The browser path is covered by the
-opt-in `mise run e2e:activate-ri` smoke test.
+`mise run e2e:activate-ri` smoke test, which also runs as part of `mise run test`.
 
 ## Admin Approval Flow
 

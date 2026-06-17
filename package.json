@@ -11,7 +11,8 @@
     "e2e:activate-ri": "playwright test e2e/activate-ri-volunteer.spec.ts",
     "preview": "astro preview",
     "check": "astro check",
-    "test": "vitest"
+    "test": "npm run test:unit -- --run && npm run e2e:activate-ri",
+    "test:unit": "vitest"
   },
   "devDependencies": {
     "@astrojs/check": "latest",

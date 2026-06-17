@@ -42,11 +42,12 @@ volunteer plan, approves it, and verifies the public stops API.
 Run it directly with:
 
 ```bash
-mise run test -- --run src/worker/activate-ri.acceptance.test.ts
+mise run test-unit -- --run src/worker/activate-ri.acceptance.test.ts
 ```
 
-The browser smoke test is intentionally opt-in because it starts Wrangler and a
-real browser:
+The normal test command also runs the Activate RI browser smoke test, which
+starts Wrangler and drives the volunteer/admin/schedule path in a real browser.
+Run it directly with:
 
 ```bash
 mise run e2e:activate-ri

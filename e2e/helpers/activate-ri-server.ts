@@ -51,17 +51,33 @@ export async function startActivateRiServer(): Promise<ActivateRiServer> {
   return {
     origin,
     async stop() {
-      child.kill("SIGTERM");
-      await Promise.race([
-        once(child, "exit"),
-        new Promise((resolve) => setTimeout(resolve, 3000)),
-      ]);
-      if (!child.killed) {
-        child.kill("SIGKILL");
-      }
+      await stopProcess(child);
       rmSync(persistTo, { recursive: true, force: true });
     },
   };
+}
+
+async function stopProcess(child: ReturnType<typeof spawn>): Promise<void> {
+  if (child.exitCode !== null || child.signalCode !== null) {
+    return;
+  }
+
+  let exited = false;
+  const exitPromise = once(child, "exit").then(() => {
+    exited = true;
+  });
+
+  child.kill("SIGTERM");
+  await Promise.race([exitPromise, delay(3000)]);
+
+  if (!exited) {
+    child.kill("SIGKILL");
+    await Promise.race([exitPromise, delay(1000)]);
+  }
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function applyLocalMigrations(persistTo: string): void {
