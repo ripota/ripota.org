@@ -4,6 +4,7 @@ import EditLinkResendForm from "../../components/activate-ri/EditLinkResendForm.
 import VolunteerForm from "../../components/activate-ri/VolunteerForm.astro";
 import Footer from "../../components/Footer.astro";
 import Notice from "../../components/Notice.astro";
+import ReferenceMap from "../../components/ReferenceMap.astro";
 import SiteHeader from "../../components/SiteHeader.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
 ---
@@ -63,6 +64,13 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
             </article>
           </div>
         </section>
+        <ReferenceMap
+          id="activate-ri-volunteer-map"
+          variant="volunteer"
+          title="Choose a park from the map"
+          caption="Use the map to start a stop in the form below. Adding a park only edits this form; it does not submit a plan or reserve coverage."
+          phaseFocus="volunteer"
+        />
         <VolunteerForm />
         <section class="event-guidance event-guidance--compact" aria-labelledby="after-submit-title">
           <div class="section-header section-header--compact">

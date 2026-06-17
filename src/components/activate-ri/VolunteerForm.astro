@@ -361,16 +361,16 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
   });
 
   addStopButton?.addEventListener("click", () => {
-    const firstStop = document.querySelector<HTMLElement>("[data-stop-card]");
-    if (!firstStop || !stopsContainer) {
+    appendBlankStop()?.querySelector<HTMLInputElement>("[data-park-input]")?.focus();
+  });
+
+  document.addEventListener("activate-ri:add-park", (event) => {
+    const reference = (event as CustomEvent<{ reference?: string }>).detail?.reference;
+    if (!reference) {
       return;
     }
 
-    const nextStop = firstStop.cloneNode(true) as HTMLElement;
-    clearStopCard(nextStop);
-    stopsContainer.appendChild(nextStop);
-    setupStopCards();
-    nextStop.querySelector<HTMLInputElement>("[data-park-input]")?.focus();
+    addParkReferenceToForm(reference);
   });
 
   form?.addEventListener("submit", async (event) => {
@@ -530,6 +530,58 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
         updateMultiSelectLabel(multiSelect);
       });
     });
+  }
+
+  function appendBlankStop(): HTMLElement | null {
+    const firstStop = document.querySelector<HTMLElement>("[data-stop-card]");
+    if (!firstStop || !stopsContainer) {
+      return null;
+    }
+
+    const nextStop = firstStop.cloneNode(true) as HTMLElement;
+    clearStopCard(nextStop);
+    stopsContainer.appendChild(nextStop);
+    setupStopCards();
+    return nextStop;
+  }
+
+  function addParkReferenceToForm(reference: string): void {
+    const targetStop = firstEmptyStopCard() ?? appendBlankStop();
+    if (!targetStop) {
+      return;
+    }
+
+    const selected = selectParkReference(targetStop, reference);
+    if (!selected) {
+      status?.replaceChildren(`Could not find ${reference} in the park list.`);
+      return;
+    }
+
+    setupStopCards();
+    targetStop.scrollIntoView({ behavior: "smooth", block: "center" });
+    (targetStop.querySelector("[data-planned-date]") as HTMLSelectElement | null)?.focus();
+    status?.replaceChildren(`${reference} added to the activation plan. Choose the date, time, bands, and modes before submitting.`);
+  }
+
+  function firstEmptyStopCard(): HTMLElement | null {
+    return Array.from(document.querySelectorAll<HTMLElement>("[data-stop-card]"))
+      .find((stop) => !stop.querySelector<HTMLInputElement>("[data-park-reference]")?.value) ?? null;
+  }
+
+  function selectParkReference(stop: HTMLElement, reference: string): boolean {
+    const parkInput = stop.querySelector<HTMLInputElement>("[data-park-input]");
+    const parkReference = stop.querySelector<HTMLInputElement>("[data-park-reference]");
+    const option = Array.from(stop.querySelectorAll<HTMLElement>("[data-park-option]"))
+      .find((candidate) => candidate.dataset.reference === reference);
+
+    if (!parkInput || !parkReference || !option) {
+      return false;
+    }
+
+    parkInput.value = option.dataset.label ?? reference;
+    parkReference.value = reference;
+    parkInput.setCustomValidity("");
+    return true;
   }
 
   function validateStopCards(): boolean {
