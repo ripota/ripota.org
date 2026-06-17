@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deriveParkCoverage } from "./coverage";
+import { deriveParkCoverage, summarizeParkCoverage } from "./coverage";
 import type { PublicActivationStop } from "./types";
 
 const park = {
@@ -185,5 +185,93 @@ describe("deriveParkCoverage", () => {
         nextStop: expect.objectContaining({ id: "delayed" }),
       }),
     ]);
+  });
+
+  it("summarizes scheduled parks and coverage gaps", () => {
+    const parks = [
+      park,
+      {
+        reference: "US-2869",
+        name: "Brenton Point State Park",
+        counties: ["Newport County"],
+      },
+      {
+        reference: "US-2870",
+        name: "Colt State Park",
+        counties: ["Bristol County"],
+      },
+      {
+        reference: "US-2871",
+        name: "Fort Adams State Park",
+        counties: ["Newport County"],
+      },
+    ];
+    const stops: PublicActivationStop[] = [
+      {
+        id: "scheduled",
+        parkReference: "US-2868",
+        plannedDate: "2026-09-11",
+        startTime: "09:00",
+        endTime: "11:00",
+        activatorCallsign: "N1RWJ",
+        bands: ["40m"],
+        modes: ["CW"],
+        publicNotes: "",
+        status: "scheduled",
+      },
+      {
+        id: "completed",
+        parkReference: "US-2869",
+        plannedDate: "2026-09-11",
+        startTime: "12:00",
+        endTime: "14:00",
+        activatorCallsign: "K1ABC",
+        bands: ["20m"],
+        modes: ["SSB"],
+        publicNotes: "",
+        status: "completed",
+      },
+      {
+        id: "cancelled",
+        parkReference: "US-2870",
+        plannedDate: "2026-09-12",
+        startTime: "09:00",
+        endTime: "11:00",
+        activatorCallsign: "W1POTA",
+        bands: ["15m"],
+        modes: ["FT8"],
+        publicNotes: "Cancelled.",
+        status: "cancelled",
+      },
+    ];
+
+    expect(summarizeParkCoverage(parks, stops)).toEqual({
+      scheduled: 2,
+      gaps: 2,
+      total: 4,
+    });
+  });
+
+  it("ignores sample stops when summarizing coverage", () => {
+    const stops: PublicActivationStop[] = [
+      {
+        id: "sample-demo",
+        parkReference: "US-2868",
+        plannedDate: "2026-09-11",
+        startTime: "09:00",
+        endTime: "11:00",
+        activatorCallsign: "N1RWJ",
+        bands: ["40m"],
+        modes: ["CW"],
+        publicNotes: "",
+        status: "scheduled",
+      },
+    ];
+
+    expect(summarizeParkCoverage([park], stops)).toEqual({
+      scheduled: 0,
+      gaps: 1,
+      total: 1,
+    });
   });
 });

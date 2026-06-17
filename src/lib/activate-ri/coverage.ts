@@ -33,6 +33,30 @@ export function deriveParkCoverage(
   });
 }
 
+export type CoverageSummaryCounts = {
+  scheduled: number;
+  gaps: number;
+  total: number;
+};
+
+export function summarizeParkCoverage(
+  parks: PublicParkSummary[],
+  stops: PublicActivationStop[],
+): CoverageSummaryCounts {
+  const visibleStops = stops.filter((stop) => !stop.id.startsWith("sample-"));
+  const coverage = deriveParkCoverage(parks, visibleStops);
+
+  return {
+    scheduled: coverage.filter((park) =>
+      ["scheduled", "multiple-scheduled", "completed"].includes(park.status),
+    ).length,
+    gaps: coverage.filter((park) =>
+      ["uncovered", "cancelled-needs-replacement"].includes(park.status),
+    ).length,
+    total: coverage.length,
+  };
+}
+
 function coverageStatus(
   scheduledStopCount: number,
   cancelledStopCount: number,

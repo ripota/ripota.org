@@ -1,29 +1,22 @@
 ---
 import parks from "../../../public/data/activate-ri-2026/parks.json";
 import schedule from "../../../public/data/activate-ri-2026/schedule.json";
-import { deriveParkCoverage } from "../../lib/activate-ri/coverage";
+import { summarizeParkCoverage } from "../../lib/activate-ri/coverage";
 import type { PublicActivationStop, PublicParkSummary } from "../../lib/activate-ri/types";
 
-const visibleSchedule = (schedule as PublicActivationStop[]).filter(
-  (stop) => !stop.id.startsWith("sample-"),
+const summary = summarizeParkCoverage(
+  parks as PublicParkSummary[],
+  schedule as PublicActivationStop[],
 );
-const visibleCoverage = deriveParkCoverage(parks as PublicParkSummary[], visibleSchedule);
-
-const scheduled = visibleCoverage.filter((park) =>
-  ["scheduled", "multiple-scheduled", "completed"].includes(park.status),
-).length;
-const gaps = visibleCoverage.filter((park) =>
-  ["uncovered", "cancelled-needs-replacement"].includes(park.status),
-).length;
 ---
 
 <dl class="coverage-summary" aria-label="Activate All RI coverage summary">
   <div>
     <dt>Parks scheduled</dt>
-    <dd>{scheduled} / {visibleCoverage.length}</dd>
+    <dd>{summary.scheduled} / {summary.total}</dd>
   </div>
   <div>
     <dt>Coverage gaps</dt>
-    <dd>{gaps}</dd>
+    <dd>{summary.gaps}</dd>
   </div>
 </dl>
