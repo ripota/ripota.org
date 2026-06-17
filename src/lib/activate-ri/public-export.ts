@@ -66,6 +66,9 @@ export function routeRowsToPublicStopsStrict(rows: unknown): PublicActivationSto
   return routeRowsToPublicStops(rows);
 }
 
+export const planRowsToPublicStops = routeRowsToPublicStops;
+export const planRowsToPublicStopsStrict = routeRowsToPublicStopsStrict;
+
 export function parseStringArray(value: string): string[] {
   let parsed: unknown;
   try {

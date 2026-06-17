@@ -74,7 +74,7 @@ After deployment:
    unauthorized:
 
 ```bash
-curl -i https://ripota.org/api/activate-ri-2026/admin/routes
+curl -i https://ripota.org/api/activate-ri-2026/admin/plans
 ```
 
 5. If a signed-in admin sees the dashboard but the API shows unauthorized,

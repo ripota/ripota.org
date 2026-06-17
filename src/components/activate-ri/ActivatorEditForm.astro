@@ -14,9 +14,9 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
   <div class="admin-panel__header">
     <div>
       <p class="eyebrow">Activator edits</p>
-      <h2 id="activator-edit-title">Edit your activation route</h2>
+      <h2 id="activator-edit-title">Edit your activation plan</h2>
       <p class="lead">
-        This private link lets you update your Activate All RI 2026 route.
+        This private link lets you update your Activate All RI 2026 plan.
       </p>
     </div>
   </div>
@@ -31,7 +31,12 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
     }
   </datalist>
 
-  <p class="form-status" data-edit-status aria-live="polite">Loading route...</p>
+  <p class="form-status" data-edit-status aria-live="polite">Loading plan...</p>
+
+  <label data-plan-picker hidden>
+    Activation plan
+    <select data-plan-select></select>
+  </label>
 
   <div class="form-grid form-grid--identity" data-edit-fields hidden>
     <label>
@@ -58,10 +63,10 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
     <button class="button" data-variant="light" type="button" data-add-stop>
       Add another park
     </button>
-    <button class="button" data-variant="light" type="button" data-cancel-route>
-      Cancel route
+    <button class="button" data-variant="light" type="button" data-cancel-plan>
+      Cancel plan
     </button>
-    <button class="button" data-variant="primary" type="submit" data-save-route>
+    <button class="button" data-variant="primary" type="submit" data-save-plan>
       Save changes
     </button>
   </div>
@@ -144,7 +149,8 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
     public_notes?: unknown;
   };
 
-  type RouteDto = {
+  type PlanDto = {
+    id?: unknown;
     submitter_callsign?: unknown;
     submitter_name?: unknown;
     submitter_email?: unknown;
@@ -154,12 +160,14 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
     stops?: unknown;
   };
 
-  const editForm = document.querySelector<HTMLFormElement>("[data-activator-edit]");
+  const editForm = document.querySelector("[data-activator-edit]") as HTMLFormElement | null;
   const editStatus = editForm?.querySelector("[data-edit-status]");
-  const editFields = editForm?.querySelector<HTMLElement>("[data-edit-fields]");
-  const editStops = editForm?.querySelector<HTMLElement>("[data-edit-stops]");
-  const editActions = editForm?.querySelector<HTMLElement>("[data-edit-actions]");
-  const stopTemplate = document.querySelector<HTMLTemplateElement>("[data-stop-template]");
+  const editFields = editForm?.querySelector("[data-edit-fields]") as HTMLElement | null | undefined;
+  const editStops = editForm?.querySelector("[data-edit-stops]") as HTMLElement | null | undefined;
+  const editActions = editForm?.querySelector("[data-edit-actions]") as HTMLElement | null | undefined;
+  const planPicker = editForm?.querySelector("[data-plan-picker]") as HTMLElement | null | undefined;
+  const planSelect = editForm?.querySelector("[data-plan-select]") as HTMLSelectElement | null | undefined;
+  const stopTemplate = document.querySelector("[data-stop-template]") as HTMLTemplateElement | null;
   const parkOptions = new Map(
     Array.from(document.querySelectorAll<HTMLOptionElement>("#activate-ri-edit-parks option"))
       .flatMap((option) => {
@@ -169,8 +177,10 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
       }),
   );
   let isSaving = false;
+  let plans: PlanDto[] = [];
+  let selectedPlanId = "";
 
-  void loadRoute();
+  void loadPlan();
 
   editForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -183,7 +193,7 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
     editStatus?.replaceChildren("Saving changes...");
 
     try {
-      const response = await fetch(apiUrl(), {
+      const response = await fetch(selectedPlanUrl(), {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(formToPayload(new FormData(editForm))),
@@ -196,7 +206,7 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
       }
 
       editStatus?.replaceChildren("Changes saved.");
-      await loadRoute(false);
+      await loadPlan(false);
     } catch {
       editStatus?.replaceChildren("Unable to save changes. Please try again later.");
     } finally {
@@ -209,14 +219,14 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
     setupStopCards();
   });
 
-  editForm?.querySelector("[data-cancel-route]")?.addEventListener("click", async () => {
-    if (!window.confirm("Cancel this activation route? This will mark active stops as cancelled.")) {
+  editForm?.querySelector("[data-cancel-plan]")?.addEventListener("click", async () => {
+    if (!window.confirm("Cancel this activation plan? This will mark active stops as cancelled.")) {
       return;
     }
 
-    editStatus?.replaceChildren("Cancelling route...");
+    editStatus?.replaceChildren("Cancelling plan...");
     try {
-      const response = await fetch(`${apiUrl()}/cancel`, {
+      const response = await fetch(`${selectedPlanUrl()}/cancel`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ cancelReason: "Cancelled by activator." }),
@@ -224,18 +234,18 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
       const data = await parseResponse(response);
 
       if (!response.ok || !data.ok) {
-        editStatus?.replaceChildren(data.errors?.join(" ") ?? data.error ?? "Unable to cancel route.");
+        editStatus?.replaceChildren(data.errors?.join(" ") ?? data.error ?? "Unable to cancel plan.");
         return;
       }
 
-      editStatus?.replaceChildren("Route cancelled.");
-      await loadRoute(false);
+      editStatus?.replaceChildren("Plan cancelled.");
+      await loadPlan(false);
     } catch {
-      editStatus?.replaceChildren("Unable to cancel route. Please try again later.");
+      editStatus?.replaceChildren("Unable to cancel plan. Please try again later.");
     }
   });
 
-  async function loadRoute(showLoading = true): Promise<void> {
+  async function loadPlan(showLoading = true): Promise<void> {
     if (!editForm || !editFields || !editStops || !editActions) {
       return;
     }
@@ -247,7 +257,7 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
     }
 
     if (showLoading) {
-      editStatus?.replaceChildren("Loading route...");
+      editStatus?.replaceChildren("Loading plan...");
     }
 
     try {
@@ -256,12 +266,23 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
       });
       const data = await parseResponse(response);
 
-      if (!response.ok || !data.ok || typeof data.route !== "object" || data.route === null) {
+      if (!response.ok || !data.ok || !Array.isArray(data.plans)) {
         editStatus?.replaceChildren(data.error ?? "Unable to load this edit link.");
         return;
       }
 
-      renderRoute(data.route as RouteDto);
+      plans = data.plans.filter((plan): plan is PlanDto => typeof plan === "object" && plan !== null);
+      if (plans.length === 0) {
+        editStatus?.replaceChildren("No activation plans found for this edit link.");
+        return;
+      }
+
+      const previousPlanId = selectedPlanId;
+      const selectedPlan = plans.find((plan) => stringValue(plan.id) === previousPlanId) ?? plans[0];
+      selectedPlanId = stringValue(selectedPlan?.id);
+
+      renderPlanPicker();
+      renderSelectedPlan();
       editFields.hidden = false;
       editStops.hidden = false;
       editActions.hidden = false;
@@ -273,15 +294,54 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
     }
   }
 
-  function renderRoute(route: RouteDto): void {
-    setNamedValue("submitterCallsign", stringValue(route.submitter_callsign));
-    setNamedValue("submitterName", stringValue(route.submitter_name));
-    setNamedValue("submitterEmail", stringValue(route.submitter_email));
-    setNamedValue("club", stringValue(route.club));
+  planSelect?.addEventListener("change", () => {
+    selectedPlanId = planSelect.value;
+    renderSelectedPlan();
+    editStatus?.replaceChildren("Loaded. Make any changes and save.");
+  });
+
+  function renderPlanPicker(): void {
+    if (!planPicker || !planSelect) {
+      return;
+    }
+
+    planPicker.hidden = plans.length < 2;
+    planSelect.replaceChildren(
+      ...plans.map((plan, index) => {
+        const option = document.createElement("option");
+        option.value = stringValue(plan.id);
+        option.textContent = planLabel(plan, index);
+        option.selected = option.value === selectedPlanId;
+
+        return option;
+      }),
+    );
+  }
+
+  function renderSelectedPlan(): void {
+    const plan = plans.find((candidate) => stringValue(candidate.id) === selectedPlanId) ?? plans[0];
+    if (plan) {
+      selectedPlanId = stringValue(plan.id);
+      renderPlan(plan);
+    }
+  }
+
+  function planLabel(plan: PlanDto, index: number): string {
+    const stops = Array.isArray(plan.stops) ? plan.stops.length : 0;
+    const callsign = stringValue(plan.submitter_callsign) || `Plan ${index + 1}`;
+
+    return `${callsign} - ${stops} stop${stops === 1 ? "" : "s"}`;
+  }
+
+  function renderPlan(plan: PlanDto): void {
+    setNamedValue("submitterCallsign", stringValue(plan.submitter_callsign));
+    setNamedValue("submitterName", stringValue(plan.submitter_name));
+    setNamedValue("submitterEmail", stringValue(plan.submitter_email));
+    setNamedValue("club", stringValue(plan.club));
 
     editStops?.replaceChildren();
-    const stops = Array.isArray(route.stops)
-      ? route.stops.filter((stop): stop is StopDto => typeof stop === "object" && stop !== null)
+    const stops = Array.isArray(plan.stops)
+      ? plan.stops.filter((stop): stop is StopDto => typeof stop === "object" && stop !== null)
       : [];
     for (const stop of stops) {
       appendStop(stop);
@@ -318,7 +378,7 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
     const stops = Array.from(document.querySelectorAll<HTMLElement>("[data-stop-card]"));
     stops.forEach((stop, index) => {
       stop.querySelector("[data-stop-title]")?.replaceChildren(`Activation stop ${index + 1}`);
-      const removeButton = stop.querySelector<HTMLButtonElement>("[data-remove-stop]");
+      const removeButton = stop.querySelector("[data-remove-stop]") as HTMLButtonElement | null;
       if (removeButton) {
         removeButton.disabled = stops.length === 1;
         removeButton.onclick = () => {
@@ -327,8 +387,8 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
         };
       }
 
-      const parkInput = stop.querySelector<HTMLInputElement>("[data-park-input]");
-      const parkReference = stop.querySelector<HTMLInputElement>("[data-park-reference]");
+      const parkInput = stop.querySelector("[data-park-input]") as HTMLInputElement | null;
+      const parkReference = stop.querySelector("[data-park-reference]") as HTMLInputElement | null;
       if (parkInput && parkReference) {
         const syncParkReference = () => {
           parkReference.value = parkOptions.get(parkInput.value.trim()) ?? parkInput.value.trim();
@@ -337,7 +397,7 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
         parkInput.onchange = syncParkReference;
       }
 
-      const blockSelect = stop.querySelector<HTMLSelectElement>("[data-time-block]");
+      const blockSelect = stop.querySelector("[data-time-block]") as HTMLSelectElement | null;
       blockSelect?.addEventListener("change", () => {
         const [startTime, endTime] = blockSelect.value.split("-");
         if (startTime && endTime) {
@@ -357,20 +417,24 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
       publicNotes: "",
       organizerNotes: "",
       stops: Array.from(document.querySelectorAll<HTMLElement>("[data-stop-card]")).map((stop) => ({
-        id: stop.querySelector<HTMLInputElement>("[data-stop-id]")?.value,
-        parkReference: stop.querySelector<HTMLInputElement>("[data-park-reference]")?.value,
-        plannedDate: stop.querySelector<HTMLSelectElement>("[data-planned-date]")?.value,
-        startTime: stop.querySelector<HTMLInputElement>("[data-start-time]")?.value,
-        endTime: stop.querySelector<HTMLInputElement>("[data-end-time]")?.value,
-        bands: splitList(stop.querySelector<HTMLInputElement>("[data-bands]")?.value ?? ""),
-        modes: splitList(stop.querySelector<HTMLInputElement>("[data-modes]")?.value ?? ""),
-        publicNotes: stop.querySelector<HTMLTextAreaElement>("[data-public-notes]")?.value ?? "",
+        id: (stop.querySelector("[data-stop-id]") as HTMLInputElement | null)?.value,
+        parkReference: (stop.querySelector("[data-park-reference]") as HTMLInputElement | null)?.value,
+        plannedDate: (stop.querySelector("[data-planned-date]") as HTMLSelectElement | null)?.value,
+        startTime: (stop.querySelector("[data-start-time]") as HTMLInputElement | null)?.value,
+        endTime: (stop.querySelector("[data-end-time]") as HTMLInputElement | null)?.value,
+        bands: splitList((stop.querySelector("[data-bands]") as HTMLInputElement | null)?.value ?? ""),
+        modes: splitList((stop.querySelector("[data-modes]") as HTMLInputElement | null)?.value ?? ""),
+        publicNotes: (stop.querySelector("[data-public-notes]") as HTMLTextAreaElement | null)?.value ?? "",
       })),
     };
   }
 
   function apiUrl(): string {
-    return `/api/activate-ri-2026/edit/${encodeURIComponent(editToken())}/route`;
+    return `/api/activate-ri-2026/edit/${encodeURIComponent(editToken())}/plans`;
+  }
+
+  function selectedPlanUrl(): string {
+    return `${apiUrl()}/${encodeURIComponent(selectedPlanId)}`;
   }
 
   function editToken(): string {
@@ -383,7 +447,7 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
 
   async function parseResponse(response: Response): Promise<{
     ok?: boolean;
-    route?: unknown;
+    plans?: unknown;
     error?: string;
     errors?: string[];
   }> {
@@ -399,8 +463,8 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
     }
   }
 
-  function setValue(root: ParentNode, selector: string, value: string): void {
-    const field = root.querySelector<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(selector);
+  function setValue(root: HTMLElement, selector: string, value: string): void {
+    const field = root.querySelector(selector) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null;
     if (field) {
       field.value = value;
     }

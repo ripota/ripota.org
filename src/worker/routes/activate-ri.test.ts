@@ -81,16 +81,16 @@ function adminRequest(path: string, init?: RequestInit): Request {
 }
 
 type AdminDbOptions = {
-  routeRows?: unknown[];
+  planRows?: unknown[];
   stopRows?: unknown[];
   publicStopRows?: unknown[];
   activityRows?: unknown[];
-  routeStatus?: string | null;
-  routeUpdateChanges?: number;
+  planStatus?: string | null;
+  planUpdateChanges?: number;
 };
 
-const pendingRouteRow = {
-  id: "route-1",
+const pendingPlanRow = {
+  id: "plan-1",
   event_id: "activate-ri-2026",
   submitter_callsign: "N1RWJ",
   submitter_name: "Rob Jackson",
@@ -108,7 +108,7 @@ const pendingRouteRow = {
 
 const pendingStopRow = {
   id: "stop-1",
-  route_id: "route-1",
+  plan_id: "plan-1",
   event_id: "activate-ri-2026",
   park_reference: "US-2868",
   planned_date: "2026-09-11",
@@ -123,12 +123,12 @@ const pendingStopRow = {
   updated_at: "2026-06-16T12:00:00.000Z",
 };
 
-const pendingRouteDto = {
-  ...pendingRouteRow,
+const pendingPlanDto = {
+  ...pendingPlanRow,
   stops: [
     {
       id: "stop-1",
-      route_id: "route-1",
+      plan_id: "plan-1",
       event_id: "activate-ri-2026",
       park_reference: "US-2868",
       planned_date: "2026-09-11",
@@ -161,11 +161,11 @@ const publicStopRow = {
 const activityRow = {
   id: "event-1",
   event_id: "activate-ri-2026",
-  route_id: "route-1",
+  plan_id: "plan-1",
   stop_id: null,
   actor_type: "activator",
   actor_email: "rob@example.com",
-  action: "route-created",
+  action: "plan-created",
   summary: "N1RWJ submitted 1 activation stop.",
   details_json: '{"stopCount":1}',
   created_at: "2026-06-16T12:00:00.000Z",
@@ -175,7 +175,7 @@ function adminDb(options: AdminDbOptions = {}): D1Database {
   const batch = vi.fn(async (statements: unknown[]) =>
     statements.map((_, index) => ({
       success: true,
-      meta: { changes: index === 0 ? (options.routeUpdateChanges ?? 1) : 1 },
+      meta: { changes: index === 0 ? (options.planUpdateChanges ?? 1) : 1 },
     })),
   );
   const prepare = vi.fn((sql: string) => {
@@ -183,27 +183,27 @@ function adminDb(options: AdminDbOptions = {}): D1Database {
       bind: vi.fn().mockReturnThis(),
       run: vi.fn(async () => ({
         success: true,
-        meta: { changes: options.routeUpdateChanges ?? 1 },
+        meta: { changes: options.planUpdateChanges ?? 1 },
       })),
       all: vi.fn(async () => ({
         results: sql.includes("FROM activate_ri_activity_events")
           ? (options.activityRows ?? [activityRow])
-          : sql.includes("INNER JOIN activate_ri_routes r")
+          : sql.includes("INNER JOIN activate_ri_plans r")
           ? (options.publicStopRows ?? [publicStopRow])
           : sql.includes("FROM activate_ri_stops")
             ? (options.stopRows ?? [pendingStopRow])
-            : (options.routeRows ?? [pendingRouteRow]),
+            : (options.planRows ?? [pendingPlanRow]),
       })),
       first: vi.fn(async () => {
-        if (options.routeStatus === undefined) {
+        if (options.planStatus === undefined) {
           return { status: "pending" };
         }
 
-        if (options.routeStatus === null) {
+        if (options.planStatus === null) {
           return null;
         }
 
-        return { status: options.routeStatus };
+        return { status: options.planStatus };
       }),
     };
 
@@ -217,7 +217,7 @@ function adminDb(options: AdminDbOptions = {}): D1Database {
 }
 
 type EditDbOptions = {
-  routeStatus?: string | null;
+  planStatus?: string | null;
   changes?: number;
 };
 
@@ -231,15 +231,15 @@ function editDb(options: EditDbOptions = {}): D1Database {
       })),
       all: vi.fn(),
       first: vi.fn(async () => {
-        if (!sql.includes("INNER JOIN activate_ri_routes")) {
+        if (!sql.includes("INNER JOIN activate_ri_plans")) {
           return null;
         }
 
-        if (options.routeStatus === null) {
+        if (options.planStatus === null) {
           return null;
         }
 
-        return { status: options.routeStatus ?? "approved" };
+        return { status: options.planStatus ?? "approved" };
       }),
     };
 
@@ -266,10 +266,10 @@ describe("handleActivateRiApi", () => {
     vi.unstubAllGlobals();
   });
 
-  it("accepts valid route submissions for organizer review", async () => {
+  it("accepts valid plan submissions for organizer review", async () => {
     const testEnv = env();
     const response = await handleActivateRiApi(
-      post("/api/activate-ri-2026/routes", validPayload()),
+      post("/api/activate-ri-2026/plans", validPayload()),
       testEnv,
     );
 
@@ -280,15 +280,15 @@ describe("handleActivateRiApi", () => {
     });
     expect(testEnv.DB.batch).toHaveBeenCalledTimes(2);
     const insertStatements = vi.mocked(testEnv.DB.batch).mock.calls[0][0];
-    expect(insertStatements).toHaveLength(3);
+    expect(insertStatements).toHaveLength(4);
   });
 
-  it("returns validation errors for invalid route submissions", async () => {
+  it("returns validation errors for invalid plan submissions", async () => {
     const fetch = vi.fn();
     vi.stubGlobal("fetch", fetch);
 
     const response = await handleActivateRiApi(
-      post("/api/activate-ri-2026/routes", {
+      post("/api/activate-ri-2026/plans", {
         submitterCallsign: "not a call sign!",
         submitterName: "",
         submitterEmail: "not-email",
@@ -312,20 +312,20 @@ describe("handleActivateRiApi", () => {
 
   it("returns validation errors for non-object JSON payloads", async () => {
     const response = await handleActivateRiApi(
-      post("/api/activate-ri-2026/routes", null),
+      post("/api/activate-ri-2026/plans", null),
       env(),
     );
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({
       ok: false,
-      errors: ["Enter a valid route submission."],
+      errors: ["Enter a valid plan submission."],
     });
   });
 
   it("returns JSON errors for unsupported content types", async () => {
     const response = await handleActivateRiApi(
-      new Request("https://ripota.org/api/activate-ri-2026/routes", {
+      new Request("https://ripota.org/api/activate-ri-2026/plans", {
         method: "POST",
         headers: { "content-type": "text/plain" },
         body: "hello",
@@ -343,7 +343,7 @@ describe("handleActivateRiApi", () => {
 
   it("returns JSON errors for malformed JSON", async () => {
     const response = await handleActivateRiApi(
-      new Request("https://ripota.org/api/activate-ri-2026/routes", {
+      new Request("https://ripota.org/api/activate-ri-2026/plans", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: "{not-json",
@@ -361,7 +361,7 @@ describe("handleActivateRiApi", () => {
 
   it("returns sanitized JSON errors when Turnstile is required without a token", async () => {
     const response = await handleActivateRiApi(
-      post("/api/activate-ri-2026/routes", validPayload()),
+      post("/api/activate-ri-2026/plans", validPayload()),
       turnstileEnv(),
     );
 
@@ -377,7 +377,7 @@ describe("handleActivateRiApi", () => {
     delete testEnv.TURNSTILE_REQUIRED;
 
     const response = await handleActivateRiApi(
-      post("/api/activate-ri-2026/routes", validPayload()),
+      post("/api/activate-ri-2026/plans", validPayload()),
       testEnv,
     );
 
@@ -396,7 +396,7 @@ describe("handleActivateRiApi", () => {
     );
 
     const response = await handleActivateRiApi(
-      post("/api/activate-ri-2026/routes", validPayloadWithTurnstile()),
+      post("/api/activate-ri-2026/plans", validPayloadWithTurnstile()),
       turnstileEnv(),
     );
 
@@ -407,13 +407,13 @@ describe("handleActivateRiApi", () => {
     });
   });
 
-  it("accepts route submissions after successful Turnstile verification", async () => {
+  it("accepts plan submissions after successful Turnstile verification", async () => {
     const fetch = vi.fn(async () => Response.json({ success: true }));
     vi.stubGlobal("fetch", fetch);
 
     const testEnv = turnstileEnv();
     const response = await handleActivateRiApi(
-      new Request("https://ripota.org/api/activate-ri-2026/routes", {
+      new Request("https://ripota.org/api/activate-ri-2026/plans", {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -452,7 +452,7 @@ describe("handleActivateRiApi", () => {
     );
 
     const response = await handleActivateRiApi(
-      post("/api/activate-ri-2026/routes", validPayloadWithTurnstile()),
+      post("/api/activate-ri-2026/plans", validPayloadWithTurnstile()),
       turnstileEnv(),
     );
 
@@ -472,7 +472,7 @@ describe("handleActivateRiApi", () => {
     );
 
     const response = await handleActivateRiApi(
-      post("/api/activate-ri-2026/routes", validPayloadWithTurnstile()),
+      post("/api/activate-ri-2026/plans", validPayloadWithTurnstile()),
       turnstileEnv(),
     );
 
@@ -483,7 +483,7 @@ describe("handleActivateRiApi", () => {
     });
   });
 
-  it("returns JSON 404 for unknown Activate RI API routes", async () => {
+  it("returns JSON 404 for unknown Activate RI API plans", async () => {
     const response = await handleActivateRiApi(
       new Request("https://ripota.org/api/activate-ri-2026/missing"),
       env(),
@@ -496,9 +496,9 @@ describe("handleActivateRiApi", () => {
     });
   });
 
-  it("requires Cloudflare Access identity for admin routes", async () => {
+  it("requires Cloudflare Access identity for admin plans", async () => {
     const listResponse = await handleActivateRiApi(
-      adminRequest("/api/activate-ri-2026/admin/routes"),
+      adminRequest("/api/activate-ri-2026/admin/plans"),
       env(),
     );
     const publishResponse = await handleActivateRiApi(
@@ -508,7 +508,7 @@ describe("handleActivateRiApi", () => {
       env(),
     );
     const approveResponse = await handleActivateRiApi(
-      adminRequest("/api/activate-ri-2026/admin/routes/route-1/approve", {
+      adminRequest("/api/activate-ri-2026/admin/plans/plan-1/approve", {
         method: "POST",
       }),
       env(),
@@ -539,7 +539,7 @@ describe("handleActivateRiApi", () => {
     testEnv.DB = adminDb();
 
     const response = await handleActivateRiApi(
-      adminRequest("/api/activate-ri-2026/admin/routes", {
+      adminRequest("/api/activate-ri-2026/admin/plans", {
         headers: { "Cf-Access-Authenticated-User-Email": "admin@example.com" },
       }),
       testEnv,
@@ -548,7 +548,7 @@ describe("handleActivateRiApi", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       ok: true,
-      routes: [pendingRouteDto],
+      plans: [pendingPlanDto],
     });
   });
 
@@ -557,7 +557,7 @@ describe("handleActivateRiApi", () => {
     testEnv.DB = adminDb();
 
     const response = await handleActivateRiApi(
-      adminRequest("/api/activate-ri-2026/admin/routes", {
+      adminRequest("/api/activate-ri-2026/admin/plans", {
         headers: { "Cf-Access-Authenticated-User-Email": "admin@example.com" },
       }),
       testEnv,
@@ -579,7 +579,7 @@ describe("handleActivateRiApi", () => {
     testEnv.DB = adminDb();
 
     const response = await handleActivateRiApi(
-      adminRequest("/api/activate-ri-2026/admin/routes", {
+      adminRequest("/api/activate-ri-2026/admin/plans", {
         headers: {
           "Cf-Access-Authenticated-User-Email": "admin@example.com",
           "Cf-Access-Jwt-Assertion": "not-a-valid-jwt",
@@ -595,25 +595,25 @@ describe("handleActivateRiApi", () => {
     });
   });
 
-  it("lists pending routes with stops for authenticated admins without exposing edit tokens", async () => {
+  it("lists pending plans with stops for authenticated admins without exposing edit tokens", async () => {
     const testEnv = adminEnv();
     testEnv.DB = adminDb();
 
     const response = await handleActivateRiApi(
-      adminRequest("/api/activate-ri-2026/admin/routes", {
+      adminRequest("/api/activate-ri-2026/admin/plans", {
         headers: { "Cf-Access-Authenticated-User-Email": "admin@example.com" },
       }),
       testEnv,
     );
 
-    const body = await response.json() as { routes: typeof pendingRouteDto[] };
+    const body = await response.json() as { plans: typeof pendingPlanDto[] };
 
     expect(response.status).toBe(200);
     expect(body).toEqual({
       ok: true,
-      routes: [pendingRouteDto],
+      plans: [pendingPlanDto],
     });
-    expect(body.routes[0].stops[0]).toMatchObject({
+    expect(body.plans[0].stops[0]).toMatchObject({
       park_reference: "US-2868",
       planned_date: "2026-09-11",
       start_time: "09:00",
@@ -670,7 +670,7 @@ describe("handleActivateRiApi", () => {
     const preparedSql = vi.mocked(testEnv.DB.prepare).mock.calls
       .map(([sql]) => sql)
       .join("\n");
-    expect(preparedSql).toContain("INNER JOIN activate_ri_routes r");
+    expect(preparedSql).toContain("INNER JOIN activate_ri_plans r");
     expect(preparedSql).toContain("r.status = 'approved'");
     expect(preparedSql).toContain(
       "s.status IN ('scheduled', 'delayed', 'cancelled', 'completed')",
@@ -683,7 +683,7 @@ describe("handleActivateRiApi", () => {
     );
   });
 
-  it("returns public live stops without private route fields", async () => {
+  it("returns public live stops without private plan fields", async () => {
     const testEnv = env();
     testEnv.DB = adminDb();
 
@@ -734,11 +734,11 @@ describe("handleActivateRiApi", () => {
         {
           id: "event-1",
           event_id: "activate-ri-2026",
-          route_id: "route-1",
+          plan_id: "plan-1",
           stop_id: null,
           actor_type: "activator",
           actor_email: "rob@example.com",
-          action: "route-created",
+          action: "plan-created",
           summary: "N1RWJ submitted 1 activation stop.",
           details: { stopCount: 1 },
           created_at: "2026-06-16T12:00:00.000Z",
@@ -747,12 +747,12 @@ describe("handleActivateRiApi", () => {
     });
   });
 
-  it("approves pending routes for authenticated admins", async () => {
+  it("approves pending plans for authenticated admins", async () => {
     const testEnv = adminEnv();
-    testEnv.DB = adminDb({ routeStatus: "pending", routeUpdateChanges: 1 });
+    testEnv.DB = adminDb({ planStatus: "pending", planUpdateChanges: 1 });
 
     const response = await handleActivateRiApi(
-      adminRequest("/api/activate-ri-2026/admin/routes/route-1/approve", {
+      adminRequest("/api/activate-ri-2026/admin/plans/plan-1/approve", {
         method: "POST",
         headers: { "Cf-Access-Authenticated-User-Email": "admin@example.com" },
       }),
@@ -775,11 +775,11 @@ describe("handleActivateRiApi", () => {
       expect.anything(),
     ]);
     const prepareCalls = vi.mocked(testEnv.DB.prepare).mock.calls;
-    const routeUpdateSql = prepareCalls[1][0];
+    const planUpdateSql = prepareCalls[1][0];
     const stopUpdateSql = prepareCalls[2][0];
     const auditInsertSql = prepareCalls[3][0];
-    expect(routeUpdateSql).toContain("UPDATE activate_ri_routes");
-    expect(routeUpdateSql).toContain("approval_operation_id = ?");
+    expect(planUpdateSql).toContain("UPDATE activate_ri_plans");
+    expect(planUpdateSql).toContain("approval_operation_id = ?");
     expect(stopUpdateSql).toContain("UPDATE activate_ri_stops");
     expect(stopUpdateSql).toContain("AND approval_operation_id = ?");
     expect(stopUpdateSql).not.toContain("AND approved_at = ?");
@@ -792,22 +792,22 @@ describe("handleActivateRiApi", () => {
       .calls[0][0] as unknown as Array<{
       bind: { mock: { calls: unknown[][] } };
     }>;
-    const routeUpdateBinds = batchStatements[0].bind.mock.calls[0];
+    const planUpdateBinds = batchStatements[0].bind.mock.calls[0];
     const stopUpdateBinds = batchStatements[1].bind.mock.calls[0];
     const auditInsertBinds = batchStatements[2].bind.mock.calls[0];
-    const approvalOperationId = routeUpdateBinds[2];
+    const approvalOperationId = planUpdateBinds[2];
     expect(typeof approvalOperationId).toBe("string");
     expect(stopUpdateBinds.at(-1)).toBe(approvalOperationId);
-    expect(auditInsertBinds[6]).toBe("route-approved");
+    expect(auditInsertBinds[6]).toBe("plan-approved");
     expect(String(auditInsertBinds[8])).toContain(String(approvalOperationId));
   });
 
-  it("returns 409 without scheduling stops or audit when the route transition loses a race", async () => {
+  it("returns 409 without scheduling stops or audit when the plan transition loses a race", async () => {
     const testEnv = adminEnv();
-    testEnv.DB = adminDb({ routeStatus: "pending", routeUpdateChanges: 0 });
+    testEnv.DB = adminDb({ planStatus: "pending", planUpdateChanges: 0 });
 
     const response = await handleActivateRiApi(
-      adminRequest("/api/activate-ri-2026/admin/routes/route-1/approve", {
+      adminRequest("/api/activate-ri-2026/admin/plans/plan-1/approve", {
         method: "POST",
         headers: { "Cf-Access-Authenticated-User-Email": "admin@example.com" },
       }),
@@ -818,16 +818,16 @@ describe("handleActivateRiApi", () => {
     const body = await response.json();
     expect(body).toEqual({
       ok: false,
-      error: "Route is not pending",
+      error: "Plan is not pending",
     });
     expect(JSON.stringify(body)).not.toContain("editUrl");
     expect(JSON.stringify(body)).not.toContain("edit_token_hash");
     expect(testEnv.DB.batch).toHaveBeenCalledOnce();
     const prepareCalls = vi.mocked(testEnv.DB.prepare).mock.calls;
-    const routeUpdateSql = prepareCalls[1][0];
+    const planUpdateSql = prepareCalls[1][0];
     const stopUpdateSql = prepareCalls[2][0];
     const auditInsertSql = prepareCalls[3][0];
-    expect(routeUpdateSql).toContain("approval_operation_id = ?");
+    expect(planUpdateSql).toContain("approval_operation_id = ?");
     expect(stopUpdateSql).toContain("AND approval_operation_id = ?");
     expect(stopUpdateSql).not.toContain("AND approved_at = ?");
     expect(stopUpdateSql).not.toContain("AND approved_by = ?");
@@ -839,21 +839,21 @@ describe("handleActivateRiApi", () => {
       .calls[0][0] as unknown as Array<{
       bind: { mock: { calls: unknown[][] } };
     }>;
-    const routeUpdateBinds = batchStatements[0].bind.mock.calls[0];
+    const planUpdateBinds = batchStatements[0].bind.mock.calls[0];
     const stopUpdateBinds = batchStatements[1].bind.mock.calls[0];
     const auditInsertBinds = batchStatements[2].bind.mock.calls[0];
-    const approvalOperationId = routeUpdateBinds[2];
+    const approvalOperationId = planUpdateBinds[2];
     expect(stopUpdateBinds.at(-1)).toBe(approvalOperationId);
-    expect(auditInsertBinds[6]).toBe("route-approved");
+    expect(auditInsertBinds[6]).toBe("plan-approved");
     expect(String(auditInsertBinds[8])).toContain(String(approvalOperationId));
   });
 
-  it("returns 404 for missing route approvals without scheduling stops or audit", async () => {
+  it("returns 404 for missing plan approvals without scheduling stops or audit", async () => {
     const testEnv = adminEnv();
-    testEnv.DB = adminDb({ routeStatus: null });
+    testEnv.DB = adminDb({ planStatus: null });
 
     const response = await handleActivateRiApi(
-      adminRequest("/api/activate-ri-2026/admin/routes/missing-route/approve", {
+      adminRequest("/api/activate-ri-2026/admin/plans/missing-plan/approve", {
         method: "POST",
         headers: { "Cf-Access-Authenticated-User-Email": "admin@example.com" },
       }),
@@ -864,19 +864,19 @@ describe("handleActivateRiApi", () => {
     const body = await response.json();
     expect(body).toEqual({
       ok: false,
-      error: "Route not found",
+      error: "Plan not found",
     });
     expect(JSON.stringify(body)).not.toContain("editUrl");
     expect(JSON.stringify(body)).not.toContain("edit_token_hash");
     expect(testEnv.DB.batch).not.toHaveBeenCalled();
   });
 
-  it("returns 409 for wrong-status route approvals without scheduling stops or audit", async () => {
+  it("returns 409 for wrong-status plan approvals without scheduling stops or audit", async () => {
     const testEnv = adminEnv();
-    testEnv.DB = adminDb({ routeStatus: "approved" });
+    testEnv.DB = adminDb({ planStatus: "approved" });
 
     const response = await handleActivateRiApi(
-      adminRequest("/api/activate-ri-2026/admin/routes/route-1/approve", {
+      adminRequest("/api/activate-ri-2026/admin/plans/plan-1/approve", {
         method: "POST",
         headers: { "Cf-Access-Authenticated-User-Email": "admin@example.com" },
       }),
@@ -887,7 +887,7 @@ describe("handleActivateRiApi", () => {
     const body = await response.json();
     expect(body).toEqual({
       ok: false,
-      error: "Route is not pending",
+      error: "Plan is not pending",
     });
     expect(JSON.stringify(body)).not.toContain("editUrl");
     expect(JSON.stringify(body)).not.toContain("edit_token_hash");
@@ -912,7 +912,7 @@ describe("handleActivateRiApi", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
     expect(testEnv.DB.prepare).toHaveBeenCalledWith(
-      expect.stringContaining("r.edit_token_hash = ?"),
+      expect.stringContaining("a.magic_token_hash = ?"),
     );
     expect(testEnv.DB.prepare).toHaveBeenCalledWith(
       expect.stringContaining("UPDATE activate_ri_stops"),
@@ -921,11 +921,12 @@ describe("handleActivateRiApi", () => {
     const statements = vi.mocked(testEnv.DB.prepare).mock.results.map(
       (result) => result.value as { bind: { mock: { calls: unknown[][] } } },
     );
-    const routeLookupBinds = statements[0].bind.mock.calls[0];
+    const planLookupBinds = statements[0].bind.mock.calls[0];
     const updateBinds = statements[1].bind.mock.calls[0];
     const expectedHash = await sha256Hex(token);
-    expect(routeLookupBinds).toEqual([
+    expect(planLookupBinds).toEqual([
       "stop-1",
+      "activate-ri-2026",
       "activate-ri-2026",
       "activate-ri-2026",
       expectedHash,
@@ -938,6 +939,7 @@ describe("handleActivateRiApi", () => {
       "Updated trailhead plan.",
       expect.any(String),
       "stop-1",
+      "activate-ri-2026",
       "activate-ri-2026",
       "activate-ri-2026",
       expectedHash,
@@ -970,6 +972,7 @@ describe("handleActivateRiApi", () => {
       "Weather.",
       expect.any(String),
       "stop-1",
+      "activate-ri-2026",
       "activate-ri-2026",
       "activate-ri-2026",
       expectedHash,
@@ -1178,7 +1181,7 @@ describe("handleActivateRiApi", () => {
 
   it("returns 404 for edit tokens or stops that do not match", async () => {
     const testEnv = env();
-    testEnv.DB = editDb({ routeStatus: null });
+    testEnv.DB = editDb({ planStatus: null });
 
     const response = await handleActivateRiApi(
       patch("/api/activate-ri-2026/edit/wrong-token/stops/stop-1", {
@@ -1198,9 +1201,9 @@ describe("handleActivateRiApi", () => {
     });
   });
 
-  it("returns 409 for edit tokens belonging to non-approved routes", async () => {
+  it("returns 409 for edit tokens belonging to non-approved plans", async () => {
     const testEnv = env();
-    testEnv.DB = editDb({ routeStatus: "pending" });
+    testEnv.DB = editDb({ planStatus: "pending" });
 
     const response = await handleActivateRiApi(
       patch("/api/activate-ri-2026/edit/token/stops/stop-1", {
@@ -1216,7 +1219,7 @@ describe("handleActivateRiApi", () => {
     expect(response.status).toBe(409);
     await expect(response.json()).resolves.toEqual({
       ok: false,
-      error: "Route is not approved",
+      error: "Plan is not approved",
     });
   });
 

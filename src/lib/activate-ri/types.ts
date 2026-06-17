@@ -100,6 +100,9 @@ export type NormalizedRouteSubmission = {
   stops: Required<ActivationStopInput>[];
 };
 
+export type PlanSubmissionInput = RouteSubmissionInput;
+export type NormalizedPlanSubmission = NormalizedRouteSubmission;
+
 export type ValidationResult<T> =
   | { ok: true; value: T }
   | { ok: false; errors: string[] };

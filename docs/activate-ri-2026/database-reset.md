@@ -15,7 +15,8 @@ activity/audit rows:
 - `activate_ri_activity_events`
 - `activate_ri_audit_events`
 - `activate_ri_stops`
-- `activate_ri_routes`
+- `activate_ri_plans`
+- `activate_ri_activators`
 
 It intentionally keeps the D1 migration table and schema intact.
 
@@ -62,7 +63,8 @@ npx wrangler d1 execute ripota-org --local --command="
 DELETE FROM activate_ri_activity_events;
 DELETE FROM activate_ri_audit_events;
 DELETE FROM activate_ri_stops;
-DELETE FROM activate_ri_routes;
+DELETE FROM activate_ri_plans;
+DELETE FROM activate_ri_activators;
 "
 ```
 
@@ -81,7 +83,8 @@ npx wrangler d1 execute ripota-org --remote --command="
 DELETE FROM activate_ri_activity_events;
 DELETE FROM activate_ri_audit_events;
 DELETE FROM activate_ri_stops;
-DELETE FROM activate_ri_routes;
+DELETE FROM activate_ri_plans;
+DELETE FROM activate_ri_activators;
 "
 ```
 
@@ -94,7 +97,9 @@ Local:
 
 ```bash
 npx wrangler d1 execute ripota-org --local --command="
-SELECT 'routes' AS table_name, COUNT(*) AS row_count FROM activate_ri_routes
+SELECT 'plans' AS table_name, COUNT(*) AS row_count FROM activate_ri_plans
+UNION ALL
+SELECT 'activators', COUNT(*) FROM activate_ri_activators
 UNION ALL
 SELECT 'stops', COUNT(*) FROM activate_ri_stops
 UNION ALL
@@ -108,7 +113,9 @@ Remote:
 
 ```bash
 npx wrangler d1 execute ripota-org --remote --command="
-SELECT 'routes' AS table_name, COUNT(*) AS row_count FROM activate_ri_routes
+SELECT 'plans' AS table_name, COUNT(*) AS row_count FROM activate_ri_plans
+UNION ALL
+SELECT 'activators', COUNT(*) FROM activate_ri_activators
 UNION ALL
 SELECT 'stops', COUNT(*) FROM activate_ri_stops
 UNION ALL
@@ -118,7 +125,7 @@ SELECT 'audit_events', COUNT(*) FROM activate_ri_audit_events;
 "
 ```
 
-All four counts should be `0`.
+All five counts should be `0`.
 
 ## Undo a production reset
 

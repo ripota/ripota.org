@@ -9,7 +9,7 @@ import type { Env } from "./env";
 export type ActivityActorType = "activator" | "admin" | "system";
 
 export type ActivityEventInput = {
-  routeId?: string;
+  planId?: string;
   stopId?: string;
   actorType: ActivityActorType;
   actorEmail?: string;
@@ -21,7 +21,7 @@ export type ActivityEventInput = {
 export type ActivityEventDto = {
   id: string;
   event_id: string;
-  route_id: string | null;
+  plan_id: string | null;
   stop_id: string | null;
   actor_type: ActivityActorType;
   actor_email: string;
@@ -31,28 +31,55 @@ export type ActivityEventDto = {
   created_at: string;
 };
 
-export type InsertPendingRouteResult = {
-  routeId: string;
+export type InsertPendingPlanResult = {
+  activatorId: string;
+  planId: string;
   editToken: string;
 };
 
-export async function insertPendingRoute(
+export async function insertPendingPlan(
   env: Env,
   submission: NormalizedRouteSubmission,
   now = new Date().toISOString(),
-): Promise<InsertPendingRouteResult> {
-  const routeId = crypto.randomUUID();
+): Promise<InsertPendingPlanResult> {
+  const planId = crypto.randomUUID();
+  const activatorId = activatorIdForEmail(env.ACTIVATE_RI_EVENT_ID, submission.submitterEmail);
   const editToken = generateEditToken();
-  const editTokenHash = await tokenHash(editToken);
+  const magicTokenHash = await tokenHash(editToken);
   const statements = [
     env.DB.prepare(
-      `INSERT INTO activate_ri_routes (
-        id, event_id, submitter_callsign, submitter_name, submitter_email,
-        submitter_phone, club, public_notes, organizer_notes, status,
-        edit_token_hash, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`,
+      `INSERT INTO activate_ri_activators (
+        id, event_id, email_normalized, name, phone, club, primary_callsign,
+        magic_token_hash, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(event_id, email_normalized) DO UPDATE SET
+        name = excluded.name,
+        phone = excluded.phone,
+        club = excluded.club,
+        primary_callsign = excluded.primary_callsign,
+        magic_token_hash = excluded.magic_token_hash,
+        updated_at = excluded.updated_at`,
     ).bind(
-      routeId,
+      activatorId,
+      env.ACTIVATE_RI_EVENT_ID,
+      submission.submitterEmail,
+      submission.submitterName,
+      submission.submitterPhone,
+      submission.club,
+      submission.submitterCallsign,
+      magicTokenHash,
+      now,
+      now,
+    ),
+    env.DB.prepare(
+      `INSERT INTO activate_ri_plans (
+        id, activator_id, event_id, submitter_callsign, submitter_name, submitter_email,
+        submitter_phone, club, public_notes, organizer_notes, status,
+        created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
+    ).bind(
+      planId,
+      activatorId,
       env.ACTIVATE_RI_EVENT_ID,
       submission.submitterCallsign,
       submission.submitterName,
@@ -61,20 +88,19 @@ export async function insertPendingRoute(
       submission.club,
       submission.publicNotes,
       submission.organizerNotes,
-      editTokenHash,
       now,
       now,
     ),
     ...submission.stops.map((stop) =>
       env.DB.prepare(
         `INSERT INTO activate_ri_stops (
-          id, route_id, event_id, park_reference, planned_date, start_time,
+          id, plan_id, event_id, park_reference, planned_date, start_time,
           end_time, bands_json, modes_json, public_notes, organizer_notes,
           status, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending-review', ?, ?)`,
       ).bind(
         crypto.randomUUID(),
-        routeId,
+        planId,
         env.ACTIVATE_RI_EVENT_ID,
         stop.parkReference,
         stop.plannedDate,
@@ -89,10 +115,10 @@ export async function insertPendingRoute(
       ),
     ),
     activityInsert(env, {
-      routeId,
+      planId,
       actorType: "activator",
       actorEmail: submission.submitterEmail,
-      action: "route-created",
+      action: "plan-created",
       summary: `${submission.submitterCallsign} submitted ${submission.stops.length} activation stop${submission.stops.length === 1 ? "" : "s"}.`,
       details: {
         submitterCallsign: submission.submitterCallsign,
@@ -104,10 +130,10 @@ export async function insertPendingRoute(
 
   await env.DB.batch(statements);
 
-  return { routeId, editToken };
+  return { activatorId, planId, editToken };
 }
 
-export type ApproveRouteResult =
+export type ApprovePlanResult =
   | { ok: true }
   | { ok: false; status: 404 | 409; error: string };
 
@@ -123,11 +149,11 @@ export type EditStopResult =
   | { ok: true }
   | { ok: false; status: 404 | 409; error: string };
 
-type RouteStatusRow = {
+type PlanStatusRow = {
   status: string;
 };
 
-type RouteRow = {
+type PlanRow = {
   id: string;
   event_id: string;
   submitter_callsign: string;
@@ -146,7 +172,7 @@ type RouteRow = {
 
 type StopRow = {
   id: string;
-  route_id: string;
+  plan_id: string;
   event_id: string;
   park_reference: string;
   planned_date: string;
@@ -163,7 +189,7 @@ type StopRow = {
 
 export type PendingStopDto = {
   id: string;
-  route_id: string;
+  plan_id: string;
   event_id: string;
   park_reference: string;
   planned_date: string;
@@ -178,14 +204,29 @@ export type PendingStopDto = {
   updated_at: string;
 };
 
-export type PendingRouteDto = RouteRow & {
+export type PendingPlanDto = PlanRow & {
   stops: PendingStopDto[];
 };
 
-export type EditableRouteDto = PendingRouteDto;
+export type EditablePlanDto = PendingPlanDto;
 
-export type EditableRouteSubmission = Omit<NormalizedRouteSubmission, "stops"> & {
+export type EditablePlanSubmission = Omit<NormalizedRouteSubmission, "stops"> & {
   stops: Array<Required<ActivationStopInput> & { id?: string }>;
+};
+
+export type ActivatorDto = {
+  id: string;
+  event_id: string;
+  email_normalized: string;
+  name: string;
+  phone: string;
+  club: string;
+  primary_callsign: string;
+};
+
+export type ActivatorPlansDto = {
+  activator: ActivatorDto;
+  plans: EditablePlanDto[];
 };
 
 export async function listPublicStopRows(env: Env): Promise<StopExportRow[]> {
@@ -202,7 +243,7 @@ export async function listPublicStopRows(env: Env): Promise<StopExportRow[]> {
        s.public_notes,
        s.status
      FROM activate_ri_stops s
-     INNER JOIN activate_ri_routes r ON r.id = s.route_id
+     INNER JOIN activate_ri_plans r ON r.id = s.plan_id
      WHERE s.event_id = ?
        AND r.event_id = ?
        AND r.status = 'approved'
@@ -215,17 +256,17 @@ export async function listPublicStopRows(env: Env): Promise<StopExportRow[]> {
   return result.results ?? [];
 }
 
-export async function listPendingRoutes(env: Env): Promise<PendingRouteDto[]> {
-  const routeResult = await env.DB.prepare(
-    `${routeSelectSql}
-     FROM activate_ri_routes
+export async function listPendingPlans(env: Env): Promise<PendingPlanDto[]> {
+  const planResult = await env.DB.prepare(
+    `${planSelectSql}
+     FROM activate_ri_plans
      WHERE event_id = ? AND status = 'pending'
      ORDER BY created_at ASC`,
   )
     .bind(env.ACTIVATE_RI_EVENT_ID)
-    .all<RouteRow>();
+    .all<PlanRow>();
 
-  return withStops(env, routeResult.results ?? []);
+  return withStops(env, planResult.results ?? []);
 }
 
 export async function listActivityEvents(
@@ -236,7 +277,7 @@ export async function listActivityEvents(
     `SELECT
        id,
        event_id,
-       route_id,
+       plan_id,
        stop_id,
        actor_type,
        actor_email,
@@ -255,73 +296,122 @@ export async function listActivityEvents(
   return (result.results ?? []).map(toActivityEventDto);
 }
 
-export async function getRouteByTokenHash(
+export async function getPlansByTokenHash(
   env: Env,
-  editTokenHash: string,
-): Promise<EditableRouteDto | null> {
-  const route = await env.DB.prepare(
-    `${routeSelectSql}
-     FROM activate_ri_routes
-     WHERE event_id = ? AND edit_token_hash = ?`,
+  magicTokenHash: string,
+): Promise<ActivatorPlansDto | null> {
+  const activator = await env.DB.prepare(
+    `SELECT id, event_id, email_normalized, name, phone, club, primary_callsign
+     FROM activate_ri_activators
+     WHERE event_id = ? AND magic_token_hash = ?`,
   )
-    .bind(env.ACTIVATE_RI_EVENT_ID, editTokenHash)
-    .first<RouteRow>();
+    .bind(env.ACTIVATE_RI_EVENT_ID, magicTokenHash)
+    .first<ActivatorDto>();
 
-  if (!route) {
+  if (!activator) {
     return null;
   }
 
-  return (await withStops(env, [route]))[0] ?? null;
+  const planResult = await env.DB.prepare(
+    `${planSelectSql}
+     FROM activate_ri_plans
+     WHERE event_id = ? AND activator_id = ?
+     ORDER BY created_at ASC`,
+  )
+    .bind(env.ACTIVATE_RI_EVENT_ID, activator.id)
+    .all<PlanRow>();
+
+  return {
+    activator,
+    plans: await withStops(env, planResult.results ?? []),
+  };
 }
 
-export async function findRouteForEditLinkResend(
+export async function getPlanByTokenHash(
+  env: Env,
+  magicTokenHash: string,
+  planId: string,
+): Promise<EditablePlanDto | null> {
+  const plan = await env.DB.prepare(
+    `${planSelectSql}
+     FROM activate_ri_plans
+     WHERE event_id = ?
+       AND id = ?
+       AND EXISTS (
+         SELECT 1
+         FROM activate_ri_activators
+         WHERE id = activate_ri_plans.activator_id
+           AND event_id = ?
+           AND magic_token_hash = ?
+       )`,
+  )
+    .bind(env.ACTIVATE_RI_EVENT_ID, planId, env.ACTIVATE_RI_EVENT_ID, magicTokenHash)
+    .first<PlanRow>();
+
+  if (!plan) {
+    return null;
+  }
+
+  return (await withStops(env, [plan]))[0] ?? null;
+}
+
+export async function findActivatorForEditLinkResend(
   env: Env,
   callsign: string,
   email: string,
-): Promise<{ route: EditableRouteDto; editToken: string } | null> {
-  const route = await env.DB.prepare(
-    `${routeSelectSql}
-     FROM activate_ri_routes
-     WHERE event_id = ? AND submitter_callsign = ? AND submitter_email = ?
-     ORDER BY created_at DESC
-     LIMIT 1`,
+): Promise<{ activator: ActivatorDto; plan: EditablePlanDto | null; editToken: string } | null> {
+  const activator = await env.DB.prepare(
+    `SELECT id, event_id, email_normalized, name, phone, club, primary_callsign
+     FROM activate_ri_activators
+     WHERE event_id = ? AND email_normalized = ? AND primary_callsign = ?`,
   )
-    .bind(env.ACTIVATE_RI_EVENT_ID, callsign, email)
-    .first<RouteRow>();
+    .bind(env.ACTIVATE_RI_EVENT_ID, email, callsign)
+    .first<ActivatorDto>();
 
-  if (!route) {
+  if (!activator) {
     return null;
   }
 
   const editToken = generateEditToken();
-  const editTokenHash = await tokenHash(editToken);
+  const magicTokenHash = await tokenHash(editToken);
   await env.DB.prepare(
-    `UPDATE activate_ri_routes
-     SET edit_token_hash = ?, updated_at = ?
+    `UPDATE activate_ri_activators
+     SET magic_token_hash = ?, updated_at = ?
      WHERE id = ? AND event_id = ?`,
   )
-    .bind(editTokenHash, new Date().toISOString(), route.id, env.ACTIVATE_RI_EVENT_ID)
+    .bind(magicTokenHash, new Date().toISOString(), activator.id, env.ACTIVATE_RI_EVENT_ID)
     .run();
 
+  const plans = await env.DB.prepare(
+    `${planSelectSql}
+     FROM activate_ri_plans
+     WHERE event_id = ? AND activator_id = ?
+     ORDER BY created_at DESC
+     LIMIT 1`,
+  )
+    .bind(env.ACTIVATE_RI_EVENT_ID, activator.id)
+    .all<PlanRow>();
+
   return {
-    route: (await withStops(env, [route]))[0] ?? { ...route, stops: [] },
+    activator,
+    plan: (await withStops(env, plans.results ?? []))[0] ?? null,
     editToken,
   };
 }
 
 async function withStops(
   env: Env,
-  routes: RouteRow[],
-): Promise<PendingRouteDto[]> {
-  if (routes.length === 0) {
+  plans: PlanRow[],
+): Promise<PendingPlanDto[]> {
+  if (plans.length === 0) {
     return [];
   }
 
-  const routeIds = routes.map((route) => route.id);
+  const planIds = plans.map((plan) => plan.id);
   const stopResult = await env.DB.prepare(
     `SELECT
        id,
-       route_id,
+       plan_id,
        event_id,
        park_reference,
        planned_date,
@@ -335,29 +425,29 @@ async function withStops(
        created_at,
        updated_at
      FROM activate_ri_stops
-     WHERE event_id = ? AND route_id IN (${routeIds.map(() => "?").join(", ")})
+     WHERE event_id = ? AND plan_id IN (${planIds.map(() => "?").join(", ")})
      ORDER BY planned_date ASC, start_time ASC, created_at ASC`,
   )
-    .bind(env.ACTIVATE_RI_EVENT_ID, ...routeIds)
+    .bind(env.ACTIVATE_RI_EVENT_ID, ...planIds)
     .all<StopRow>();
 
-  const stopsByRoute = new Map<string, PendingStopDto[]>();
+  const stopsByPlan = new Map<string, PendingStopDto[]>();
   for (const stop of stopResult.results ?? []) {
-    const stops = stopsByRoute.get(stop.route_id) ?? [];
+    const stops = stopsByPlan.get(stop.plan_id) ?? [];
     stops.push(toPendingStopDto(stop));
-    stopsByRoute.set(stop.route_id, stops);
+    stopsByPlan.set(stop.plan_id, stops);
   }
 
-  return routes.map((route) => ({
-    ...route,
-    stops: stopsByRoute.get(route.id) ?? [],
+  return plans.map((plan) => ({
+    ...plan,
+    stops: stopsByPlan.get(plan.id) ?? [],
   }));
 }
 
 function toPendingStopDto(stop: StopRow): PendingStopDto {
   return {
     id: stop.id,
-    route_id: stop.route_id,
+    plan_id: stop.plan_id,
     event_id: stop.event_id,
     park_reference: stop.park_reference,
     planned_date: stop.planned_date,
@@ -386,32 +476,32 @@ function parseStringArray(value: string): string[] {
   }
 }
 
-export async function approveRoute(
+export async function approvePlan(
   env: Env,
-  routeId: string,
+  planId: string,
   actorEmail: string,
   now = new Date().toISOString(),
-): Promise<ApproveRouteResult> {
+): Promise<ApprovePlanResult> {
   const approvalOperationId = crypto.randomUUID();
-  const route = await env.DB.prepare(
+  const plan = await env.DB.prepare(
     `SELECT status
-     FROM activate_ri_routes
+     FROM activate_ri_plans
      WHERE id = ? AND event_id = ?`,
   )
-    .bind(routeId, env.ACTIVATE_RI_EVENT_ID)
-    .first<RouteStatusRow>();
+    .bind(planId, env.ACTIVATE_RI_EVENT_ID)
+    .first<PlanStatusRow>();
 
-  if (!route) {
-    return { ok: false, status: 404, error: "Route not found" };
+  if (!plan) {
+    return { ok: false, status: 404, error: "Plan not found" };
   }
 
-  if (route.status !== "pending") {
-    return { ok: false, status: 409, error: "Route is not pending" };
+  if (plan.status !== "pending") {
+    return { ok: false, status: 409, error: "Plan is not pending" };
   }
 
   const [updateResult] = await env.DB.batch([
     env.DB.prepare(
-      `UPDATE activate_ri_routes
+      `UPDATE activate_ri_plans
        SET status = 'approved',
            approved_at = ?,
            approved_by = ?,
@@ -423,16 +513,16 @@ export async function approveRoute(
       actorEmail,
       approvalOperationId,
       now,
-      routeId,
+      planId,
       env.ACTIVATE_RI_EVENT_ID,
     ),
     env.DB.prepare(
       `UPDATE activate_ri_stops
        SET status = 'scheduled', updated_at = ?
-       WHERE route_id = ? AND event_id = ? AND status = 'pending-review'
+       WHERE plan_id = ? AND event_id = ? AND status = 'pending-review'
          AND EXISTS (
            SELECT 1
-           FROM activate_ri_routes
+           FROM activate_ri_plans
            WHERE id = ?
              AND event_id = ?
              AND status = 'approved'
@@ -440,42 +530,43 @@ export async function approveRoute(
          )`,
     ).bind(
       now,
-      routeId,
+      planId,
       env.ACTIVATE_RI_EVENT_ID,
-      routeId,
+      planId,
       env.ACTIVATE_RI_EVENT_ID,
       approvalOperationId,
     ),
     activityInsert(env, {
-      routeId,
+      planId,
       actorType: "admin",
       actorEmail,
-      action: "route-approved",
-      summary: "Route approved and published.",
+      action: "plan-approved",
+      summary: "Plan approved and published.",
       details: { approvalOperationId },
     }, now),
   ]);
 
   if (updateResult.meta.changes < 1) {
-    return { ok: false, status: 409, error: "Route is not pending" };
+    return { ok: false, status: 409, error: "Plan is not pending" };
   }
 
   return { ok: true };
 }
 
-type UpdateRouteResult =
+type UpdatePlanResult =
   | { ok: true; highImpactEvents: ActivityEventInput[] }
   | { ok: false; status: 404; error: string };
 
-export async function updateRouteByTokenHash(
+export async function updatePlanByTokenHash(
   env: Env,
-  editTokenHash: string,
-  submission: EditableRouteSubmission,
+  magicTokenHash: string,
+  planId: string,
+  submission: EditablePlanSubmission,
   now = new Date().toISOString(),
-): Promise<UpdateRouteResult> {
-  const existing = await getRouteByTokenHash(env, editTokenHash);
+): Promise<UpdatePlanResult> {
+  const existing = await getPlanByTokenHash(env, magicTokenHash, planId);
   if (!existing) {
-    return { ok: false, status: 404, error: "Route not found" };
+    return { ok: false, status: 404, error: "Plan not found" };
   }
 
   const approved = existing.status === "approved";
@@ -489,7 +580,7 @@ export async function updateRouteByTokenHash(
   const highImpactEvents: ActivityEventInput[] = [];
   const statements: D1PreparedStatement[] = [
     env.DB.prepare(
-      `UPDATE activate_ri_routes
+      `UPDATE activate_ri_plans
        SET submitter_callsign = ?,
            submitter_name = ?,
            submitter_email = ?,
@@ -498,7 +589,14 @@ export async function updateRouteByTokenHash(
            public_notes = ?,
            organizer_notes = ?,
            updated_at = ?
-       WHERE id = ? AND event_id = ? AND edit_token_hash = ?`,
+       WHERE id = ? AND event_id = ?
+         AND EXISTS (
+           SELECT 1
+           FROM activate_ri_activators
+           WHERE id = activate_ri_plans.activator_id
+             AND event_id = ?
+             AND magic_token_hash = ?
+         )`,
     ).bind(
       submission.submitterCallsign,
       submission.submitterName,
@@ -510,16 +608,17 @@ export async function updateRouteByTokenHash(
       now,
       existing.id,
       env.ACTIVATE_RI_EVENT_ID,
-      editTokenHash,
+      env.ACTIVATE_RI_EVENT_ID,
+      magicTokenHash,
     ),
     activityInsert(env, {
-      routeId: existing.id,
+      planId: existing.id,
       actorType: "activator",
       actorEmail: submission.submitterEmail,
-      action: "route-updated",
-      summary: `${submission.submitterCallsign} updated route details.`,
+      action: "plan-updated",
+      summary: `${submission.submitterCallsign} updated plan details.`,
       details: {
-        previous: routeSnapshot(existing),
+        previous: planSnapshot(existing),
         next: {
           submitterCallsign: submission.submitterCallsign,
           submitterName: submission.submitterName,
@@ -530,6 +629,24 @@ export async function updateRouteByTokenHash(
         },
       },
     }, now),
+    env.DB.prepare(
+      `UPDATE activate_ri_activators
+       SET name = ?,
+           phone = ?,
+           club = ?,
+           primary_callsign = ?,
+           updated_at = ?
+       WHERE event_id = ?
+         AND magic_token_hash = ?`,
+    ).bind(
+      submission.submitterName,
+      submission.submitterPhone,
+      submission.club,
+      submission.submitterCallsign,
+      now,
+      env.ACTIVATE_RI_EVENT_ID,
+      magicTokenHash,
+    ),
   ];
 
   for (const stop of submission.stops) {
@@ -550,7 +667,7 @@ export async function updateRouteByTokenHash(
                updated_at = ?,
                cancelled_at = CASE WHEN status = 'cancelled' THEN NULL ELSE cancelled_at END,
                cancel_reason = CASE WHEN status = 'cancelled' THEN '' ELSE cancel_reason END
-           WHERE id = ? AND route_id = ? AND event_id = ?`,
+           WHERE id = ? AND plan_id = ? AND event_id = ?`,
         ).bind(
           stop.parkReference,
           stop.plannedDate,
@@ -568,7 +685,7 @@ export async function updateRouteByTokenHash(
         ),
       );
       statements.push(activityInsert(env, {
-        routeId: existing.id,
+        planId: existing.id,
         stopId: existingStop.id,
         actorType: "activator",
         actorEmail: submission.submitterEmail,
@@ -586,12 +703,12 @@ export async function updateRouteByTokenHash(
           existingStop.planned_date !== stop.plannedDate)
       ) {
         highImpactEvents.push({
-          routeId: existing.id,
+          planId: existing.id,
           stopId: existingStop.id,
           actorType: "activator",
           actorEmail: submission.submitterEmail,
           action: "admin-notification-needed",
-          summary: `${submission.submitterCallsign} changed ${existingStop.park_reference} to ${stop.parkReference} on an approved route.`,
+          summary: `${submission.submitterCallsign} changed ${existingStop.park_reference} to ${stop.parkReference} on an approved plan.`,
           details: {
             previous: stopSnapshot(existingStop),
             next: stop,
@@ -603,7 +720,7 @@ export async function updateRouteByTokenHash(
       statements.push(
         env.DB.prepare(
           `INSERT INTO activate_ri_stops (
-            id, route_id, event_id, park_reference, planned_date, start_time,
+            id, plan_id, event_id, park_reference, planned_date, start_time,
             end_time, bands_json, modes_json, public_notes, organizer_notes,
             status, created_at, updated_at
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -625,7 +742,7 @@ export async function updateRouteByTokenHash(
         ),
       );
       statements.push(activityInsert(env, {
-        routeId: existing.id,
+        planId: existing.id,
         stopId,
         actorType: "activator",
         actorEmail: submission.submitterEmail,
@@ -648,7 +765,7 @@ export async function updateRouteByTokenHash(
              cancelled_at = ?,
              cancel_reason = ?,
              updated_at = ?
-         WHERE id = ? AND route_id = ? AND event_id = ?`,
+         WHERE id = ? AND plan_id = ? AND event_id = ?`,
       ).bind(
         now,
         "Removed by activator.",
@@ -659,7 +776,7 @@ export async function updateRouteByTokenHash(
       ),
     );
     const event = {
-      routeId: existing.id,
+      planId: existing.id,
       stopId: existingStop.id,
       actorType: "activator" as const,
       actorEmail: submission.submitterEmail,
@@ -678,31 +795,32 @@ export async function updateRouteByTokenHash(
   return { ok: true, highImpactEvents };
 }
 
-export async function cancelRouteByTokenHash(
+export async function cancelPlanByTokenHash(
   env: Env,
-  editTokenHash: string,
+  magicTokenHash: string,
+  planId: string,
   cancelReason: string,
   now = new Date().toISOString(),
 ): Promise<
-  | { ok: true; route: EditableRouteDto; highImpactEvents: ActivityEventInput[] }
+  | { ok: true; plan: EditablePlanDto; highImpactEvents: ActivityEventInput[] }
   | { ok: false; status: 404; error: string }
 > {
-  const existing = await getRouteByTokenHash(env, editTokenHash);
+  const existing = await getPlanByTokenHash(env, magicTokenHash, planId);
   if (!existing) {
-    return { ok: false, status: 404, error: "Route not found" };
+    return { ok: false, status: 404, error: "Plan not found" };
   }
 
   const approved = existing.status === "approved";
   const highImpactEvent: ActivityEventInput = {
-    routeId: existing.id,
+    planId: existing.id,
     actorType: "activator",
     actorEmail: existing.submitter_email,
-    action: "route-cancelled",
-    summary: `${existing.submitter_callsign} cancelled the route.`,
+    action: "plan-cancelled",
+    summary: `${existing.submitter_callsign} cancelled the plan.`,
     details: {
       cancelReason,
       previous: {
-        route: routeSnapshot(existing),
+        plan: planSnapshot(existing),
         stops: existing.stops.map(stopSnapshot),
       },
     },
@@ -710,18 +828,31 @@ export async function cancelRouteByTokenHash(
 
   await env.DB.batch([
     env.DB.prepare(
-      `UPDATE activate_ri_routes
+      `UPDATE activate_ri_plans
        SET status = CASE WHEN status = 'approved' THEN status ELSE 'withdrawn' END,
            updated_at = ?
-       WHERE id = ? AND event_id = ? AND edit_token_hash = ?`,
-    ).bind(now, existing.id, env.ACTIVATE_RI_EVENT_ID, editTokenHash),
+       WHERE id = ? AND event_id = ?
+         AND EXISTS (
+           SELECT 1
+           FROM activate_ri_activators
+           WHERE id = activate_ri_plans.activator_id
+             AND event_id = ?
+             AND magic_token_hash = ?
+         )`,
+    ).bind(
+      now,
+      existing.id,
+      env.ACTIVATE_RI_EVENT_ID,
+      env.ACTIVATE_RI_EVENT_ID,
+      magicTokenHash,
+    ),
     env.DB.prepare(
       `UPDATE activate_ri_stops
        SET status = 'cancelled',
            cancelled_at = ?,
            cancel_reason = ?,
            updated_at = ?
-       WHERE route_id = ?
+       WHERE plan_id = ?
          AND event_id = ?
          AND status != 'completed'`,
     ).bind(
@@ -736,47 +867,55 @@ export async function cancelRouteByTokenHash(
 
   return {
     ok: true,
-    route: existing,
+    plan: existing,
     highImpactEvents: approved ? [highImpactEvent] : [],
   };
 }
 
-type EditStopRouteRow = {
+type EditStopPlanRow = {
   status: string;
 };
 
-async function findEditStopRoute(
+async function findEditStopPlan(
   env: Env,
-  editTokenHash: string,
+  magicTokenHash: string,
   stopId: string,
-): Promise<EditStopRouteRow | null> {
+): Promise<EditStopPlanRow | null> {
   return env.DB.prepare(
     `SELECT r.status
      FROM activate_ri_stops s
-     INNER JOIN activate_ri_routes r ON r.id = s.route_id
+     INNER JOIN activate_ri_plans r ON r.id = s.plan_id
+     INNER JOIN activate_ri_activators a ON a.id = r.activator_id
      WHERE s.id = ?
        AND s.event_id = ?
        AND r.event_id = ?
-       AND r.edit_token_hash = ?`,
+       AND a.event_id = ?
+       AND a.magic_token_hash = ?`,
   )
-    .bind(stopId, env.ACTIVATE_RI_EVENT_ID, env.ACTIVATE_RI_EVENT_ID, editTokenHash)
-    .first<EditStopRouteRow>();
+    .bind(
+      stopId,
+      env.ACTIVATE_RI_EVENT_ID,
+      env.ACTIVATE_RI_EVENT_ID,
+      env.ACTIVATE_RI_EVENT_ID,
+      magicTokenHash,
+    )
+    .first<EditStopPlanRow>();
 }
 
 export async function updateStopByToken(
   env: Env,
-  editTokenHash: string,
+  magicTokenHash: string,
   stopId: string,
   fields: EditStopFields,
   now = new Date().toISOString(),
 ): Promise<EditStopResult> {
-  const route = await findEditStopRoute(env, editTokenHash, stopId);
-  if (!route) {
+  const plan = await findEditStopPlan(env, magicTokenHash, stopId);
+  if (!plan) {
     return { ok: false, status: 404, error: "Stop not found" };
   }
 
-  if (route.status !== "approved") {
-    return { ok: false, status: 409, error: "Route is not approved" };
+  if (plan.status !== "approved") {
+    return { ok: false, status: 409, error: "Plan is not approved" };
   }
 
   const result = await env.DB.prepare(
@@ -789,11 +928,17 @@ export async function updateStopByToken(
          updated_at = ?
      WHERE id = ?
        AND event_id = ?
-       AND route_id IN (
+       AND plan_id IN (
          SELECT id
-         FROM activate_ri_routes
+         FROM activate_ri_plans
          WHERE event_id = ?
-           AND edit_token_hash = ?
+           AND EXISTS (
+             SELECT 1
+             FROM activate_ri_activators
+             WHERE id = activate_ri_plans.activator_id
+               AND event_id = ?
+               AND magic_token_hash = ?
+           )
            AND status = 'approved'
        )`,
   )
@@ -807,7 +952,8 @@ export async function updateStopByToken(
       stopId,
       env.ACTIVATE_RI_EVENT_ID,
       env.ACTIVATE_RI_EVENT_ID,
-      editTokenHash,
+      env.ACTIVATE_RI_EVENT_ID,
+      magicTokenHash,
     )
     .run();
 
@@ -820,18 +966,18 @@ export async function updateStopByToken(
 
 export async function cancelStopByToken(
   env: Env,
-  editTokenHash: string,
+  magicTokenHash: string,
   stopId: string,
   cancelReason: string,
   now = new Date().toISOString(),
 ): Promise<EditStopResult> {
-  const route = await findEditStopRoute(env, editTokenHash, stopId);
-  if (!route) {
+  const plan = await findEditStopPlan(env, magicTokenHash, stopId);
+  if (!plan) {
     return { ok: false, status: 404, error: "Stop not found" };
   }
 
-  if (route.status !== "approved") {
-    return { ok: false, status: 409, error: "Route is not approved" };
+  if (plan.status !== "approved") {
+    return { ok: false, status: 409, error: "Plan is not approved" };
   }
 
   const result = await env.DB.prepare(
@@ -842,11 +988,17 @@ export async function cancelStopByToken(
          updated_at = ?
      WHERE id = ?
        AND event_id = ?
-       AND route_id IN (
+       AND plan_id IN (
          SELECT id
-         FROM activate_ri_routes
+         FROM activate_ri_plans
          WHERE event_id = ?
-           AND edit_token_hash = ?
+           AND EXISTS (
+             SELECT 1
+             FROM activate_ri_activators
+             WHERE id = activate_ri_plans.activator_id
+               AND event_id = ?
+               AND magic_token_hash = ?
+           )
            AND status = 'approved'
        )`,
   )
@@ -857,7 +1009,8 @@ export async function cancelStopByToken(
       stopId,
       env.ACTIVATE_RI_EVENT_ID,
       env.ACTIVATE_RI_EVENT_ID,
-      editTokenHash,
+      env.ACTIVATE_RI_EVENT_ID,
+      magicTokenHash,
     )
     .run();
 
@@ -870,7 +1023,8 @@ export async function cancelStopByToken(
 
 export async function markEditLinkEmailEvent(
   env: Env,
-  routeId: string,
+  planId: string | undefined,
+  activatorId: string,
   actorEmail: string,
   action: "edit-link-sent" | "edit-link-send-failed" | "edit-link-resent",
   summary: string,
@@ -879,7 +1033,7 @@ export async function markEditLinkEmailEvent(
 ): Promise<void> {
   const statements = [
     activityInsert(env, {
-      routeId,
+      planId,
       actorType: "system",
       actorEmail,
       action,
@@ -888,24 +1042,43 @@ export async function markEditLinkEmailEvent(
     }, now),
   ];
 
-  if (action === "edit-link-sent") {
+  if (action === "edit-link-sent" && planId) {
     statements.push(
       env.DB.prepare(
-        `UPDATE activate_ri_routes
+        `UPDATE activate_ri_plans
          SET edit_link_sent_at = COALESCE(edit_link_sent_at, ?),
              last_edit_link_sent_at = ?,
              updated_at = ?
          WHERE id = ? AND event_id = ?`,
-      ).bind(now, now, now, routeId, env.ACTIVATE_RI_EVENT_ID),
+      ).bind(now, now, now, planId, env.ACTIVATE_RI_EVENT_ID),
     );
-  } else if (action === "edit-link-resent") {
     statements.push(
       env.DB.prepare(
-        `UPDATE activate_ri_routes
+        `UPDATE activate_ri_activators
+         SET magic_link_sent_at = COALESCE(magic_link_sent_at, ?),
+             last_magic_link_sent_at = ?,
+             updated_at = ?
+         WHERE id = ? AND event_id = ?`,
+      ).bind(now, now, now, activatorId, env.ACTIVATE_RI_EVENT_ID),
+    );
+  } else if (action === "edit-link-resent") {
+    if (planId) {
+    statements.push(
+      env.DB.prepare(
+        `UPDATE activate_ri_plans
          SET last_edit_link_sent_at = ?,
              updated_at = ?
          WHERE id = ? AND event_id = ?`,
-      ).bind(now, now, routeId, env.ACTIVATE_RI_EVENT_ID),
+      ).bind(now, now, planId, env.ACTIVATE_RI_EVENT_ID),
+    );
+    }
+    statements.push(
+      env.DB.prepare(
+        `UPDATE activate_ri_activators
+         SET last_magic_link_sent_at = ?,
+             updated_at = ?
+         WHERE id = ? AND event_id = ?`,
+      ).bind(now, now, activatorId, env.ACTIVATE_RI_EVENT_ID),
     );
   }
 
@@ -927,12 +1100,12 @@ function activityInsert(
 ): D1PreparedStatement {
   return env.DB.prepare(
     `INSERT INTO activate_ri_activity_events
-     (id, event_id, route_id, stop_id, actor_type, actor_email, action, summary, details_json, created_at)
+     (id, event_id, plan_id, stop_id, actor_type, actor_email, action, summary, details_json, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).bind(
     crypto.randomUUID(),
     env.ACTIVATE_RI_EVENT_ID,
-    event.routeId ?? null,
+    event.planId ?? null,
     event.stopId ?? null,
     event.actorType,
     event.actorEmail ?? "",
@@ -946,7 +1119,7 @@ function activityInsert(
 type ActivityEventRow = {
   id: string;
   event_id: string;
-  route_id: string | null;
+  plan_id: string | null;
   stop_id: string | null;
   actor_type: ActivityActorType;
   actor_email: string;
@@ -960,7 +1133,7 @@ function toActivityEventDto(row: ActivityEventRow): ActivityEventDto {
   return {
     id: row.id,
     event_id: row.event_id,
-    route_id: row.route_id,
+    plan_id: row.plan_id,
     stop_id: row.stop_id,
     actor_type: row.actor_type,
     actor_email: row.actor_email,
@@ -979,14 +1152,18 @@ function parseJson(value: string): unknown {
   }
 }
 
-function routeSnapshot(route: EditableRouteDto): Record<string, string> {
+function activatorIdForEmail(eventId: string, email: string): string {
+  return `${eventId}:${email}`;
+}
+
+function planSnapshot(plan: EditablePlanDto): Record<string, string> {
   return {
-    submitterCallsign: route.submitter_callsign,
-    submitterName: route.submitter_name,
-    submitterEmail: route.submitter_email,
-    club: route.club,
-    publicNotes: route.public_notes,
-    organizerNotes: route.organizer_notes,
+    submitterCallsign: plan.submitter_callsign,
+    submitterName: plan.submitter_name,
+    submitterEmail: plan.submitter_email,
+    club: plan.club,
+    publicNotes: plan.public_notes,
+    organizerNotes: plan.organizer_notes,
   };
 }
 
@@ -1005,7 +1182,7 @@ function stopSnapshot(stop: PendingStopDto): Record<string, unknown> {
   };
 }
 
-const routeSelectSql = `SELECT
+const planSelectSql = `SELECT
        id,
        event_id,
        submitter_callsign,

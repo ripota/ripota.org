@@ -1,4 +1,4 @@
-import type { ActivityEventInput, EditableRouteDto } from "./db";
+import type { ActivityEventInput, EditablePlanDto } from "./db";
 import type { Env } from "./env";
 
 type SendEmailResult =
@@ -7,7 +7,7 @@ type SendEmailResult =
 
 export async function sendActivatorEditLinkEmail(
   env: Env,
-  route: {
+  plan: {
     submitter_callsign: string;
     submitter_name: string;
     submitter_email: string;
@@ -15,13 +15,13 @@ export async function sendActivatorEditLinkEmail(
   editUrl: string,
 ): Promise<SendEmailResult> {
   return sendEmail(env, {
-    to: route.submitter_email,
+    to: plan.submitter_email,
     subject: "Your Activate All RI 2026 edit link",
     text: [
-      `Hi ${route.submitter_name || route.submitter_callsign},`,
+      `Hi ${plan.submitter_name || plan.submitter_callsign},`,
       "",
       "We received your Activate All RI 2026 activation signup.",
-      "Use this private link to review or update your route:",
+      "Use this private link to review or update your plan:",
       editUrl,
       "",
       "This link works before and after organizer approval. Please keep it private.",
@@ -30,9 +30,9 @@ export async function sendActivatorEditLinkEmail(
       "RI POTA",
     ].join("\n"),
     html: [
-      `<p>Hi ${escapeHtml(route.submitter_name || route.submitter_callsign)},</p>`,
+      `<p>Hi ${escapeHtml(plan.submitter_name || plan.submitter_callsign)},</p>`,
       "<p>We received your Activate All RI 2026 activation signup.</p>",
-      `<p><a href="${escapeHtml(editUrl)}">Review or update your route</a></p>`,
+      `<p><a href="${escapeHtml(editUrl)}">Review or update your plan</a></p>`,
       `<p>If the button does not work, copy this link:<br><span>${escapeHtml(editUrl)}</span></p>`,
       "<p>This link works before and after organizer approval. Please keep it private.</p>",
       "<p>73,<br>RI POTA</p>",
@@ -42,7 +42,7 @@ export async function sendActivatorEditLinkEmail(
 
 export async function sendAdminActivityEmail(
   env: Env,
-  route: EditableRouteDto,
+  plan: EditablePlanDto,
   events: ActivityEventInput[],
 ): Promise<SendEmailResult> {
   const recipients = adminEmails(env);
@@ -50,15 +50,15 @@ export async function sendAdminActivityEmail(
     return { ok: true };
   }
 
-  const subject = `Activate RI update: ${route.submitter_callsign}`;
+  const subject = `Activate RI update: ${plan.submitter_callsign}`;
   const text = [
-    `${route.submitter_callsign} made a high-impact update to an approved Activate All RI 2026 route.`,
+    `${plan.submitter_callsign} made a high-impact update to an approved Activate All RI 2026 plan.`,
     "",
     ...events.flatMap((event) => [`- ${event.summary}`, ""]),
-    `Admin route: https://ripota.org/activate-ri-2026/admin/`,
+    `Admin plan: https://ripota.org/activate-ri-2026/admin/`,
   ].join("\n");
   const html = [
-    `<p><strong>${escapeHtml(route.submitter_callsign)}</strong> made a high-impact update to an approved Activate All RI 2026 route.</p>`,
+    `<p><strong>${escapeHtml(plan.submitter_callsign)}</strong> made a high-impact update to an approved Activate All RI 2026 plan.</p>`,
     "<ul>",
     ...events.map((event) => `<li>${escapeHtml(event.summary)}</li>`),
     "</ul>",

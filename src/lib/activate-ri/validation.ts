@@ -120,6 +120,24 @@ export function validateRouteSubmission(
   };
 }
 
+export function validatePlanSubmission(
+  input: unknown,
+): ValidationResult<NormalizedRouteSubmission> {
+  const result = validateRouteSubmission(input);
+  if (result.ok) {
+    return result;
+  }
+
+  return {
+    ok: false,
+    errors: result.errors.map((error) =>
+      error === "Enter a valid route submission."
+        ? "Enter a valid plan submission."
+        : error,
+    ),
+  };
+}
+
 function normalizeStop(
   stop: unknown,
   index: number,

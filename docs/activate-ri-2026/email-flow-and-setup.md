@@ -8,53 +8,56 @@ setup required in Cloudflare.
 ### Initial signup
 
 1. The activator submits `/activate-ri-2026/volunteer/`.
-2. `POST /api/activate-ri-2026/routes` validates the submission and Turnstile.
+2. `POST /api/activate-ri-2026/plans` validates the submission and Turnstile.
 3. The Worker generates a random edit token.
-4. Only the SHA-256 token hash is stored in `activate_ri_routes.edit_token_hash`.
-5. The route is stored as `pending`.
-6. A `route-created` activity event is written.
-7. The Worker sends the activator an email containing:
+4. The activator row is upserted by normalized email.
+5. Only the SHA-256 token hash is stored in
+   `activate_ri_activators.magic_token_hash`.
+6. The plan is stored as `pending` under that activator.
+7. A `plan-created` activity event is written.
+8. The Worker sends the activator an email containing:
    - the private edit URL
    - a note that the link works before and after organizer approval
-8. Email success or failure is written as `edit-link-sent` or
+9. Email success or failure is written as `edit-link-sent` or
    `edit-link-send-failed`.
 
-The route submission still succeeds if email delivery fails. The failure is
+The plan submission still succeeds if email delivery fails. The failure is
 visible in the admin activity log.
 
 ### Admin approval
 
-1. Admin reviews pending routes at `/activate-ri-2026/admin/`.
-2. Approval changes the route to `approved`.
+1. Admin reviews pending plans at `/activate-ri-2026/admin/`.
+2. Approval changes the plan to `approved`.
 3. Pending stops are changed to `scheduled`.
-4. A `route-approved` activity event is written.
+4. A `plan-approved` activity event is written.
 5. Approval does not generate or reveal the edit link. The activator already
    received it during signup, or can request a resend.
 
 ### Activator edits
 
 1. The activator opens `/activate-ri-2026/edit/<token>/`.
-2. The browser loads route details from
-   `GET /api/activate-ri-2026/edit/<token>/route`.
-3. Saving submits the whole route to
-   `PATCH /api/activate-ri-2026/edit/<token>/route`.
-4. Pending routes update immediately but are still not public.
-5. Approved routes update immediately and the live public schedule/coverage API
+2. The browser loads all plans for that activator from
+   `GET /api/activate-ri-2026/edit/<token>/plans`.
+3. Saving submits the selected plan to
+   `PATCH /api/activate-ri-2026/edit/<token>/plans/<plan-id>`.
+4. Pending plans update immediately but are still not public.
+5. Approved plans update immediately and the live public schedule/coverage API
    reflects the new D1 data.
 6. Every meaningful edit writes activity events.
-7. High-impact approved-route changes trigger an admin notification attempt.
+7. High-impact approved-plan changes trigger an admin notification attempt.
 
 High-impact events currently include approved stop removals, approved park/date
-changes, and full route cancellation.
+changes, and full plan cancellation.
 
 ### Forgot-link resend
 
 1. The activator enters callsign and email on the volunteer page.
-2. `POST /api/activate-ri-2026/resend-edit-link` looks for a matching route.
+2. `POST /api/activate-ri-2026/resend-edit-link` looks for a matching
+   activator by callsign and normalized email.
 3. The response is always privacy-safe:
    `If we found a matching signup, we sent the private edit link.`
-4. If a match exists, the Worker rotates the edit token, stores the new hash,
-   sends a fresh link, and logs the resend event.
+4. If a match exists, the Worker rotates the activator magic token, stores the
+   new hash, sends a fresh link, and logs the resend event.
 
 ## Cloudflare Email Service Setup
 
@@ -208,12 +211,12 @@ npx wrangler d1 migrations list ripota-org --remote
 
 Recommended smoke test:
 
-1. Submit a test route from `/activate-ri-2026/volunteer/`.
+1. Submit a test plan from `/activate-ri-2026/volunteer/`.
 2. Confirm the activator email arrives.
 3. Open the private edit link.
 4. Save a small edit.
-5. Approve the route in `/activate-ri-2026/admin/`.
-6. Make a high-impact edit, such as changing the park or cancelling the route.
+5. Approve the plan in `/activate-ri-2026/admin/`.
+6. Make a high-impact edit, such as changing the park or cancelling the plan.
 7. Confirm admin notification email arrives.
 8. Open the admin activity log and verify the email and edit events are listed.
 

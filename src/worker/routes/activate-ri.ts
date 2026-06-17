@@ -1,25 +1,26 @@
 import {
   normalizeBandList,
   normalizeModeList,
-  validateRouteSubmission,
+  validatePlanSubmission,
 } from "../../lib/activate-ri/validation";
-import { routeRowsToPublicStops } from "../../lib/activate-ri/public-export";
+import { planRowsToPublicStops } from "../../lib/activate-ri/public-export";
 import { requireAccessIdentity } from "../access";
 import {
-  approveRoute,
-  cancelRouteByTokenHash,
+  approvePlan,
+  cancelPlanByTokenHash,
   cancelStopByToken,
-  findRouteForEditLinkResend,
-  getRouteByTokenHash,
-  insertPendingRoute,
+  findActivatorForEditLinkResend,
+  getPlanByTokenHash,
+  getPlansByTokenHash,
+  insertPendingPlan,
   listActivityEvents,
-  listPendingRoutes,
+  listPendingPlans,
   listPublicStopRows,
   logActivityEvent,
   markEditLinkEmailEvent,
-  updateRouteByTokenHash,
+  updatePlanByTokenHash,
   updateStopByToken,
-  type EditableRouteSubmission,
+  type EditablePlanSubmission,
   type EditStopFields,
 } from "../db";
 import { sendActivatorEditLinkEmail, sendAdminActivityEmail } from "../email";
@@ -42,14 +43,14 @@ export async function handleActivateRiApi(
 
   if (
     request.method === "GET" &&
-    url.pathname === "/api/activate-ri-2026/admin/routes"
+    url.pathname === "/api/activate-ri-2026/admin/plans"
   ) {
     const identity = await requireAccessIdentity(request, env);
     if (identity instanceof Response) {
       return identity;
     }
 
-    return json({ ok: true, routes: await listPendingRoutes(env) });
+    return json({ ok: true, plans: await listPendingPlans(env) });
   }
 
   if (
@@ -86,13 +87,13 @@ export async function handleActivateRiApi(
   ) {
     return json({
       ok: true,
-      stops: routeRowsToPublicStops(await listPublicStopRows(env)),
+      stops: planRowsToPublicStops(await listPublicStopRows(env)),
       generatedAt: new Date().toISOString(),
     });
   }
 
   const approveMatch = url.pathname.match(
-    /^\/api\/activate-ri-2026\/admin\/routes\/([^/]+)\/approve$/,
+    /^\/api\/activate-ri-2026\/admin\/plans\/([^/]+)\/approve$/,
   );
   if (request.method === "POST" && approveMatch) {
     const identity = await requireAccessIdentity(request, env);
@@ -100,7 +101,7 @@ export async function handleActivateRiApi(
       return identity;
     }
 
-    const result = await approveRoute(env, approveMatch[1], identity.email);
+    const result = await approvePlan(env, approveMatch[1], identity.email);
     if (!result.ok) {
       return json(
         { ok: false, error: result.error },
@@ -111,21 +112,30 @@ export async function handleActivateRiApi(
     return json({ ok: true });
   }
 
-  const editRouteMatch = url.pathname.match(
-    /^\/api\/activate-ri-2026\/edit\/([^/]+)\/route$/,
+  const editPlanMatch = url.pathname.match(
+    /^\/api\/activate-ri-2026\/edit\/([^/]+)\/plans$/,
   );
-  if (request.method === "GET" && editRouteMatch) {
-    return handleEditRouteLookup(env, editRouteMatch[1]);
-  }
-  if (request.method === "PATCH" && editRouteMatch) {
-    return handleEditRouteUpdate(request, env, editRouteMatch[1]);
+  if (request.method === "GET" && editPlanMatch) {
+    return handleEditPlansLookup(env, editPlanMatch[1]);
   }
 
-  const cancelRouteMatch = url.pathname.match(
-    /^\/api\/activate-ri-2026\/edit\/([^/]+)\/route\/cancel$/,
+  const editPlanByIdMatch = url.pathname.match(
+    /^\/api\/activate-ri-2026\/edit\/([^/]+)\/plans\/([^/]+)$/,
   );
-  if (request.method === "POST" && cancelRouteMatch) {
-    return handleCancelRoute(request, env, cancelRouteMatch[1]);
+  if (request.method === "PATCH" && editPlanByIdMatch) {
+    return handleEditPlanUpdate(
+      request,
+      env,
+      editPlanByIdMatch[1],
+      editPlanByIdMatch[2],
+    );
+  }
+
+  const cancelPlanMatch = url.pathname.match(
+    /^\/api\/activate-ri-2026\/edit\/([^/]+)\/plans\/([^/]+)\/cancel$/,
+  );
+  if (request.method === "POST" && cancelPlanMatch) {
+    return handleCancelPlan(request, env, cancelPlanMatch[1], cancelPlanMatch[2]);
   }
 
   const editStopMatch = url.pathname.match(
@@ -149,9 +159,9 @@ export async function handleActivateRiApi(
 
   if (
     request.method === "POST" &&
-    url.pathname === "/api/activate-ri-2026/routes"
+    url.pathname === "/api/activate-ri-2026/plans"
   ) {
-    return handleRouteSubmission(request, env);
+    return handlePlanSubmission(request, env);
   }
 
   if (
@@ -246,7 +256,7 @@ async function handleCancelStop(
   return json({ ok: true });
 }
 
-async function handleRouteSubmission(
+async function handlePlanSubmission(
   request: Request,
   env: Env,
 ): Promise<Response> {
@@ -268,7 +278,7 @@ async function handleRouteSubmission(
     );
   }
 
-  const validation = validateRouteSubmission(payload);
+  const validation = validatePlanSubmission(payload);
   if (!validation.ok) {
     return json({ ok: false, errors: validation.errors }, { status: 400 });
   }
@@ -282,7 +292,7 @@ async function handleRouteSubmission(
     );
   }
 
-  const result = await insertPendingRoute(env, validation.value);
+  const result = await insertPendingPlan(env, validation.value);
   const editUrl = absoluteEditUrl(request, result.editToken);
   const emailResult = await sendActivatorEditLinkEmail(
     env,
@@ -296,7 +306,8 @@ async function handleRouteSubmission(
   if (emailResult.ok) {
     await markEditLinkEmailEvent(
       env,
-      result.routeId,
+      result.planId,
+      result.activatorId,
       validation.value.submitterEmail,
       "edit-link-sent",
       `Private edit link sent to ${validation.value.submitterEmail}.`,
@@ -304,7 +315,8 @@ async function handleRouteSubmission(
   } else {
     await markEditLinkEmailEvent(
       env,
-      result.routeId,
+      result.planId,
+      result.activatorId,
       validation.value.submitterEmail,
       "edit-link-send-failed",
       `Private edit link email failed for ${validation.value.submitterEmail}.`,
@@ -321,31 +333,33 @@ async function handleRouteSubmission(
   );
 }
 
-async function handleEditRouteLookup(
+async function handleEditPlansLookup(
   env: Env,
   encodedToken: string,
 ): Promise<Response> {
   const token = decodePathSegment(encodedToken);
   if (!token) {
-    return json({ ok: false, error: "Route not found" }, { status: 404 });
+    return json({ ok: false, error: "Plans not found" }, { status: 404 });
   }
 
-  const route = await getRouteByTokenHash(env, await tokenHash(token));
-  if (!route) {
-    return json({ ok: false, error: "Route not found" }, { status: 404 });
+  const data = await getPlansByTokenHash(env, await tokenHash(token));
+  if (!data) {
+    return json({ ok: false, error: "Plans not found" }, { status: 404 });
   }
 
-  return json({ ok: true, route });
+  return json({ ok: true, activator: data.activator, plans: data.plans });
 }
 
-async function handleEditRouteUpdate(
+async function handleEditPlanUpdate(
   request: Request,
   env: Env,
   encodedToken: string,
+  encodedPlanId: string,
 ): Promise<Response> {
   const token = decodePathSegment(encodedToken);
-  if (!token) {
-    return json({ ok: false, error: "Route not found" }, { status: 404 });
+  const planId = decodePathSegment(encodedPlanId);
+  if (!token || !planId) {
+    return json({ ok: false, error: "Plan not found" }, { status: 404 });
   }
 
   const payloadResult = await readRequiredPayload(request);
@@ -356,15 +370,16 @@ async function handleEditRouteUpdate(
     );
   }
 
-  const validation = validateEditableRoutePayload(payloadResult.value);
+  const validation = validateEditablePlanPayload(payloadResult.value);
   if (!validation.ok) {
     return json({ ok: false, errors: validation.errors }, { status: 400 });
   }
 
   const editTokenHash = await tokenHash(token);
-  const updateResult = await updateRouteByTokenHash(
+  const updateResult = await updatePlanByTokenHash(
     env,
     editTokenHash,
+    planId,
     validation.value,
   );
   if (!updateResult.ok) {
@@ -375,15 +390,15 @@ async function handleEditRouteUpdate(
   }
 
   if (updateResult.highImpactEvents.length > 0) {
-    const route = await getRouteByTokenHash(env, editTokenHash);
-    if (route) {
+    const plan = await getPlanByTokenHash(env, editTokenHash, planId);
+    if (plan) {
       const emailResult = await sendAdminActivityEmail(
         env,
-        route,
+        plan,
         updateResult.highImpactEvents,
       );
       await logActivityEvent(env, {
-        routeId: route.id,
+        planId: plan.id,
         actorType: "system",
         action: emailResult.ok
           ? "admin-notification-sent"
@@ -416,7 +431,7 @@ async function handleResendEditLink(
     return json({ ok: false, errors: validation.errors }, { status: 400 });
   }
 
-  const match = await findRouteForEditLinkResend(
+  const match = await findActivatorForEditLinkResend(
     env,
     validation.callsign,
     validation.email,
@@ -427,12 +442,17 @@ async function handleResendEditLink(
 
   const emailResult = await sendActivatorEditLinkEmail(
     env,
-    match.route,
+    match.plan ?? {
+      submitter_callsign: match.activator.primary_callsign,
+      submitter_name: match.activator.name,
+      submitter_email: match.activator.email_normalized,
+    },
     absoluteEditUrl(request, match.editToken),
   );
   await markEditLinkEmailEvent(
     env,
-    match.route.id,
+    match.plan?.id,
+    match.activator.id,
     validation.email,
     emailResult.ok ? "edit-link-resent" : "edit-link-send-failed",
     emailResult.ok
@@ -444,14 +464,16 @@ async function handleResendEditLink(
   return json({ ok: true, message: resendLinkMessage });
 }
 
-async function handleCancelRoute(
+async function handleCancelPlan(
   request: Request,
   env: Env,
   encodedToken: string,
+  encodedPlanId: string,
 ): Promise<Response> {
   const token = decodePathSegment(encodedToken);
-  if (!token) {
-    return json({ ok: false, error: "Route not found" }, { status: 404 });
+  const planId = decodePathSegment(encodedPlanId);
+  if (!token || !planId) {
+    return json({ ok: false, error: "Plan not found" }, { status: 404 });
   }
 
   const payloadResult = await readOptionalPayload(request);
@@ -467,9 +489,10 @@ async function handleCancelRoute(
     return json({ ok: false, errors: validation.errors }, { status: 400 });
   }
 
-  const result = await cancelRouteByTokenHash(
+  const result = await cancelPlanByTokenHash(
     env,
     await tokenHash(token),
+    planId,
     validation.cancelReason,
   );
   if (!result.ok) {
@@ -482,18 +505,18 @@ async function handleCancelRoute(
   if (result.highImpactEvents.length > 0) {
     const emailResult = await sendAdminActivityEmail(
       env,
-      result.route,
+      result.plan,
       result.highImpactEvents,
     );
     await logActivityEvent(env, {
-      routeId: result.route.id,
+      planId: result.plan.id,
       actorType: "system",
       action: emailResult.ok
         ? "admin-notification-sent"
         : "admin-notification-failed",
       summary: emailResult.ok
-        ? "Admin notification sent for route cancellation."
-        : "Admin notification failed for route cancellation.",
+        ? "Admin notification sent for plan cancellation."
+        : "Admin notification failed for plan cancellation.",
       details: emailResult.ok ? {} : { error: emailResult.error },
     });
   }
@@ -517,8 +540,8 @@ type CancelStopValidation =
   | { ok: true; cancelReason: string }
   | { ok: false; errors: string[] };
 
-type EditableRouteValidation =
-  | { ok: true; value: EditableRouteSubmission }
+type EditablePlanValidation =
+  | { ok: true; value: EditablePlanSubmission }
   | { ok: false; errors: string[] };
 
 type ResendValidation =
@@ -622,22 +645,23 @@ function validateCancelStopPayload(payload: unknown): CancelStopValidation {
   return { ok: true, cancelReason: value };
 }
 
-function validateEditableRoutePayload(payload: unknown): EditableRouteValidation {
-  const validation = validateRouteSubmission(payload);
+function validateEditablePlanPayload(payload: unknown): EditablePlanValidation {
+  const validation = validatePlanSubmission(payload);
   if (!validation.ok) {
     return validation;
   }
 
   if (!isObject(payload) || !Array.isArray(payload.stops)) {
-    return { ok: false, errors: ["Enter a valid route submission."] };
+    return { ok: false, errors: ["Enter a valid plan submission."] };
   }
+  const payloadStops = payload.stops;
 
   return {
     ok: true,
     value: {
       ...validation.value,
       stops: validation.value.stops.map((stop, index) => {
-        const inputStop = payload.stops[index];
+        const inputStop = payloadStops[index];
         const id =
           isObject(inputStop) && typeof inputStop.id === "string"
             ? inputStop.id.trim()

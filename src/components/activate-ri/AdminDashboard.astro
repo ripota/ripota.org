@@ -7,7 +7,7 @@
         This admin queue is protected by Cloudflare Access in production.
       </p>
     </div>
-    <button class="button" data-variant="primary" type="button" data-load-routes>
+    <button class="button" data-variant="primary" type="button" data-load-plans>
       Load pending submissions
     </button>
   </div>
@@ -28,7 +28,7 @@
       </button>
     </div>
     <p class="admin-status" data-activity-status aria-live="polite">
-      Load activity to review recent route events.
+      Load activity to review recent plan events.
     </p>
     <div class="admin-list" data-activity-list></div>
   </section>
@@ -46,7 +46,7 @@
     organizer_notes?: unknown;
   };
 
-  type PendingRoute = {
+  type PendingPlan = {
     id?: unknown;
     submitter_callsign?: unknown;
     submitter_name?: unknown;
@@ -60,7 +60,7 @@
 
   type AdminResponse = {
     ok?: boolean;
-    routes?: PendingRoute[];
+    plans?: PendingPlan[];
     events?: ActivityEvent[];
     error?: string;
     message?: string;
@@ -72,13 +72,13 @@
     actor_email?: unknown;
     actor_type?: unknown;
     created_at?: unknown;
-    route_id?: unknown;
+    plan_id?: unknown;
     stop_id?: unknown;
     summary?: unknown;
   };
 
   const dashboard = document.querySelector("[data-admin-dashboard]");
-  const loadButton = dashboard?.querySelector<HTMLButtonElement>("[data-load-routes]");
+  const loadButton = dashboard?.querySelector<HTMLButtonElement>("[data-load-plans]");
   const activityButton = dashboard?.querySelector<HTMLButtonElement>("[data-load-activity]");
   const status = dashboard?.querySelector("[data-admin-status]");
   const activityStatus = dashboard?.querySelector("[data-activity-status]");
@@ -86,13 +86,13 @@
   const activityList = dashboard?.querySelector("[data-activity-list]");
 
   loadButton?.addEventListener("click", () => {
-    void loadPendingRoutes();
+    void loadPendingPlans();
   });
   activityButton?.addEventListener("click", () => {
     void loadActivity();
   });
 
-  async function loadPendingRoutes() {
+  async function loadPendingPlans() {
     if (!loadButton || !status || !list) {
       return;
     }
@@ -102,7 +102,7 @@
     list.replaceChildren();
 
     try {
-      const response = await fetch("/api/activate-ri-2026/admin/routes", {
+      const response = await fetch("/api/activate-ri-2026/admin/plans", {
         headers: { accept: "application/json" },
       });
       const data = await parseResponse(response);
@@ -112,7 +112,7 @@
         return;
       }
 
-      renderRoutes(Array.isArray(data.routes) ? data.routes : []);
+      renderPlans(Array.isArray(data.plans) ? data.plans : []);
     } catch {
       status.replaceChildren("Unable to load pending submissions. Please try again later.");
     } finally {
@@ -120,24 +120,24 @@
     }
   }
 
-  function renderRoutes(routes: PendingRoute[]) {
+  function renderPlans(plans: PendingPlan[]) {
     if (!status || !list) {
       return;
     }
 
     list.replaceChildren();
 
-    if (routes.length === 0) {
+    if (plans.length === 0) {
       status.replaceChildren("No pending submissions.");
       return;
     }
 
-    status.replaceChildren(`${routes.length} pending submission${routes.length === 1 ? "" : "s"}.`);
-    list.replaceChildren(...routes.map((route) => createRouteCard(route)));
+    status.replaceChildren(`${plans.length} pending submission${plans.length === 1 ? "" : "s"}.`);
+    list.replaceChildren(...plans.map((plan) => createPlanCard(plan)));
   }
 
-  function createRouteCard(route: PendingRoute) {
-    const routeId = stringValue(route.id);
+  function createPlanCard(plan: PendingPlan) {
+    const planId = stringValue(plan.id);
     const article = document.createElement("article");
     article.className = "admin-card";
 
@@ -145,20 +145,20 @@
     body.className = "admin-card__body";
 
     const title = document.createElement("h3");
-    title.textContent = stringValue(route.submitter_callsign) || "Unknown callsign";
+    title.textContent = stringValue(plan.submitter_callsign) || "Unknown callsign";
 
     const meta = document.createElement("dl");
     meta.className = "admin-meta";
-    addMeta(meta, "Name", stringValue(route.submitter_name) || "Not provided");
-    addMeta(meta, "Email", stringValue(route.submitter_email) || "Not provided");
-    addMeta(meta, "Phone", stringValue(route.submitter_phone) || "Not provided");
-    addMeta(meta, "Club", stringValue(route.club) || "Not provided");
-    addMeta(meta, "Public notes", stringValue(route.public_notes) || "None");
-    addMeta(meta, "Organizer notes", stringValue(route.organizer_notes) || "None");
+    addMeta(meta, "Name", stringValue(plan.submitter_name) || "Not provided");
+    addMeta(meta, "Email", stringValue(plan.submitter_email) || "Not provided");
+    addMeta(meta, "Phone", stringValue(plan.submitter_phone) || "Not provided");
+    addMeta(meta, "Club", stringValue(plan.club) || "Not provided");
+    addMeta(meta, "Public notes", stringValue(plan.public_notes) || "None");
+    addMeta(meta, "Organizer notes", stringValue(plan.organizer_notes) || "None");
 
     body.appendChild(title);
     body.appendChild(meta);
-    body.appendChild(createStopsSection(stopValues(route.stops)));
+    body.appendChild(createStopsSection(stopValues(plan.stops)));
 
     const actions = document.createElement("div");
     actions.className = "admin-card__actions";
@@ -168,10 +168,10 @@
     button.dataset.variant = "primary";
     button.type = "button";
     button.textContent = "Approve";
-    button.setAttribute("aria-label", approvalLabel(route));
-    button.disabled = routeId.length === 0;
+    button.setAttribute("aria-label", approvalLabel(plan));
+    button.disabled = planId.length === 0;
     button.addEventListener("click", () => {
-      void approveRoute(routeId, article, button);
+      void approvePlan(planId, article, button);
     });
 
     actions.appendChild(button);
@@ -261,16 +261,16 @@
     return start || end || "Not provided";
   }
 
-  function approvalLabel(route: PendingRoute): string {
-    const callsign = stringValue(route.submitter_callsign);
-    const name = stringValue(route.submitter_name);
+  function approvalLabel(plan: PendingPlan): string {
+    const callsign = stringValue(plan.submitter_callsign);
+    const name = stringValue(plan.submitter_name);
     const submitter = [callsign, name].filter(Boolean).join(" - ");
 
     return submitter ? `Approve ${submitter}` : "Approve submission";
   }
 
-  async function approveRoute(routeId: string, card: HTMLElement, button: HTMLButtonElement) {
-    if (!status || !list || routeId.length === 0) {
+  async function approvePlan(planId: string, card: HTMLElement, button: HTMLButtonElement) {
+    if (!status || !list || planId.length === 0) {
       return;
     }
 
@@ -278,7 +278,7 @@
     status.replaceChildren("Approving submission...");
 
     try {
-      const response = await fetch(`/api/activate-ri-2026/admin/routes/${encodeURIComponent(routeId)}/approve`, {
+      const response = await fetch(`/api/activate-ri-2026/admin/plans/${encodeURIComponent(planId)}/approve`, {
         method: "POST",
         headers: { accept: "application/json" },
       });
@@ -376,7 +376,7 @@
     meta.className = "admin-meta admin-meta--compact";
     addMeta(meta, "Time", formatEventTime(stringValue(event.created_at)));
     addMeta(meta, "Actor", [stringValue(event.actor_type), stringValue(event.actor_email)].filter(Boolean).join(" - ") || "system");
-    addMeta(meta, "Route", stringValue(event.route_id) || "Not provided");
+    addMeta(meta, "Plan", stringValue(event.plan_id) || "Not provided");
     addMeta(meta, "Stop", stringValue(event.stop_id) || "Not provided");
 
     body.appendChild(title);
