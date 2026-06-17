@@ -12,6 +12,29 @@ const eventDatePattern = /^2026-09-(10|11|12|13)$/;
 const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
 const callsignPattern = /^(?:[KNW][0-9][A-Z]{1,3}|[KNW][A-Z][0-9][A-Z]{1,3}|A[A-L][0-9][A-Z]{1,3})$/;
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const activateRiBandOptions = [
+  "160m",
+  "80m",
+  "60m",
+  "40m",
+  "30m",
+  "20m",
+  "17m",
+  "15m",
+  "12m",
+  "10m",
+  "6m",
+  "2m",
+  "70cm",
+] as const;
+export const activateRiModeOptions = ["SSB", "CW", "Digital"] as const;
+
+const bandByNormalizedValue = new Map(
+  activateRiBandOptions.map((band) => [band.toLowerCase(), band]),
+);
+const modeByNormalizedValue = new Map(
+  activateRiModeOptions.map((mode) => [mode.toUpperCase(), mode]),
+);
 
 export function validateRouteSubmission(
   input: unknown,
@@ -131,9 +154,15 @@ function normalizeStop(
   const blockRange = timeBlock.length > 0 ? timeBlockToRange(timeBlock) : null;
   const startTime = blockRange?.startTime ?? submittedStartTime;
   const endTime = blockRange?.endTime ?? submittedEndTime;
-  const bands = cleanList(stop.bands, `${label} bands`, errors);
-  const modes = cleanList(stop.modes, `${label} modes`, errors).map((mode) =>
-    mode.toUpperCase(),
+  const bands = normalizeBandList(
+    cleanList(stop.bands, `${label} bands`, errors),
+    `${label} bands`,
+    errors,
+  );
+  const modes = normalizeModeList(
+    cleanList(stop.modes, `${label} modes`, errors),
+    `${label} modes`,
+    errors,
   );
 
   if (!referenceIds.has(parkReference)) {
@@ -224,6 +253,54 @@ function cleanList(value: unknown, label: string, errors: string[]): string[] {
     .filter((item) => typeof item === "string")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+export function normalizeBandList(
+  values: string[],
+  label: string,
+  errors: string[],
+): string[] {
+  return normalizeAllowedList(values, label, "bands", bandByNormalizedValue, errors);
+}
+
+export function normalizeModeList(
+  values: string[],
+  label: string,
+  errors: string[],
+): string[] {
+  return normalizeAllowedList(values, label, "modes", modeByNormalizedValue, errors);
+}
+
+function normalizeAllowedList(
+  values: string[],
+  label: string,
+  optionLabel: "bands" | "modes",
+  allowedValues: Map<string, string>,
+  errors: string[],
+): string[] {
+  const normalizedValues: string[] = [];
+  const unsupportedValues: string[] = [];
+
+  for (const value of values) {
+    const normalizedValue = optionLabel === "bands" ? value.toLowerCase() : value.toUpperCase();
+    const allowedValue = allowedValues.get(normalizedValue);
+
+    if (allowedValue) {
+      if (!normalizedValues.includes(allowedValue)) {
+        normalizedValues.push(allowedValue);
+      }
+    } else {
+      unsupportedValues.push(value);
+    }
+  }
+
+  if (unsupportedValues.length > 0) {
+    errors.push(
+      `${label} must use supported ${optionLabel}: ${Array.from(allowedValues.values()).join(", ")}.`,
+    );
+  }
+
+  return normalizedValues;
 }
 
 function emptyStop(): Required<ActivationStopInput> {

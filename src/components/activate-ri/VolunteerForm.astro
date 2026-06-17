@@ -1,12 +1,13 @@
 ---
 import references from "../../data/ri-references.json";
 import { activateRiTimeBlocks } from "../../lib/activate-ri/time-blocks";
+import {
+  activateRiBandOptions,
+  activateRiModeOptions,
+} from "../../lib/activate-ri/validation";
 
 const turnstileSiteKey =
   import.meta.env.PUBLIC_TURNSTILE_SITE_KEY;
-
-const bandOptions = ["160m", "80m", "60m", "40m", "30m", "20m", "17m", "15m", "12m", "10m", "6m", "2m", "70cm"];
-const modeOptions = ["SSB", "CW", "Digital"];
 
 function parkOptionLabel(reference: (typeof references)[number]): string {
   const counties = reference.counties?.join(", ");
@@ -141,7 +142,7 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
             </button>
             <span class="multi-select__menu" data-multi-menu hidden>
               {
-                bandOptions.map((band) => (
+                activateRiBandOptions.map((band) => (
                   <label class="multi-select__option">
                     <input type="checkbox" value={band} data-multi-option />
                     <span>{band}</span>
@@ -165,7 +166,7 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
             </button>
             <span class="multi-select__menu" data-multi-menu hidden>
               {
-                modeOptions.map((mode) => (
+                activateRiModeOptions.map((mode) => (
                   <label class="multi-select__option">
                     <input type="checkbox" value={mode} data-multi-option />
                     <span>{mode}</span>

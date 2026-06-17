@@ -74,7 +74,7 @@ describe("validateRouteSubmission", () => {
           plannedDate: "2026-09-11",
           timeBlock: "12:00-15:00",
           bands: ["20m"],
-          modes: ["SSB"],
+          modes: ["digital"],
         },
       ],
     });
@@ -92,9 +92,32 @@ describe("validateRouteSubmission", () => {
           parkReference: "US-2872",
           startTime: "12:00",
           endTime: "15:00",
-          modes: ["SSB"],
+          modes: ["Digital"],
         }),
       ]);
+    }
+  });
+
+  it("rejects unsupported bands and modes", () => {
+    const result = validateRouteSubmission({
+      ...validSubmission,
+      stops: [
+        {
+          ...validSubmission.stops[0],
+          bands: ["40m", "11m"],
+          modes: ["SSB", "AM"],
+        },
+      ],
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors).toEqual(
+        expect.arrayContaining([
+          "Stop 1 bands must use supported bands: 160m, 80m, 60m, 40m, 30m, 20m, 17m, 15m, 12m, 10m, 6m, 2m, 70cm.",
+          "Stop 1 modes must use supported modes: SSB, CW, Digital.",
+        ]),
+      );
     }
   });
 

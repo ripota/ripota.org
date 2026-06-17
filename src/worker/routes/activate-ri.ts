@@ -1,4 +1,8 @@
-import { validateRouteSubmission } from "../../lib/activate-ri/validation";
+import {
+  normalizeBandList,
+  normalizeModeList,
+  validateRouteSubmission,
+} from "../../lib/activate-ri/validation";
 import { routeRowsToPublicStops } from "../../lib/activate-ri/public-export";
 import { requireAccessIdentity } from "../access";
 import {
@@ -550,9 +554,15 @@ function validateEditStopPayload(payload: unknown): EditStopValidation {
   const startTime = stringField(payload, "startTime", errors).trim();
   const endTime = stringField(payload, "endTime", errors).trim();
   const publicNotes = optionalStringField(payload, "publicNotes", errors).trim();
-  const bands = cleanStringArrayField(payload, "bands", errors);
-  const modes = cleanStringArrayField(payload, "modes", errors).map((mode) =>
-    mode.toUpperCase(),
+  const bands = normalizeBandList(
+    cleanStringArrayField(payload, "bands", errors),
+    "Bands",
+    errors,
+  );
+  const modes = normalizeModeList(
+    cleanStringArrayField(payload, "modes", errors),
+    "Modes",
+    errors,
   );
 
   if (!timePattern.test(startTime)) {

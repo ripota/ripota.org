@@ -1095,6 +1095,28 @@ describe("handleActivateRiApi", () => {
     });
   });
 
+  it("rejects edit stop payloads with unsupported bands or modes", async () => {
+    const response = await handleActivateRiApi(
+      patch("/api/activate-ri-2026/edit/token/stops/stop-1", {
+        startTime: "10:00",
+        endTime: "12:00",
+        bands: ["40m", "11m"],
+        modes: ["SSB", "AM"],
+        publicNotes: "",
+      }),
+      env(),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      errors: [
+        "Bands must use supported bands: 160m, 80m, 60m, 40m, 30m, 20m, 17m, 15m, 12m, 10m, 6m, 2m, 70cm.",
+        "Modes must use supported modes: SSB, CW, Digital.",
+      ],
+    });
+  });
+
   it("normalizes whitespace in valid edit stop payloads before updating", async () => {
     const testEnv = env();
     testEnv.DB = editDb();
@@ -1104,7 +1126,7 @@ describe("handleActivateRiApi", () => {
         startTime: " 10:00 ",
         endTime: " 12:00 ",
         bands: [" 40m ", " "],
-        modes: [" ssb ", "cw"],
+        modes: [" ssb ", "cw", "digital"],
         publicNotes: " Updated trailhead plan. ",
       }),
       testEnv,
@@ -1121,7 +1143,7 @@ describe("handleActivateRiApi", () => {
       "10:00",
       "12:00",
       JSON.stringify(["40m"]),
-      JSON.stringify(["SSB", "CW"]),
+      JSON.stringify(["SSB", "CW", "Digital"]),
       "Updated trailhead plan.",
     ]);
   });

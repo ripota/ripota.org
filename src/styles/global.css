@@ -915,7 +915,7 @@ p {
   padding: 0.45rem;
 }
 
-.multi-select__option {
+.event-form .multi-select__option {
   display: flex;
   align-items: center;
   gap: 0.55rem;
@@ -926,13 +926,21 @@ p {
   padding: 0.45rem 0.5rem;
 }
 
-.multi-select__option:hover {
+.event-form .multi-select__option:hover {
   background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
-.multi-select__option input {
-  width: auto;
+.event-form .multi-select__option input {
+  flex: 0 0 auto;
+  width: 1.05rem;
+  height: 1.05rem;
   margin: 0;
+  padding: 0;
+  accent-color: var(--accent);
+}
+
+.event-form .multi-select__option span {
+  line-height: 1.2;
 }
 
 .event-form textarea {
