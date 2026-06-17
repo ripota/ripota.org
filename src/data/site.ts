@@ -41,10 +41,16 @@ export const defaultShareImage = {
 
 export const primaryCallsToAction: CallToAction[] = [
   {
+    label: "Activate All RI 2026",
+    href: "/activate-ri-2026/",
+    description: "Open the Activate All RI 2026 project page.",
+    variant: "primary",
+  },
+  {
     label: "Join the RI POTA community",
     href: "https://groups.io/g/RI-POTA",
     description: "Coordinate activations and local conversation with Rhode Island operators.",
-    variant: "primary",
+    variant: "secondary",
   },
   {
     label: "Start with official POTA",

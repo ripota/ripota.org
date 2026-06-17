@@ -11,8 +11,12 @@ import {
 } from "./site";
 
 describe("site content", () => {
-  it("points launch CTAs at local community and official POTA resources", () => {
+  it("points homepage CTAs at the active project, local community, and official POTA resources", () => {
     expect(primaryCallsToAction).toEqual([
+      expect.objectContaining({
+        label: "Activate All RI 2026",
+        href: "/activate-ri-2026/",
+      }),
       expect.objectContaining({
         label: "Join the RI POTA community",
         href: "https://groups.io/g/RI-POTA",
