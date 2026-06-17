@@ -20,9 +20,19 @@ type Props = {
   title: string;
   caption: string;
   phaseFocus?: "volunteer" | "hunter";
+  legendPlacement?: "overlay" | "below" | "none";
+  legendTitle?: string;
 };
 
-const { id, variant, title, caption, phaseFocus = "volunteer" } = Astro.props;
+const {
+  id,
+  variant,
+  title,
+  caption,
+  phaseFocus = "volunteer",
+  legendPlacement = variant === "home" ? "none" : "overlay",
+  legendTitle,
+} = Astro.props;
 const rawGeojsonByPath = import.meta.glob("../data/boundaries/*.geojson", {
   eager: true,
   query: "?raw",
@@ -49,6 +59,7 @@ const mapItems = buildReferenceMapItems({
 const legendItems = isEventMap
   ? (Object.entries(coverageStatusLabels) as Array<[keyof typeof coverageStatusLabels, string]>)
   : [];
+const showLegend = legendPlacement !== "none" && legendItems.length > 0;
 const dataId = `${id}-data`;
 const payload = JSON.stringify({
   variant,
@@ -60,10 +71,11 @@ const payload = JSON.stringify({
 });
 ---
 
-<figure class="map-preview reference-map-preview" aria-label={title}>
+<figure class:list={["map-preview", "reference-map-preview", `reference-map-preview--legend-${legendPlacement}`]} aria-label={title}>
   {
-    legendItems.length > 0 && (
-      <div class="map-legend" aria-label="Coverage status legend">
+    showLegend && legendPlacement === "overlay" && (
+      <div class="map-legend" aria-label={legendTitle ?? "Coverage status legend"}>
+        {legendTitle && <span class="map-legend__title">{legendTitle}</span>}
         {legendItems.map(([status, label]) => (
           <span class="map-legend__item">
             <span style={`--map-status-color: ${referenceMapStatusColors[status]}`} />
@@ -74,6 +86,19 @@ const payload = JSON.stringify({
     )
   }
   <div id={id} class="ri-reference-map" data-reference-map data-map-data-id={dataId}></div>
+  {
+    showLegend && legendPlacement === "below" && (
+      <div class="map-legend map-legend--below" aria-label={legendTitle ?? "Coverage status legend"}>
+        {legendTitle && <span class="map-legend__title">{legendTitle}</span>}
+        {legendItems.map(([status, label]) => (
+          <span class="map-legend__item">
+            <span style={`--map-status-color: ${referenceMapStatusColors[status]}`} />
+            {label}
+          </span>
+        ))}
+      </div>
+    )
+  }
   <figcaption class="map-preview__caption">{caption}</figcaption>
 </figure>
 
