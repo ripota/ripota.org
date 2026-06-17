@@ -90,6 +90,22 @@ const turnstileSiteKey =
   </div>
 </form>
 
+<dialog class="form-confirmation" data-edit-confirmation>
+  <div class="form-confirmation__body">
+    <p class="eyebrow">Changes saved</p>
+    <h2>Your activation plan was updated</h2>
+    <p>
+      The latest version is saved. You can keep editing this plan or return to
+      the event overview.
+    </p>
+    <div class="form-actions">
+      <a class="button" data-variant="primary" href="/activate-ri-2026/" data-edit-confirmation-overview>
+        Back to event overview
+      </a>
+    </div>
+  </div>
+</dialog>
+
 <template data-stop-template>
   <ActivateRiStopCard includeStopId={true} title="Activation stop" />
 </template>
@@ -127,6 +143,8 @@ const turnstileSiteKey =
   const editOrganizerNotes = editForm?.querySelector("[data-edit-organizer-notes]") as HTMLElement | null | undefined;
   const editFrequencyNote = editForm?.querySelector("[data-edit-frequency-note]") as HTMLElement | null | undefined;
   const editTurnstile = editForm?.querySelector("[data-edit-turnstile]") as HTMLElement | null | undefined;
+  const editConfirmation = document.querySelector("[data-edit-confirmation]") as HTMLDialogElement | null;
+  const savePlanButton = editForm?.querySelector("[data-save-plan]") as HTMLButtonElement | null | undefined;
   const planPicker = editForm?.querySelector("[data-plan-picker]") as HTMLElement | null | undefined;
   const planSelect = editForm?.querySelector("[data-plan-select]") as HTMLSelectElement | null | undefined;
   const stopTemplate = document.querySelector("[data-stop-template]") as HTMLTemplateElement | null;
@@ -174,7 +192,10 @@ const turnstileSiteKey =
     }
 
     isSaving = true;
-    editStatus?.replaceChildren("Saving changes...");
+    if (savePlanButton) {
+      savePlanButton.disabled = true;
+    }
+    setEditStatus("Saving changes...");
 
     try {
       const response = await fetch(selectedPlanUrl(), {
@@ -185,19 +206,23 @@ const turnstileSiteKey =
       const data = await parseResponse(response);
 
       if (!response.ok || !data.ok) {
-        editStatus?.replaceChildren(data.errors?.join(" ") ?? data.error ?? "Unable to save changes.");
+        setEditStatus(data.errors?.join(" ") ?? data.error ?? "Unable to save changes.", "error");
         resetTurnstile();
         return;
       }
 
-      editStatus?.replaceChildren("Changes saved.");
+      setEditStatus("Changes saved. Your activation plan was updated.", "success");
       resetTurnstile();
       await loadPlan(false);
+      showEditConfirmation();
     } catch {
-      editStatus?.replaceChildren("Unable to save changes. Please try again later.");
+      setEditStatus("Unable to save changes. Please try again later.", "error");
       resetTurnstile();
     } finally {
       isSaving = false;
+      if (savePlanButton) {
+        savePlanButton.disabled = false;
+      }
     }
   });
 
@@ -613,6 +638,27 @@ const turnstileSiteKey =
     ).turnstile;
 
     turnstile?.reset?.();
+  }
+
+  function setEditStatus(message: string, kind?: "error" | "success"): void {
+    editStatus?.replaceChildren(message);
+
+    if (!editStatus || !(editStatus instanceof HTMLElement)) {
+      return;
+    }
+
+    if (kind) {
+      editStatus.dataset.status = kind;
+    } else {
+      delete editStatus.dataset.status;
+    }
+  }
+
+  function showEditConfirmation(): void {
+    if (editConfirmation?.showModal) {
+      editConfirmation.showModal();
+      editConfirmation.querySelector<HTMLAnchorElement>("[data-edit-confirmation-overview]")?.focus();
+    }
   }
 
   function apiUrl(): string {

@@ -542,6 +542,43 @@ describe("handleActivateRiApi", () => {
     expect(testEnv.DB.prepare).not.toHaveBeenCalled();
   });
 
+  it("keeps unchanged stop status in activity details for approved plan edits", async () => {
+    const testEnv = env();
+    testEnv.DB = adminDb({
+      planRows: [{ ...pendingPlanRow, status: "approved" }],
+      stopRows: [{ ...pendingStopRow, status: "scheduled" }],
+    });
+
+    const payload = validPayload();
+    payload.stops = [
+      {
+        ...(payload.stops as Record<string, unknown>[])[0],
+        id: "stop-1",
+      },
+    ];
+
+    const response = await handleActivateRiApi(
+      patch("/api/activate-ri-2026/edit/token/plans/plan-1", payload),
+      testEnv,
+    );
+
+    expect(response.status).toBe(200);
+    const preparedStatements = vi.mocked(testEnv.DB.prepare).mock.results.map(
+      (result) => result.value as { bind: { mock: { calls: unknown[][] } } },
+    );
+    const stopUpdateActivityBinds = preparedStatements
+      .flatMap((statement) => statement.bind.mock.calls)
+      .find((binds) => binds.includes("stop-updated"));
+    expect(stopUpdateActivityBinds).toBeDefined();
+    const actionIndex = stopUpdateActivityBinds?.indexOf("stop-updated") ?? -1;
+    const details = JSON.parse(String(stopUpdateActivityBinds?.[actionIndex + 2])) as {
+      previous: { status?: string };
+      next: { status?: string };
+    };
+    expect(details.previous.status).toBe("scheduled");
+    expect(details.next.status).toBe("scheduled");
+  });
+
   it("requires Turnstile for activator plan cancellation when configured", async () => {
     const testEnv = turnstileEnv();
 

@@ -148,12 +148,12 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
         <option value="">Choose a 3-hour block</option>
         {
           activateRiTimeBlocks.map((block) => (
-            <option value={block.value}>{block.label} UTC</option>
+            <option value={block.value}>{block.easternLabel}</option>
           ))
         }
       </select>
       <span class="form-help">
-        Pick the closest planned operating window in UTC. Update it later if plans
+        Pick the closest planned operating window in EDT. Update it later if plans
         change.
       </span>
       <span class="form-error" data-field-error data-error-for="timeBlock"></span>

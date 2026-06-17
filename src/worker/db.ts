@@ -6,7 +6,7 @@ import type {
 import {
   instantToPlannedDate,
   instantToTime,
-  stopTimeToInstant,
+  stopTimeRangeToInstants,
 } from "../lib/activate-ri/time";
 import { generateEditToken, tokenHash } from "./edit-token";
 import type { Env } from "./env";
@@ -51,6 +51,38 @@ export async function insertPendingPlan(
   const activatorId = activatorIdForEmail(env.ACTIVATE_RI_EVENT_ID, submission.submitterEmail);
   const editToken = generateEditToken();
   const magicTokenHash = await tokenHash(editToken);
+  const stopInsertStatements: D1PreparedStatement[] = [];
+  for (const stop of submission.stops) {
+    const { startAt, endAt } = stopTimeRangeToInstants(
+      stop.plannedDate,
+      stop.startTime,
+      stop.endTime,
+    );
+
+    stopInsertStatements.push(
+      env.DB.prepare(
+        `INSERT INTO activate_ri_stops (
+          id, plan_id, event_id, park_reference, start_at,
+          end_at, bands_json, modes_json, public_notes, organizer_notes,
+          status, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending-review', ?, ?)`,
+      ).bind(
+        crypto.randomUUID(),
+        planId,
+        env.ACTIVATE_RI_EVENT_ID,
+        stop.parkReference,
+        startAt,
+        endAt,
+        JSON.stringify(stop.bands),
+        JSON.stringify(stop.modes),
+        stop.publicNotes,
+        stop.organizerNotes,
+        now,
+        now,
+      ),
+    );
+  }
+
   const statements = [
     env.DB.prepare(
       `INSERT INTO activate_ri_activators (
@@ -96,28 +128,7 @@ export async function insertPendingPlan(
       now,
       now,
     ),
-    ...submission.stops.map((stop) =>
-      env.DB.prepare(
-        `INSERT INTO activate_ri_stops (
-          id, plan_id, event_id, park_reference, start_at,
-          end_at, bands_json, modes_json, public_notes, organizer_notes,
-          status, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending-review', ?, ?)`,
-      ).bind(
-        crypto.randomUUID(),
-        planId,
-        env.ACTIVATE_RI_EVENT_ID,
-        stop.parkReference,
-        stopTimeToInstant(stop.plannedDate, stop.startTime),
-        stopTimeToInstant(stop.plannedDate, stop.endTime),
-        JSON.stringify(stop.bands),
-        JSON.stringify(stop.modes),
-        stop.publicNotes,
-        stop.organizerNotes,
-        now,
-        now,
-      ),
-    ),
+    ...stopInsertStatements,
     activityInsert(env, {
       planId,
       actorType: "activator",
@@ -687,6 +698,11 @@ export async function updatePlanByTokenHash(
 
   for (const stop of submission.stops) {
     const existingStop = stop.id ? existingStops.get(stop.id) : undefined;
+    const { startAt, endAt } = stopTimeRangeToInstants(
+      stop.plannedDate,
+      stop.startTime,
+      stop.endTime,
+    );
     if (existingStop) {
       statements.push(
         env.DB.prepare(
@@ -705,8 +721,8 @@ export async function updatePlanByTokenHash(
            WHERE id = ? AND plan_id = ? AND event_id = ?`,
         ).bind(
           stop.parkReference,
-          stopTimeToInstant(stop.plannedDate, stop.startTime),
-          stopTimeToInstant(stop.plannedDate, stop.endTime),
+          startAt,
+          endAt,
           JSON.stringify(stop.bands),
           JSON.stringify(stop.modes),
           stop.publicNotes,
@@ -727,7 +743,7 @@ export async function updatePlanByTokenHash(
         summary: `${submission.submitterCallsign} updated ${existingStop.park_reference}.`,
         details: {
           previous: stopSnapshot(existingStop),
-          next: stop,
+          next: updatedStopSnapshot(existingStop, stop, nextStopStatus),
         },
       }, now));
 
@@ -745,7 +761,7 @@ export async function updatePlanByTokenHash(
           summary: `${submission.submitterCallsign} changed ${existingStop.park_reference} to ${stop.parkReference} on an approved plan.`,
           details: {
             previous: stopSnapshot(existingStop),
-            next: stop,
+            next: updatedStopSnapshot(existingStop, stop, nextStopStatus),
           },
         });
       }
@@ -763,8 +779,8 @@ export async function updatePlanByTokenHash(
           existing.id,
           env.ACTIVATE_RI_EVENT_ID,
           stop.parkReference,
-          stopTimeToInstant(stop.plannedDate, stop.startTime),
-          stopTimeToInstant(stop.plannedDate, stop.endTime),
+          startAt,
+          endAt,
           JSON.stringify(stop.bands),
           JSON.stringify(stop.modes),
           stop.publicNotes,
@@ -952,6 +968,11 @@ export async function updateStopByToken(
     return { ok: false, status: 409, error: "Plan is not approved" };
   }
 
+  const { startAt, endAt } = stopTimeRangeToInstants(
+    instantToPlannedDate(plan.start_at),
+    fields.startTime,
+    fields.endTime,
+  );
   const result = await env.DB.prepare(
     `UPDATE activate_ri_stops
      SET start_at = ?,
@@ -977,8 +998,8 @@ export async function updateStopByToken(
        )`,
   )
     .bind(
-      stopTimeToInstant(instantToPlannedDate(plan.start_at), fields.startTime),
-      stopTimeToInstant(instantToPlannedDate(plan.start_at), fields.endTime),
+      startAt,
+      endAt,
       JSON.stringify(fields.bands),
       JSON.stringify(fields.modes),
       fields.publicNotes,
@@ -1213,6 +1234,25 @@ function stopSnapshot(stop: PendingStopDto): Record<string, unknown> {
     publicNotes: stop.public_notes,
     organizerNotes: stop.organizer_notes,
     status: stop.status,
+  };
+}
+
+function updatedStopSnapshot(
+  existingStop: PendingStopDto,
+  stop: Required<ActivationStopInput> & { id?: string },
+  nextStopStatus: string,
+): Record<string, unknown> {
+  return {
+    id: existingStop.id,
+    parkReference: stop.parkReference,
+    plannedDate: stop.plannedDate,
+    startTime: stop.startTime,
+    endTime: stop.endTime,
+    bands: stop.bands,
+    modes: stop.modes,
+    publicNotes: stop.publicNotes,
+    organizerNotes: stop.organizerNotes,
+    status: existingStop.status === "completed" ? existingStop.status : nextStopStatus,
   };
 }
 

@@ -123,6 +123,7 @@ export function displayedReferenceMapLegendItems(
 
 export const referenceMapLeafletOptions = {
   scrollWheelZoom: false,
+  zoomControl: false,
   zoomSnap: 0.25,
 } as const;
 

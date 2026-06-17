@@ -21,7 +21,7 @@ test("volunteer can submit a plan that can be approved and shown publicly", asyn
     await page.locator("[data-park-input]").fill("US-2868");
     await page.getByRole("button", { name: "US-2868" }).click();
     await page.locator("[data-planned-date]").selectOption("2026-09-11");
-    await page.locator("[data-time-block]").selectOption("09:00-12:00");
+    await page.locator("[data-time-block]").selectOption("13:00-16:00");
 
     await page.getByRole("button", { name: "Choose bands" }).click();
     await page.getByLabel("40m").check();
@@ -108,8 +108,8 @@ test("volunteer can submit a plan that can be approved and shown publicly", asyn
           parkReference: "US-2868",
           activatorCallsign: callsign,
           plannedDate: "2026-09-11",
-          startTime: "09:00",
-          endTime: "12:00",
+          startTime: "13:00",
+          endTime: "16:00",
           bands: ["40m"],
           modes: ["SSB"],
           status: "scheduled",

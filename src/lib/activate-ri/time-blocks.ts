@@ -1,11 +1,11 @@
 const timeBlockRanges = [
-  { startTime: "00:00", endTime: "03:00" },
-  { startTime: "03:00", endTime: "06:00" },
-  { startTime: "06:00", endTime: "09:00" },
-  { startTime: "09:00", endTime: "12:00" },
-  { startTime: "12:00", endTime: "15:00" },
-  { startTime: "15:00", endTime: "18:00" },
-  { startTime: "18:00", endTime: "21:00" },
+  { startTime: "04:00", endTime: "07:00", easternLabel: "00:00 - 03:00 EDT" },
+  { startTime: "07:00", endTime: "10:00", easternLabel: "03:00 - 06:00 EDT" },
+  { startTime: "10:00", endTime: "13:00", easternLabel: "06:00 - 09:00 EDT" },
+  { startTime: "13:00", endTime: "16:00", easternLabel: "09:00 - 12:00 EDT" },
+  { startTime: "16:00", endTime: "19:00", easternLabel: "12:00 - 15:00 EDT" },
+  { startTime: "19:00", endTime: "22:00", easternLabel: "15:00 - 18:00 EDT" },
+  { startTime: "22:00", endTime: "01:00", easternLabel: "18:00 - 21:00 EDT" },
 ] as const;
 
 export const activateRiTimeBlocks = timeBlockRanges.map((block) => ({

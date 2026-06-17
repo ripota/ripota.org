@@ -3,11 +3,12 @@ import {
   activationTimeZoneOptions,
   formatActivationDate,
   formatActivationTimeRange,
+  stopTimeRangeToInstants,
   timeZoneOptionForValue,
 } from "./time";
 
 describe("activation time helpers", () => {
-  it("defaults schedule display to UTC", () => {
+  it("defaults schedule display to Eastern time", () => {
     expect(
       formatActivationDate({
         plannedDate: "2026-09-11",
@@ -20,7 +21,7 @@ describe("activation time helpers", () => {
         startTime: "14:00",
         endTime: "17:00",
       }),
-    ).toBe("14:00-17:00 UTC");
+    ).toBe("10:00-13:00 EDT");
   });
 
   it("formats UTC stop strings in a selected timezone", () => {
@@ -47,12 +48,29 @@ describe("activation time helpers", () => {
     ).toBe("10:00-13:00 EDT");
   });
 
-  it("uses UTC as the first timezone option", () => {
+  it("handles UTC ranges that cross midnight", () => {
+    expect(
+      formatActivationTimeRange({
+        plannedDate: "2026-09-11",
+        startTime: "22:00",
+        endTime: "01:00",
+      }),
+    ).toBe("18:00-21:00 EDT");
+
+    expect(
+      stopTimeRangeToInstants("2026-09-11", "22:00", "01:00"),
+    ).toEqual({
+      startAt: "2026-09-11T22:00:00.000Z",
+      endAt: "2026-09-12T01:00:00.000Z",
+    });
+  });
+
+  it("uses Eastern as the first timezone option", () => {
     expect(activationTimeZoneOptions[0]).toEqual(
       expect.objectContaining({
-        value: "utc",
-        label: "UTC",
-        timeZone: "UTC",
+        value: "eastern",
+        label: "Eastern",
+        timeZone: "America/New_York",
       }),
     );
   });

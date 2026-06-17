@@ -70,6 +70,22 @@ const turnstileSiteKey =
   <output class="form-status" data-form-status aria-live="polite"></output>
 </form>
 
+<dialog class="form-confirmation" data-submit-confirmation>
+  <div class="form-confirmation__body">
+    <p class="eyebrow">Submission received</p>
+    <h2>Plan sent for organizer review</h2>
+    <p>
+      Your activation plan was submitted. Check your email for the private edit
+      link before closing this page.
+    </p>
+    <div class="form-actions">
+      <a class="button" data-variant="primary" href="/activate-ri-2026/" data-confirmation-overview>
+        Back to event overview
+      </a>
+    </div>
+  </div>
+</dialog>
+
 <script>
   import {
     formatVolunteerMissingFieldSummary,
@@ -81,6 +97,7 @@ const turnstileSiteKey =
   const form = document.querySelector("[data-activate-ri-volunteer]") as HTMLFormElement | null;
   const status = document.querySelector("[data-form-status]") as HTMLOutputElement | null;
   const submitButton = document.querySelector("[data-submit-button]") as HTMLButtonElement | null;
+  const submitConfirmation = document.querySelector("[data-submit-confirmation]") as HTMLDialogElement | null;
   const stopsContainer = document.querySelector("[data-stops]");
   const addStopButton = document.querySelector("[data-add-stop]");
   let isSubmitting = false;
@@ -154,6 +171,7 @@ const turnstileSiteKey =
         setupStopCards();
         setFormStatus(data.message ?? "Submission received for organizer review.", "success");
         resetTurnstile();
+        showSubmitConfirmation();
       } else {
         setFormStatus(data.errors?.join(" ") ?? data.message ?? "Submission failed.", "error");
         resetTurnstile();
@@ -625,6 +643,13 @@ const turnstileSiteKey =
       status.dataset.status = kind;
     } else {
       delete status.dataset.status;
+    }
+  }
+
+  function showSubmitConfirmation(): void {
+    if (submitConfirmation?.showModal) {
+      submitConfirmation.showModal();
+      submitConfirmation.querySelector<HTMLAnchorElement>("[data-confirmation-overview]")?.focus();
     }
   }
 

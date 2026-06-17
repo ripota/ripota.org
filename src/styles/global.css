@@ -404,6 +404,15 @@ p {
   color: #18312f;
 }
 
+.ri-reference-map .leaflet-control-zoom a {
+  width: 34px;
+  height: 34px;
+  color: #17221f;
+  font-size: 1.2rem;
+  font-weight: 900;
+  line-height: 34px;
+}
+
 .map-popup__stops,
 .map-popup__stop {
   display: grid;
@@ -1425,6 +1434,37 @@ p {
 .form-status[data-status="success"] {
   color: color-mix(in srgb, #126d3a 84%, var(--surface-ink));
   font-weight: 800;
+}
+
+.form-confirmation {
+  width: min(92vw, 32rem);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-strong);
+  padding: 0;
+}
+
+.form-confirmation::backdrop {
+  background: color-mix(in srgb, #102322 48%, transparent);
+}
+
+.form-confirmation__body {
+  display: grid;
+  gap: 0.9rem;
+  padding: clamp(1.25rem, 4vw, 1.75rem);
+}
+
+.form-confirmation h2 {
+  margin: 0;
+  color: var(--surface-ink);
+  font-size: 1.45rem;
+  line-height: 1.15;
+}
+
+.form-confirmation p:not(.eyebrow) {
+  color: var(--text-muted);
 }
 
 .form-actions {

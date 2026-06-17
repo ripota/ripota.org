@@ -18,8 +18,8 @@ export type ActivationTimeInput = {
 };
 
 export const activationTimeZoneOptions: ActivationTimeZoneOption[] = [
-  { value: "utc", label: "UTC", timeZone: "UTC" },
   { value: "eastern", label: "Eastern", timeZone: "America/New_York" },
+  { value: "utc", label: "UTC", timeZone: "UTC" },
   { value: "central", label: "Central", timeZone: "America/Chicago" },
   { value: "mountain", label: "Mountain", timeZone: "America/Denver" },
   { value: "pacific", label: "Pacific", timeZone: "America/Los_Angeles" },
@@ -51,7 +51,7 @@ export function formatActivationTimeRange(
   option = activationTimeZoneOptions[0],
 ): string {
   const start = formatTime(utcDate(input.plannedDate, input.startTime), option);
-  const end = formatTime(utcDate(input.plannedDate, input.endTime), option);
+  const end = formatTime(endDate(input.plannedDate, input.startTime, input.endTime), option);
   const zone = formatTimeZone(utcDate(input.plannedDate, input.startTime), option);
 
   return `${start}-${end} ${zone}`;
@@ -59,6 +59,17 @@ export function formatActivationTimeRange(
 
 export function stopTimeToInstant(plannedDate: string, time: string): string {
   return utcDate(plannedDate, time).toISOString();
+}
+
+export function stopTimeRangeToInstants(
+  plannedDate: string,
+  startTime: string,
+  endTime: string,
+): { startAt: string; endAt: string } {
+  return {
+    startAt: stopTimeToInstant(plannedDate, startTime),
+    endAt: endDate(plannedDate, startTime, endTime).toISOString(),
+  };
 }
 
 export function instantToPlannedDate(instant: string): string {
@@ -71,6 +82,15 @@ export function instantToTime(instant: string): string {
 
 function utcDate(plannedDate: string, time: string): Date {
   return new Date(`${plannedDate}T${time}:00Z`);
+}
+
+function endDate(plannedDate: string, startTime: string, endTime: string): Date {
+  const date = utcDate(plannedDate, endTime);
+  if (endTime <= startTime) {
+    date.setUTCDate(date.getUTCDate() + 1);
+  }
+
+  return date;
 }
 
 function formatTime(date: Date, option: ActivationTimeZoneOption): string {

@@ -7,6 +7,7 @@ import {
   uniqueSortedValues,
 } from "../../lib/activate-ri/listing";
 import {
+  activationTimeZoneOptions,
   formatActivationDate,
   formatActivationTimeRange,
 } from "../../lib/activate-ri/time";
@@ -55,6 +56,18 @@ function parkCounties(park: ParkCoverage) {
 ---
 
 <form class="event-filters" data-event-filters aria-label="Park coverage filters">
+  <label class="event-filter">
+    Timezone
+    <select class="event-filter__control" data-timezone>
+      {
+        activationTimeZoneOptions.map((option) => (
+          <option value={option.value} selected={option.value === "eastern"}>
+            {option.label}
+          </option>
+        ))
+      }
+    </select>
+  </label>
   <label class="event-filter">
     Mode
     <select class="event-filter__control" data-filter="mode">
@@ -187,6 +200,7 @@ function parkCounties(park: ParkCoverage) {
   import {
     formatActivationDate,
     formatActivationTimeRange,
+    timeZoneOptionForValue,
   } from "../../lib/activate-ri/time";
 
   const volunteerActionableStatuses = new Set(["uncovered", "cancelled-needs-replacement"]);
@@ -197,6 +211,11 @@ function parkCounties(park: ParkCoverage) {
   function setupParkFilters(root: Element): void {
     const filters = root as HTMLFormElement;
     const table = filters.nextElementSibling?.querySelector("[data-filtered-table]");
+    const timezoneControl = filters.querySelector("[data-timezone]") as HTMLSelectElement | null;
+
+    if (timezoneControl) {
+      timezoneControl.value = timeZoneOptionForValue(new URLSearchParams(window.location.search).get("timezone")).value;
+    }
 
     const applyFilters = () => {
       const rows = Array.from(table?.querySelectorAll<HTMLElement>("[data-filter-row]") ?? []);
@@ -235,7 +254,14 @@ function parkCounties(park: ParkCoverage) {
       }
     };
 
-    filters.onchange = () => applyFilters();
+    filters.onchange = (event) => {
+      if (timezoneControl && event.target === timezoneControl) {
+        updateTimezoneUrl(timezoneControl.value);
+      }
+      applyTimezone(table, timezoneControl?.value ?? "eastern");
+      applyFilters();
+    };
+    applyTimezone(table, timezoneControl?.value ?? "eastern");
     applyFilters();
   }
 
@@ -376,10 +402,7 @@ function parkCounties(park: ParkCoverage) {
     row.appendChild(heading);
 
     appendStatusCell(row, park);
-    appendStopListCell(row, "Next activation", park.stops, (stop) => [
-      `${formatActivationDate(stop)}, ${formatActivationTimeRange(stop)}`,
-      stopStatusLabel(stop.status),
-    ]);
+    appendStopListCell(row, "Next activation", park.stops, formatStopDetails);
     appendStopListCell(row, "Activator", park.stops, (stop) => [
       `${stop.activatorCallsign}${stop.modes.length > 0 ? ` (${stop.modes.join(", ")})` : ""}`,
     ]);
@@ -428,8 +451,13 @@ function parkCounties(park: ParkCoverage) {
       item.dataset.filterStop = "";
       item.dataset.bands = stop.bands.join("|");
       item.dataset.date = stop.plannedDate;
+      item.dataset.startTime = stop.startTime;
+      item.dataset.endTime = stop.endTime;
       item.dataset.modes = stop.modes.join("|");
       const [primary, secondary] = format(stop);
+      if (label === "Next activation") {
+        item.dataset.coverageTime = "";
+      }
       item.append(primary);
       if (secondary) {
         const span = document.createElement("span");
@@ -440,6 +468,39 @@ function parkCounties(park: ParkCoverage) {
     }
     cell.appendChild(list);
     row.appendChild(cell);
+  }
+
+  function formatStopDetails(stop: PublicStop): string[] {
+    return [
+      `${formatActivationDate(stop)}, ${formatActivationTimeRange(stop)}`,
+      stopStatusLabel(stop.status),
+    ];
+  }
+
+  function applyTimezone(table: Element | null | undefined, value: string): void {
+    const option = timeZoneOptionForValue(value);
+    table?.querySelectorAll<HTMLElement>("[data-coverage-time]").forEach((item) => {
+      const plannedDate = item.dataset.date;
+      const startTime = item.dataset.startTime;
+      const endTime = item.dataset.endTime;
+      if (!plannedDate || !startTime || !endTime) {
+        return;
+      }
+
+      const primary = item.firstChild;
+      const text = `${formatActivationDate({ plannedDate, startTime }, option)}, ${formatActivationTimeRange({ plannedDate, startTime, endTime }, option)}`;
+      if (primary instanceof Text) {
+        primary.data = text;
+      } else {
+        item.prepend(text);
+      }
+    });
+  }
+
+  function updateTimezoneUrl(value: string): void {
+    const url = new URL(window.location.href);
+    url.searchParams.set("timezone", timeZoneOptionForValue(value).value);
+    window.history.replaceState({}, "", url);
   }
 
   function createCoverageEmptyRow(): HTMLTableRowElement {

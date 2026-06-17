@@ -19,7 +19,7 @@ const countyOptions = uniqueSortedValues(
     <select class="event-filter__control" data-timezone>
       {
         activationTimeZoneOptions.map((option) => (
-          <option value={option.value} selected={option.value === "utc"}>
+          <option value={option.value} selected={option.value === "eastern"}>
             {option.label}
           </option>
         ))
@@ -130,7 +130,7 @@ const countyOptions = uniqueSortedValues(
       updateTimezoneUrl(timezoneControl.value);
       applyTimezone(table, timezoneControl.value);
     });
-    applyTimezone(table, timezoneControl?.value ?? "utc");
+    applyTimezone(table, timezoneControl?.value ?? "eastern");
     applyFilters();
   }
 

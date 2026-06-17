@@ -20,12 +20,13 @@ describe("validateRouteSubmission", () => {
   };
 
   it("keeps compact submitted block values with spaced display labels", () => {
-    expect(activateRiTimeBlocks[0]).toEqual({
-      value: "00:00-03:00",
-      label: "00:00 - 03:00",
-      startTime: "00:00",
-      endTime: "03:00",
-    });
+    expect(activateRiTimeBlocks[0]).toEqual(expect.objectContaining({
+      value: "04:00-07:00",
+      label: "04:00 - 07:00",
+      startTime: "04:00",
+      endTime: "07:00",
+      easternLabel: "00:00 - 03:00 EDT",
+    }));
   });
 
   it("normalizes a valid single-stop submission", () => {
@@ -75,14 +76,14 @@ describe("validateRouteSubmission", () => {
         {
           parkReference: "US-2868",
           plannedDate: "2026-09-11",
-          timeBlock: "09:00-12:00",
+          timeBlock: "13:00-16:00",
           bands: ["40m", "20m"],
           modes: ["ssb", "cw"],
         },
         {
           parkReference: "US-2872",
           plannedDate: "2026-09-11",
-          timeBlock: "12:00-15:00",
+          timeBlock: "16:00-19:00",
           bands: ["20m"],
           modes: ["digital"],
         },
@@ -94,17 +95,42 @@ describe("validateRouteSubmission", () => {
       expect(result.value.stops).toEqual([
         expect.objectContaining({
           parkReference: "US-2868",
-          startTime: "09:00",
-          endTime: "12:00",
+          startTime: "13:00",
+          endTime: "16:00",
           modes: ["SSB", "CW"],
         }),
         expect.objectContaining({
           parkReference: "US-2872",
-          startTime: "12:00",
-          endTime: "15:00",
+          startTime: "16:00",
+          endTime: "19:00",
           modes: ["Digital"],
         }),
       ]);
+    }
+  });
+
+  it("allows the evening EDT block that crosses UTC midnight", () => {
+    const result = validateRouteSubmission({
+      ...validSubmission,
+      stops: [
+        {
+          parkReference: "US-2868",
+          plannedDate: "2026-09-11",
+          timeBlock: "22:00-01:00",
+          bands: ["40m"],
+          modes: ["ssb"],
+        },
+      ],
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.stops[0]).toEqual(
+        expect.objectContaining({
+          startTime: "22:00",
+          endTime: "01:00",
+        }),
+      );
     }
   });
 
@@ -139,7 +165,7 @@ describe("validateRouteSubmission", () => {
           ...validSubmission.stops[0],
           startTime: undefined,
           endTime: undefined,
-          timeBlock: "10:00-13:00",
+          timeBlock: "09:00-12:00",
         },
       ],
     });
@@ -147,7 +173,7 @@ describe("validateRouteSubmission", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.errors).toContain(
-        "Stop 1 time block must be one of 00:00-03:00, 03:00-06:00, 06:00-09:00, 09:00-12:00, 12:00-15:00, 15:00-18:00, 18:00-21:00.",
+        "Stop 1 time block must be one of 04:00-07:00, 07:00-10:00, 10:00-13:00, 13:00-16:00, 16:00-19:00, 19:00-22:00, 22:00-01:00.",
       );
     }
   });

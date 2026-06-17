@@ -210,6 +210,12 @@ const payload = JSON.stringify({
       }
     >();
 
+    L.control.zoom({
+      position: "topleft",
+      zoomInTitle: "Zoom in to separate nearby parks",
+      zoomOutTitle: "Zoom out to see more of Rhode Island",
+    }).addTo(map);
+
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
       attribution:

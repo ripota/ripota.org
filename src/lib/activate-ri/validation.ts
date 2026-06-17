@@ -206,7 +206,8 @@ function normalizeStop(
   if (
     timePattern.test(startTime) &&
     timePattern.test(endTime) &&
-    endTime <= startTime
+    endTime <= startTime &&
+    blockRange === null
   ) {
     errors.push(`${label} end time must be after start time.`);
   }
