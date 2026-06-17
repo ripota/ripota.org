@@ -451,7 +451,7 @@ p {
 
 .map-legend {
   position: absolute;
-  z-index: 400;
+  z-index: 750;
   top: 0.8rem;
   right: 0.8rem;
   display: flex;
@@ -530,6 +530,7 @@ p {
 
 .map-preview__caption {
   position: absolute;
+  z-index: 750;
   right: 1rem;
   bottom: 1rem;
   left: 1rem;
@@ -683,7 +684,7 @@ p {
 }
 
 .event-hero {
-  padding: calc(var(--header-height) + 3rem) 0 clamp(3rem, 6vw, 5rem);
+  padding: clamp(2rem, 4vw, 3rem) 0 clamp(3rem, 6vw, 5rem);
   overflow: hidden;
   background:
     radial-gradient(circle at 85% 15%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 24rem),
