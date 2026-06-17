@@ -109,6 +109,18 @@ export const referenceMapLegendItems: Array<{
   },
 ];
 
+export function displayedReferenceMapLegendItems(
+  statuses: ParkCoverageStatus[],
+): typeof referenceMapLegendItems {
+  const visibleStatuses = new Set(statuses);
+
+  return referenceMapLegendItems.filter(
+    (item) =>
+      !item.statuses.includes("completed") ||
+      item.statuses.some((status) => visibleStatuses.has(status)),
+  );
+}
+
 export const referenceMapLeafletOptions = {
   scrollWheelZoom: false,
   zoomSnap: 0.25,

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildReferenceMapItems,
   coverageStatusLabels,
+  displayedReferenceMapLegendItems,
   referenceMapFitBoundsOptions,
   referenceMapLeafletOptions,
   referenceMapLegendItems,
@@ -207,6 +208,18 @@ describe("reference map legend", () => {
         statuses: ["completed"],
         color: referenceMapStatusColors.completed,
       },
+    ]);
+  });
+
+  it("shows completed only when completed coverage is present", () => {
+    expect(displayedReferenceMapLegendItems(["uncovered", "scheduled"]).map((item) => item.label)).toEqual([
+      "Help wanted",
+      "Scheduled",
+    ]);
+    expect(displayedReferenceMapLegendItems(["completed"]).map((item) => item.label)).toEqual([
+      "Help wanted",
+      "Scheduled",
+      "Completed",
     ]);
   });
 });

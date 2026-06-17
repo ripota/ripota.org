@@ -7,6 +7,7 @@ import references from "../data/ri-references.json";
 import {
   buildReferenceMapItems,
   coverageStatusLabels,
+  displayedReferenceMapLegendItems,
   referenceMapLegendItems,
   referenceMapStatusColors,
   type ReferenceBoundaryRecord,
@@ -56,6 +57,13 @@ const mapItems = buildReferenceMapItems({
 const legendItems = isEventMap
   ? referenceMapLegendItems
   : [];
+const visibleLegendLabels = new Set(
+  displayedReferenceMapLegendItems(
+    mapItems
+      .map((item) => item.coverage?.status)
+      .filter((status) => status !== undefined),
+  ).map((item) => item.label),
+);
 const showLegend = legendPlacement !== "none" && legendItems.length > 0;
 const showCaption = caption.trim().length > 0;
 const dataId = `${id}-data`;
@@ -75,7 +83,13 @@ const payload = JSON.stringify({
       <div class="map-legend" aria-label={legendTitle ?? "Coverage status legend"}>
         {legendTitle && <span class="map-legend__title">{legendTitle}</span>}
         {legendItems.map((item) => (
-          <span class="map-legend__item">
+          <span
+            class="map-legend__item"
+            data-map-legend-item
+            data-map-legend-statuses={item.statuses.join(" ")}
+            data-map-legend-optional={item.statuses.includes("completed") ? "true" : undefined}
+            hidden={!visibleLegendLabels.has(item.label)}
+          >
             <span style={`--map-status-color: ${item.color}`} />
             {item.label}
           </span>
@@ -89,7 +103,13 @@ const payload = JSON.stringify({
       <div class="map-legend map-legend--below" aria-label={legendTitle ?? "Coverage status legend"}>
         {legendTitle && <span class="map-legend__title">{legendTitle}</span>}
         {legendItems.map((item) => (
-          <span class="map-legend__item">
+          <span
+            class="map-legend__item"
+            data-map-legend-item
+            data-map-legend-statuses={item.statuses.join(" ")}
+            data-map-legend-optional={item.statuses.includes("completed") ? "true" : undefined}
+            hidden={!visibleLegendLabels.has(item.label)}
+          >
             <span style={`--map-status-color: ${item.color}`} />
             {item.label}
           </span>
@@ -200,9 +220,10 @@ const payload = JSON.stringify({
 
     fitReferenceBounds(map, bounds);
     setupPopupActions(mapElement);
+    updateMapLegend(mapElement, payload);
 
     if (payload.variant !== "home") {
-      refreshLiveCoverage(payload, layersByReference);
+      refreshLiveCoverage(mapElement, payload, layersByReference);
     }
   }
 
@@ -328,6 +349,7 @@ const payload = JSON.stringify({
   }
 
   async function refreshLiveCoverage(
+    mapElement: HTMLElement,
     payload: MapPayload,
     layersByReference: Map<string, { boundaries: L.Path[]; markers: L.CircleMarker[] }>,
   ): Promise<void> {
@@ -344,9 +366,31 @@ const payload = JSON.stringify({
         item.coverage = coverageByReference.get(item.reference) ?? item.coverage;
         updateMapItemLayers(payload, item, layersByReference.get(item.reference));
       }
+      updateMapLegend(mapElement, payload);
     } catch {
       return;
     }
+  }
+
+  function updateMapLegend(mapElement: HTMLElement, payload: MapPayload): void {
+    const mapPreview = mapElement.closest(".map-preview");
+    if (!mapPreview) {
+      return;
+    }
+
+    const visibleStatuses = new Set(
+      payload.items.map((item) => item.coverage?.status).filter(Boolean),
+    );
+
+    mapPreview.querySelectorAll<HTMLElement>("[data-map-legend-item]").forEach((item) => {
+      if (item.dataset.mapLegendOptional !== "true") {
+        item.hidden = false;
+        return;
+      }
+
+      const statuses = (item.dataset.mapLegendStatuses ?? "").split(" ").filter(Boolean);
+      item.hidden = !statuses.some((status) => visibleStatuses.has(status));
+    });
   }
 
   function deriveCoverage(
