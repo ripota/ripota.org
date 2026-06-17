@@ -134,6 +134,7 @@ export async function handleActivateRiApi(
         env,
         plan,
         absoluteHelpUrl(request),
+        absoluteScheduleUrl(request),
       );
       await logActivityEvent(env, {
         planId: plan.id,
@@ -880,4 +881,8 @@ function absoluteEditUrl(request: Request, editToken: string): string {
 
 function absoluteHelpUrl(request: Request): string {
   return new URL("/activate-ri-2026/help/", request.url).href;
+}
+
+function absoluteScheduleUrl(request: Request): string {
+  return new URL("/activate-ri-2026/schedule/", request.url).href;
 }

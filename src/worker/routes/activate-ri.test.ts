@@ -1042,6 +1042,13 @@ describe("handleActivateRiApi", () => {
         html: expect.stringContaining("https://ripota.org/activate-ri-2026/help/"),
       }),
     );
+    const message = vi.mocked(testEnv.EMAIL.send).mock.calls[0][0] as {
+      html: string;
+      text: string;
+    };
+    expect(message.text).toContain("Public schedule:");
+    expect(message.text).toContain("https://ripota.org/activate-ri-2026/schedule/");
+    expect(message.html).toContain("https://ripota.org/activate-ri-2026/schedule/");
     const activitySql = vi.mocked(testEnv.DB.prepare).mock.calls
       .map(([sql]) => sql)
       .filter((sql) => sql.includes("INSERT INTO activate_ri_activity_events"));

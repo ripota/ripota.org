@@ -57,6 +57,7 @@ export async function sendActivatorApprovalEmail(
     submitter_email: string;
   },
   helpUrl: string,
+  scheduleUrl: string,
 ): Promise<SendEmailResult> {
   return sendEmail(env, {
     to: plan.submitter_email,
@@ -66,6 +67,9 @@ export async function sendActivatorApprovalEmail(
       "",
       "Your Activate All RI 2026 activation plan is approved and live on the public schedule.",
       "Changes you save later with your private edit link go live immediately.",
+      "",
+      "Public schedule:",
+      scheduleUrl,
       "",
       "Activator help:",
       helpUrl,
@@ -77,6 +81,7 @@ export async function sendActivatorApprovalEmail(
       `<p>Hi ${escapeHtml(plan.submitter_name || plan.submitter_callsign)},</p>`,
       "<p>Your Activate All RI 2026 activation plan is approved and live on the public schedule.</p>",
       "<p>Changes you save later with your private edit link go live immediately.</p>",
+      `<p><a href="${escapeHtml(scheduleUrl)}">View the public schedule</a></p>`,
       `<p><a href="${escapeHtml(helpUrl)}">Read the activator help page</a></p>`,
       "<p>73,<br>RI POTA</p>",
     ].join(""),
