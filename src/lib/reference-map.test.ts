@@ -3,6 +3,7 @@ import {
   buildReferenceMapItems,
   coverageStatusLabels,
   referenceMapStatusColors,
+  type ReferenceBoundaryRecord,
 } from "./reference-map";
 import type { PublicActivationStop, PublicParkSummary } from "./activate-ri/types";
 
@@ -29,7 +30,7 @@ const references = [
   },
 ];
 
-const boundaries = [
+const boundaries: ReferenceBoundaryRecord[] = [
   {
     reference: "US-0001",
     status: "available",
