@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { deriveParkCoverage, summarizeParkCoverage } from "./coverage";
+import {
+  deriveParkCoverage,
+  isParkVolunteerActionable,
+  summarizeParkCoverage,
+} from "./coverage";
 import type { PublicActivationStop } from "./types";
 
 const park = {
@@ -273,5 +277,18 @@ describe("deriveParkCoverage", () => {
       gaps: 1,
       total: 1,
     });
+  });
+});
+
+describe("isParkVolunteerActionable", () => {
+  it("returns true for park coverage gaps that need activators", () => {
+    expect(isParkVolunteerActionable("uncovered")).toBe(true);
+    expect(isParkVolunteerActionable("cancelled-needs-replacement")).toBe(true);
+  });
+
+  it("returns false for parks that already have coverage", () => {
+    expect(isParkVolunteerActionable("scheduled")).toBe(false);
+    expect(isParkVolunteerActionable("multiple-scheduled")).toBe(false);
+    expect(isParkVolunteerActionable("completed")).toBe(false);
   });
 });

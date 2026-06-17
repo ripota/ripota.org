@@ -24,7 +24,7 @@
 - Modify: `src/lib/activate-ri/coverage.ts`
 - Test: `src/lib/activate-ri/coverage.test.ts`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add these imports and tests in `src/lib/activate-ri/coverage.test.ts`:
 
@@ -47,7 +47,7 @@ describe("isParkVolunteerActionable", () => {
 });
 ```
 
-- [ ] **Step 2: Run the focused test and verify it fails**
+- [x] **Step 2: Run the focused test and verify it fails**
 
 Run:
 
@@ -57,7 +57,7 @@ rtk npm test -- src/lib/activate-ri/coverage.test.ts
 
 Expected: FAIL because `isParkVolunteerActionable` is not exported.
 
-- [ ] **Step 3: Implement the helper**
+- [x] **Step 3: Implement the helper**
 
 Add this export near the top of `src/lib/activate-ri/coverage.ts`:
 
@@ -72,7 +72,7 @@ export function isParkVolunteerActionable(status: ParkCoverage["status"]): boole
 }
 ```
 
-- [ ] **Step 4: Run the focused test and verify it passes**
+- [x] **Step 4: Run the focused test and verify it passes**
 
 Run:
 
@@ -88,7 +88,7 @@ Expected: PASS.
 - Modify: `src/components/activate-ri/ParkCoverageTable.astro`
 - Modify: `src/styles/global.css`
 
-- [ ] **Step 1: Import and use the helper in fallback rows**
+- [x] **Step 1: Import and use the helper in fallback rows**
 
 Update the import in `src/components/activate-ri/ParkCoverageTable.astro`:
 
@@ -117,7 +117,7 @@ Replace the fallback status cell with:
 </td>
 ```
 
-- [ ] **Step 2: Add the client-side status policy and link helper**
+- [x] **Step 2: Add the client-side status policy and link helper**
 
 Inside the `<script>` in `ParkCoverageTable.astro`, add:
 
@@ -137,7 +137,7 @@ Add these functions near the status label helpers:
   }
 ```
 
-- [ ] **Step 3: Render the client-side live row action**
+- [x] **Step 3: Render the client-side live row action**
 
 Replace the live status cell call in `createCoverageRow`:
 
@@ -171,7 +171,7 @@ Then add this function before `appendCell`:
   }
 ```
 
-- [ ] **Step 4: Add compact table-action styling**
+- [x] **Step 4: Add compact table-action styling**
 
 Add this after `.event-stop-list__item span` in `src/styles/global.css`:
 
@@ -185,7 +185,7 @@ Add this after `.event-stop-list__item span` in `src/styles/global.css`:
 }
 ```
 
-- [ ] **Step 5: Run build verification**
+- [x] **Step 5: Run build verification**
 
 Run:
 
@@ -200,7 +200,7 @@ Expected: PASS.
 **Files:**
 - Modify: `src/components/activate-ri/VolunteerForm.astro`
 
-- [ ] **Step 1: Write the implementation using the existing selection path**
+- [x] **Step 1: Write the implementation using the existing selection path**
 
 After `setupStopCards();` in the script startup section, add:
 
@@ -221,7 +221,7 @@ Add this function near `addParkReferenceToForm`:
   }
 ```
 
-- [ ] **Step 2: Confirm invalid park parameters are ignored**
+- [x] **Step 2: Confirm invalid park parameters are ignored**
 
 Check that `addParkReferenceToForm` already calls `selectParkReference`, shows `Could not find ${reference} in the park list.`, and returns without blocking the form. Because the design requires invalid values to be ignored without an error, update that function so the invalid message is optional:
 
@@ -253,7 +253,7 @@ Then update `prefillParkFromUrl` to call:
     addParkReferenceToForm(reference.toUpperCase(), { silentInvalid: true });
 ```
 
-- [ ] **Step 3: Run type/build verification**
+- [x] **Step 3: Run type/build verification**
 
 Run:
 
@@ -268,7 +268,7 @@ Expected: PASS.
 **Files:**
 - Verify only.
 
-- [ ] **Step 1: Run focused tests**
+- [x] **Step 1: Run focused tests**
 
 Run:
 
@@ -278,7 +278,7 @@ rtk npm test -- src/lib/activate-ri/coverage.test.ts
 
 Expected: PASS.
 
-- [ ] **Step 2: Run full build**
+- [x] **Step 2: Run full build**
 
 Run:
 
@@ -288,7 +288,7 @@ rtk npm run build:local
 
 Expected: PASS.
 
-- [ ] **Step 3: Inspect final diff**
+- [x] **Step 3: Inspect final diff**
 
 Run:
 

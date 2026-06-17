@@ -1017,6 +1017,14 @@ p {
   font-size: 0.9rem;
 }
 
+.event-table-action {
+  align-self: start;
+  min-height: 36px;
+  margin-top: 0.55rem;
+  padding: 0.48rem 0.72rem;
+  font-size: 0.9rem;
+}
+
 .event-form {
   display: grid;
   gap: 1.35rem;

@@ -1,6 +1,14 @@
 import type { ParkCoverage, PublicActivationStop, PublicParkSummary } from "./types";
 
 const upcomingActiveStatuses = new Set(["scheduled", "delayed"]);
+const volunteerActionableStatuses = new Set<ParkCoverage["status"]>([
+  "uncovered",
+  "cancelled-needs-replacement",
+]);
+
+export function isParkVolunteerActionable(status: ParkCoverage["status"]): boolean {
+  return volunteerActionableStatuses.has(status);
+}
 
 export function deriveParkCoverage(
   parks: PublicParkSummary[],

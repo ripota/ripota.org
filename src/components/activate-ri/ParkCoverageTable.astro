@@ -1,6 +1,6 @@
 ---
 import parks from "../../../public/data/activate-ri-2026/parks.json";
-import { deriveParkCoverage } from "../../lib/activate-ri/coverage";
+import { deriveParkCoverage, isParkVolunteerActionable } from "../../lib/activate-ri/coverage";
 import {
   formatActivatorModes,
   timelineOptions,
@@ -47,6 +47,10 @@ function formatList(items: string[]) {
 
 function dataList(items: string[]) {
   return items.join("|");
+}
+
+function volunteerHref(reference: string) {
+  return `/activate-ri-2026/volunteer/?park=${encodeURIComponent(reference)}`;
 }
 
 function parkCounties(park: ParkCoverage) {
@@ -109,7 +113,14 @@ function parkCounties(park: ParkCoverage) {
               <span>{park.reference}</span>
               <span>{formatList(parkCounties(park))}</span>
             </th>
-            <td data-label="Status">{statusLabels[park.status] ?? park.status}</td>
+            <td data-label="Status">
+              {statusLabels[park.status] ?? park.status}
+              {isParkVolunteerActionable(park.status) && (
+                <a class="button event-table-action" href={volunteerHref(park.reference)}>
+                  Volunteer
+                </a>
+              )}
+            </td>
             <td data-label="Next activation">
               {park.stops.length > 0 ? (
                 <div class="event-stop-list">
@@ -180,6 +191,8 @@ function parkCounties(park: ParkCoverage) {
 
 <script>
   import { fetchPublicActivationStops } from "../../lib/activate-ri/public-stops-client";
+
+  const volunteerActionableStatuses = new Set(["uncovered", "cancelled-needs-replacement"]);
 
   document.querySelectorAll("[data-event-filters]").forEach(setupParkFilters);
   document.querySelectorAll<HTMLTableElement>("[data-live-coverage]").forEach(setupLiveCoverage);
@@ -365,7 +378,7 @@ function parkCounties(park: ParkCoverage) {
     }
     row.appendChild(heading);
 
-    appendCell(row, "Status", coverageStatusLabel(park.status));
+    appendStatusCell(row, park);
     appendStopListCell(row, "Next activation", park.stops, (stop) => [
       `${formatDate(stop.plannedDate)}, ${stop.startTime}-${stop.endTime} ET`,
       stopStatusLabel(stop.status),
@@ -378,6 +391,22 @@ function parkCounties(park: ParkCoverage) {
     ]);
 
     return row;
+  }
+
+  function appendStatusCell(row: HTMLTableRowElement, park: CoverageRow): void {
+    const cell = document.createElement("td");
+    cell.dataset.label = "Status";
+    cell.append(coverageStatusLabel(park.status));
+
+    if (isParkVolunteerActionable(park.status)) {
+      const link = document.createElement("a");
+      link.className = "button event-table-action";
+      link.href = volunteerHref(park.reference);
+      link.textContent = "Volunteer";
+      cell.appendChild(link);
+    }
+
+    row.appendChild(cell);
   }
 
   function appendStopListCell(
@@ -472,6 +501,14 @@ function parkCounties(park: ParkCoverage) {
       "cancelled-needs-replacement": "Needs replacement",
       completed: "Completed",
     }[status] ?? status;
+  }
+
+  function isParkVolunteerActionable(status: string): boolean {
+    return volunteerActionableStatuses.has(status);
+  }
+
+  function volunteerHref(reference: string): string {
+    return `/activate-ri-2026/volunteer/?park=${encodeURIComponent(reference)}`;
   }
 
   function stopStatusLabel(status: string): string {

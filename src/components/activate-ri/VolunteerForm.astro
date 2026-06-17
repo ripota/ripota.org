@@ -346,6 +346,7 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
   setupCallsignFields();
   void populateClubDatalist("activate-ri-clubs");
   setupStopCards();
+  prefillParkFromUrl();
 
   document.addEventListener("click", (event) => {
     const target = event.target;
@@ -594,7 +595,16 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
     return nextStop;
   }
 
-  function addParkReferenceToForm(reference: string): void {
+  function prefillParkFromUrl(): void {
+    const reference = new URLSearchParams(window.location.search).get("park");
+    if (!reference) {
+      return;
+    }
+
+    addParkReferenceToForm(reference.toUpperCase(), { silentInvalid: true });
+  }
+
+  function addParkReferenceToForm(reference: string, options: { silentInvalid?: boolean } = {}): void {
     const targetStop = firstEmptyStopCard() ?? appendBlankStop();
     if (!targetStop) {
       return;
@@ -602,7 +612,9 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
 
     const selected = selectParkReference(targetStop, reference);
     if (!selected) {
-      status?.replaceChildren(`Could not find ${reference} in the park list.`);
+      if (!options.silentInvalid) {
+        status?.replaceChildren(`Could not find ${reference} in the park list.`);
+      }
       return;
     }
 
