@@ -16,6 +16,7 @@
     "@astrojs/check": "latest",
     "@cloudflare/workers-types": "^4.20260616.1",
     "@types/leaflet": "^1.9.21",
+    "@types/node": "^25.9.3",
     "astro": "latest",
     "leaflet": "^1.9.4",
     "typescript": "latest",
