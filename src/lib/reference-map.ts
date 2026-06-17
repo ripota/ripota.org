@@ -106,6 +106,7 @@ export function buildReferenceMapItems({
   return references.map((reference) => {
     const boundary = boundariesByReference.get(reference.reference);
     const coverage = coverageByReference.get(reference.reference);
+    const geojson = geojsonForBoundary(boundary, geojsonByPath);
 
     return {
       reference: reference.reference,
@@ -114,12 +115,12 @@ export function buildReferenceMapItems({
       grid: reference.grid ?? "",
       locationDesc: reference.locationDesc ?? "",
       potaUrl: reference.potaUrl ?? "",
-      marker: markerForReference(reference),
+      marker: markerForGeojson(geojson) ?? markerForReference(reference),
       geometryKind: boundary?.geometryKind ?? "point",
       boundaryStatus: boundary?.status ?? "unknown",
       sourceName: boundary?.sourceName ?? "Parks on the Air reference coordinate",
       sourceUrl: boundary?.sourceUrl ?? reference.potaUrl ?? "",
-      geojson: geojsonForBoundary(boundary, geojsonByPath),
+      geojson,
       coverage: coverage
         ? {
             status: coverage.status,
@@ -141,6 +142,74 @@ function markerForReference(reference: ReferenceMapReference): ReferenceMapItem[
     latitude: reference.latitude,
     longitude: reference.longitude,
   };
+}
+
+function markerForGeojson(geojson: ReferenceMapGeoJson | null): ReferenceMapItem["marker"] {
+  if (!geojson) {
+    return null;
+  }
+
+  const bounds = coordinateBounds(geojson.features);
+  if (!bounds) {
+    return null;
+  }
+
+  return {
+    latitude: (bounds.minLatitude + bounds.maxLatitude) / 2,
+    longitude: (bounds.minLongitude + bounds.maxLongitude) / 2,
+  };
+}
+
+function coordinateBounds(value: unknown): {
+  minLatitude: number;
+  maxLatitude: number;
+  minLongitude: number;
+  maxLongitude: number;
+} | null {
+  const bounds = {
+    minLatitude: Infinity,
+    maxLatitude: -Infinity,
+    minLongitude: Infinity,
+    maxLongitude: -Infinity,
+  };
+
+  visitCoordinates(value, (longitude, latitude) => {
+    bounds.minLatitude = Math.min(bounds.minLatitude, latitude);
+    bounds.maxLatitude = Math.max(bounds.maxLatitude, latitude);
+    bounds.minLongitude = Math.min(bounds.minLongitude, longitude);
+    bounds.maxLongitude = Math.max(bounds.maxLongitude, longitude);
+  });
+
+  if (!Number.isFinite(bounds.minLatitude) || !Number.isFinite(bounds.minLongitude)) {
+    return null;
+  }
+
+  return bounds;
+}
+
+function visitCoordinates(
+  value: unknown,
+  visit: (longitude: number, latitude: number) => void,
+): void {
+  if (!Array.isArray(value)) {
+    if (typeof value === "object" && value !== null) {
+      Object.values(value).forEach((nested) => visitCoordinates(nested, visit));
+    }
+    return;
+  }
+
+  if (
+    value.length >= 2 &&
+    typeof value[0] === "number" &&
+    typeof value[1] === "number" &&
+    Number.isFinite(value[0]) &&
+    Number.isFinite(value[1])
+  ) {
+    visit(value[0], value[1]);
+    return;
+  }
+
+  value.forEach((nested) => visitCoordinates(nested, visit));
 }
 
 function geojsonForBoundary(

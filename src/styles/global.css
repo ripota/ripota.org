@@ -404,11 +404,21 @@ p {
   color: #18312f;
 }
 
-.map-popup__links,
 .map-popup__stops,
 .map-popup__stop {
   display: grid;
   gap: 0.3rem;
+}
+
+.ri-reference-map .leaflet-popup-content .map-popup__links {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.15rem;
+}
+
+.ri-reference-map .leaflet-popup-content .map-popup__links a {
+  display: inline-block;
+  width: fit-content;
 }
 
 .map-popup__stops {

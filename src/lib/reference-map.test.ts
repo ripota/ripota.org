@@ -104,6 +104,25 @@ describe("buildReferenceMapItems", () => {
     });
   });
 
+  it("uses GeoJSON bounds for available boundary markers before reference coordinates", () => {
+    const items = buildReferenceMapItems({
+      references: [
+        {
+          ...references[0],
+          latitude: 38.9,
+          longitude: -77,
+        },
+      ],
+      boundaries: [boundaries[0]],
+      geojsonByPath,
+    });
+
+    expect(items[0].marker).toEqual({
+      latitude: 41.5,
+      longitude: -71.4,
+    });
+  });
+
   it("attaches derived coverage and sorted stops when event data is provided", () => {
     const parks: PublicParkSummary[] = references.map((reference) => ({
       reference: reference.reference,
