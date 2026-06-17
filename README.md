@@ -18,6 +18,15 @@ Run the site:
 mise run dev
 ```
 
+Run the local Worker against the remote production Activate RI D1 database:
+
+```bash
+mise run activate-ri-2026:dev-production-data
+```
+
+This mode is for admin UI debugging with real data. It enables localhost-only
+admin access and blocks write requests before they can modify production data.
+
 Common checks:
 
 ```bash

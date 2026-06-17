@@ -30,7 +30,20 @@ export async function requireAccessIdentity(
     }
   }
 
+  if (env.ALLOW_LOCAL_ADMIN_AUTH === "true" && isLocalRequest(request)) {
+    return { email: env.LOCAL_ADMIN_EMAIL ?? "local-admin@ripota.org" };
+  }
+
   return unauthorized();
+}
+
+function isLocalRequest(request: Request): boolean {
+  const hostname = new URL(request.url).hostname;
+  return (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "::1"
+  );
 }
 
 async function verifyAccessJwt(

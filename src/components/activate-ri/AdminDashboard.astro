@@ -8,12 +8,12 @@
       </p>
     </div>
     <button class="button" data-variant="primary" type="button" data-load-plans>
-      Load pending submissions
+      Refresh pending submissions
     </button>
   </div>
 
   <p class="admin-status" data-admin-status aria-live="polite">
-    Load the queue to review pending activation submissions.
+    Loading pending submissions...
   </p>
   <div class="admin-list" data-admin-list></div>
 
@@ -24,11 +24,11 @@
         <p class="lead">Recent submissions, approvals, email events, and activator changes.</p>
       </div>
       <button class="button" data-variant="light" type="button" data-load-activity>
-        Load activity
+        Refresh activity
       </button>
     </div>
     <p class="admin-status" data-activity-status aria-live="polite">
-      Load activity to review recent plan events.
+      Loading activity...
     </p>
     <div class="admin-list" data-activity-list></div>
   </section>
@@ -72,6 +72,7 @@
     actor_email?: unknown;
     actor_type?: unknown;
     created_at?: unknown;
+    details?: unknown;
     plan_id?: unknown;
     stop_id?: unknown;
     summary?: unknown;
@@ -91,6 +92,8 @@
   activityButton?.addEventListener("click", () => {
     void loadActivity();
   });
+  void loadPendingPlans();
+  void loadActivity();
 
   async function loadPendingPlans() {
     if (!loadButton || !status || !list) {
@@ -361,30 +364,151 @@
 
   function createActivityCard(event: ActivityEvent) {
     const article = document.createElement("article");
-    article.className = "admin-card admin-card--activity";
+    article.className = "activity-row";
 
     const body = document.createElement("div");
-    body.className = "admin-card__body";
+    body.className = "activity-row__body";
 
-    const title = document.createElement("h3");
-    title.textContent = stringValue(event.action) || "activity";
+    const header = document.createElement("div");
+    header.className = "activity-row__header";
 
     const summary = document.createElement("p");
+    summary.className = "activity-row__summary";
     summary.textContent = stringValue(event.summary) || "No summary provided.";
 
-    const meta = document.createElement("dl");
-    meta.className = "admin-meta admin-meta--compact";
-    addMeta(meta, "Time", formatEventTime(stringValue(event.created_at)));
-    addMeta(meta, "Actor", [stringValue(event.actor_type), stringValue(event.actor_email)].filter(Boolean).join(" - ") || "system");
-    addMeta(meta, "Plan", stringValue(event.plan_id) || "Not provided");
-    addMeta(meta, "Stop", stringValue(event.stop_id) || "Not provided");
+    const action = document.createElement("span");
+    action.className = "activity-row__action";
+    action.textContent = formatAction(stringValue(event.action));
 
-    body.appendChild(title);
-    body.appendChild(summary);
+    const meta = document.createElement("p");
+    meta.className = "activity-row__meta";
+    meta.textContent = [
+      formatEventTime(stringValue(event.created_at)),
+      actorLabel(event),
+    ].filter(Boolean).join(" by ");
+
+    header.appendChild(summary);
+    header.appendChild(action);
+    body.appendChild(header);
     body.appendChild(meta);
+
+    const details = createActivityDetails(event.details);
+    if (details) {
+      body.appendChild(details);
+    }
+
     article.appendChild(body);
 
     return article;
+  }
+
+  function createActivityDetails(details: unknown): HTMLElement | null {
+    if (!isRecord(details)) {
+      return null;
+    }
+
+    const entries = detailEntries(details);
+    if (entries.length === 0) {
+      return null;
+    }
+
+    const list = document.createElement("dl");
+    list.className = "activity-details";
+    for (const [label, value] of entries) {
+      addMeta(list, label, value);
+    }
+
+    return list;
+  }
+
+  function detailEntries(details: Record<string, unknown>): [string, string][] {
+    const entries: [string, string][] = [];
+    const previous = isRecord(details.previous) ? details.previous : null;
+    const next = isRecord(details.next) ? details.next : null;
+
+    if (previous || next) {
+      for (const key of detailKeys(previous, next)) {
+        const previousValue = previous ? detailValue(previous[key]) : "";
+        const nextValue = next ? detailValue(next[key]) : "";
+        if (!previousValue && !nextValue) {
+          continue;
+        }
+        if (previous && next && previousValue === nextValue) {
+          continue;
+        }
+        entries.push([
+          formatDetailLabel(key),
+          previous && next ? `${previousValue || "None"} -> ${nextValue || "None"}` : previousValue || nextValue,
+        ]);
+      }
+      return entries;
+    }
+
+    for (const [key, value] of Object.entries(details)) {
+      if (isBookkeepingKey(key)) {
+        continue;
+      }
+      const formatted = detailValue(value);
+      if (formatted) {
+        entries.push([formatDetailLabel(key), formatted]);
+      }
+    }
+
+    return entries;
+  }
+
+  function detailKeys(previous: Record<string, unknown> | null, next: Record<string, unknown> | null): string[] {
+    return [...new Set([...Object.keys(previous ?? {}), ...Object.keys(next ?? {})])]
+      .filter((key) => !isBookkeepingKey(key));
+  }
+
+  function detailValue(value: unknown): string {
+    if (typeof value === "string") {
+      return value;
+    }
+    if (typeof value === "number" || typeof value === "boolean") {
+      return String(value);
+    }
+    if (Array.isArray(value)) {
+      return value.map(detailValue).filter(Boolean).join(", ");
+    }
+    if (isRecord(value)) {
+      return Object.entries(value)
+        .filter(([key]) => !isBookkeepingKey(key))
+        .map(([key, nested]) => {
+          const formatted = detailValue(nested);
+          return formatted ? `${formatDetailLabel(key)}: ${formatted}` : "";
+        })
+        .filter(Boolean)
+        .join("; ");
+    }
+
+    return "";
+  }
+
+  function actorLabel(event: ActivityEvent): string {
+    return [stringValue(event.actor_type), stringValue(event.actor_email)]
+      .filter(Boolean)
+      .join(" - ") || "system";
+  }
+
+  function formatAction(action: string): string {
+    return action.replaceAll("-", " ") || "activity";
+  }
+
+  function formatDetailLabel(key: string): string {
+    return key
+      .replace(/_/g, " ")
+      .replace(/([a-z])([A-Z])/g, "$1 $2")
+      .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  }
+
+  function isBookkeepingKey(key: string): boolean {
+    return /(^id$|Id$|_id$|operation|created|updated|event)/i.test(key);
+  }
+
+  function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
   }
 
   async function parseResponse(response: Response): Promise<AdminResponse> {

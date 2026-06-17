@@ -11,4 +11,7 @@ export type Env = {
   CF_ACCESS_TEAM_DOMAIN?: string;
   CF_ACCESS_AUD?: string;
   ALLOW_ADMIN_HEADER_AUTH?: "true" | "false";
+  ALLOW_LOCAL_ADMIN_AUTH?: "true" | "false";
+  LOCAL_ADMIN_EMAIL?: string;
+  REMOTE_DATA_READ_ONLY?: "true" | "false";
 };

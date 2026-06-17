@@ -667,6 +667,49 @@ describe("handleActivateRiApi", () => {
     });
   });
 
+  it("allows local admin auth for localhost admin reads when explicitly enabled", async () => {
+    const testEnv = {
+      ...adminEnv(),
+      ALLOW_LOCAL_ADMIN_AUTH: "true" as const,
+      LOCAL_ADMIN_EMAIL: "local@example.com",
+    };
+    testEnv.DB = adminDb();
+
+    const response = await handleActivateRiApi(
+      new Request("http://127.0.0.1/api/activate-ri-2026/admin/plans"),
+      testEnv,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      plans: [pendingPlanDto],
+    });
+  });
+
+  it("blocks writes when remote production data is configured read-only", async () => {
+    const testEnv = {
+      ...adminEnv(),
+      REMOTE_DATA_READ_ONLY: "true" as const,
+    };
+    testEnv.DB = adminDb({ planStatus: "pending", planUpdateChanges: 1 });
+
+    const response = await handleActivateRiApi(
+      adminRequest("/api/activate-ri-2026/admin/plans/plan-1/approve", {
+        method: "POST",
+        headers: { "Cf-Access-Authenticated-User-Email": "admin@example.com" },
+      }),
+      testEnv,
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: "Remote production data is read-only in local development.",
+    });
+    expect(testEnv.DB.prepare).not.toHaveBeenCalled();
+  });
+
   it("rejects spoofed admin email headers without Access config or local bypass", async () => {
     const testEnv = env();
     testEnv.DB = adminDb();

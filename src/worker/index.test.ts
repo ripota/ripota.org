@@ -20,6 +20,10 @@ function request(path: string, init?: RequestInit): Request {
   return new Request(`https://ripota.org${path}`, init);
 }
 
+function localRequest(path: string, init?: RequestInit): Request {
+  return new Request(`http://127.0.0.1${path}`, init);
+}
+
 describe("worker routing", () => {
   it("rewrites real Activate RI edit tokens to the static edit shell", async () => {
     const testEnv = env();
@@ -131,5 +135,41 @@ describe("worker routing", () => {
     expect(response.status).toBe(200);
     await expect(response.text()).resolves.toBe("asset shell");
     expect(testEnv.ASSETS.fetch).toHaveBeenCalledOnce();
+  });
+
+  it("serves the Activate RI admin page on localhost when local admin auth is enabled", async () => {
+    const testEnv = {
+      ...env(),
+      ALLOW_LOCAL_ADMIN_AUTH: "true" as const,
+      LOCAL_ADMIN_EMAIL: "local@example.com",
+    };
+
+    const response = await worker.fetch(
+      localRequest("/activate-ri-2026/admin/"),
+      testEnv,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.text()).resolves.toBe("asset shell");
+    expect(testEnv.ASSETS.fetch).toHaveBeenCalledOnce();
+  });
+
+  it("does not allow local admin auth on non-localhost requests", async () => {
+    const testEnv = {
+      ...env(),
+      ALLOW_LOCAL_ADMIN_AUTH: "true" as const,
+    };
+
+    const response = await worker.fetch(
+      request("/activate-ri-2026/admin/"),
+      testEnv,
+    );
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: "Unauthorized",
+    });
+    expect(testEnv.ASSETS.fetch).not.toHaveBeenCalled();
   });
 });

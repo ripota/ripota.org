@@ -55,6 +55,20 @@ export async function handleActivateRiApi(
   const url = new URL(request.url);
 
   if (
+    env.REMOTE_DATA_READ_ONLY === "true" &&
+    request.method !== "GET" &&
+    request.method !== "HEAD"
+  ) {
+    return json(
+      {
+        ok: false,
+        error: "Remote production data is read-only in local development.",
+      },
+      { status: 403 },
+    );
+  }
+
+  if (
     request.method === "GET" &&
     url.pathname === "/api/activate-ri-2026/admin/plans"
   ) {
