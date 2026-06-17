@@ -38,10 +38,10 @@ docs/activate-ri-2026/email-flow-and-setup.md
 Optional but recommended: export a SQL backup before deleting rows.
 
 ```bash
-mkdir -p tmp
+mkdir -p tmp/d1-backups
 npx wrangler d1 export ripota-org \
   --remote \
-  --output "tmp/ripota-org-before-reset-$(date +%Y%m%d-%H%M%S).sql"
+  --output "tmp/d1-backups/ripota-org-before-reset-$(date +%Y%m%d-%H%M%S).sql"
 ```
 
 Cloudflare D1 also has Time Travel recovery for remote databases. Before a

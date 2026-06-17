@@ -213,8 +213,9 @@ mise run deploy
 The deploy task:
 
 1. verifies Wrangler authentication
-2. applies pending remote D1 migrations
-3. deploys the top-level `ripota-org` Worker and static asset build
+2. backs up the production D1 database to `tmp/d1-backups/`
+3. applies pending remote D1 migrations
+4. deploys the top-level `ripota-org` Worker and static asset build
 
 Do not deploy this project with `wrangler deploy --env production`.
 
