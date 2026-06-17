@@ -4,6 +4,7 @@ import {
   coverageStatusLabels,
   referenceMapFitBoundsOptions,
   referenceMapLeafletOptions,
+  referenceMapLegendItems,
   referenceMapStatusColors,
   type ReferenceBoundaryRecord,
 } from "./reference-map";
@@ -185,5 +186,27 @@ describe("reference map viewport configuration", () => {
     expect(referenceMapLeafletOptions.zoomSnap).toBeLessThan(1);
     expect(referenceMapFitBoundsOptions.padding).toEqual([16, 16]);
     expect(referenceMapFitBoundsOptions.maxZoom).toBe(10);
+  });
+});
+
+describe("reference map legend", () => {
+  it("groups related event coverage states into concise labels", () => {
+    expect(referenceMapLegendItems).toEqual([
+      {
+        label: "Help wanted",
+        statuses: ["uncovered", "cancelled-needs-replacement"],
+        color: referenceMapStatusColors.uncovered,
+      },
+      {
+        label: "Scheduled",
+        statuses: ["scheduled", "multiple-scheduled"],
+        color: referenceMapStatusColors.scheduled,
+      },
+      {
+        label: "Completed",
+        statuses: ["completed"],
+        color: referenceMapStatusColors.completed,
+      },
+    ]);
   });
 });

@@ -87,6 +87,28 @@ export const referenceMapStatusColors: Record<ParkCoverageStatus, string> = {
   completed: "#5f6f76",
 };
 
+export const referenceMapLegendItems: Array<{
+  label: string;
+  statuses: ParkCoverageStatus[];
+  color: string;
+}> = [
+  {
+    label: "Help wanted",
+    statuses: ["uncovered", "cancelled-needs-replacement"],
+    color: referenceMapStatusColors.uncovered,
+  },
+  {
+    label: "Scheduled",
+    statuses: ["scheduled", "multiple-scheduled"],
+    color: referenceMapStatusColors.scheduled,
+  },
+  {
+    label: "Completed",
+    statuses: ["completed"],
+    color: referenceMapStatusColors.completed,
+  },
+];
+
 export const referenceMapLeafletOptions = {
   scrollWheelZoom: false,
   zoomSnap: 0.25,

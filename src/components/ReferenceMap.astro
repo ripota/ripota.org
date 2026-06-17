@@ -7,6 +7,7 @@ import references from "../data/ri-references.json";
 import {
   buildReferenceMapItems,
   coverageStatusLabels,
+  referenceMapLegendItems,
   referenceMapStatusColors,
   type ReferenceBoundaryRecord,
   type ReferenceMapVariant,
@@ -53,9 +54,10 @@ const mapItems = buildReferenceMapItems({
   stops: isEventMap ? [] : undefined,
 });
 const legendItems = isEventMap
-  ? (Object.entries(coverageStatusLabels) as Array<[keyof typeof coverageStatusLabels, string]>)
+  ? referenceMapLegendItems
   : [];
 const showLegend = legendPlacement !== "none" && legendItems.length > 0;
+const showCaption = caption.trim().length > 0;
 const dataId = `${id}-data`;
 const payload = JSON.stringify({
   variant,
@@ -72,10 +74,10 @@ const payload = JSON.stringify({
     showLegend && legendPlacement === "overlay" && (
       <div class="map-legend" aria-label={legendTitle ?? "Coverage status legend"}>
         {legendTitle && <span class="map-legend__title">{legendTitle}</span>}
-        {legendItems.map(([status, label]) => (
+        {legendItems.map((item) => (
           <span class="map-legend__item">
-            <span style={`--map-status-color: ${referenceMapStatusColors[status]}`} />
-            {label}
+            <span style={`--map-status-color: ${item.color}`} />
+            {item.label}
           </span>
         ))}
       </div>
@@ -86,16 +88,16 @@ const payload = JSON.stringify({
     showLegend && legendPlacement === "below" && (
       <div class="map-legend map-legend--below" aria-label={legendTitle ?? "Coverage status legend"}>
         {legendTitle && <span class="map-legend__title">{legendTitle}</span>}
-        {legendItems.map(([status, label]) => (
+        {legendItems.map((item) => (
           <span class="map-legend__item">
-            <span style={`--map-status-color: ${referenceMapStatusColors[status]}`} />
-            {label}
+            <span style={`--map-status-color: ${item.color}`} />
+            {item.label}
           </span>
         ))}
       </div>
     )
   }
-  <figcaption class="map-preview__caption">{caption}</figcaption>
+  {showCaption && <figcaption class="map-preview__caption">{caption}</figcaption>}
 </figure>
 
 <script is:inline type="application/json" id={dataId} set:html={payload} />
