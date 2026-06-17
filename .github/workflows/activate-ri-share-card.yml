@@ -21,6 +21,8 @@ concurrency:
 jobs:
   update-share-card:
     runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_CHROMIUM_CHANNEL: chrome
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -38,9 +40,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
 
       - name: Regenerate share card
         run: |

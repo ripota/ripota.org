@@ -6,6 +6,7 @@ import { once } from "node:events";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
+import { pathToFileURL } from "node:url";
 import process from "node:process";
 
 import { chromium } from "@playwright/test";
@@ -42,10 +43,12 @@ const templateInputs = [
   "src/lib/activate-ri/public-stops-client.ts",
 ];
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : error);
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  });
+}
 
 async function main() {
   const allowedArgs = new Set(["--force", "--local-stops"]);
@@ -74,7 +77,7 @@ async function main() {
   let browser;
 
   try {
-    browser = await chromium.launch();
+    browser = await chromium.launch(chromiumLaunchOptions());
     const context = await browser.newContext({
       deviceScaleFactor: 1,
       viewport: { width: outputWidth, height: outputHeight },
@@ -125,6 +128,16 @@ async function main() {
     await browser?.close();
     await server.stop();
   }
+}
+
+export function chromiumLaunchOptions(env = process.env) {
+  const channel = env.PLAYWRIGHT_CHROMIUM_CHANNEL?.trim();
+
+  if (!channel) {
+    return {};
+  }
+
+  return { channel };
 }
 
 async function readStopsInput() {
