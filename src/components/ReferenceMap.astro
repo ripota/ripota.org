@@ -1,0 +1,470 @@
+---
+import "leaflet/dist/leaflet.css";
+
+import parks from "../../public/data/activate-ri-2026/parks.json";
+import schedule from "../../public/data/activate-ri-2026/schedule.json";
+import boundaries from "../data/ri-reference-boundaries.json";
+import references from "../data/ri-references.json";
+import {
+  buildReferenceMapItems,
+  coverageStatusLabels,
+  referenceMapStatusColors,
+  type ReferenceBoundaryRecord,
+  type ReferenceMapVariant,
+} from "../lib/reference-map";
+import type { PublicActivationStop, PublicParkSummary } from "../lib/activate-ri/types";
+
+type Props = {
+  id: string;
+  variant: ReferenceMapVariant;
+  title: string;
+  caption: string;
+  phaseFocus?: "volunteer" | "hunter";
+};
+
+const { id, variant, title, caption, phaseFocus = "volunteer" } = Astro.props;
+const rawGeojsonByPath = import.meta.glob("../data/boundaries/*.geojson", {
+  eager: true,
+  query: "?raw",
+  import: "default",
+});
+const geojsonByPath = Object.fromEntries(
+  Object.entries(rawGeojsonByPath).map(([path, value]) => [
+    path.replace("../data/boundaries/", "./boundaries/"),
+    String(value),
+  ]),
+);
+const eventParks = parks as PublicParkSummary[];
+const visibleSchedule = (schedule as PublicActivationStop[]).filter(
+  (stop) => !stop.id.startsWith("sample-"),
+);
+const isEventMap = variant === "coverage" || variant === "volunteer";
+const mapItems = buildReferenceMapItems({
+  references,
+  boundaries: boundaries as ReferenceBoundaryRecord[],
+  geojsonByPath,
+  parks: isEventMap ? eventParks : undefined,
+  stops: isEventMap ? visibleSchedule : undefined,
+});
+const legendItems = isEventMap
+  ? (Object.entries(coverageStatusLabels) as Array<[keyof typeof coverageStatusLabels, string]>)
+  : [];
+const dataId = `${id}-data`;
+const payload = JSON.stringify({
+  variant,
+  phaseFocus,
+  items: mapItems,
+  parks: isEventMap ? eventParks : [],
+  coverageStatusLabels,
+  referenceMapStatusColors,
+});
+---
+
+<figure class="map-preview reference-map-preview" aria-label={title}>
+  {
+    legendItems.length > 0 && (
+      <div class="map-legend" aria-label="Coverage status legend">
+        {legendItems.map(([status, label]) => (
+          <span class="map-legend__item">
+            <span style={`--map-status-color: ${referenceMapStatusColors[status]}`} />
+            {label}
+          </span>
+        ))}
+      </div>
+    )
+  }
+  <div id={id} class="ri-reference-map" data-reference-map data-map-data-id={dataId}></div>
+  <figcaption class="map-preview__caption">{caption}</figcaption>
+</figure>
+
+<script is:inline type="application/json" id={dataId} set:html={payload} />
+<script>
+  import L from "leaflet";
+
+  type PublicStop = {
+    id: string;
+    parkReference: string;
+    plannedDate: string;
+    startTime: string;
+    endTime: string;
+    activatorCallsign: string;
+    bands: string[];
+    modes: string[];
+    publicNotes?: string;
+    status: string;
+  };
+
+  type PublicPark = {
+    reference: string;
+    name: string;
+    counties?: string[];
+  };
+
+  type MapCoverage = {
+    status: string;
+    label: string;
+    color: string;
+    stops: PublicStop[];
+  };
+
+  type MapItem = {
+    reference: string;
+    name: string;
+    counties: string[];
+    grid: string;
+    locationDesc: string;
+    potaUrl: string;
+    marker: {
+      latitude: number;
+      longitude: number;
+    } | null;
+    geometryKind: string;
+    boundaryStatus: string;
+    sourceName: string;
+    sourceUrl: string;
+    geojson: {
+      type: "FeatureCollection";
+      features: unknown[];
+      properties?: Record<string, unknown>;
+    } | null;
+    coverage: MapCoverage | null;
+  };
+
+  type MapPayload = {
+    variant: "home" | "coverage" | "volunteer";
+    phaseFocus: "volunteer" | "hunter";
+    items: MapItem[];
+    parks: PublicPark[];
+    coverageStatusLabels: Record<string, string>;
+    referenceMapStatusColors: Record<string, string>;
+  };
+
+  document.querySelectorAll<HTMLElement>("[data-reference-map]").forEach(setupReferenceMap);
+
+  function setupReferenceMap(mapElement: HTMLElement): void {
+    const dataElement = document.getElementById(mapElement.dataset.mapDataId ?? "");
+    if (!dataElement) {
+      return;
+    }
+
+    const payload = JSON.parse(dataElement.textContent ?? "{}") as MapPayload;
+    const map = L.map(mapElement, {
+      scrollWheelZoom: false,
+    });
+    const bounds = L.latLngBounds([]);
+    const layersByReference = new Map<
+      string,
+      {
+        boundaries: L.Path[];
+        markers: L.CircleMarker[];
+      }
+    >();
+
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(map);
+
+    for (const item of payload.items) {
+      const layers = renderMapItem(map, bounds, payload, item);
+      layersByReference.set(item.reference, layers);
+    }
+
+    fitReferenceBounds(map, bounds);
+    setupPopupActions(mapElement);
+
+    if (payload.variant !== "home") {
+      refreshLiveCoverage(payload, layersByReference);
+    }
+  }
+
+  function renderMapItem(
+    map: L.Map,
+    bounds: L.LatLngBounds,
+    payload: MapPayload,
+    item: MapItem,
+  ): { boundaries: L.Path[]; markers: L.CircleMarker[] } {
+    const boundaries: L.Path[] = [];
+    const markers: L.CircleMarker[] = [];
+    const style = itemStyle(payload, item);
+
+    if (item.geojson) {
+      const layer = L.geoJSON(item.geojson as GeoJSON.GeoJsonObject, {
+        style: () => ({
+          color: style.color,
+          fillColor: style.fillColor,
+          fillOpacity: style.boundaryFillOpacity,
+          opacity: 0.9,
+          weight: 2,
+        }),
+        onEachFeature: (_feature, featureLayer) => {
+          featureLayer.bindPopup(() => popupHtml(payload, item));
+          if (featureLayer instanceof L.Path) {
+            boundaries.push(featureLayer);
+          }
+        },
+      }).addTo(map);
+
+      const layerBounds = layer.getBounds();
+      if (layerBounds.isValid()) {
+        bounds.extend(layerBounds);
+      }
+    }
+
+    if (item.marker) {
+      const marker = L.circleMarker([item.marker.latitude, item.marker.longitude], {
+        radius: payload.variant === "home" ? 6 : 7,
+        color: style.color,
+        fillColor: style.fillColor,
+        fillOpacity: style.markerFillOpacity,
+        opacity: 1,
+        weight: 2,
+      })
+        .addTo(map)
+        .bindPopup(() => popupHtml(payload, item));
+      markers.push(marker);
+      bounds.extend([item.marker.latitude, item.marker.longitude]);
+    }
+
+    return { boundaries, markers };
+  }
+
+  function itemStyle(payload: MapPayload, item: MapItem) {
+    const color = item.coverage?.color ?? "#172026";
+    const fillColor = payload.variant === "home" ? "#d7913a" : color;
+
+    return {
+      color,
+      fillColor,
+      boundaryFillOpacity: payload.variant === "home" ? 0.16 : 0.22,
+      markerFillOpacity: 0.95,
+    };
+  }
+
+  function updateMapItemLayers(
+    payload: MapPayload,
+    item: MapItem,
+    layers: { boundaries: L.Path[]; markers: L.CircleMarker[] } | undefined,
+  ): void {
+    if (!layers) {
+      return;
+    }
+
+    const style = itemStyle(payload, item);
+    layers.boundaries.forEach((layer) => {
+      layer.setStyle({
+        color: style.color,
+        fillColor: style.fillColor,
+        fillOpacity: style.boundaryFillOpacity,
+      });
+      layer.bindPopup(() => popupHtml(payload, item));
+    });
+    layers.markers.forEach((marker) => {
+      marker.setStyle({
+        color: style.color,
+        fillColor: style.fillColor,
+        fillOpacity: style.markerFillOpacity,
+      });
+      marker.bindPopup(() => popupHtml(payload, item));
+    });
+  }
+
+  function fitReferenceBounds(map: L.Map, bounds: L.LatLngBounds): void {
+    if (bounds.isValid()) {
+      map.fitBounds(bounds, { padding: [28, 28], maxZoom: 10 });
+      return;
+    }
+
+    map.setView([41.58, -71.48], 9);
+  }
+
+  function setupPopupActions(mapElement: HTMLElement): void {
+    mapElement.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        return;
+      }
+
+      const button = target.closest<HTMLButtonElement>("[data-map-add-activation]");
+      const reference = button?.dataset.reference;
+      if (!reference) {
+        return;
+      }
+
+      document.dispatchEvent(
+        new CustomEvent("activate-ri:add-park", {
+          detail: { reference },
+        }),
+      );
+    });
+  }
+
+  async function refreshLiveCoverage(
+    payload: MapPayload,
+    layersByReference: Map<string, { boundaries: L.Path[]; markers: L.CircleMarker[] }>,
+  ): Promise<void> {
+    try {
+      const response = await fetch("/api/activate-ri-2026/public/stops", {
+        headers: { accept: "application/json" },
+      });
+      const data = (await response.json()) as { ok?: boolean; stops?: PublicStop[] };
+      if (!response.ok || !data.ok || !Array.isArray(data.stops)) {
+        return;
+      }
+
+      const coverageByReference = deriveCoverage(
+        payload.parks,
+        data.stops.filter((stop) => !stop.id.startsWith("sample-")),
+        payload,
+      );
+
+      for (const item of payload.items) {
+        item.coverage = coverageByReference.get(item.reference) ?? item.coverage;
+        updateMapItemLayers(payload, item, layersByReference.get(item.reference));
+      }
+    } catch {
+      return;
+    }
+  }
+
+  function deriveCoverage(
+    parks: PublicPark[],
+    stops: PublicStop[],
+    payload: MapPayload,
+  ): Map<string, MapCoverage> {
+    const stopsByReference = new Map<string, PublicStop[]>();
+    for (const stop of stops) {
+      const parkStops = stopsByReference.get(stop.parkReference) ?? [];
+      parkStops.push(stop);
+      stopsByReference.set(stop.parkReference, parkStops);
+    }
+
+    return new Map(
+      parks.map((park) => {
+        const parkStops = sortStops(stopsByReference.get(park.reference) ?? []);
+        const scheduledStops = parkStops.filter((stop) =>
+          stop.status === "scheduled" || stop.status === "delayed",
+        );
+        const completedStops = parkStops.filter((stop) => stop.status === "completed");
+        const cancelledStops = parkStops.filter((stop) => stop.status === "cancelled");
+        const status =
+          scheduledStops.length > 1
+            ? "multiple-scheduled"
+            : scheduledStops.length === 1
+              ? "scheduled"
+              : completedStops.length > 0
+                ? "completed"
+                : cancelledStops.length > 0
+                  ? "cancelled-needs-replacement"
+                  : "uncovered";
+
+        return [
+          park.reference,
+          {
+            status,
+            label: payload.coverageStatusLabels[status] ?? status,
+            color: payload.referenceMapStatusColors[status] ?? "#172026",
+            stops: parkStops,
+          },
+        ];
+      }),
+    );
+  }
+
+  function popupHtml(payload: MapPayload, item: MapItem): string {
+    if (payload.variant === "home") {
+      return `
+        <strong>${escapeHtml(item.reference)}</strong>
+        <span>${escapeHtml(item.name)}</span>
+        <em>${escapeHtml(detailLine(item))}</em>
+        <span>Reference data comes from official POTA park data and local public boundary sources.</span>
+        ${officialLink(item)}
+      `;
+    }
+
+    const volunteerAction =
+      payload.variant === "volunteer"
+        ? `<button class="map-popup__action" type="button" data-map-add-activation data-reference="${escapeHtml(item.reference)}">Add activation</button>`
+        : `<a href="/activate-ri-2026/volunteer/">Volunteer for this park</a>`;
+
+    return `
+      <strong>${escapeHtml(item.reference)}</strong>
+      <span>${escapeHtml(item.name)}</span>
+      <em>${escapeHtml(detailLine(item))}</em>
+      <span><b>${escapeHtml(item.coverage?.label ?? "Needs coverage")}</b></span>
+      ${coverageStopsHtml(item)}
+      <span class="map-popup__links">
+        <a href="/activate-ri-2026/parks/">Open coverage table</a>
+        ${volunteerAction}
+      </span>
+    `;
+  }
+
+  function coverageStopsHtml(item: MapItem): string {
+    const stops = item.coverage?.stops ?? [];
+    if (stops.length === 0) {
+      return `<span>Needs coverage.</span>`;
+    }
+
+    return `
+      <span class="map-popup__stops">
+        ${stops.map((stop) => `
+          <span class="map-popup__stop">
+            <b>${escapeHtml(stop.activatorCallsign)}</b>
+            <span>${escapeHtml(formatDate(stop.plannedDate))}, ${escapeHtml(stop.startTime)}-${escapeHtml(stop.endTime)} ET</span>
+            <span>${escapeHtml(formatList(stop.bands))} / ${escapeHtml(formatList(stop.modes))}</span>
+            ${stop.publicNotes ? `<span>${escapeHtml(stop.publicNotes)}</span>` : ""}
+          </span>
+        `).join("")}
+      </span>
+    `;
+  }
+
+  function officialLink(item: MapItem): string {
+    if (!item.potaUrl) {
+      return "";
+    }
+
+    return `<a href="${escapeHtml(item.potaUrl)}" target="_blank" rel="noreferrer">Open official POTA page</a>`;
+  }
+
+  function detailLine(item: MapItem): string {
+    return [item.grid, item.locationDesc, item.counties.join(", ")].filter(Boolean).join(" · ");
+  }
+
+  function sortStops(stops: PublicStop[]): PublicStop[] {
+    return [...stops].sort((left, right) => {
+      const leftKey = `${left.plannedDate}T${left.startTime}`;
+      const rightKey = `${right.plannedDate}T${right.startTime}`;
+      return leftKey.localeCompare(rightKey);
+    });
+  }
+
+  function formatDate(date: string): string {
+    return new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      timeZone: "UTC",
+    }).format(new Date(`${date}T00:00:00Z`));
+  }
+
+  function formatList(items: string[]): string {
+    return items.length > 0 ? items.join(", ") : "TBD";
+  }
+
+  function escapeHtml(value: string): string {
+    return String(value).replace(/[&<>"']/g, (char) => {
+      const entities: Record<string, string> = {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      };
+
+      return entities[char] ?? char;
+    });
+  }
+</script>
