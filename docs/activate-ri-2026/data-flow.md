@@ -42,6 +42,15 @@ currently updated by normal admin approval or activator edit API requests.
 Official Parks on the Air resources remain the source of truth for POTA rules,
 reference metadata, accounts, spots, and logs.
 
+Activation stop times are stored in D1 as UTC instant strings:
+
+- `activate_ri_stops.start_at`
+- `activate_ri_stops.end_at`
+
+Public and edit APIs may still expose `plannedDate`, `startTime`, and `endTime`
+fields for browser forms and display code. Those fields are derived from the
+stored UTC instants.
+
 ## Static Versus Live Data
 
 The current public site has two public data paths:

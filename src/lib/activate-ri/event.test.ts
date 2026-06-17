@@ -13,7 +13,7 @@ describe("Activate RI event config", () => {
         mainStartDate: "2026-09-11",
         mainEndDate: "2026-09-13",
         softStartDate: "2026-09-10",
-        timezone: "America/New_York",
+        timezone: "UTC",
         goalParkCount: 61,
       }),
     );

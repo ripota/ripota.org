@@ -22,7 +22,7 @@ export type ActivateRiEvent = {
   mainStartDate: string;
   mainEndDate: string;
   softStartDate: string;
-  timezone: "America/New_York";
+  timezone: "UTC";
   goalParkCount: number;
   publicSummary: string;
   phaseCtas: EventPhaseCtas;
@@ -120,9 +120,8 @@ export type PublicParkSummary = {
 export type StopExportRow = {
   id: string;
   park_reference: string;
-  planned_date: string;
-  start_time: string;
-  end_time: string;
+  start_at: string;
+  end_at: string;
   submitter_callsign: string;
   submitter_email?: string;
   submitter_phone?: string;

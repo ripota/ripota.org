@@ -116,7 +116,7 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
           <option value="">Choose a 3-hour block</option>
           {
             activateRiTimeBlocks.map((block) => (
-              <option value={block.value}>{block.value} ET</option>
+              <option value={block.value}>{block.label} UTC</option>
             ))
           }
         </select>

@@ -8,9 +8,8 @@ import {
 const validRow = {
   id: "stop-1",
   park_reference: "US-2868",
-  planned_date: "2026-09-11",
-  start_time: "09:00",
-  end_time: "11:00",
+  start_at: "2026-09-11T09:00:00.000Z",
+  end_at: "2026-09-11T11:00:00.000Z",
   submitter_callsign: "N1RWJ",
   submitter_email: "private@example.com",
   submitter_phone: "555-0100",
@@ -58,9 +57,8 @@ describe("routeRowsToPublicStops", () => {
       routeRowsToPublicStops([
         { ...validRow, id: 42 },
         { ...validRow, park_reference: null },
-        { ...validRow, planned_date: undefined },
-        { ...validRow, start_time: ["09:00"] },
-        { ...validRow, end_time: { value: "11:00" } },
+        { ...validRow, start_at: undefined },
+        { ...validRow, end_at: { value: "2026-09-11T11:00:00.000Z" } },
         { ...validRow, submitter_callsign: false },
         { ...validRow, bands_json: ["40m"] },
         { ...validRow, modes_json: 20 },

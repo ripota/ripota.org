@@ -112,9 +112,8 @@ const pendingStopRow = {
   plan_id: "plan-1",
   event_id: "activate-ri-2026",
   park_reference: "US-2868",
-  planned_date: "2026-09-11",
-  start_time: "09:00",
-  end_time: "11:00",
+  start_at: "2026-09-11T09:00:00.000Z",
+  end_at: "2026-09-11T11:00:00.000Z",
   bands_json: '["40m","20m"]',
   modes_json: '["SSB","CW"]',
   public_notes: "Meet near the trailhead.",
@@ -149,9 +148,8 @@ const pendingPlanDto = {
 const publicStopRow = {
   id: "stop-public-1",
   park_reference: "US-2868",
-  planned_date: "2026-09-11",
-  start_time: "09:00",
-  end_time: "11:00",
+  start_at: "2026-09-11T09:00:00.000Z",
+  end_at: "2026-09-11T11:00:00.000Z",
   submitter_callsign: "N1RWJ",
   bands_json: '["40m","20m"]',
   modes_json: '["SSB","CW"]',
@@ -245,7 +243,10 @@ function editDb(options: EditDbOptions = {}): D1Database {
           return null;
         }
 
-        return { status: options.planStatus ?? "approved" };
+        return {
+          status: options.planStatus ?? "approved",
+          start_at: "2026-09-11T09:00:00.000Z",
+        };
       }),
     };
 
@@ -1035,8 +1036,8 @@ describe("handleActivateRiApi", () => {
       expectedHash,
     ]);
     expect(updateBinds).toEqual([
-      "10:00",
-      "12:00",
+      "2026-09-11T10:00:00.000Z",
+      "2026-09-11T12:00:00.000Z",
       JSON.stringify(["40m", "20m"]),
       JSON.stringify(["SSB", "CW"]),
       "Updated trailhead plan.",
@@ -1246,8 +1247,8 @@ describe("handleActivateRiApi", () => {
     );
     const updateBinds = statements[1].bind.mock.calls[0];
     expect(updateBinds.slice(0, 5)).toEqual([
-      "10:00",
-      "12:00",
+      "2026-09-11T10:00:00.000Z",
+      "2026-09-11T12:00:00.000Z",
       JSON.stringify(["40m"]),
       JSON.stringify(["SSB", "CW", "Digital"]),
       "Updated trailhead plan.",

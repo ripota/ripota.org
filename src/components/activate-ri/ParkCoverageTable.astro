@@ -6,6 +6,10 @@ import {
   timelineOptions,
   uniqueSortedValues,
 } from "../../lib/activate-ri/listing";
+import {
+  formatActivationDate,
+  formatActivationTimeRange,
+} from "../../lib/activate-ri/time";
 import type { ParkCoverage, PublicParkSummary } from "../../lib/activate-ri/types";
 
 const publicParks = parks as PublicParkSummary[];
@@ -22,23 +26,12 @@ const statusLabels: Record<string, string> = {
   completed: "Completed",
 };
 
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-  timeZone: "UTC",
-});
-
-function formatDate(date: string) {
-  return dateFormatter.format(new Date(`${date}T00:00:00Z`));
-}
-
 function formatStop(stop: ParkCoverage["nextStop"]) {
   if (!stop) {
     return "Needs coverage";
   }
 
-  return `${formatDate(stop.plannedDate)}, ${stop.startTime}-${stop.endTime} ET`;
+  return `${formatActivationDate(stop)}, ${formatActivationTimeRange(stop)}`;
 }
 
 function formatList(items: string[]) {
@@ -191,6 +184,10 @@ function parkCounties(park: ParkCoverage) {
 
 <script>
   import { fetchPublicActivationStops } from "../../lib/activate-ri/public-stops-client";
+  import {
+    formatActivationDate,
+    formatActivationTimeRange,
+  } from "../../lib/activate-ri/time";
 
   const volunteerActionableStatuses = new Set(["uncovered", "cancelled-needs-replacement"]);
 
@@ -380,7 +377,7 @@ function parkCounties(park: ParkCoverage) {
 
     appendStatusCell(row, park);
     appendStopListCell(row, "Next activation", park.stops, (stop) => [
-      `${formatDate(stop.plannedDate)}, ${stop.startTime}-${stop.endTime} ET`,
+      `${formatActivationDate(stop)}, ${formatActivationTimeRange(stop)}`,
       stopStatusLabel(stop.status),
     ]);
     appendStopListCell(row, "Activator", park.stops, (stop) => [
@@ -445,13 +442,6 @@ function parkCounties(park: ParkCoverage) {
     row.appendChild(cell);
   }
 
-  function appendCell(row: HTMLTableRowElement, label: string, text: string): void {
-    const cell = document.createElement("td");
-    cell.dataset.label = label;
-    cell.textContent = text;
-    row.appendChild(cell);
-  }
-
   function createCoverageEmptyRow(): HTMLTableRowElement {
     const row = document.createElement("tr");
     row.dataset.filterEmpty = "";
@@ -482,15 +472,6 @@ function parkCounties(park: ParkCoverage) {
 
   function countyList(park: PublicPark): string[] {
     return park.counties?.length ? park.counties : ["Unknown county"];
-  }
-
-  function formatDate(date: string): string {
-    return new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      timeZone: "UTC",
-    }).format(new Date(`${date}T00:00:00Z`));
   }
 
   function coverageStatusLabel(status: string): string {

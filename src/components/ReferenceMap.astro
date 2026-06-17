@@ -125,6 +125,10 @@ const payload = JSON.stringify({
   import L from "leaflet";
   import { fetchPublicActivationStops } from "../lib/activate-ri/public-stops-client";
   import {
+    formatActivationDate,
+    formatActivationTimeRange,
+  } from "../lib/activate-ri/time";
+  import {
     referenceMapFitBoundsOptions,
     referenceMapLeafletOptions,
   } from "../lib/reference-map";
@@ -477,7 +481,7 @@ const payload = JSON.stringify({
         ${stops.map((stop) => `
           <span class="map-popup__stop">
             <b>${escapeHtml(stop.activatorCallsign)}</b>
-            <span>${escapeHtml(formatDate(stop.plannedDate))}, ${escapeHtml(stop.startTime)}-${escapeHtml(stop.endTime)} ET</span>
+            <span>${escapeHtml(formatActivationDate(stop))}, ${escapeHtml(formatActivationTimeRange(stop))}</span>
             <span>${escapeHtml(formatList(stop.bands))} / ${escapeHtml(formatList(stop.modes))}</span>
             ${stop.publicNotes ? `<span>${escapeHtml(stop.publicNotes)}</span>` : ""}
           </span>
@@ -504,15 +508,6 @@ const payload = JSON.stringify({
       const rightKey = `${right.plannedDate}T${right.startTime}`;
       return leftKey.localeCompare(rightKey);
     });
-  }
-
-  function formatDate(date: string): string {
-    return new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      timeZone: "UTC",
-    }).format(new Date(`${date}T00:00:00Z`));
   }
 
   function formatList(items: string[]): string {

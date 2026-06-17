@@ -3,6 +3,11 @@ import type {
   NormalizedRouteSubmission,
   StopExportRow,
 } from "../lib/activate-ri/types";
+import {
+  instantToPlannedDate,
+  instantToTime,
+  stopTimeToInstant,
+} from "../lib/activate-ri/time";
 import { generateEditToken, tokenHash } from "./edit-token";
 import type { Env } from "./env";
 
@@ -94,8 +99,8 @@ export async function insertPendingPlan(
     ...submission.stops.map((stop) =>
       env.DB.prepare(
         `INSERT INTO activate_ri_stops (
-          id, plan_id, event_id, park_reference, planned_date, start_time,
-          end_time, bands_json, modes_json, public_notes, organizer_notes,
+          id, plan_id, event_id, park_reference, start_at,
+          end_at, bands_json, modes_json, public_notes, organizer_notes,
           status, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending-review', ?, ?)`,
       ).bind(
@@ -103,9 +108,8 @@ export async function insertPendingPlan(
         planId,
         env.ACTIVATE_RI_EVENT_ID,
         stop.parkReference,
-        stop.plannedDate,
-        stop.startTime,
-        stop.endTime,
+        stopTimeToInstant(stop.plannedDate, stop.startTime),
+        stopTimeToInstant(stop.plannedDate, stop.endTime),
         JSON.stringify(stop.bands),
         JSON.stringify(stop.modes),
         stop.publicNotes,
@@ -175,9 +179,8 @@ type StopRow = {
   plan_id: string;
   event_id: string;
   park_reference: string;
-  planned_date: string;
-  start_time: string;
-  end_time: string;
+  start_at: string;
+  end_at: string;
   bands_json: string;
   modes_json: string;
   public_notes: string;
@@ -231,12 +234,11 @@ export type ActivatorPlansDto = {
 
 export async function listPublicStopRows(env: Env): Promise<StopExportRow[]> {
   const result = await env.DB.prepare(
-    `SELECT
+     `SELECT
        s.id,
        s.park_reference,
-       s.planned_date,
-       s.start_time,
-       s.end_time,
+       s.start_at,
+       s.end_at,
        r.submitter_callsign,
        s.bands_json,
        s.modes_json,
@@ -248,7 +250,7 @@ export async function listPublicStopRows(env: Env): Promise<StopExportRow[]> {
        AND r.event_id = ?
        AND r.status = 'approved'
        AND s.status IN ('scheduled', 'delayed', 'cancelled', 'completed')
-     ORDER BY s.planned_date ASC, s.start_time ASC, s.park_reference ASC, s.id ASC`,
+     ORDER BY s.start_at ASC, s.park_reference ASC, s.id ASC`,
   )
     .bind(env.ACTIVATE_RI_EVENT_ID, env.ACTIVATE_RI_EVENT_ID)
     .all<StopExportRow>();
@@ -430,9 +432,8 @@ async function withStops(
        plan_id,
        event_id,
        park_reference,
-       planned_date,
-       start_time,
-       end_time,
+       start_at,
+       end_at,
        bands_json,
        modes_json,
        public_notes,
@@ -442,7 +443,7 @@ async function withStops(
        updated_at
      FROM activate_ri_stops
      WHERE event_id = ? AND plan_id IN (${planIds.map(() => "?").join(", ")})
-     ORDER BY planned_date ASC, start_time ASC, created_at ASC`,
+     ORDER BY start_at ASC, created_at ASC`,
   )
     .bind(env.ACTIVATE_RI_EVENT_ID, ...planIds)
     .all<StopRow>();
@@ -466,9 +467,9 @@ function toPendingStopDto(stop: StopRow): PendingStopDto {
     plan_id: stop.plan_id,
     event_id: stop.event_id,
     park_reference: stop.park_reference,
-    planned_date: stop.planned_date,
-    start_time: stop.start_time,
-    end_time: stop.end_time,
+    planned_date: instantToPlannedDate(stop.start_at),
+    start_time: instantToTime(stop.start_at),
+    end_time: instantToTime(stop.end_at),
     bands: parseStringArray(stop.bands_json),
     modes: parseStringArray(stop.modes_json),
     public_notes: stop.public_notes,
@@ -672,9 +673,8 @@ export async function updatePlanByTokenHash(
         env.DB.prepare(
           `UPDATE activate_ri_stops
            SET park_reference = ?,
-               planned_date = ?,
-               start_time = ?,
-               end_time = ?,
+               start_at = ?,
+               end_at = ?,
                bands_json = ?,
                modes_json = ?,
                public_notes = ?,
@@ -686,9 +686,8 @@ export async function updatePlanByTokenHash(
            WHERE id = ? AND plan_id = ? AND event_id = ?`,
         ).bind(
           stop.parkReference,
-          stop.plannedDate,
-          stop.startTime,
-          stop.endTime,
+          stopTimeToInstant(stop.plannedDate, stop.startTime),
+          stopTimeToInstant(stop.plannedDate, stop.endTime),
           JSON.stringify(stop.bands),
           JSON.stringify(stop.modes),
           stop.publicNotes,
@@ -736,8 +735,8 @@ export async function updatePlanByTokenHash(
       statements.push(
         env.DB.prepare(
           `INSERT INTO activate_ri_stops (
-            id, plan_id, event_id, park_reference, planned_date, start_time,
-            end_time, bands_json, modes_json, public_notes, organizer_notes,
+            id, plan_id, event_id, park_reference, start_at,
+            end_at, bands_json, modes_json, public_notes, organizer_notes,
             status, created_at, updated_at
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ).bind(
@@ -745,9 +744,8 @@ export async function updatePlanByTokenHash(
           existing.id,
           env.ACTIVATE_RI_EVENT_ID,
           stop.parkReference,
-          stop.plannedDate,
-          stop.startTime,
-          stop.endTime,
+          stopTimeToInstant(stop.plannedDate, stop.startTime),
+          stopTimeToInstant(stop.plannedDate, stop.endTime),
           JSON.stringify(stop.bands),
           JSON.stringify(stop.modes),
           stop.publicNotes,
@@ -890,6 +888,7 @@ export async function cancelPlanByTokenHash(
 
 type EditStopPlanRow = {
   status: string;
+  start_at: string;
 };
 
 async function findEditStopPlan(
@@ -898,7 +897,7 @@ async function findEditStopPlan(
   stopId: string,
 ): Promise<EditStopPlanRow | null> {
   return env.DB.prepare(
-    `SELECT r.status
+    `SELECT r.status, s.start_at
      FROM activate_ri_stops s
      INNER JOIN activate_ri_plans r ON r.id = s.plan_id
      INNER JOIN activate_ri_activators a ON a.id = r.activator_id
@@ -936,8 +935,8 @@ export async function updateStopByToken(
 
   const result = await env.DB.prepare(
     `UPDATE activate_ri_stops
-     SET start_time = ?,
-         end_time = ?,
+     SET start_at = ?,
+         end_at = ?,
          bands_json = ?,
          modes_json = ?,
          public_notes = ?,
@@ -959,8 +958,8 @@ export async function updateStopByToken(
        )`,
   )
     .bind(
-      fields.startTime,
-      fields.endTime,
+      stopTimeToInstant(instantToPlannedDate(plan.start_at), fields.startTime),
+      stopTimeToInstant(instantToPlannedDate(plan.start_at), fields.endTime),
       JSON.stringify(fields.bands),
       JSON.stringify(fields.modes),
       fields.publicNotes,

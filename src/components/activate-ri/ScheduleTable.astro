@@ -4,6 +4,7 @@ import {
   timelineOptions,
   uniqueSortedValues,
 } from "../../lib/activate-ri/listing";
+import { activationTimeZoneOptions } from "../../lib/activate-ri/time";
 import type { PublicParkSummary } from "../../lib/activate-ri/types";
 
 const publicParks = parks as PublicParkSummary[];
@@ -13,6 +14,18 @@ const countyOptions = uniqueSortedValues(
 ---
 
 <form class="event-filters" data-event-filters aria-label="Schedule filters">
+  <label class="event-filter">
+    Timezone
+    <select class="event-filter__control" data-timezone>
+      {
+        activationTimeZoneOptions.map((option) => (
+          <option value={option.value} selected={option.value === "utc"}>
+            {option.label}
+          </option>
+        ))
+      }
+    </select>
+  </label>
   <label class="event-filter">
     Mode
     <select class="event-filter__control" data-filter="mode">
@@ -67,6 +80,11 @@ const countyOptions = uniqueSortedValues(
 <script>
   import { scheduleVisibleStops } from "../../lib/activate-ri/listing";
   import { fetchPublicActivationStops } from "../../lib/activate-ri/public-stops-client";
+  import {
+    formatActivationDate,
+    formatActivationTimeRange,
+    timeZoneOptionForValue,
+  } from "../../lib/activate-ri/time";
 
   document.querySelectorAll("[data-event-filters]").forEach(setupEventFilters);
   document.querySelectorAll<HTMLTableElement>("[data-live-schedule]").forEach(setupLiveSchedule);
@@ -79,6 +97,11 @@ const countyOptions = uniqueSortedValues(
     const controls = Array.from(
       filters.querySelectorAll("[data-filter]"),
     ) as unknown as HTMLSelectElement[];
+    const timezoneControl = filters.querySelector("[data-timezone]") as HTMLSelectElement | null;
+
+    if (timezoneControl) {
+      timezoneControl.value = timeZoneOptionForValue(new URLSearchParams(window.location.search).get("timezone")).value;
+    }
 
     const applyFilters = () => {
       const values = Object.fromEntries(
@@ -103,6 +126,11 @@ const countyOptions = uniqueSortedValues(
     };
 
     controls.forEach((control) => control.addEventListener("change", applyFilters));
+    timezoneControl?.addEventListener("change", () => {
+      updateTimezoneUrl(timezoneControl.value);
+      applyTimezone(table, timezoneControl.value);
+    });
+    applyTimezone(table, timezoneControl?.value ?? "utc");
     applyFilters();
   }
 
@@ -225,8 +253,12 @@ const countyOptions = uniqueSortedValues(
     row.dataset.date = stop.plannedDate;
     row.dataset.modes = stop.modes.join("|");
 
-    appendCell(row, "Date", formatDate(stop.plannedDate));
-    appendCell(row, "Time", `${stop.startTime}-${stop.endTime} ET`);
+    appendCell(row, "Date", formatActivationDate(stop));
+    appendCell(row, "Time", `${stop.startTime}-${stop.endTime} UTC`);
+    row.dataset.startTime = stop.startTime;
+    row.dataset.endTime = stop.endTime;
+    row.querySelector('[data-label="Date"]')?.setAttribute("data-schedule-date", "");
+    row.querySelector('[data-label="Time"]')?.setAttribute("data-schedule-time", "");
 
     const parkHeader = document.createElement("th");
     parkHeader.scope = "row";
@@ -256,13 +288,31 @@ const countyOptions = uniqueSortedValues(
     row.appendChild(cell);
   }
 
-  function formatDate(date: string): string {
-    return new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      timeZone: "UTC",
-    }).format(new Date(`${date}T00:00:00Z`));
+  function applyTimezone(table: Element | null | undefined, value: string): void {
+    const option = timeZoneOptionForValue(value);
+    table?.querySelectorAll<HTMLTableRowElement>("[data-filter-row]").forEach((row) => {
+      const plannedDate = row.dataset.date;
+      const startTime = row.dataset.startTime;
+      const endTime = row.dataset.endTime;
+      if (!plannedDate || !startTime || !endTime) {
+        return;
+      }
+
+      const dateCell = row.querySelector<HTMLElement>("[data-schedule-date]");
+      const timeCell = row.querySelector<HTMLElement>("[data-schedule-time]");
+      if (dateCell) {
+        dateCell.textContent = formatActivationDate({ plannedDate, startTime }, option);
+      }
+      if (timeCell) {
+        timeCell.textContent = formatActivationTimeRange({ plannedDate, startTime, endTime }, option);
+      }
+    });
+  }
+
+  function updateTimezoneUrl(value: string): void {
+    const url = new URL(window.location.href);
+    url.searchParams.set("timezone", timeZoneOptionForValue(value).value);
+    window.history.replaceState({}, "", url);
   }
 
   function statusLabel(status: string): string {

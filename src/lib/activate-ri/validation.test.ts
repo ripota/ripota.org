@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { activateRiTimeBlocks } from "./time-blocks";
 import { validateRouteSubmission } from "./validation";
 
 describe("validateRouteSubmission", () => {
@@ -17,6 +18,15 @@ describe("validateRouteSubmission", () => {
       },
     ],
   };
+
+  it("keeps compact submitted block values with spaced display labels", () => {
+    expect(activateRiTimeBlocks[0]).toEqual({
+      value: "00:00-03:00",
+      label: "00:00 - 03:00",
+      startTime: "00:00",
+      endTime: "03:00",
+    });
+  });
 
   it("normalizes a valid single-stop submission", () => {
     const result = validateRouteSubmission({
@@ -137,7 +147,7 @@ describe("validateRouteSubmission", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.errors).toContain(
-        "Stop 1 time block must be one of 06:00-09:00, 09:00-12:00, 12:00-15:00, 15:00-18:00, 18:00-21:00.",
+        "Stop 1 time block must be one of 00:00-03:00, 03:00-06:00, 06:00-09:00, 09:00-12:00, 12:00-15:00, 15:00-18:00, 18:00-21:00.",
       );
     }
   });
