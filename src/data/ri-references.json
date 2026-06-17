@@ -5,6 +5,9 @@
     "latitude": 41.2133,
     "longitude": -71.5724,
     "grid": "FN41ff",
+    "counties": [
+      "Washington County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-0513"
   },
@@ -14,6 +17,9 @@
     "latitude": 41.443,
     "longitude": -71.4707,
     "grid": "FN41gk",
+    "counties": [
+      "Washington County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-0514"
   },
@@ -23,6 +29,9 @@
     "latitude": 41.3682,
     "longitude": -71.6716,
     "grid": "FN41di",
+    "counties": [
+      "Washington County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-0515"
   },
@@ -32,6 +41,9 @@
     "latitude": 41.4798,
     "longitude": -71.2436,
     "grid": "FN41jl",
+    "counties": [
+      "Newport County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-0516"
   },
@@ -41,6 +53,9 @@
     "latitude": 41.3834,
     "longitude": -71.5846,
     "grid": "FN41ej",
+    "counties": [
+      "Washington County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-0517"
   },
@@ -50,6 +65,9 @@
     "latitude": 41.831,
     "longitude": -71.411,
     "grid": "FN41ht",
+    "counties": [
+      "Providence County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-0789"
   },
@@ -59,6 +77,9 @@
     "latitude": 41.6339,
     "longitude": -71.231,
     "grid": "FN41jp",
+    "counties": [
+      "Newport County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-10541"
   },
@@ -68,6 +89,9 @@
     "latitude": 41.3625,
     "longitude": -71.4873,
     "grid": "FN41gi",
+    "counties": [
+      "Washington County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-10542"
   },
@@ -77,6 +101,9 @@
     "latitude": 41.6018,
     "longitude": -71.2583,
     "grid": "FN41io",
+    "counties": [
+      "Newport County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-10543"
   },
@@ -86,6 +113,9 @@
     "latitude": 41.8512,
     "longitude": -71.7786,
     "grid": "FN41cu",
+    "counties": [
+      "Providence County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-10544"
   },
@@ -95,6 +125,9 @@
     "latitude": 41.522,
     "longitude": -71.6411,
     "grid": "FN41em",
+    "counties": [
+      "Washington County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-10545"
   },
@@ -104,6 +137,9 @@
     "latitude": 41.5521,
     "longitude": -71.1899,
     "grid": "FN41jn",
+    "counties": [
+      "Newport County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-10546"
   },
@@ -113,6 +149,9 @@
     "latitude": 41.5388,
     "longitude": -71.4705,
     "grid": "FN41gm",
+    "counties": [
+      "Washington County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-10547"
   },
@@ -122,6 +161,9 @@
     "latitude": 41.4994,
     "longitude": -71.5639,
     "grid": "FN41fl",
+    "counties": [
+      "Washington County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-10548"
   },
@@ -131,6 +173,9 @@
     "latitude": 41.446,
     "longitude": -71.3993,
     "grid": "FN41hk",
+    "counties": [
+      "Newport County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-2868"
   },
@@ -140,6 +185,9 @@
     "latitude": 41.9379,
     "longitude": -71.4343,
     "grid": "FN41gw",
+    "counties": [
+      "Providence County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-2869"
   },
@@ -149,6 +197,9 @@
     "latitude": 41.452,
     "longitude": -71.3542,
     "grid": "FN41hk",
+    "counties": [
+      "Newport County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-2870"
   },
@@ -158,6 +209,9 @@
     "latitude": 41.3756,
     "longitude": -71.6986,
     "grid": "FN41dj",
+    "counties": [
+      "Washington County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-2871"
   },
@@ -167,6 +221,9 @@
     "latitude": 41.6769,
     "longitude": -71.2985,
     "grid": "FN41iq",
+    "counties": [
+      "Bristol County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-2872"
   },
@@ -176,6 +233,9 @@
     "latitude": 41.3805,
     "longitude": -71.4897,
     "grid": "FN41gj",
+    "counties": [
+      "Washington County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-2873"
   },
@@ -185,6 +245,9 @@
     "latitude": 41.4778,
     "longitude": -71.3355,
     "grid": "FN41hl",
+    "counties": [
+      "Newport County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-2874"
   },
@@ -194,6 +257,9 @@
     "latitude": 41.4778,
     "longitude": -71.3585,
     "grid": "FN41hl",
+    "counties": [
+      "Newport County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-2875"
   },
@@ -203,6 +269,9 @@
     "latitude": 41.657,
     "longitude": -71.4377,
     "grid": "FN41gp",
+    "counties": [
+      "Kent County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-2876"
   },
@@ -212,6 +281,10 @@
     "latitude": 41.7539,
     "longitude": -71.3508,
     "grid": "FN41hs",
+    "counties": [
+      "Bristol County",
+      "Providence County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-2877"
   },
@@ -221,6 +294,9 @@
     "latitude": 41.8975,
     "longitude": -71.4329,
     "grid": "FN41gv",
+    "counties": [
+      "Providence County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-2878"
   },
@@ -230,6 +306,9 @@
     "latitude": 41.6915,
     "longitude": -71.3634,
     "grid": "FN41hq",
+    "counties": [
+      "Kent County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-2879"
   },
@@ -239,6 +318,9 @@
     "latitude": 41.8303,
     "longitude": -71.5373,
     "grid": "FN41ft",
+    "counties": [
+      "Providence County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-2880"
   },
@@ -248,6 +330,9 @@
     "latitude": 42.0101,
     "longitude": -71.5097,
     "grid": "FN42fa",
+    "counties": [
+      "Providence County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-2881"
   },
@@ -257,6 +342,12 @@
     "latitude": 41.312,
     "longitude": -73.9709,
     "grid": "FN31ah",
+    "counties": [
+      "Bristol County",
+      "Kent County",
+      "Newport County",
+      "Providence County"
+    ],
     "locationDesc": "US-CT,US-DC,US-DE,US-MA,US-MD,US-NJ,US-NY,US-PA,US-RI,US-VA",
     "potaUrl": "https://pota.app/#/park/US-4582"
   },
@@ -266,6 +357,9 @@
     "latitude": 41.6364,
     "longitude": -71.7359,
     "grid": "FN41dp",
+    "counties": [
+      "Kent County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-5482"
   },
@@ -275,6 +369,9 @@
     "latitude": 41.8962,
     "longitude": -71.4327,
     "grid": "FN41gv",
+    "counties": [
+      "Providence County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-5483"
   },
@@ -284,6 +381,9 @@
     "latitude": 41.9259,
     "longitude": -71.7359,
     "grid": "FN41dw",
+    "counties": [
+      "Providence County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-5484"
   },
@@ -293,6 +393,10 @@
     "latitude": 41.5561,
     "longitude": -71.685,
     "grid": "FN41dn",
+    "counties": [
+      "Kent County",
+      "Washington County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-6979"
   },
@@ -302,6 +406,9 @@
     "latitude": 41.5739,
     "longitude": -71.7864,
     "grid": "FN41cn",
+    "counties": [
+      "Washington County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-6980"
   },
@@ -311,6 +418,9 @@
     "latitude": 41.4691,
     "longitude": -71.5796,
     "grid": "FN41fl",
+    "counties": [
+      "Washington County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-6981"
   },
@@ -320,6 +430,10 @@
     "latitude": 41.6311,
     "longitude": -71.5714,
     "grid": "FN41fp",
+    "counties": [
+      "Kent County",
+      "Washington County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-6982"
   },
@@ -329,6 +443,9 @@
     "latitude": 41.3694,
     "longitude": -71.7448,
     "grid": "FN41di",
+    "counties": [
+      "Washington County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-6983"
   },
@@ -338,6 +455,9 @@
     "latitude": 41.9928,
     "longitude": -71.6568,
     "grid": "FN41ex",
+    "counties": [
+      "Providence County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-6984"
   },
@@ -347,6 +467,9 @@
     "latitude": 42.0014,
     "longitude": -71.7011,
     "grid": "FN42da",
+    "counties": [
+      "Providence County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-6985"
   },
@@ -356,6 +479,9 @@
     "latitude": 41.5358,
     "longitude": -71.1341,
     "grid": "FN41km",
+    "counties": [
+      "Newport County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-6986"
   },
@@ -365,6 +491,9 @@
     "latitude": 41.5823,
     "longitude": -71.4599,
     "grid": "FN41gn",
+    "counties": [
+      "Washington County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-6987"
   },
@@ -374,6 +503,9 @@
     "latitude": 41.3997,
     "longitude": -71.7591,
     "grid": "FN41cj",
+    "counties": [
+      "Washington County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-6988"
   },
@@ -383,6 +515,9 @@
     "latitude": 41.4674,
     "longitude": -71.7285,
     "grid": "FN41dl",
+    "counties": [
+      "Washington County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-6989"
   },
@@ -392,6 +527,9 @@
     "latitude": 41.6804,
     "longitude": -71.7739,
     "grid": "FN41cq",
+    "counties": [
+      "Kent County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-6990"
   },
@@ -401,6 +539,9 @@
     "latitude": 41.5054,
     "longitude": -71.7591,
     "grid": "FN41cm",
+    "counties": [
+      "Washington County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-6991"
   },
@@ -410,6 +551,9 @@
     "latitude": 41.7507,
     "longitude": -71.5516,
     "grid": "FN41fs",
+    "counties": [
+      "Providence County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-6992"
   },
@@ -419,6 +563,9 @@
     "latitude": 41.9281,
     "longitude": -71.7969,
     "grid": "FN41cw",
+    "counties": [
+      "Providence County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-7508"
   },
@@ -428,6 +575,9 @@
     "latitude": 41.3745,
     "longitude": -71.6868,
     "grid": "FN41di",
+    "counties": [
+      "Washington County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-7518"
   },
@@ -437,6 +587,9 @@
     "latitude": 41.9851,
     "longitude": -71.7893,
     "grid": "FN41cx",
+    "counties": [
+      "Providence County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-7714"
   },
@@ -446,6 +599,9 @@
     "latitude": 41.9025,
     "longitude": -71.7841,
     "grid": "FN41cv",
+    "counties": [
+      "Providence County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-7715"
   },
@@ -455,6 +611,9 @@
     "latitude": 41.4665,
     "longitude": -71.689,
     "grid": "FN41dl",
+    "counties": [
+      "Washington County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-7716"
   },
@@ -464,6 +623,9 @@
     "latitude": 41.3567,
     "longitude": -71.6382,
     "grid": "FN41ei",
+    "counties": [
+      "Washington County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-7717"
   },
@@ -473,6 +635,9 @@
     "latitude": 41.3776,
     "longitude": -71.5251,
     "grid": "FN41fj",
+    "counties": [
+      "Washington County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-7718"
   },
@@ -482,6 +647,9 @@
     "latitude": 41.3234,
     "longitude": -71.8025,
     "grid": "FN41ch",
+    "counties": [
+      "Washington County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-7719"
   },
@@ -491,6 +659,9 @@
     "latitude": 41.3735,
     "longitude": -71.5004,
     "grid": "FN41fi",
+    "counties": [
+      "Washington County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-7720"
   },
@@ -500,6 +671,9 @@
     "latitude": 41.3761,
     "longitude": -71.5127,
     "grid": "FN41fj",
+    "counties": [
+      "Washington County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-7721"
   },
@@ -509,6 +683,9 @@
     "latitude": 41.3897,
     "longitude": -71.4731,
     "grid": "FN41gj",
+    "counties": [
+      "Washington County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-7722"
   },
@@ -518,6 +695,9 @@
     "latitude": 41.5372,
     "longitude": -71.4374,
     "grid": "FN41gm",
+    "counties": [
+      "Washington County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-7723"
   },
@@ -527,6 +707,9 @@
     "latitude": 41.3481,
     "longitude": -71.6733,
     "grid": "FN41di",
+    "counties": [
+      "Washington County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-7865"
   },
@@ -536,6 +719,9 @@
     "latitude": 42.015,
     "longitude": -71.5529,
     "grid": "FN42fa",
+    "counties": [
+      "Providence County"
+    ],
     "locationDesc": "US-MA,US-RI",
     "potaUrl": "https://pota.app/#/park/US-7971"
   },
@@ -545,6 +731,9 @@
     "latitude": 41.5825,
     "longitude": -71.2089,
     "grid": "FN41jn",
+    "counties": [
+      "Newport County"
+    ],
     "locationDesc": "US-RI",
     "potaUrl": "https://pota.app/#/park/US-8293"
   }

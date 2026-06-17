@@ -4,6 +4,7 @@ export type PotaReferenceSource = {
   latitude: string | number;
   longitude: string | number;
   grid: string;
+  counties?: string[];
   location?: string;
   locationDesc?: string;
   [key: string]: unknown;
@@ -15,6 +16,7 @@ export type PotaReference = {
   latitude: number;
   longitude: number;
   grid: string;
+  counties: string[];
   locationDesc: string;
   potaUrl: string;
 };
@@ -38,6 +40,9 @@ export function normalizePotaReferences(
         latitude: Number(source.latitude),
         longitude: Number(source.longitude),
         grid: source.grid,
+        counties: [...(source.counties ?? [])].sort((left, right) =>
+          left.localeCompare(right),
+        ),
         locationDesc: source.locationDesc ?? source.location ?? "US-RI",
         potaUrl: officialPotaParkUrl(reference),
       };
