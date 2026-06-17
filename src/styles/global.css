@@ -702,6 +702,7 @@ p {
 
 .form-grid {
   display: grid;
+  align-items: start;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 1rem;
 }
