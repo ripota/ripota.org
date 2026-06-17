@@ -110,28 +110,28 @@ function stopCounties(stop: PublicActivationStop) {
               data-date={stop.plannedDate}
               data-modes={dataList(stop.modes)}
             >
-              <td>{formatDate(stop.plannedDate)}</td>
-              <td>{stop.startTime}-{stop.endTime} ET</td>
-              <th scope="row">
+              <td data-label="Date">{formatDate(stop.plannedDate)}</td>
+              <td data-label="Time">{stop.startTime}-{stop.endTime} ET</td>
+              <th scope="row" data-label="Park">
                 {parkNames.get(stop.parkReference) ?? stop.parkReference}
                 <span>{stop.parkReference}</span>
               </th>
-              <td>{formatActivatorModes(stop)}</td>
-              <td>{formatList(stop.bands)}</td>
-              <td>{formatList(stop.modes)}</td>
-              <td>{statusLabels[stop.status] ?? stop.status}</td>
+              <td data-label="Activator">{formatActivatorModes(stop)}</td>
+              <td data-label="Bands">{formatList(stop.bands)}</td>
+              <td data-label="Modes">{formatList(stop.modes)}</td>
+              <td data-label="Status">{statusLabels[stop.status] ?? stop.status}</td>
             </tr>
           ))
         ) : (
           <tr>
-            <td colspan="7">
+            <td colspan="7" data-label="Schedule">
               Approved activation windows will appear here after organizer review.
             </td>
           </tr>
         )
       }
       <tr data-filter-empty hidden>
-        <td colspan="7">No scheduled activation windows match these filters.</td>
+        <td colspan="7" data-label="Schedule">No scheduled activation windows match these filters.</td>
       </tr>
     </tbody>
   </table>

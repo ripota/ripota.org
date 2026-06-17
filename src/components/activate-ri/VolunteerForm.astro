@@ -5,11 +5,22 @@ import { activateRiTimeBlocks } from "../../lib/activate-ri/time-blocks";
 const turnstileSiteKey =
   import.meta.env.PUBLIC_TURNSTILE_SITE_KEY;
 
+const bandOptions = ["160m", "80m", "60m", "40m", "30m", "20m", "17m", "15m", "12m", "10m", "6m", "2m", "70cm"];
+const modeOptions = ["SSB", "CW", "Digital"];
+
 function parkOptionLabel(reference: (typeof references)[number]): string {
   const counties = reference.counties?.join(", ");
   const countyLabel = counties ? ` (${counties})` : "";
 
   return `${reference.reference} - ${reference.name}${countyLabel}`;
+}
+
+function parkOptionSearch(reference: (typeof references)[number]): string {
+  return [
+    reference.reference,
+    reference.name,
+    ...(reference.counties ?? []),
+  ].join(" ").toLowerCase();
 }
 ---
 
@@ -40,36 +51,63 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
     </label>
   </div>
 
-  <datalist id="activate-ri-parks">
-    {
-      references.map((reference) => (
-        <option value={parkOptionLabel(reference)} data-reference={reference.reference}>
-          {reference.reference}
-        </option>
-      ))
-    }
-  </datalist>
-
   <div class="activation-stops" data-stops>
     <fieldset class="activation-stop-fieldset activation-stop-card" data-stop-card>
       <div class="activation-stop-card__header">
-        <legend data-stop-title>Activation stop 1</legend>
+        <legend class="activation-stop-card__title" data-stop-title>Activation stop 1</legend>
         <button class="button activation-stop-card__remove" type="button" data-remove-stop hidden>
           Remove
         </button>
       </div>
       <div class="form-grid">
-        <label>
-          Park
-          <input
-            data-park-input
-            list="activate-ri-parks"
-            placeholder="Type a reference, park, or county"
-            autocomplete="off"
-            required
-          />
-          <input data-park-reference type="hidden" />
-        </label>
+        <div class="form-field form-field--wide">
+          <span class="form-label">Park</span>
+          <span class="park-combobox" data-park-combobox>
+            <input
+              data-park-input
+              aria-label="Park"
+              placeholder="Type a reference, park, or county"
+              autocomplete="off"
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded="false"
+              required
+            />
+            <input data-park-reference type="hidden" />
+            <span class="park-combobox__popup" data-park-results hidden>
+              <span class="park-combobox__scroller">
+                <table class="park-combobox__table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Ref</th>
+                      <th scope="col">Park</th>
+                      <th scope="col">County</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {
+                      references.map((reference) => (
+                        <tr
+                          data-park-option
+                          data-reference={reference.reference}
+                          data-label={parkOptionLabel(reference)}
+                          data-search={parkOptionSearch(reference)}
+                        >
+                          <td>
+                            <button type="button" data-park-select>{reference.reference}</button>
+                          </td>
+                          <td>{reference.name}</td>
+                          <td>{reference.counties?.join(", ") ?? "Unknown county"}</td>
+                        </tr>
+                      ))
+                    }
+                  </tbody>
+                </table>
+              </span>
+              <span class="park-combobox__empty" data-park-empty hidden>No matching parks.</span>
+            </span>
+          </span>
+        </div>
         <label>
           Date
           <select data-planned-date required>
@@ -90,16 +128,54 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
             }
           </select>
         </label>
-        <label>
-          Bands
-          <input data-bands placeholder="40m, 20m, 15m" required />
-          <span class="form-help">Separate bands with commas.</span>
-        </label>
-        <label>
-          Modes
-          <input data-modes placeholder="SSB, CW, FT8" required />
-          <span class="form-help">Separate modes with commas.</span>
-        </label>
+        <div class="form-field">
+          <span class="form-label">Bands</span>
+          <span class="multi-select" data-multi-select data-bands>
+            <button
+              class="multi-select__button"
+              type="button"
+              data-multi-toggle
+              aria-expanded="false"
+            >
+              Choose bands
+            </button>
+            <span class="multi-select__menu" data-multi-menu hidden>
+              {
+                bandOptions.map((band) => (
+                  <label class="multi-select__option">
+                    <input type="checkbox" value={band} data-multi-option />
+                    <span>{band}</span>
+                  </label>
+                ))
+              }
+            </span>
+          </span>
+          <span class="form-help">Select every band you expect to use.</span>
+        </div>
+        <div class="form-field">
+          <span class="form-label">Modes</span>
+          <span class="multi-select" data-multi-select data-modes>
+            <button
+              class="multi-select__button"
+              type="button"
+              data-multi-toggle
+              aria-expanded="false"
+            >
+              Choose modes
+            </button>
+            <span class="multi-select__menu" data-multi-menu hidden>
+              {
+                modeOptions.map((mode) => (
+                  <label class="multi-select__option">
+                    <input type="checkbox" value={mode} data-multi-option />
+                    <span>{mode}</span>
+                  </label>
+                ))
+              }
+            </span>
+          </span>
+          <span class="form-help">Digital covers FT8, FT4, RTTY, JS8, and similar modes.</span>
+        </div>
       </div>
       <label>
         Public notes for hunters
@@ -142,17 +218,28 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
   const submitButton = document.querySelector("[data-submit-button]") as HTMLButtonElement | null;
   const stopsContainer = document.querySelector("[data-stops]");
   const addStopButton = document.querySelector("[data-add-stop]");
-  const parkOptions = new Map(
-    Array.from(document.querySelectorAll<HTMLOptionElement>("#activate-ri-parks option"))
-      .flatMap((option) => {
-        const reference = option.dataset.reference;
-
-        return reference ? [[option.value, reference], [reference, reference]] : [];
-      }),
-  );
   let isSubmitting = false;
 
   setupStopCards();
+
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Node)) {
+      return;
+    }
+
+    document.querySelectorAll<HTMLElement>("[data-park-combobox]").forEach((combo) => {
+      if (!combo.contains(target)) {
+        setParkPopupOpen(combo, false);
+      }
+    });
+
+    document.querySelectorAll<HTMLElement>("[data-multi-select]").forEach((multiSelect) => {
+      if (!multiSelect.contains(target)) {
+        setMultiSelectOpen(multiSelect, false);
+      }
+    });
+  });
 
   addStopButton?.addEventListener("click", () => {
     const firstStop = document.querySelector<HTMLElement>("[data-stop-card]");
@@ -235,18 +322,16 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
         parkReference: stop.querySelector<HTMLInputElement>("[data-park-reference]")?.value,
         plannedDate: (stop.querySelector("[data-planned-date]") as HTMLSelectElement | null)?.value,
         timeBlock: (stop.querySelector("[data-time-block]") as HTMLSelectElement | null)?.value,
-        bands: splitList(stop.querySelector<HTMLInputElement>("[data-bands]")?.value ?? ""),
-        modes: splitList(stop.querySelector<HTMLInputElement>("[data-modes]")?.value ?? ""),
+        bands: selectedValues(stop.querySelector<HTMLElement>("[data-bands]")),
+        modes: selectedValues(stop.querySelector<HTMLElement>("[data-modes]")),
         publicNotes: stop.querySelector<HTMLTextAreaElement>("[data-public-notes]")?.value ?? "",
       })),
     };
   }
 
-  function splitList(value: FormDataEntryValue | null): string[] {
-    return String(value ?? "")
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
+  function selectedValues(root: HTMLElement | null): string[] {
+    return Array.from(root?.querySelectorAll<HTMLInputElement>("[data-multi-option]:checked") ?? [])
+      .map((option) => option.value);
   }
 
   function resetTurnstile(): void {
@@ -269,6 +354,7 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
       const removeButton = stop.querySelector<HTMLButtonElement>("[data-remove-stop]");
       const parkInput = stop.querySelector<HTMLInputElement>("[data-park-input]");
       const parkReference = stop.querySelector<HTMLInputElement>("[data-park-reference]");
+      const parkCombobox = stop.querySelector<HTMLElement>("[data-park-combobox]");
 
       title?.replaceChildren(`Activation stop ${index + 1}`);
 
@@ -280,18 +366,50 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
         };
       }
 
-      if (parkInput && parkReference) {
+      if (parkInput && parkReference && parkCombobox) {
         const syncParkReference = () => {
-          parkReference.value = parkOptions.get(parkInput.value.trim()) ?? "";
+          parkReference.value = selectedParkReference(parkInput.value.trim(), parkCombobox);
           parkInput.setCustomValidity(
             parkReference.value ? "" : "Choose a park from the suggestions.",
           );
+          filterParkOptions(parkCombobox, parkInput.value);
         };
 
+        parkInput.onfocus = () => {
+          filterParkOptions(parkCombobox, parkInput.value);
+          setParkPopupOpen(parkCombobox, true);
+        };
         parkInput.oninput = syncParkReference;
         parkInput.onchange = syncParkReference;
         syncParkReference();
+
+        parkCombobox.querySelectorAll<HTMLElement>("[data-park-option]").forEach((option) => {
+          option.onclick = () => {
+            const label = option.dataset.label ?? "";
+            parkInput.value = label;
+            parkReference.value = option.dataset.reference ?? "";
+            parkInput.setCustomValidity("");
+            setParkPopupOpen(parkCombobox, false);
+          };
+        });
       }
+
+      stop.querySelectorAll<HTMLElement>("[data-multi-select]").forEach((multiSelect) => {
+        const toggle = multiSelect.querySelector<HTMLButtonElement>("[data-multi-toggle]");
+        if (toggle) {
+          toggle.onclick = () => {
+          setMultiSelectOpen(multiSelect, toggle.getAttribute("aria-expanded") !== "true");
+          };
+        }
+
+        multiSelect.querySelectorAll<HTMLInputElement>("[data-multi-option]").forEach((option) => {
+          option.onchange = () => {
+            updateMultiSelectLabel(multiSelect);
+            toggle?.setCustomValidity(selectedValues(multiSelect).length > 0 ? "" : "Choose at least one option.");
+          };
+        });
+        updateMultiSelectLabel(multiSelect);
+      });
     });
   }
 
@@ -302,12 +420,13 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
     for (const stop of stops) {
       const parkInput = stop.querySelector<HTMLInputElement>("[data-park-input]");
       const parkReference = stop.querySelector<HTMLInputElement>("[data-park-reference]");
+      const parkCombobox = stop.querySelector<HTMLElement>("[data-park-combobox]");
 
-      if (!parkInput || !parkReference) {
+      if (!parkInput || !parkReference || !parkCombobox) {
         continue;
       }
 
-      parkReference.value = parkOptions.get(parkInput.value.trim()) ?? "";
+      parkReference.value = selectedParkReference(parkInput.value.trim(), parkCombobox);
       parkInput.setCustomValidity(
         parkReference.value ? "" : "Choose a park from the suggestions.",
       );
@@ -316,17 +435,86 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
         parkInput.reportValidity();
         isValid = false;
       }
+
+      stop.querySelectorAll<HTMLElement>("[data-multi-select]").forEach((multiSelect) => {
+        const toggle = multiSelect.querySelector<HTMLButtonElement>("[data-multi-toggle]");
+        const hasSelection = selectedValues(multiSelect).length > 0;
+        toggle?.setCustomValidity(hasSelection ? "" : "Choose at least one option.");
+
+        if (!hasSelection) {
+          toggle?.reportValidity();
+          isValid = false;
+        }
+      });
     }
 
     return isValid;
   }
 
   function clearStopCard(stop: HTMLElement): void {
-    stop.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input, textarea").forEach((field) => {
+    stop.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input:not([type='checkbox']), textarea").forEach((field) => {
       field.value = "";
+    });
+    stop.querySelectorAll<HTMLInputElement>("input[type='checkbox']").forEach((field) => {
+      field.checked = false;
     });
     (Array.from(stop.querySelectorAll("select")) as HTMLSelectElement[]).forEach((field) => {
       field.selectedIndex = 0;
     });
+    stop.querySelectorAll<HTMLElement>("[data-park-results], [data-multi-menu]").forEach((popup) => {
+      popup.hidden = true;
+    });
+    stop.querySelectorAll<HTMLElement>("[data-multi-select]").forEach(updateMultiSelectLabel);
+  }
+
+  function selectedParkReference(value: string, combobox: HTMLElement): string {
+    const normalizedValue = value.toLowerCase();
+    const selectedOption = Array.from(combobox.querySelectorAll<HTMLElement>("[data-park-option]"))
+      .find((option) => (
+        option.dataset.reference?.toLowerCase() === normalizedValue ||
+        option.dataset.label?.toLowerCase() === normalizedValue
+      ));
+
+    return selectedOption?.dataset.reference ?? "";
+  }
+
+  function filterParkOptions(combobox: HTMLElement, value: string): void {
+    const terms = value.toLowerCase().split(/\s+/).filter(Boolean);
+    let visibleCount = 0;
+
+    combobox.querySelectorAll<HTMLElement>("[data-park-option]").forEach((option) => {
+      const search = option.dataset.search ?? "";
+      const isVisible = terms.every((term) => search.includes(term));
+      option.hidden = !isVisible;
+      if (isVisible) {
+        visibleCount += 1;
+      }
+    });
+
+    const empty = combobox.querySelector<HTMLElement>("[data-park-empty]");
+    if (empty) {
+      empty.hidden = visibleCount > 0;
+    }
+  }
+
+  function setParkPopupOpen(combobox: HTMLElement, isOpen: boolean): void {
+    combobox.querySelector<HTMLElement>("[data-park-results]")?.toggleAttribute("hidden", !isOpen);
+    combobox.querySelector<HTMLInputElement>("[data-park-input]")?.setAttribute("aria-expanded", String(isOpen));
+  }
+
+  function setMultiSelectOpen(multiSelect: HTMLElement, isOpen: boolean): void {
+    multiSelect.querySelector<HTMLElement>("[data-multi-menu]")?.toggleAttribute("hidden", !isOpen);
+    multiSelect.querySelector<HTMLButtonElement>("[data-multi-toggle]")?.setAttribute("aria-expanded", String(isOpen));
+  }
+
+  function updateMultiSelectLabel(multiSelect: HTMLElement): void {
+    const toggle = multiSelect.querySelector<HTMLButtonElement>("[data-multi-toggle]");
+    const values = selectedValues(multiSelect);
+
+    if (!toggle) {
+      return;
+    }
+
+    toggle.textContent = values.length > 0 ? values.join(", ") : multiSelect.hasAttribute("data-bands") ? "Choose bands" : "Choose modes";
   }
 </script>

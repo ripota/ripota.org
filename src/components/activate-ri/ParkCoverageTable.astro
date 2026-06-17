@@ -112,13 +112,13 @@ function parkCounties(park: ParkCoverage) {
             data-counties={dataList(parkCounties(park))}
             data-has-stops={park.stops.length > 0 ? "true" : "false"}
           >
-            <th scope="row">
+            <th scope="row" data-label="Park">
               {park.name}
               <span>{park.reference}</span>
               <span>{formatList(parkCounties(park))}</span>
             </th>
-            <td>{statusLabels[park.status] ?? park.status}</td>
-            <td>
+            <td data-label="Status">{statusLabels[park.status] ?? park.status}</td>
+            <td data-label="Next activation">
               {park.stops.length > 0 ? (
                 <div class="event-stop-list">
                   {park.stops.map((stop) => (
@@ -138,7 +138,7 @@ function parkCounties(park: ParkCoverage) {
                 "Needs coverage"
               )}
             </td>
-            <td>
+            <td data-label="Activator">
               {park.stops.length > 0 ? (
                 <div class="event-stop-list">
                   {park.stops.map((stop) => (
@@ -157,7 +157,7 @@ function parkCounties(park: ParkCoverage) {
                 "TBD"
               )}
             </td>
-            <td>
+            <td data-label="Bands / modes">
               {park.stops.length > 0 ? (
                 <div class="event-stop-list">
                   {park.stops.map((stop) => (
@@ -180,7 +180,7 @@ function parkCounties(park: ParkCoverage) {
         ))
       }
       <tr data-filter-empty hidden>
-        <td colspan="5">No parks match these filters.</td>
+        <td colspan="5" data-label="Park coverage">No parks match these filters.</td>
       </tr>
     </tbody>
   </table>

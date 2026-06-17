@@ -2,6 +2,7 @@
   color-scheme: light dark;
   --surface-page: #f7f4ed;
   --surface-raised: #fffdf7;
+  --surface-brand: #18312f;
   --surface-ink: #18312f;
   --surface-ink-soft: #264643;
   --text-primary: #17221f;
@@ -31,6 +32,7 @@
   :root {
     --surface-page: #101918;
     --surface-raised: #182421;
+    --surface-brand: #14322e;
     --surface-ink: #e8efe5;
     --surface-ink-soft: #cad8d1;
     --text-primary: #edf2ec;
@@ -91,6 +93,10 @@ a:focus-visible,
 button:focus-visible {
   outline: 3px solid var(--focus-ring);
   outline-offset: 4px;
+}
+
+[hidden] {
+  display: none !important;
 }
 
 img,
@@ -234,7 +240,7 @@ p {
 
 .site-header[data-variant="solid"] {
   position: relative;
-  background: var(--surface-ink);
+  background: var(--surface-brand);
 }
 
 .site-header__inner {
@@ -527,7 +533,9 @@ p {
 
 .event-hero {
   padding: calc(var(--header-height) + 4rem) 0 4rem;
-  background: var(--surface-ink);
+  background:
+    radial-gradient(circle at 82% 18%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 24rem),
+    linear-gradient(135deg, var(--surface-brand), color-mix(in srgb, var(--surface-brand) 82%, #000 18%));
   color: var(--text-on-hero);
 }
 
@@ -561,11 +569,17 @@ p {
 
 .event-nav a[aria-current="page"] {
   border-color: var(--accent);
-  background: var(--surface-ink);
+  background: var(--surface-brand);
   color: var(--text-on-hero);
 }
 
 .button[data-variant="light"] {
+  border-color: color-mix(in srgb, var(--surface-ink) 42%, transparent);
+  background: color-mix(in srgb, var(--surface-raised) 42%, transparent);
+  color: var(--surface-ink);
+}
+
+.event-hero .button[data-variant="light"] {
   border-color: rgba(255, 250, 240, 0.62);
   background: rgba(255, 250, 240, 0.1);
   color: var(--text-on-hero);
@@ -648,6 +662,12 @@ p {
   vertical-align: top;
 }
 
+.event-table thead th {
+  background: color-mix(in srgb, var(--surface-raised) 88%, var(--surface-brand));
+  color: var(--surface-ink);
+  font-weight: 900;
+}
+
 .event-table tbody tr:last-child th,
 .event-table tbody tr:last-child td {
   border-bottom: 0;
@@ -676,7 +696,7 @@ p {
 
 .event-form {
   display: grid;
-  gap: 1.2rem;
+  gap: 1.35rem;
   max-width: 900px;
 }
 
@@ -691,6 +711,7 @@ p {
 }
 
 .event-form label,
+.event-form .form-field,
 .activation-stop-fieldset {
   display: grid;
   gap: 0.35rem;
@@ -698,10 +719,25 @@ p {
   font-weight: 800;
 }
 
+.form-field {
+  min-width: 0;
+}
+
+.form-field--wide {
+  grid-column: 1 / -1;
+}
+
+.form-label {
+  display: block;
+}
+
 .activation-stop-fieldset {
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
-  padding: 1rem;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-raised) 76%, transparent), transparent),
+    color-mix(in srgb, var(--surface-raised) 44%, transparent);
+  padding: clamp(1rem, 2.5vw, 1.35rem);
 }
 
 .activation-stops {
@@ -721,26 +757,182 @@ p {
   gap: 1rem;
 }
 
+.activation-stop-card__title,
+.activation-stop-card__header legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--surface-ink);
+  font-weight: 900;
+}
+
+.activation-stop-card__title::before,
+.activation-stop-card__header legend::before {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 999px;
+  background: var(--accent);
+  content: "";
+}
+
 .activation-stop-card__header legend,
 .activation-stop-fieldset legend {
   padding: 0 0.35rem;
 }
 
 .activation-stop-card__remove {
+  width: auto;
   min-height: 40px;
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border-subtle));
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--surface-ink);
   padding: 0.45rem 0.7rem;
   font-size: 0.9rem;
 }
 
 .event-form input,
 .event-form select,
-.event-form textarea {
+.event-form textarea,
+.multi-select__button {
   width: 100%;
   border: 1px solid var(--border-subtle);
   border-radius: 6px;
   background: var(--surface-raised);
   color: var(--text-primary);
   padding: 0.7rem;
+}
+
+.park-combobox,
+.multi-select {
+  position: relative;
+  display: block;
+}
+
+.park-combobox__popup,
+.multi-select__menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  width: 100%;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-soft);
+}
+
+.park-combobox__popup {
+  overflow: hidden;
+}
+
+.park-combobox__scroller {
+  display: block;
+  max-height: 18rem;
+  overflow: auto;
+}
+
+.park-combobox__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.park-combobox__table th,
+.park-combobox__table td {
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 0.55rem 0.65rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.park-combobox__table th {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  background: color-mix(in srgb, var(--surface-raised) 88%, var(--surface-brand));
+  color: var(--surface-ink);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.park-combobox__table tr:hover td {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.park-combobox__table button {
+  border: 0;
+  background: transparent;
+  color: var(--link);
+  padding: 0;
+  font: inherit;
+  font-weight: 900;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.2em;
+}
+
+.park-combobox__table tr {
+  cursor: pointer;
+}
+
+.park-combobox__empty {
+  display: block;
+  padding: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.multi-select__button {
+  position: relative;
+  min-height: 45px;
+  padding-right: 2.25rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.multi-select__button::after {
+  position: absolute;
+  right: 0.85rem;
+  top: 50%;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  content: "";
+  rotate: 45deg;
+}
+
+.multi-select__menu {
+  display: grid;
+  gap: 0.15rem;
+  max-height: 17rem;
+  overflow: auto;
+  padding: 0.45rem;
+}
+
+.multi-select__option {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  border-radius: 6px;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-weight: 700;
+  padding: 0.45rem 0.5rem;
+}
+
+.multi-select__option:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.multi-select__option input {
+  width: auto;
+  margin: 0;
 }
 
 .event-form textarea {
@@ -1006,8 +1198,7 @@ p {
   }
 
   .admin-panel__header,
-  .admin-card,
-  .activation-stop-card__header {
+  .admin-card {
     flex-direction: column;
   }
 
@@ -1022,6 +1213,20 @@ p {
   .path-card,
   .official-link {
     min-height: auto;
+  }
+
+  .event-nav {
+    width: calc(100% + 2rem);
+    margin-inline: -1rem;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding: 0 1rem 0.35rem;
+    scrollbar-width: thin;
+  }
+
+  .event-nav a {
+    flex: 0 0 auto;
+    white-space: nowrap;
   }
 }
 
@@ -1063,6 +1268,88 @@ p {
   }
 
   .button {
+    width: 100%;
+  }
+
+  .event-page h1 {
+    font-size: 2.8rem;
+  }
+
+  .event-nav {
+    gap: 0.5rem;
+  }
+
+  .event-nav a {
+    padding: 0.62rem 0.55rem;
+  }
+
+  .event-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .event-table-wrap {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+  }
+
+  .event-table {
+    min-width: 0;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: transparent;
+  }
+
+  .event-table thead {
+    display: none;
+  }
+
+  .event-table tbody {
+    display: grid;
+    gap: 0.8rem;
+  }
+
+  .event-table tr {
+    display: grid;
+    gap: 0.7rem;
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    background: var(--surface-raised);
+    padding: 0.95rem;
+  }
+
+  .event-table th,
+  .event-table td {
+    display: grid;
+    gap: 0.2rem;
+    border-bottom: 0;
+    padding: 0;
+  }
+
+  .event-table th::before,
+  .event-table td::before {
+    color: var(--text-muted);
+    content: attr(data-label);
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .event-table th[data-label="Park"] {
+    padding-bottom: 0.15rem;
+  }
+
+  .event-table th[data-label="Park"]::before {
+    display: none;
+  }
+
+  .activation-stop-card__header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .activation-stop-card__remove {
     width: 100%;
   }
 }
