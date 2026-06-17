@@ -80,6 +80,27 @@ function adminRequest(path: string, init?: RequestInit): Request {
   return new Request(`https://ripota.org${path}`, init);
 }
 
+function insertColumnAndValueCounts(sql: string): { columns: number; values: number } {
+  const match = sql.match(
+    /INSERT INTO\s+\S+\s*\(([\s\S]*?)\)\s*VALUES\s*\(([\s\S]*?)\)/i,
+  );
+  if (!match) {
+    throw new Error(`Expected INSERT SQL with column and VALUES lists: ${sql}`);
+  }
+
+  return {
+    columns: commaSeparatedItemCount(match[1]),
+    values: commaSeparatedItemCount(match[2]),
+  };
+}
+
+function commaSeparatedItemCount(value: string): number {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean).length;
+}
+
 type AdminDbOptions = {
   planRows?: unknown[];
   stopRows?: unknown[];
@@ -288,6 +309,15 @@ describe("handleActivateRiApi", () => {
     expect(testEnv.DB.batch).toHaveBeenCalledTimes(2);
     const insertStatements = vi.mocked(testEnv.DB.batch).mock.calls[0][0];
     expect(insertStatements).toHaveLength(4);
+
+    const stopInsertSql = vi.mocked(testEnv.DB.prepare).mock.calls
+      .map(([sql]) => sql)
+      .find((sql) => sql.includes("INSERT INTO activate_ri_stops"));
+    expect(stopInsertSql).toBeDefined();
+    expect(insertColumnAndValueCounts(stopInsertSql ?? "")).toEqual({
+      columns: 13,
+      values: 13,
+    });
   });
 
   it("returns validation errors for invalid plan submissions", async () => {

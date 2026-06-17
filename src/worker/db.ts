@@ -102,7 +102,7 @@ export async function insertPendingPlan(
           id, plan_id, event_id, park_reference, start_at,
           end_at, bands_json, modes_json, public_notes, organizer_notes,
           status, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending-review', ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending-review', ?, ?)`,
       ).bind(
         crypto.randomUUID(),
         planId,
