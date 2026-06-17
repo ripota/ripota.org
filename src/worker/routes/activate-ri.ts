@@ -154,13 +154,17 @@ export async function handleActivateRiApi(
         planId: plan.id,
         actorType: "system",
         actorEmail: plan.submitter_email,
-        action: emailResult.ok
+        action: emailResult.status === "sent"
           ? "approval-email-sent"
-          : "approval-email-failed",
-        summary: emailResult.ok
+          : emailResult.status === "skipped"
+            ? "approval-email-skipped"
+            : "approval-email-failed",
+        summary: emailResult.status === "sent"
           ? `Approval email sent to ${plan.submitter_email}.`
-          : `Approval email failed for ${plan.submitter_email}.`,
-        details: emailResult.ok ? {} : { error: emailResult.error },
+          : emailResult.status === "skipped"
+            ? `Approval email skipped for ${plan.submitter_email}.`
+            : `Approval email failed for ${plan.submitter_email}.`,
+        details: emailActivityDetails(emailResult),
       });
     }
 
@@ -364,6 +368,22 @@ async function handleCancelStop(
     );
   }
 
+  if (result.highImpactEvents.length > 0) {
+    const emailResult = await sendAdminActivityEmail(
+      env,
+      result.plan,
+      result.highImpactEvents,
+    );
+    await logActivityEvent(env, {
+      planId: result.plan.id,
+      stopId,
+      actorType: "system",
+      action: adminNotificationAction(emailResult),
+      summary: adminNotificationSummary(emailResult, "stop cancellation"),
+      details: emailActivityDetails(emailResult),
+    });
+  }
+
   return json({ ok: true });
 }
 
@@ -415,7 +435,7 @@ async function handlePlanSubmission(
     editUrl,
     absoluteHelpUrl(request),
   );
-  if (emailResult.ok) {
+  if (emailResult.status === "sent") {
     await markEditLinkEmailEvent(
       env,
       result.planId,
@@ -430,9 +450,13 @@ async function handlePlanSubmission(
       result.planId,
       result.activatorId,
       validation.value.submitterEmail,
-      "edit-link-send-failed",
-      `Private edit link email failed for ${validation.value.submitterEmail}.`,
-      { error: emailResult.error },
+      emailResult.status === "skipped"
+        ? "edit-link-send-skipped"
+        : "edit-link-send-failed",
+      emailResult.status === "skipped"
+        ? `Private edit link email skipped for ${validation.value.submitterEmail}.`
+        : `Private edit link email failed for ${validation.value.submitterEmail}.`,
+      emailActivityDetails(emailResult),
     );
   }
 
@@ -523,13 +547,9 @@ async function handleEditPlanUpdate(
       await logActivityEvent(env, {
         planId: plan.id,
         actorType: "system",
-        action: emailResult.ok
-          ? "admin-notification-sent"
-          : "admin-notification-failed",
-        summary: emailResult.ok
-          ? "Admin notification sent for high-impact edit."
-          : "Admin notification failed for high-impact edit.",
-        details: emailResult.ok ? {} : { error: emailResult.error },
+        action: adminNotificationAction(emailResult),
+        summary: adminNotificationSummary(emailResult, "high-impact edit"),
+        details: emailActivityDetails(emailResult),
       });
     }
   }
@@ -578,11 +598,17 @@ async function handleResendEditLink(
     match.plan?.id,
     match.activator.id,
     validation.email,
-    emailResult.ok ? "edit-link-resent" : "edit-link-send-failed",
-    emailResult.ok
+    emailResult.status === "sent"
+      ? "edit-link-resent"
+      : emailResult.status === "skipped"
+        ? "edit-link-send-skipped"
+        : "edit-link-send-failed",
+    emailResult.status === "sent"
       ? `Private edit link resent to ${validation.email}.`
-      : `Private edit link resend failed for ${validation.email}.`,
-    emailResult.ok ? {} : { error: emailResult.error },
+      : emailResult.status === "skipped"
+        ? `Private edit link resend skipped for ${validation.email}.`
+        : `Private edit link resend failed for ${validation.email}.`,
+    emailActivityDetails(emailResult),
   );
 
   return json({ ok: true, message: resendLinkMessage });
@@ -646,13 +672,9 @@ async function handleCancelPlan(
     await logActivityEvent(env, {
       planId: result.plan.id,
       actorType: "system",
-      action: emailResult.ok
-        ? "admin-notification-sent"
-        : "admin-notification-failed",
-      summary: emailResult.ok
-        ? "Admin notification sent for plan cancellation."
-        : "Admin notification failed for plan cancellation.",
-      details: emailResult.ok ? {} : { error: emailResult.error },
+      action: adminNotificationAction(emailResult),
+      summary: adminNotificationSummary(emailResult, "plan cancellation"),
+      details: emailActivityDetails(emailResult),
     });
   }
 
@@ -908,4 +930,69 @@ function absoluteHelpUrl(request: Request): string {
 
 function absoluteScheduleUrl(request: Request): string {
   return new URL("/activate-ri-2026/schedule/", request.url).href;
+}
+
+type EmailActivityResult =
+  | {
+      ok: true;
+      status: "sent";
+      attemptId: string;
+      recipientsCount: number;
+      recipientHashes: string[];
+    }
+  | {
+      ok: true;
+      status: "skipped";
+      attemptId: string;
+      reason: string;
+      recipientsCount: number;
+      recipientHashes: string[];
+    }
+  | {
+      ok: false;
+      status: "failed";
+      attemptId: string;
+      error: string;
+      recipientsCount: number;
+      recipientHashes: string[];
+    };
+
+function adminNotificationAction(result: EmailActivityResult): string {
+  if (result.status === "sent") {
+    return "admin-notification-sent";
+  }
+
+  if (result.status === "skipped") {
+    return "admin-notification-skipped";
+  }
+
+  return "admin-notification-failed";
+}
+
+function adminNotificationSummary(
+  result: EmailActivityResult,
+  reason: string,
+): string {
+  if (result.status === "sent") {
+    return `Admin notification sent for ${reason}.`;
+  }
+
+  if (result.status === "skipped") {
+    return `Admin notification skipped for ${reason}.`;
+  }
+
+  return `Admin notification failed for ${reason}.`;
+}
+
+function emailActivityDetails(
+  result: EmailActivityResult,
+): Record<string, unknown> {
+  return {
+    emailAttemptId: result.attemptId,
+    status: result.status,
+    recipientsCount: result.recipientsCount,
+    recipientHashes: result.recipientHashes,
+    ...(result.status === "skipped" ? { reason: result.reason } : {}),
+    ...(result.status === "failed" ? { error: result.error } : {}),
+  };
 }

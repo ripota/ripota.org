@@ -2,8 +2,33 @@ import type { ActivityEventInput, EditablePlanDto } from "./db";
 import type { Env } from "./env";
 
 type SendEmailResult =
-  | { ok: true }
-  | { ok: false; error: string };
+  | {
+      ok: true;
+      status: "sent";
+      attemptId: string;
+      recipientsCount: number;
+      recipientHashes: string[];
+    }
+  | {
+      ok: true;
+      status: "skipped";
+      attemptId: string;
+      reason:
+        | "email-binding-missing"
+        | "email-sender-missing"
+        | "no-admin-recipients"
+        | "no-trigger-events";
+      recipientsCount: number;
+      recipientHashes: string[];
+    }
+  | {
+      ok: false;
+      status: "failed";
+      attemptId: string;
+      error: string;
+      recipientsCount: number;
+      recipientHashes: string[];
+    };
 
 export async function sendActivatorEditLinkEmail(
   env: Env,
@@ -16,6 +41,7 @@ export async function sendActivatorEditLinkEmail(
   helpUrl: string,
 ): Promise<SendEmailResult> {
   return sendEmail(env, {
+    kind: "activator-edit-link",
     to: plan.submitter_email,
     subject: "Your Activate All RI 2026 edit link",
     text: [
@@ -60,6 +86,7 @@ export async function sendActivatorApprovalEmail(
   scheduleUrl: string,
 ): Promise<SendEmailResult> {
   return sendEmail(env, {
+    kind: "activator-approval",
     to: plan.submitter_email,
     subject: "Your Activate All RI 2026 plan is live",
     text: [
@@ -94,8 +121,12 @@ export async function sendAdminActivityEmail(
   events: ActivityEventInput[],
 ): Promise<SendEmailResult> {
   const recipients = adminEmails(env);
-  if (recipients.length === 0 || events.length === 0) {
-    return { ok: true };
+  if (recipients.length === 0) {
+    return skippedEmail("admin-activity", "no-admin-recipients", recipients);
+  }
+
+  if (events.length === 0) {
+    return skippedEmail("admin-activity", "no-trigger-events", recipients);
   }
 
   const subject = `Activate RI update: ${plan.submitter_callsign}`;
@@ -114,6 +145,7 @@ export async function sendAdminActivityEmail(
   ].join("");
 
   return sendEmail(env, {
+    kind: "admin-activity",
     to: recipients,
     subject,
     text,
@@ -124,19 +156,41 @@ export async function sendAdminActivityEmail(
 async function sendEmail(
   env: Env,
   message: {
+    kind: "activator-edit-link" | "activator-approval" | "admin-activity";
     to: string | string[];
     subject: string;
     text: string;
     html: string;
   },
 ): Promise<SendEmailResult> {
+  const attemptId = crypto.randomUUID();
+  const recipients = Array.isArray(message.to) ? message.to : [message.to];
+  const recipientHashes = await emailHashes(recipients);
   if (!env.EMAIL) {
-    return { ok: false, error: "Email binding is not configured." };
+    return logEmailOutcome({
+      ok: true,
+      status: "skipped",
+      attemptId,
+      kind: message.kind,
+      reason: "email-binding-missing",
+      recipientsCount: recipients.length,
+      recipientHashes,
+      subject: message.subject,
+    });
   }
 
   const from = env.ACTIVATE_RI_EMAIL_FROM;
   if (!from) {
-    return { ok: false, error: "Email sender is not configured." };
+    return logEmailOutcome({
+      ok: true,
+      status: "skipped",
+      attemptId,
+      kind: message.kind,
+      reason: "email-sender-missing",
+      recipientsCount: recipients.length,
+      recipientHashes,
+      subject: message.subject,
+    });
   }
 
   try {
@@ -150,13 +204,77 @@ async function sendEmail(
       text: message.text,
       html: message.html,
     });
-    return { ok: true };
+    return logEmailOutcome({
+      ok: true,
+      status: "sent",
+      attemptId,
+      kind: message.kind,
+      recipientsCount: recipients.length,
+      recipientHashes,
+      subject: message.subject,
+    });
   } catch (error) {
-    return {
+    return logEmailOutcome({
       ok: false,
+      status: "failed",
+      attemptId,
+      kind: message.kind,
       error: error instanceof Error ? error.message : "Email send failed.",
-    };
+      recipientsCount: recipients.length,
+      recipientHashes,
+      subject: message.subject,
+    });
   }
+}
+
+async function skippedEmail(
+  kind: "admin-activity",
+  reason: "no-admin-recipients" | "no-trigger-events",
+  recipients: string[],
+): Promise<SendEmailResult> {
+  return logEmailOutcome({
+    ok: true,
+    status: "skipped",
+    attemptId: crypto.randomUUID(),
+    kind,
+    reason,
+    recipientsCount: recipients.length,
+    recipientHashes: await emailHashes(recipients),
+  });
+}
+
+function logEmailOutcome(
+  result: SendEmailResult & {
+    kind: "activator-edit-link" | "activator-approval" | "admin-activity";
+    subject?: string;
+  },
+): SendEmailResult {
+  console.log({
+    event: "email_send_attempt",
+    emailAttemptId: result.attemptId,
+    kind: result.kind,
+    status: result.status,
+    reason: result.status === "skipped" ? result.reason : undefined,
+    error: result.status === "failed" ? result.error : undefined,
+    recipientsCount: result.recipientsCount,
+    recipientHashes: result.recipientHashes,
+    subject: result.subject,
+  });
+
+  const { kind: _kind, subject: _subject, ...sendResult } = result;
+  return sendResult;
+}
+
+async function emailHashes(emails: string[]): Promise<string[]> {
+  return Promise.all(
+    emails.map(async (email) => {
+      const bytes = new TextEncoder().encode(email.trim().toLowerCase());
+      const digest = await crypto.subtle.digest("SHA-256", bytes);
+      return [...new Uint8Array(digest)]
+        .map((byte) => byte.toString(16).padStart(2, "0"))
+        .join("");
+    }),
+  );
 }
 
 function adminEmails(env: Env): string[] {

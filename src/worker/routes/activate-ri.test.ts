@@ -258,9 +258,17 @@ function adminDb(options: AdminDbOptions = {}): D1Database {
 type EditDbOptions = {
   planStatus?: string | null;
   changes?: number;
+  planRows?: unknown[];
+  stopRows?: unknown[];
 };
 
 function editDb(options: EditDbOptions = {}): D1Database {
+  const planRows = options.planRows ?? [
+    { ...pendingPlanRow, status: options.planStatus ?? "approved" },
+  ];
+  const stopRows = options.stopRows ?? [
+    { ...pendingStopRow, status: "scheduled" },
+  ];
   const prepare = vi.fn((sql: string) => {
     const statement = {
       bind: vi.fn().mockReturnThis(),
@@ -268,8 +276,17 @@ function editDb(options: EditDbOptions = {}): D1Database {
         success: true,
         meta: { changes: options.changes ?? 1 },
       })),
-      all: vi.fn(),
+      all: vi.fn(async () => ({
+        results: sql.includes("FROM activate_ri_stops") ? stopRows : planRows,
+      })),
       first: vi.fn(async () => {
+        if (
+          sql.includes("FROM activate_ri_plans") &&
+          !sql.includes("INNER JOIN activate_ri_plans")
+        ) {
+          return planRows[0] ?? null;
+        }
+
         if (!sql.includes("INNER JOIN activate_ri_plans")) {
           return null;
         }
@@ -279,8 +296,10 @@ function editDb(options: EditDbOptions = {}): D1Database {
         }
 
         return {
+          plan_id: "plan-1",
           status: options.planStatus ?? "approved",
           start_at: "2026-09-11T09:00:00.000Z",
+          park_reference: "US-2868",
         };
       }),
     };
@@ -290,7 +309,12 @@ function editDb(options: EditDbOptions = {}): D1Database {
 
   return {
     prepare,
-    batch: vi.fn(async () => []),
+    batch: vi.fn(async (statements: unknown[]) =>
+      statements.map(() => ({
+        success: true,
+        meta: { changes: options.changes ?? 1 },
+      })),
+    ),
   } as unknown as D1Database;
 }
 
@@ -577,6 +601,52 @@ describe("handleActivateRiApi", () => {
     };
     expect(details.previous.status).toBe("scheduled");
     expect(details.next.status).toBe("scheduled");
+  });
+
+  it("records skipped admin notifications when no admin recipients are configured", async () => {
+    const testEnv = env();
+    testEnv.ACTIVATE_RI_EMAIL_FROM = "organizers@ripota.org";
+    testEnv.EMAIL = {
+      send: vi.fn(async () => undefined),
+    } as unknown as SendEmail;
+    testEnv.DB = adminDb({
+      planRows: [{ ...pendingPlanRow, status: "approved" }],
+      stopRows: [{ ...pendingStopRow, status: "scheduled" }],
+    });
+
+    const payload = validPayload();
+    payload.stops = [
+      {
+        ...(payload.stops as Record<string, unknown>[])[0],
+        id: "stop-1",
+        parkReference: "US-6989",
+      },
+    ];
+
+    const response = await handleActivateRiApi(
+      patch("/api/activate-ri-2026/edit/token/plans/plan-1", payload),
+      testEnv,
+    );
+
+    expect(response.status).toBe(200);
+    expect(testEnv.EMAIL.send).not.toHaveBeenCalled();
+    const preparedStatements = vi.mocked(testEnv.DB.prepare).mock.results.map(
+      (result) => result.value as { bind: { mock: { calls: unknown[][] } } },
+    );
+    const notificationBinds = preparedStatements
+      .flatMap((statement) => statement.bind.mock.calls)
+      .find((binds) => binds.includes("admin-notification-skipped"));
+    expect(notificationBinds).toBeDefined();
+    const actionIndex = notificationBinds?.indexOf("admin-notification-skipped") ?? -1;
+    expect(notificationBinds?.[actionIndex + 1]).toBe(
+      "Admin notification skipped for high-impact edit.",
+    );
+    expect(JSON.parse(String(notificationBinds?.[actionIndex + 2]))).toEqual(
+      expect.objectContaining({
+        reason: "no-admin-recipients",
+        recipientsCount: 0,
+      }),
+    );
   });
 
   it("requires Turnstile for activator plan cancellation when configured", async () => {
@@ -1340,6 +1410,39 @@ describe("handleActivateRiApi", () => {
       expectedHash,
     ]);
     expect(JSON.stringify(cancelBinds)).not.toContain(token);
+  });
+
+  it("notifies admins when an approved stop is cancelled", async () => {
+    const testEnv = env();
+    testEnv.ACTIVATE_RI_EMAIL_FROM = "organizers@ripota.org";
+    testEnv.ACTIVATE_RI_ADMIN_EMAILS = "admin@example.com";
+    testEnv.EMAIL = {
+      send: vi.fn(async () => undefined),
+    } as unknown as SendEmail;
+    testEnv.DB = editDb();
+
+    const response = await handleActivateRiApi(
+      post("/api/activate-ri-2026/edit/token/stops/stop-1/cancel", {
+        cancelReason: "Weather.",
+      }),
+      testEnv,
+    );
+
+    expect(response.status).toBe(200);
+    expect(testEnv.EMAIL.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: ["admin@example.com"],
+        subject: "Activate RI update: N1RWJ",
+        text: expect.stringContaining("cancelled US-2868"),
+      }),
+    );
+    const preparedStatements = vi.mocked(testEnv.DB.prepare).mock.results.map(
+      (result) => result.value as { bind: { mock: { calls: unknown[][] } } },
+    );
+    const notificationBinds = preparedStatements
+      .flatMap((statement) => statement.bind.mock.calls)
+      .find((binds) => binds.includes("admin-notification-sent"));
+    expect(notificationBinds).toBeDefined();
   });
 
   it("allows cancellation without a JSON body", async () => {

@@ -45,9 +45,11 @@ visible in the admin activity log.
    reflects the new D1 data.
 6. Every meaningful edit writes activity events.
 7. High-impact approved-plan changes trigger an admin notification attempt.
+   The activity log records `admin-notification-sent`,
+   `admin-notification-failed`, or `admin-notification-skipped`.
 
-High-impact events currently include approved stop removals, approved park/date
-changes, and full plan cancellation.
+High-impact events currently include approved stop removals/cancellations,
+approved park/date changes, and full plan cancellation.
 
 ### Forgot-link resend
 
@@ -233,9 +235,16 @@ npx wrangler email sending send \
 ## Troubleshooting
 
 - If activator submissions succeed but no email arrives, check the admin
-  activity log for `edit-link-send-failed`.
+  activity log for `edit-link-send-failed` or `edit-link-send-skipped`.
 - If admin notifications do not arrive, confirm `ACTIVATE_RI_ADMIN_EMAILS` is
-  configured in the same environment that was deployed.
+  configured in the same environment that was deployed. If it is missing, the
+  admin activity log records `admin-notification-skipped` with
+  `reason: "no-admin-recipients"`.
+- For deeper tracing, correlate the activity log `emailAttemptId` with Workers
+  Logs entries whose `event` is `email_send_attempt`, then check Cloudflare
+  Email Service logs for the same subject and recipient window. See
+  `docs/activate-ri-2026/worker-logging-debugging.md` for the full logging
+  runbook.
 - If the Worker says the sender is not verified, finish Email Sending domain
   onboarding for `ripota.org`.
 - If local email tests fail, remember that local dev may use simulated bindings

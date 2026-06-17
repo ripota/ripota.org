@@ -164,6 +164,10 @@ export type EditStopResult =
   | { ok: true }
   | { ok: false; status: 404 | 409; error: string };
 
+export type CancelStopResult =
+  | { ok: true; plan: EditablePlanDto; highImpactEvents: ActivityEventInput[] }
+  | { ok: false; status: 404 | 409; error: string };
+
 type PlanStatusRow = {
   status: string;
 };
@@ -922,8 +926,10 @@ export async function cancelPlanByTokenHash(
 }
 
 type EditStopPlanRow = {
+  plan_id: string;
   status: string;
   start_at: string;
+  park_reference: string;
 };
 
 async function findEditStopPlan(
@@ -932,7 +938,7 @@ async function findEditStopPlan(
   stopId: string,
 ): Promise<EditStopPlanRow | null> {
   return env.DB.prepare(
-    `SELECT r.status, s.start_at
+    `SELECT r.id AS plan_id, r.status, s.start_at, s.park_reference
      FROM activate_ri_stops s
      INNER JOIN activate_ri_plans r ON r.id = s.plan_id
      INNER JOIN activate_ri_activators a ON a.id = r.activator_id
@@ -1025,7 +1031,7 @@ export async function cancelStopByToken(
   stopId: string,
   cancelReason: string,
   now = new Date().toISOString(),
-): Promise<EditStopResult> {
+): Promise<CancelStopResult> {
   const plan = await findEditStopPlan(env, magicTokenHash, stopId);
   if (!plan) {
     return { ok: false, status: 404, error: "Stop not found" };
@@ -1035,29 +1041,45 @@ export async function cancelStopByToken(
     return { ok: false, status: 409, error: "Plan is not approved" };
   }
 
-  const result = await env.DB.prepare(
-    `UPDATE activate_ri_stops
-     SET status = 'cancelled',
-         cancelled_at = ?,
-         cancel_reason = ?,
-         updated_at = ?
-     WHERE id = ?
-       AND event_id = ?
-       AND plan_id IN (
-         SELECT id
-         FROM activate_ri_plans
-         WHERE event_id = ?
-           AND EXISTS (
-             SELECT 1
-             FROM activate_ri_activators
-             WHERE id = activate_ri_plans.activator_id
-               AND event_id = ?
-               AND magic_token_hash = ?
-           )
-           AND status = 'approved'
-       )`,
-  )
-    .bind(
+  const highImpactEvent: ActivityEventInput = {
+    planId: plan.plan_id,
+    stopId,
+    actorType: "activator",
+    action: "stop-cancelled",
+    summary: `Activator cancelled ${plan.park_reference}.`,
+    details: {
+      cancelReason,
+      previous: {
+        parkReference: plan.park_reference,
+        startAt: plan.start_at,
+        status: "scheduled",
+      },
+    },
+  };
+
+  const [result] = await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE activate_ri_stops
+       SET status = 'cancelled',
+           cancelled_at = ?,
+           cancel_reason = ?,
+           updated_at = ?
+       WHERE id = ?
+         AND event_id = ?
+         AND plan_id IN (
+           SELECT id
+           FROM activate_ri_plans
+           WHERE event_id = ?
+             AND EXISTS (
+               SELECT 1
+               FROM activate_ri_activators
+               WHERE id = activate_ri_plans.activator_id
+                 AND event_id = ?
+                 AND magic_token_hash = ?
+             )
+             AND status = 'approved'
+         )`,
+    ).bind(
       now,
       cancelReason,
       now,
@@ -1066,14 +1088,20 @@ export async function cancelStopByToken(
       env.ACTIVATE_RI_EVENT_ID,
       env.ACTIVATE_RI_EVENT_ID,
       magicTokenHash,
-    )
-    .run();
+    ),
+    activityInsert(env, highImpactEvent, now),
+  ]);
 
   if ((result.meta?.changes ?? 0) < 1) {
     return { ok: false, status: 404, error: "Stop not found" };
   }
 
-  return { ok: true };
+  const editablePlan = await getPlanById(env, plan.plan_id);
+  if (!editablePlan) {
+    return { ok: false, status: 404, error: "Plan not found" };
+  }
+
+  return { ok: true, plan: editablePlan, highImpactEvents: [highImpactEvent] };
 }
 
 export async function markEditLinkEmailEvent(
@@ -1081,7 +1109,11 @@ export async function markEditLinkEmailEvent(
   planId: string | undefined,
   activatorId: string,
   actorEmail: string,
-  action: "edit-link-sent" | "edit-link-send-failed" | "edit-link-resent",
+  action:
+    | "edit-link-sent"
+    | "edit-link-send-failed"
+    | "edit-link-send-skipped"
+    | "edit-link-resent",
   summary: string,
   details: unknown = {},
   now = new Date().toISOString(),
