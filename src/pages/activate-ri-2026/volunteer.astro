@@ -27,7 +27,59 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
             can scan coverage consistently.
           </p>
         </div>
+        <section class="event-guidance" aria-labelledby="before-submit-title">
+          <div class="section-header section-header--compact">
+            <p class="eyebrow">Before you submit</p>
+            <h2 id="before-submit-title">Share the plan you can reasonably attempt</h2>
+          </div>
+          <div class="event-guidance__grid">
+            <article class="event-guidance__item">
+              <h3>One stop or a rove</h3>
+              <p>
+                Submit one park if that is your plan, or add multiple stops for
+                a multi-park route.
+              </p>
+            </article>
+            <article class="event-guidance__item">
+              <h3>Organizer review</h3>
+              <p>
+                New plans are reviewed before they appear on the public
+                schedule.
+              </p>
+            </article>
+            <article class="event-guidance__item">
+              <h3>Private edit link</h3>
+              <p>
+                Use an email address you can reach. That is where your private
+                edit link will be sent.
+              </p>
+            </article>
+            <article class="event-guidance__item">
+              <h3>Spots and logs</h3>
+              <p>
+                Frequencies are not collected here. Spot and log through normal
+                Parks on the Air systems.
+              </p>
+            </article>
+          </div>
+        </section>
         <VolunteerForm />
+        <section class="event-guidance event-guidance--compact" aria-labelledby="after-submit-title">
+          <div class="section-header section-header--compact">
+            <p class="eyebrow">After submitting</p>
+            <h2 id="after-submit-title">Use your edit link when plans change</h2>
+            <p class="lead">
+              The site emails a private edit link after submission. Keep it for
+              schedule changes, added stops, updated notes, or cancellations.
+              The resend form below can send a fresh link for matching signups.
+            </p>
+          </div>
+          <ul class="event-help-list">
+            <li>Pending plans stay in organizer review until approved.</li>
+            <li>The same email address can manage multiple submitted plans.</li>
+            <li>Approved plans should be updated instead of submitted again.</li>
+          </ul>
+        </section>
         <EditLinkResendForm />
       </div>
     </section>

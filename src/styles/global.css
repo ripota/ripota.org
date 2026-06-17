@@ -591,6 +591,74 @@ p {
   font-size: clamp(3.25rem, 8vw, 5.5rem);
 }
 
+.section-header--compact {
+  max-width: 780px;
+  margin-bottom: 1rem;
+}
+
+.section-header--compact h2 {
+  margin: 0;
+  color: var(--surface-ink);
+  font-size: clamp(1.65rem, 3vw, 2.35rem);
+}
+
+.event-guidance {
+  display: grid;
+  gap: 1rem;
+  margin: 0 0 2rem;
+}
+
+.event-guidance--compact {
+  max-width: 900px;
+  margin-top: 2rem;
+}
+
+.event-guidance--stacked {
+  max-width: 900px;
+}
+
+.event-guidance__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.event-guidance__item {
+  display: grid;
+  gap: 0.45rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-raised) 82%, transparent), transparent),
+    color-mix(in srgb, var(--surface-raised) 54%, transparent);
+  padding: clamp(1rem, 2.5vw, 1.25rem);
+}
+
+.event-guidance__item h2,
+.event-guidance__item h3 {
+  margin: 0;
+  color: var(--surface-ink);
+  font-size: 1.05rem;
+}
+
+.event-guidance__item h2 {
+  font-size: 1.25rem;
+}
+
+.event-guidance__item p {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.event-help-list {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  color: var(--text-muted);
+  padding-left: 1.2rem;
+  font-weight: 600;
+}
+
 .coverage-summary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -730,6 +798,70 @@ p {
 
 .form-label {
   display: block;
+}
+
+.field-label-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.help-popover {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.help-popover__button {
+  display: inline-grid;
+  place-items: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border: 1px solid color-mix(in srgb, var(--surface-ink) 35%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-raised) 78%, transparent);
+  color: var(--surface-ink);
+  cursor: help;
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1;
+  padding: 0;
+}
+
+.help-popover__button:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.help-popover__bubble {
+  position: absolute;
+  z-index: 40;
+  bottom: calc(100% + 0.45rem);
+  left: 50%;
+  width: min(16rem, calc(100vw - 3rem));
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-soft);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.35;
+  opacity: 0;
+  padding: 0.65rem 0.75rem;
+  pointer-events: none;
+  transform: translate(-50%, 0.25rem);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+
+.help-popover:hover .help-popover__bubble,
+.help-popover:focus-within .help-popover__bubble {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 .activation-stop-fieldset {

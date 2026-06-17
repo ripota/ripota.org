@@ -1,0 +1,113 @@
+---
+import EventNav from "../../components/activate-ri/EventNav.astro";
+import Footer from "../../components/Footer.astro";
+import Notice from "../../components/Notice.astro";
+import SiteHeader from "../../components/SiteHeader.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+---
+
+<BaseLayout
+  title="Activate All RI 2026 Help"
+  description="Help for Activate All RI 2026 activator plans, coverage, time blocks, and private edit links."
+  canonicalPath="/activate-ri-2026/help/"
+>
+  <SiteHeader variant="solid" showEventLink />
+  <main id="main">
+    <section class="section event-page" aria-labelledby="help-title">
+      <div class="container">
+        <EventNav />
+        <div class="section-header">
+          <p class="eyebrow">Activator help</p>
+          <h1 id="help-title">Activate RI help</h1>
+          <p class="lead">
+            Use this page when you are not sure what the signup form is asking
+            for, what happens after you submit, or how private edit links work.
+          </p>
+        </div>
+
+        <div class="event-guidance event-guidance--stacked">
+          <section class="event-guidance__item" aria-labelledby="help-event-title">
+            <h2 id="help-event-title">What is Activate All RI 2026?</h2>
+            <p>
+              Activate All RI 2026 is an unofficial Rhode Island POTA community
+              effort to coordinate planned activations for all 61 Rhode Island
+              references during one event window. The schedule helps activators
+              see coverage gaps and helps hunters find planned activity.
+            </p>
+          </section>
+
+          <section class="event-guidance__item" aria-labelledby="help-coverage-title">
+            <h2 id="help-coverage-title">What does coverage mean?</h2>
+            <p>
+              Coverage means someone has shared a planned activation window for
+              that reference. It is not an official park reservation, does not
+              prevent another activator from operating there, and does not
+              guarantee that contacts will be made.
+            </p>
+          </section>
+
+          <section class="event-guidance__item" aria-labelledby="help-time-title">
+            <h2 id="help-time-title">How should I choose a time block?</h2>
+            <p>
+              Pick the three-hour block closest to when you expect to be on the
+              air. The block is a planning tool for the public schedule, not a
+              promise to operate for exactly three hours. If your timing
+              changes, use your private edit link to update the plan.
+            </p>
+          </section>
+
+          <section class="event-guidance__item" aria-labelledby="help-notes-title">
+            <h2 id="help-notes-title">What should go in public notes?</h2>
+            <p>
+              Public notes are shown to hunters. Useful notes include parking or
+              access details, QRP or portable context, approximate timing, and
+              the order of stops in a rove. Do not put private contact details
+              in public notes.
+            </p>
+          </section>
+
+          <section class="event-guidance__item" aria-labelledby="help-link-title">
+            <h2 id="help-link-title">What is the private edit link?</h2>
+            <p>
+              After you submit a plan, the site emails a private link to the
+              address on your submission. That link lets you manage plans tied
+              to the same email address, including changing stops, dates, time
+              blocks, bands, modes, notes, or cancelling a plan.
+            </p>
+          </section>
+
+          <section class="event-guidance__item" aria-labelledby="help-approval-title">
+            <h2 id="help-approval-title">What happens after organizer review?</h2>
+            <p>
+              New plans wait for organizer review before they appear on the
+              public schedule. After a plan is approved, activator edits are
+              meant to keep the public schedule current without requiring a new
+              signup.
+            </p>
+          </section>
+
+          <section class="event-guidance__item" aria-labelledby="help-resend-title">
+            <h2 id="help-resend-title">How do I get a new edit link?</h2>
+            <p>
+              Use the resend form on the volunteer page with the callsign and
+              email address from your signup. If you mistyped your email address,
+              contact an organizer so they can help connect the plan to a
+              reachable address.
+            </p>
+          </section>
+
+          <section class="event-guidance__item" aria-labelledby="help-official-title">
+            <h2 id="help-official-title">What remains official POTA?</h2>
+            <p>
+              ripota.org is a community coordination site. Official Parks on the
+              Air resources remain authoritative for rules, references, accounts,
+              spots, logs, awards, and whether an activation is valid.
+            </p>
+          </section>
+        </div>
+      </div>
+    </section>
+    <Notice />
+  </main>
+  <Footer />
+</BaseLayout>

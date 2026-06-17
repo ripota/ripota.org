@@ -36,7 +36,16 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
   <div class="form-grid form-grid--identity">
     <label>
       Callsign
-      <input name="submitterCallsign" autocomplete="nickname" required />
+      <input
+        id="activate-ri-callsign"
+        name="submitterCallsign"
+        autocomplete="nickname"
+        aria-describedby="activate-ri-callsign-help"
+        required
+      />
+      <span id="activate-ri-callsign-help" class="form-help">
+        Use the callsign that should appear on the public schedule.
+      </span>
     </label>
     <label>
       Name
@@ -44,7 +53,17 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
     </label>
     <label>
       Email
-      <input name="submitterEmail" type="email" autocomplete="email" required />
+      <input
+        id="activate-ri-email"
+        name="submitterEmail"
+        type="email"
+        autocomplete="email"
+        aria-describedby="activate-ri-email-help"
+        required
+      />
+      <span id="activate-ri-email-help" class="form-help">
+        Used for your private edit link. It is not shown publicly.
+      </span>
     </label>
     <label>
       Club / group affiliation
@@ -62,7 +81,20 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
       </div>
       <div class="form-grid">
         <div class="form-field form-field--wide">
-          <span class="form-label">Park</span>
+          <span class="field-label-row">
+            <span class="form-label">Park</span>
+            <span class="help-popover">
+              <button
+                class="help-popover__button"
+                type="button"
+                aria-label="Help for park field"
+              >?</button>
+              <span class="help-popover__bubble" role="tooltip">
+                Choose from the suggestion list so the correct POTA reference
+                is saved with the stop.
+              </span>
+            </span>
+          </span>
           <span class="park-combobox" data-park-combobox>
             <input
               data-park-input
@@ -108,6 +140,9 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
               <span class="park-combobox__empty" data-park-empty hidden>No matching parks.</span>
             </span>
           </span>
+          <span class="form-help">
+            Select a park from the suggestions before submitting.
+          </span>
         </div>
         <label>
           Date
@@ -118,8 +153,21 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
             <option value="2026-09-13">Sunday, September 13</option>
           </select>
         </label>
-        <label>
-          Time block
+        <div class="form-field">
+          <span class="field-label-row">
+            <span class="form-label">Time block</span>
+            <span class="help-popover">
+              <button
+                class="help-popover__button"
+                type="button"
+                aria-label="Help for time block field"
+              >?</button>
+              <span class="help-popover__bubble" role="tooltip">
+                The block is for schedule scanning. It does not mean you must
+                operate for exactly three hours.
+              </span>
+            </span>
+          </span>
           <select data-time-block required>
             <option value="">Choose a 3-hour block</option>
             {
@@ -128,9 +176,26 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
               ))
             }
           </select>
-        </label>
+          <span class="form-help">
+            Pick the closest planned operating window. Update it later if plans
+            change.
+          </span>
+        </div>
         <div class="form-field">
-          <span class="form-label">Bands</span>
+          <span class="field-label-row">
+            <span class="form-label">Bands</span>
+            <span class="help-popover">
+              <button
+                class="help-popover__button"
+                type="button"
+                aria-label="Help for bands field"
+              >?</button>
+              <span class="help-popover__bubble" role="tooltip">
+                Choose the bands you expect to try. This helps hunters plan,
+                but it is not a binding promise.
+              </span>
+            </span>
+          </span>
           <span class="multi-select" data-multi-select data-bands>
             <button
               class="multi-select__button"
@@ -151,10 +216,25 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
               }
             </span>
           </span>
-          <span class="form-help">Select every band you expect to use.</span>
+          <span class="form-help">
+            Select every band you expect to use.
+          </span>
         </div>
         <div class="form-field">
-          <span class="form-label">Modes</span>
+          <span class="field-label-row">
+            <span class="form-label">Modes</span>
+            <span class="help-popover">
+              <button
+                class="help-popover__button"
+                type="button"
+                aria-label="Help for modes field"
+              >?</button>
+              <span class="help-popover__bubble" role="tooltip">
+                Choose the modes you expect to try. Digital includes FT8, FT4,
+                RTTY, JS8, and similar modes.
+              </span>
+            </span>
+          </span>
           <span class="multi-select" data-multi-select data-modes>
             <button
               class="multi-select__button"
@@ -175,13 +255,31 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
               }
             </span>
           </span>
-          <span class="form-help">Digital covers FT8, FT4, RTTY, JS8, and similar modes.</span>
+          <span class="form-help">
+            Digital covers FT8, FT4, RTTY, JS8, and similar modes.
+          </span>
         </div>
       </div>
-      <label>
-        Public notes for hunters
+      <div class="form-field">
+        <span class="field-label-row">
+          <span class="form-label">Public notes for hunters</span>
+          <span class="help-popover">
+            <button
+              class="help-popover__button"
+              type="button"
+              aria-label="Help for public notes field"
+            >?</button>
+            <span class="help-popover__bubble" role="tooltip">
+              These notes are shown publicly. Avoid private contact details.
+            </span>
+          </span>
+        </span>
         <textarea data-public-notes rows="3"></textarea>
-      </label>
+        <span class="form-help">
+          Helpful public notes include access, parking, QRP, approximate timing,
+          or rove sequence details.
+        </span>
+      </div>
     </fieldset>
   </div>
 
@@ -191,10 +289,30 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
     </button>
   </div>
 
-  <label>
-    Notes for organizers
-    <textarea name="organizerNotes" rows="3"></textarea>
-  </label>
+  <div class="form-field">
+    <span class="field-label-row">
+      <span class="form-label">Notes for organizers</span>
+      <span class="help-popover">
+        <button
+          class="help-popover__button"
+          type="button"
+          aria-label="Help for organizer notes field"
+        >?</button>
+        <span class="help-popover__bubble" role="tooltip">
+          These notes are for coordinators and are not shown on the public
+          schedule.
+        </span>
+      </span>
+    </span>
+    <textarea
+      name="organizerNotes"
+      rows="3"
+      aria-describedby="activate-ri-organizer-notes-help"
+    ></textarea>
+    <span id="activate-ri-organizer-notes-help" class="form-help">
+      Use this for coordinator context, special constraints, or review notes.
+    </span>
+  </div>
 
   <p class="form-help">
     Frequencies are not collected here. Please use normal POTA spotting when
