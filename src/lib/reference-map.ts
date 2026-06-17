@@ -1,0 +1,160 @@
+import { deriveParkCoverage } from "./activate-ri/coverage";
+import type {
+  ParkCoverageStatus,
+  PublicActivationStop,
+  PublicParkSummary,
+} from "./activate-ri/types";
+
+export type ReferenceMapVariant = "home" | "coverage" | "volunteer";
+
+export type ReferenceMapGeometryKind = "boundary" | "activation-zone" | "point";
+
+export type ReferenceMapGeoJson = {
+  type: "FeatureCollection";
+  features: unknown[];
+  properties?: Record<string, unknown>;
+};
+
+export type ReferenceMapReference = {
+  reference: string;
+  name: string;
+  latitude?: number;
+  longitude?: number;
+  grid?: string;
+  counties?: string[];
+  locationDesc?: string;
+  potaUrl?: string;
+};
+
+export type ReferenceBoundaryRecord = {
+  reference: string;
+  status: "available" | "point-only" | "research-needed";
+  geometryKind?: ReferenceMapGeometryKind;
+  sourceName: string;
+  sourceUrl: string;
+  sourceFeatureIds?: Array<string | number>;
+  localGeojson?: string;
+  notes?: string;
+};
+
+export type ReferenceMapCoverage = {
+  status: ParkCoverageStatus;
+  label: string;
+  color: string;
+  stops: PublicActivationStop[];
+};
+
+export type ReferenceMapItem = {
+  reference: string;
+  name: string;
+  counties: string[];
+  grid: string;
+  locationDesc: string;
+  potaUrl: string;
+  marker: {
+    latitude: number;
+    longitude: number;
+  } | null;
+  geometryKind: ReferenceMapGeometryKind;
+  boundaryStatus: ReferenceBoundaryRecord["status"] | "unknown";
+  sourceName: string;
+  sourceUrl: string;
+  geojson: ReferenceMapGeoJson | null;
+  coverage: ReferenceMapCoverage | null;
+};
+
+export type BuildReferenceMapItemsInput = {
+  references: ReferenceMapReference[];
+  boundaries: ReferenceBoundaryRecord[];
+  geojsonByPath: Record<string, string>;
+  parks?: PublicParkSummary[];
+  stops?: PublicActivationStop[];
+};
+
+export const coverageStatusLabels: Record<ParkCoverageStatus, string> = {
+  uncovered: "Needs coverage",
+  scheduled: "Scheduled",
+  "multiple-scheduled": "Multiple scheduled",
+  "cancelled-needs-replacement": "Needs replacement",
+  completed: "Completed",
+};
+
+export const referenceMapStatusColors: Record<ParkCoverageStatus, string> = {
+  uncovered: "#b54708",
+  scheduled: "#287c5b",
+  "multiple-scheduled": "#1f5fbf",
+  "cancelled-needs-replacement": "#9f1239",
+  completed: "#5f6f76",
+};
+
+export function buildReferenceMapItems({
+  references,
+  boundaries,
+  geojsonByPath,
+  parks,
+  stops,
+}: BuildReferenceMapItemsInput): ReferenceMapItem[] {
+  const boundariesByReference = new Map(
+    boundaries.map((boundary) => [boundary.reference, boundary]),
+  );
+  const coverageByReference = new Map(
+    parks && stops
+      ? deriveParkCoverage(parks, stops).map((coverage) => [coverage.reference, coverage])
+      : [],
+  );
+
+  return references.map((reference) => {
+    const boundary = boundariesByReference.get(reference.reference);
+    const coverage = coverageByReference.get(reference.reference);
+
+    return {
+      reference: reference.reference,
+      name: reference.name,
+      counties: reference.counties ?? [],
+      grid: reference.grid ?? "",
+      locationDesc: reference.locationDesc ?? "",
+      potaUrl: reference.potaUrl ?? "",
+      marker: markerForReference(reference),
+      geometryKind: boundary?.geometryKind ?? "point",
+      boundaryStatus: boundary?.status ?? "unknown",
+      sourceName: boundary?.sourceName ?? "Parks on the Air reference coordinate",
+      sourceUrl: boundary?.sourceUrl ?? reference.potaUrl ?? "",
+      geojson: geojsonForBoundary(boundary, geojsonByPath),
+      coverage: coverage
+        ? {
+            status: coverage.status,
+            label: coverageStatusLabels[coverage.status],
+            color: referenceMapStatusColors[coverage.status],
+            stops: coverage.stops,
+          }
+        : null,
+    };
+  });
+}
+
+function markerForReference(reference: ReferenceMapReference): ReferenceMapItem["marker"] {
+  if (typeof reference.latitude !== "number" || typeof reference.longitude !== "number") {
+    return null;
+  }
+
+  return {
+    latitude: reference.latitude,
+    longitude: reference.longitude,
+  };
+}
+
+function geojsonForBoundary(
+  boundary: ReferenceBoundaryRecord | undefined,
+  geojsonByPath: Record<string, string>,
+): ReferenceMapGeoJson | null {
+  if (!boundary?.localGeojson || boundary.status !== "available") {
+    return null;
+  }
+
+  const rawGeojson = geojsonByPath[boundary.localGeojson];
+  if (!rawGeojson) {
+    return null;
+  }
+
+  return JSON.parse(rawGeojson) as ReferenceMapGeoJson;
+}
