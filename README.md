@@ -34,6 +34,8 @@ The launch target is Cloudflare Workers Static Assets. `wrangler.jsonc` points W
 
 Deployments need Cloudflare account configuration outside this repository. Do not commit account IDs, API tokens, `.env`, `.dev.vars`, private exports, or unpublished community files.
 
+Activate RI admin routes require Cloudflare Access in production. See [docs/cloudflare-access.md](docs/cloudflare-access.md).
+
 ## Content Notes
 
 Keep homepage copy evergreen. Avoid date-forward event language on `/` such as upcoming campaign dates or year-specific project promises. Future project pages, including a possible `/activate` page, can carry event-specific details when they are ready.

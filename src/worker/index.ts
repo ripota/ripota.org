@@ -1,7 +1,9 @@
 import type { Env } from "./env";
+import { requireAccessIdentity } from "./access";
 import { json } from "./http";
 import { handleActivateRiApi } from "./routes/activate-ri";
 
+const activateRiAdminPathPattern = /^\/activate-ri-2026\/admin\/?$/;
 const activateRiEditPathPattern = /^\/activate-ri-2026\/edit\/[^/]+\/?$/;
 const activateRiEditShellPath = "/activate-ri-2026/edit/[token]/";
 
@@ -19,6 +21,18 @@ export default {
 
     if (url.pathname.startsWith("/api/")) {
       return json({ ok: false, error: "Not found" }, { status: 404 });
+    }
+
+    if (
+      (request.method === "GET" || request.method === "HEAD") &&
+      activateRiAdminPathPattern.test(url.pathname)
+    ) {
+      const identity = await requireAccessIdentity(request, env);
+      if (identity instanceof Response) {
+        return identity;
+      }
+
+      return env.ASSETS.fetch(request);
     }
 
     if (

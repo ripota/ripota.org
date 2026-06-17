@@ -72,4 +72,40 @@ describe("worker routing", () => {
     });
     expect(testEnv.ASSETS.fetch).not.toHaveBeenCalled();
   });
+
+  it("requires Access identity before serving the Activate RI admin page", async () => {
+    const testEnv = env();
+
+    const response = await worker.fetch(
+      request("/activate-ri-2026/admin/"),
+      testEnv,
+    );
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: "Unauthorized",
+    });
+    expect(testEnv.ASSETS.fetch).not.toHaveBeenCalled();
+  });
+
+  it("serves the Activate RI admin page for locally authorized admin requests", async () => {
+    const testEnv = {
+      ...env(),
+      ALLOW_ADMIN_HEADER_AUTH: "true" as const,
+    };
+
+    const response = await worker.fetch(
+      request("/activate-ri-2026/admin/", {
+        headers: {
+          "Cf-Access-Authenticated-User-Email": "admin@example.com",
+        },
+      }),
+      testEnv,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.text()).resolves.toBe("asset shell");
+    expect(testEnv.ASSETS.fetch).toHaveBeenCalledOnce();
+  });
 });
