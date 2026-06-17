@@ -388,6 +388,34 @@ describe("handleActivateRiApi", () => {
     expect(message.text).toContain("After approval, changes you save with your private edit link go live immediately.");
   });
 
+  it("sends admins an approval-needed email when an activation plan is submitted", async () => {
+    const testEnv = {
+      ...emailEnv(),
+      ACTIVATE_RI_ADMIN_EMAILS: "admin@example.com, backup@example.com",
+    };
+
+    const response = await handleActivateRiApi(
+      post("/api/activate-ri-2026/plans", validPayload()),
+      testEnv,
+    );
+
+    expect(response.status).toBe(202);
+    const sendEmail = testEnv.EMAIL?.send;
+    expect(sendEmail).toBeDefined();
+    if (!sendEmail) {
+      throw new Error("Expected email binding.");
+    }
+    expect(sendEmail).toHaveBeenCalledTimes(2);
+    expect(sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: ["admin@example.com", "backup@example.com"],
+        subject: "Activate RI approval needed: N1RWJ",
+        text: expect.stringContaining("submitted a new Activate All RI 2026 activation plan for organizer review."),
+        html: expect.stringContaining("https://ripota.org/activate-ri-2026/admin/"),
+      }),
+    );
+  });
+
   it("returns validation errors for invalid plan submissions", async () => {
     const fetch = vi.fn();
     vi.stubGlobal("fetch", fetch);

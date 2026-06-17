@@ -20,6 +20,11 @@ setup required in Cloudflare.
    - a note that the link works before and after organizer approval
 9. Email success or failure is written as `edit-link-sent` or
    `edit-link-send-failed`.
+10. The Worker sends admins an approval-needed email if
+    `ACTIVATE_RI_ADMIN_EMAILS` is configured.
+11. Admin notification success, failure, or skip is written as
+    `admin-notification-sent`, `admin-notification-failed`, or
+    `admin-notification-skipped`.
 
 The plan submission still succeeds if email delivery fails. The failure is
 visible in the admin activity log.

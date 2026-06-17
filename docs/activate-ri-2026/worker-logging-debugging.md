@@ -21,11 +21,11 @@ attempt logs from `src/worker/email.ts` with this shape:
 {
   "event": "email_send_attempt",
   "emailAttemptId": "<uuid>",
-  "kind": "admin-activity",
+  "kind": "admin-pending-plan",
   "status": "sent",
   "recipientsCount": 2,
   "recipientHashes": ["<sha256-email-hash>"],
-  "subject": "Activate RI update: N1RWJ"
+  "subject": "Activate RI approval needed: N1RWJ"
 }
 ```
 
@@ -114,6 +114,9 @@ Common skipped reasons:
 ### An admin email should have been sent, but nobody saw it
 
 Check the admin activity log for `admin-notification-*`.
+
+For a new pending submission, a healthy flow should include an
+`admin-notification-sent` activity entry with `details.status: "sent"`.
 
 If the action is `admin-notification-skipped` with
 `reason: "no-admin-recipients"`, fix `ACTIVATE_RI_ADMIN_EMAILS` in the deployed

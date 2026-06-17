@@ -29,6 +29,7 @@ import {
   sendActivatorApprovalEmail,
   sendActivatorEditLinkEmail,
   sendAdminActivityEmail,
+  sendAdminPendingPlanEmail,
 } from "../email";
 import { tokenHash } from "../edit-token";
 import type { Env } from "../env";
@@ -459,6 +460,19 @@ async function handlePlanSubmission(
       emailActivityDetails(emailResult),
     );
   }
+
+  const adminEmailResult = await sendAdminPendingPlanEmail(env, {
+    submitter_callsign: validation.value.submitterCallsign,
+    submitter_name: validation.value.submitterName,
+    submitter_email: validation.value.submitterEmail,
+  });
+  await logActivityEvent(env, {
+    planId: result.planId,
+    actorType: "system",
+    action: adminNotificationAction(adminEmailResult),
+    summary: adminNotificationSummary(adminEmailResult, "pending submission"),
+    details: emailActivityDetails(adminEmailResult),
+  });
 
   return json(
     {

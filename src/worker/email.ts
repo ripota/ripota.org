@@ -153,10 +153,53 @@ export async function sendAdminActivityEmail(
   });
 }
 
+export async function sendAdminPendingPlanEmail(
+  env: Env,
+  plan: {
+    submitter_callsign: string;
+    submitter_name: string;
+    submitter_email: string;
+  },
+): Promise<SendEmailResult> {
+  const recipients = adminEmails(env);
+  if (recipients.length === 0) {
+    return skippedEmail("admin-pending-plan", "no-admin-recipients", recipients);
+  }
+
+  const subject = `Activate RI approval needed: ${plan.submitter_callsign}`;
+  const text = [
+    `${plan.submitter_callsign} submitted a new Activate All RI 2026 activation plan for organizer review.`,
+    "",
+    `Submitter: ${plan.submitter_name} <${plan.submitter_email}>`,
+    "",
+    "Admin dashboard:",
+    "https://ripota.org/activate-ri-2026/admin/",
+  ].join("\n");
+  const html = [
+    `<p><strong>${escapeHtml(plan.submitter_callsign)}</strong> submitted a new Activate All RI 2026 activation plan for organizer review.</p>`,
+    `<p>Submitter: ${escapeHtml(plan.submitter_name)} &lt;${escapeHtml(plan.submitter_email)}&gt;</p>`,
+    '<p><a href="https://ripota.org/activate-ri-2026/admin/">Open the admin dashboard</a></p>',
+  ].join("");
+
+  return sendEmail(env, {
+    kind: "admin-pending-plan",
+    to: recipients,
+    subject,
+    text,
+    html,
+  });
+}
+
+type EmailKind =
+  | "activator-edit-link"
+  | "activator-approval"
+  | "admin-activity"
+  | "admin-pending-plan";
+
 async function sendEmail(
   env: Env,
   message: {
-    kind: "activator-edit-link" | "activator-approval" | "admin-activity";
+    kind: EmailKind;
     to: string | string[];
     subject: string;
     text: string;
@@ -228,7 +271,7 @@ async function sendEmail(
 }
 
 async function skippedEmail(
-  kind: "admin-activity",
+  kind: "admin-activity" | "admin-pending-plan",
   reason: "no-admin-recipients" | "no-trigger-events",
   recipients: string[],
 ): Promise<SendEmailResult> {
@@ -245,7 +288,7 @@ async function skippedEmail(
 
 function logEmailOutcome(
   result: SendEmailResult & {
-    kind: "activator-edit-link" | "activator-approval" | "admin-activity";
+    kind: EmailKind;
     subject?: string;
   },
 ): SendEmailResult {
