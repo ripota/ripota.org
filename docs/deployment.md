@@ -55,10 +55,15 @@ Worker version.
 - D1 binding: `DB`, database `ripota-org`
 - Email binding: `EMAIL`
 - Observability: enabled
+- Worker source maps: uploaded by Wrangler for deobfuscated Worker stack traces
 
 The top-level config is production. `env.local` exists only so local builds can
 use `npm run build:local`, the Turnstile test site key, and local Wrangler D1
 storage.
+
+`upload_source_maps` applies to the Wrangler-built Worker script at
+`src/worker/index.ts`. Astro/Vite also emits client-side `.map` assets for the
+static browser bundle.
 
 ## Required Local State
 
