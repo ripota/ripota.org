@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   defaultShareImage,
+  footerLinkGroups,
   referenceMapZoomBehavior,
   referenceMapZoomOffset,
   resourceIntro,
@@ -42,6 +43,38 @@ describe("site content", () => {
       }),
     );
     expect(siteFeedbackLink.description).toMatch(/ripota\.org/i);
+  });
+
+  it("promotes RI POTA links before official POTA resources in the footer", () => {
+    expect(footerLinkGroups).toEqual([
+      {
+        label: "RI POTA",
+        variant: "site",
+        links: [
+          expect.objectContaining({ label: "Assets", href: "/assets/" }),
+          expect.objectContaining({
+            label: "Suggest a site improvement",
+            href: "https://github.com/ripota/ripota.org/issues/new?template=site-suggestion.yml",
+          }),
+          expect.objectContaining({
+            label: "RI POTA Groups.io",
+            href: "https://groups.io/g/RI-POTA",
+          }),
+        ],
+      },
+      {
+        label: "Official POTA resources",
+        variant: "official-pota",
+        links: [
+          expect.objectContaining({ label: "POTA documentation", href: "https://docs.pota.app/" }),
+          expect.objectContaining({ label: "POTA app", href: "https://pota.app/" }),
+          expect.objectContaining({
+            label: "Rules and resources",
+            href: "https://docs.pota.app/docs/rules.html",
+          }),
+        ],
+      },
+    ]);
   });
 
   it("states that Rhode Island POTA is unofficial", () => {

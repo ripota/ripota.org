@@ -1,16 +1,40 @@
 ---
-import { officialLinks, siteFeedbackLink, siteIdentity } from "../data/site";
+import { footerLinkGroups, siteIdentity } from "../data/site";
 ---
 
 <footer class="site-footer">
   <div class="site-footer__inner container">
     <p>{siteIdentity.name}</p>
-    <nav class="site-footer__links" aria-label="Footer links">
-      <a href="/assets/">Assets</a>
-      <a href={siteFeedbackLink.href} title={siteFeedbackLink.description}>{siteFeedbackLink.label}</a>
+    <nav class="site-footer__nav" aria-label="Footer links">
       {
-        officialLinks.map((link) => (
-          <a href={link.href}>{link.label}</a>
+        footerLinkGroups.map((group) => (
+          <section
+            class:list={[
+              "site-footer__group",
+              group.variant === "official-pota" && "site-footer__group--official",
+            ]}
+            aria-labelledby={`footer-${group.variant}`}
+          >
+            <h2 id={`footer-${group.variant}`} class="site-footer__group-label">
+              {group.label}
+            </h2>
+            <div class="site-footer__links">
+              {group.links.map((link) => (
+                <a
+                  class:list={[
+                    "site-footer__link",
+                    group.variant === "official-pota" && "site-footer__link--official",
+                  ]}
+                  href={link.href}
+                  title={link.description}
+                  target={group.variant === "official-pota" ? "_blank" : undefined}
+                  rel={group.variant === "official-pota" ? "noreferrer" : undefined}
+                >
+                  {link.label}
+                </a>
+              ))}
+            </div>
+          </section>
         ))
       }
     </nav>

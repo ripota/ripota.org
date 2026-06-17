@@ -15,6 +15,12 @@ export type PathCardContent = {
   action: ExternalLink;
 };
 
+export type FooterLinkGroup = {
+  label: string;
+  links: ExternalLink[];
+  variant: "site" | "official-pota";
+};
+
 export const siteIdentity = {
   name: "Rhode Island POTA",
   shortName: "RI POTA",
@@ -138,5 +144,26 @@ export const officialLinks: ExternalLink[] = [
     label: "RI POTA Groups.io",
     href: "https://groups.io/g/RI-POTA",
     description: "Local Rhode Island community discussion and coordination.",
+  },
+];
+
+export const footerLinkGroups: FooterLinkGroup[] = [
+  {
+    label: "RI POTA",
+    variant: "site",
+    links: [
+      {
+        label: "Assets",
+        href: "/assets/",
+        description: "Download Rhode Island POTA community logo assets.",
+      },
+      siteFeedbackLink,
+      ...officialLinks.filter((link) => link.href === "https://groups.io/g/RI-POTA"),
+    ],
+  },
+  {
+    label: "Official POTA resources",
+    variant: "official-pota",
+    links: officialLinks.filter((link) => link.href !== "https://groups.io/g/RI-POTA"),
   },
 ];
