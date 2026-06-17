@@ -8,7 +8,7 @@
     "prebuild": "node scripts/guard-turnstile-production.mjs --required",
     "build": "astro build",
     "build:local": "node scripts/build-local.mjs",
-    "e2e:activate-ri": "playwright test e2e/activate-ri-volunteer.spec.ts",
+    "e2e:activate-ri": "playwright test e2e/activate-ri-*.spec.ts --workers=1",
     "preview": "astro preview",
     "check": "astro check",
     "test": "npm run test:unit -- --run && npm run e2e:activate-ri",

@@ -478,6 +478,7 @@ async function handlePlanSubmission(
     {
       ok: true,
       message: submissionReceivedMessage,
+      ...(env.ALLOW_LOCAL_ADMIN_AUTH === "true" ? { editUrl } : {}),
     },
     { status: 202 },
   );

@@ -27,11 +27,6 @@ const turnstileSiteKey =
   <p class="form-help form-required-note"><span class="required-marker" aria-hidden="true">*</span> Required fields</p>
   <p class="form-status" data-edit-status aria-live="polite">Loading plan...</p>
 
-  <label data-plan-picker hidden>
-    Activation plan
-    <select data-plan-select></select>
-  </label>
-
   <div data-edit-fields hidden>
     <ActivateRiIdentityFields clubDatalistId="activate-ri-edit-clubs" />
   </div>
@@ -145,8 +140,6 @@ const turnstileSiteKey =
   const editTurnstile = editForm?.querySelector("[data-edit-turnstile]") as HTMLElement | null | undefined;
   const editConfirmation = document.querySelector("[data-edit-confirmation]") as HTMLDialogElement | null;
   const savePlanButton = editForm?.querySelector("[data-save-plan]") as HTMLButtonElement | null | undefined;
-  const planPicker = editForm?.querySelector("[data-plan-picker]") as HTMLElement | null | undefined;
-  const planSelect = editForm?.querySelector("[data-plan-select]") as HTMLSelectElement | null | undefined;
   const stopTemplate = document.querySelector("[data-stop-template]") as HTMLTemplateElement | null;
   let isSaving = false;
   let plans: PlanDto[] = [];
@@ -294,12 +287,9 @@ const turnstileSiteKey =
         return;
       }
 
-      const previousPlanId = selectedPlanId;
-      const selectedPlan = plans.find((plan) => stringValue(plan.id) === previousPlanId) ?? plans[0];
+      const selectedPlan = plans[0];
       selectedPlanId = stringValue(selectedPlan?.id);
-
-      renderPlanPicker();
-      renderSelectedPlan();
+      renderPlan(selectedPlan);
       editFields.hidden = false;
       editStops.hidden = false;
       editActions.hidden = false;
@@ -312,45 +302,6 @@ const turnstileSiteKey =
     } catch {
       editStatus?.replaceChildren("Unable to load this edit link.");
     }
-  }
-
-  planSelect?.addEventListener("change", () => {
-    selectedPlanId = planSelect.value;
-    renderSelectedPlan();
-    editStatus?.replaceChildren("Loaded. Make any changes and save.");
-  });
-
-  function renderPlanPicker(): void {
-    if (!planPicker || !planSelect) {
-      return;
-    }
-
-    planPicker.hidden = plans.length < 2;
-    planSelect.replaceChildren(
-      ...plans.map((plan, index) => {
-        const option = document.createElement("option");
-        option.value = stringValue(plan.id);
-        option.textContent = planLabel(plan, index);
-        option.selected = option.value === selectedPlanId;
-
-        return option;
-      }),
-    );
-  }
-
-  function renderSelectedPlan(): void {
-    const plan = plans.find((candidate) => stringValue(candidate.id) === selectedPlanId) ?? plans[0];
-    if (plan) {
-      selectedPlanId = stringValue(plan.id);
-      renderPlan(plan);
-    }
-  }
-
-  function planLabel(plan: PlanDto, index: number): string {
-    const stops = Array.isArray(plan.stops) ? plan.stops.length : 0;
-    const callsign = stringValue(plan.submitter_callsign) || `Plan ${index + 1}`;
-
-    return `${callsign} - ${stops} stop${stops === 1 ? "" : "s"}`;
   }
 
   function renderPlan(plan: PlanDto): void {

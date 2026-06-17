@@ -18,6 +18,7 @@ const migrations = [
   "0003_magic_links_and_audit.sql",
   "0004_activators_and_plans.sql",
   "0005_stop_utc_instants.sql",
+  "0006_activator_owned_stops.sql",
 ];
 
 export function createMigratedSqliteD1(): SqliteD1Context {

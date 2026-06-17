@@ -86,6 +86,64 @@ describe("Activate RI API acceptance flow", () => {
       }),
     ]);
   });
+
+  it("merges repeated submissions for the same activator into one editable stop list", async () => {
+    const db = createMigratedSqliteD1();
+    cleanup = db.close;
+    const env = testEnv(db.DB);
+
+    const firstResponse = await handleActivateRiApi(
+      jsonRequest("/api/activate-ri-2026/plans", volunteerPayload()),
+      env,
+    );
+    expect(firstResponse.status).toBe(202);
+
+    const secondResponse = await handleActivateRiApi(
+      jsonRequest("/api/activate-ri-2026/plans", {
+        ...volunteerPayload(),
+        stops: [
+          {
+            parkReference: "US-2869",
+            plannedDate: "2026-09-12",
+            timeBlock: "10:00-13:00",
+            bands: ["20m"],
+            modes: ["CW"],
+          },
+        ],
+      }),
+      env,
+    );
+    expect(secondResponse.status).toBe(202);
+
+    const pendingResponse = await handleActivateRiApi(
+      adminRequest("/api/activate-ri-2026/admin/plans"),
+      env,
+    );
+    expect(pendingResponse.status).toBe(200);
+    const pendingBody = (await pendingResponse.json()) as {
+      plans: Array<{
+        submitter_callsign: string;
+        submitter_email: string;
+        stops: Array<{ park_reference: string; status: string }>;
+      }>;
+    };
+
+    expect(pendingBody.plans).toHaveLength(1);
+    expect(pendingBody.plans[0]).toMatchObject({
+      submitter_callsign: "N1RWJ",
+      submitter_email: "rob@example.com",
+    });
+    expect(pendingBody.plans[0].stops).toEqual([
+      expect.objectContaining({
+        park_reference: "US-2868",
+        status: "pending-review",
+      }),
+      expect.objectContaining({
+        park_reference: "US-2869",
+        status: "pending-review",
+      }),
+    ]);
+  });
 });
 
 function testEnv(DB: D1Database): Env {

@@ -42,112 +42,6 @@ export type InsertPendingPlanResult = {
   editToken: string;
 };
 
-export async function insertPendingPlan(
-  env: Env,
-  submission: NormalizedRouteSubmission,
-  now = new Date().toISOString(),
-): Promise<InsertPendingPlanResult> {
-  const planId = crypto.randomUUID();
-  const activatorId = activatorIdForEmail(env.ACTIVATE_RI_EVENT_ID, submission.submitterEmail);
-  const editToken = generateEditToken();
-  const magicTokenHash = await tokenHash(editToken);
-  const stopInsertStatements: D1PreparedStatement[] = [];
-  for (const stop of submission.stops) {
-    const { startAt, endAt } = stopTimeRangeToInstants(
-      stop.plannedDate,
-      stop.startTime,
-      stop.endTime,
-    );
-
-    stopInsertStatements.push(
-      env.DB.prepare(
-        `INSERT INTO activate_ri_stops (
-          id, plan_id, event_id, park_reference, start_at,
-          end_at, bands_json, modes_json, public_notes, organizer_notes,
-          status, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending-review', ?, ?)`,
-      ).bind(
-        crypto.randomUUID(),
-        planId,
-        env.ACTIVATE_RI_EVENT_ID,
-        stop.parkReference,
-        startAt,
-        endAt,
-        JSON.stringify(stop.bands),
-        JSON.stringify(stop.modes),
-        stop.publicNotes,
-        stop.organizerNotes,
-        now,
-        now,
-      ),
-    );
-  }
-
-  const statements = [
-    env.DB.prepare(
-      `INSERT INTO activate_ri_activators (
-        id, event_id, email_normalized, name, phone, club, primary_callsign,
-        magic_token_hash, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(event_id, email_normalized) DO UPDATE SET
-        name = excluded.name,
-        phone = excluded.phone,
-        club = excluded.club,
-        primary_callsign = excluded.primary_callsign,
-        magic_token_hash = excluded.magic_token_hash,
-        updated_at = excluded.updated_at`,
-    ).bind(
-      activatorId,
-      env.ACTIVATE_RI_EVENT_ID,
-      submission.submitterEmail,
-      submission.submitterName,
-      submission.submitterPhone,
-      submission.club,
-      submission.submitterCallsign,
-      magicTokenHash,
-      now,
-      now,
-    ),
-    env.DB.prepare(
-      `INSERT INTO activate_ri_plans (
-        id, activator_id, event_id, submitter_callsign, submitter_name, submitter_email,
-        submitter_phone, club, public_notes, organizer_notes, status,
-        created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
-    ).bind(
-      planId,
-      activatorId,
-      env.ACTIVATE_RI_EVENT_ID,
-      submission.submitterCallsign,
-      submission.submitterName,
-      submission.submitterEmail,
-      submission.submitterPhone,
-      submission.club,
-      submission.publicNotes,
-      submission.organizerNotes,
-      now,
-      now,
-    ),
-    ...stopInsertStatements,
-    activityInsert(env, {
-      planId,
-      actorType: "activator",
-      actorEmail: submission.submitterEmail,
-      action: "plan-created",
-      summary: `${submission.submitterCallsign} submitted ${submission.stops.length} activation stop${submission.stops.length === 1 ? "" : "s"}.`,
-      details: {
-        submitterCallsign: submission.submitterCallsign,
-        submitterEmail: submission.submitterEmail,
-        stopCount: submission.stops.length,
-      },
-    }, now),
-  ];
-
-  await env.DB.batch(statements);
-
-  return { activatorId, planId, editToken };
-}
-
 export type ApprovePlanResult =
   | { ok: true }
   | { ok: false; status: 404 | 409; error: string };
@@ -168,30 +62,31 @@ export type CancelStopResult =
   | { ok: true; plan: EditablePlanDto; highImpactEvents: ActivityEventInput[] }
   | { ok: false; status: 404 | 409; error: string };
 
-type PlanStatusRow = {
-  status: string;
-};
+type ActivatorStatus = "pending" | "approved" | "rejected" | "withdrawn";
 
-type PlanRow = {
+type ActivatorRow = {
   id: string;
   event_id: string;
-  submitter_callsign: string;
-  submitter_name: string;
-  submitter_email: string;
-  submitter_phone: string;
+  email_normalized: string;
+  name: string;
+  phone: string;
   club: string;
-  public_notes: string;
-  organizer_notes: string;
-  status: string;
+  primary_callsign: string;
+  magic_token_hash: string | null;
   created_at: string;
   updated_at: string;
+  magic_link_sent_at: string | null;
+  last_magic_link_sent_at: string | null;
+  public_notes: string;
+  organizer_notes: string;
+  status: ActivatorStatus;
   approved_at: string | null;
   approved_by: string | null;
 };
 
 type StopRow = {
   id: string;
-  plan_id: string;
+  activator_id: string;
   event_id: string;
   park_reference: string;
   start_at: string;
@@ -208,6 +103,7 @@ type StopRow = {
 export type PendingStopDto = {
   id: string;
   plan_id: string;
+  activator_id: string;
   event_id: string;
   park_reference: string;
   planned_date: string;
@@ -222,7 +118,21 @@ export type PendingStopDto = {
   updated_at: string;
 };
 
-export type PendingPlanDto = PlanRow & {
+export type PendingPlanDto = {
+  id: string;
+  event_id: string;
+  submitter_callsign: string;
+  submitter_name: string;
+  submitter_email: string;
+  submitter_phone: string;
+  club: string;
+  public_notes: string;
+  organizer_notes: string;
+  status: ActivatorStatus;
+  created_at: string;
+  updated_at: string;
+  approved_at: string | null;
+  approved_by: string | null;
   stops: PendingStopDto[];
 };
 
@@ -247,23 +157,144 @@ export type ActivatorPlansDto = {
   plans: EditablePlanDto[];
 };
 
+type UpdatePlanResult =
+  | { ok: true; highImpactEvents: ActivityEventInput[] }
+  | { ok: false; status: 404; error: string };
+
+type EditStopActivatorRow = {
+  activator_id: string;
+  status: ActivatorStatus;
+  start_at: string;
+  park_reference: string;
+};
+
+type ActivityEventRow = {
+  id: string;
+  event_id: string;
+  plan_id: string | null;
+  stop_id: string | null;
+  actor_type: ActivityActorType;
+  actor_email: string;
+  action: string;
+  summary: string;
+  details_json: string;
+  created_at: string;
+};
+
+export async function insertPendingPlan(
+  env: Env,
+  submission: NormalizedRouteSubmission,
+  now = new Date().toISOString(),
+): Promise<InsertPendingPlanResult> {
+  const activatorId = activatorIdForEmail(env.ACTIVATE_RI_EVENT_ID, submission.submitterEmail);
+  const editToken = generateEditToken();
+  const magicTokenHash = await tokenHash(editToken);
+  const existing = await getActivatorById(env, activatorId);
+  const nextStatus: ActivatorStatus = existing?.status === "approved" ? "approved" : "pending";
+  const nextStopStatus = nextStatus === "approved" ? "scheduled" : "pending-review";
+  const statements: D1PreparedStatement[] = [
+    env.DB.prepare(
+      `INSERT INTO activate_ri_activators (
+        id, event_id, email_normalized, name, phone, club, primary_callsign,
+        magic_token_hash, public_notes, organizer_notes, status, created_at,
+        updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(event_id, email_normalized) DO UPDATE SET
+        name = excluded.name,
+        phone = excluded.phone,
+        club = excluded.club,
+        primary_callsign = excluded.primary_callsign,
+        magic_token_hash = excluded.magic_token_hash,
+        public_notes = excluded.public_notes,
+        organizer_notes = excluded.organizer_notes,
+        status = CASE
+          WHEN activate_ri_activators.status = 'approved' THEN 'approved'
+          ELSE excluded.status
+        END,
+        updated_at = excluded.updated_at`,
+    ).bind(
+      activatorId,
+      env.ACTIVATE_RI_EVENT_ID,
+      submission.submitterEmail,
+      submission.submitterName,
+      submission.submitterPhone,
+      submission.club,
+      submission.submitterCallsign,
+      magicTokenHash,
+      submission.publicNotes,
+      submission.organizerNotes,
+      nextStatus,
+      now,
+      now,
+    ),
+  ];
+
+  for (const stop of submission.stops) {
+    const { startAt, endAt } = stopTimeRangeToInstants(
+      stop.plannedDate,
+      stop.startTime,
+      stop.endTime,
+    );
+    statements.push(
+      env.DB.prepare(
+        `INSERT INTO activate_ri_stops (
+          id, activator_id, event_id, park_reference, start_at, end_at,
+          bands_json, modes_json, public_notes, organizer_notes, status,
+          created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        crypto.randomUUID(),
+        activatorId,
+        env.ACTIVATE_RI_EVENT_ID,
+        stop.parkReference,
+        startAt,
+        endAt,
+        JSON.stringify(stop.bands),
+        JSON.stringify(stop.modes),
+        stop.publicNotes,
+        stop.organizerNotes,
+        nextStopStatus,
+        now,
+        now,
+      ),
+    );
+  }
+
+  statements.push(activityInsert(env, {
+    planId: activatorId,
+    actorType: "activator",
+    actorEmail: submission.submitterEmail,
+    action: "plan-created",
+    summary: `${submission.submitterCallsign} submitted ${submission.stops.length} activation stop${submission.stops.length === 1 ? "" : "s"}.`,
+    details: {
+      submitterCallsign: submission.submitterCallsign,
+      submitterEmail: submission.submitterEmail,
+      stopCount: submission.stops.length,
+    },
+  }, now));
+
+  await env.DB.batch(statements);
+
+  return { activatorId, planId: activatorId, editToken };
+}
+
 export async function listPublicStopRows(env: Env): Promise<StopExportRow[]> {
   const result = await env.DB.prepare(
-     `SELECT
+    `SELECT
        s.id,
        s.park_reference,
        s.start_at,
        s.end_at,
-       r.submitter_callsign,
+       a.primary_callsign AS submitter_callsign,
        s.bands_json,
        s.modes_json,
        s.public_notes,
        s.status
      FROM activate_ri_stops s
-     INNER JOIN activate_ri_plans r ON r.id = s.plan_id
+     INNER JOIN activate_ri_activators a ON a.id = s.activator_id
      WHERE s.event_id = ?
-       AND r.event_id = ?
-       AND r.status = 'approved'
+       AND a.event_id = ?
+       AND a.status = 'approved'
        AND s.status IN ('scheduled', 'delayed', 'cancelled', 'completed')
      ORDER BY s.start_at ASC, s.park_reference ASC, s.id ASC`,
   )
@@ -284,22 +315,20 @@ export async function listSeenClubs(env: Env): Promise<string[]> {
     .bind(env.ACTIVATE_RI_EVENT_ID)
     .all<{ club: string }>();
 
-  return (result.results ?? [])
-    .map((row) => row.club)
-    .filter(Boolean);
+  return (result.results ?? []).map((row) => row.club).filter(Boolean);
 }
 
 export async function listPendingPlans(env: Env): Promise<PendingPlanDto[]> {
-  const planResult = await env.DB.prepare(
-    `${planSelectSql}
-     FROM activate_ri_plans
+  const result = await env.DB.prepare(
+    `${activatorSelectSql}
+     FROM activate_ri_activators
      WHERE event_id = ? AND status = 'pending'
      ORDER BY created_at ASC`,
   )
     .bind(env.ACTIVATE_RI_EVENT_ID)
-    .all<PlanRow>();
+    .all<ActivatorRow>();
 
-  return withStops(env, planResult.results ?? []);
+  return withStops(env, result.results ?? []);
 }
 
 export async function listActivityEvents(
@@ -334,29 +363,20 @@ export async function getPlansByTokenHash(
   magicTokenHash: string,
 ): Promise<ActivatorPlansDto | null> {
   const activator = await env.DB.prepare(
-    `SELECT id, event_id, email_normalized, name, phone, club, primary_callsign
+    `${activatorSelectSql}
      FROM activate_ri_activators
      WHERE event_id = ? AND magic_token_hash = ?`,
   )
     .bind(env.ACTIVATE_RI_EVENT_ID, magicTokenHash)
-    .first<ActivatorDto>();
+    .first<ActivatorRow>();
 
   if (!activator) {
     return null;
   }
 
-  const planResult = await env.DB.prepare(
-    `${planSelectSql}
-     FROM activate_ri_plans
-     WHERE event_id = ? AND activator_id = ?
-     ORDER BY created_at ASC`,
-  )
-    .bind(env.ACTIVATE_RI_EVENT_ID, activator.id)
-    .all<PlanRow>();
-
   return {
-    activator,
-    plans: await withStops(env, planResult.results ?? []),
+    activator: toActivatorDto(activator),
+    plans: await withStops(env, [activator]),
   };
 }
 
@@ -365,46 +385,31 @@ export async function getPlanByTokenHash(
   magicTokenHash: string,
   planId: string,
 ): Promise<EditablePlanDto | null> {
-  const plan = await env.DB.prepare(
-    `${planSelectSql}
-     FROM activate_ri_plans
-     WHERE event_id = ?
-       AND id = ?
-       AND EXISTS (
-         SELECT 1
-         FROM activate_ri_activators
-         WHERE id = activate_ri_plans.activator_id
-           AND event_id = ?
-           AND magic_token_hash = ?
-       )`,
+  const activator = await env.DB.prepare(
+    `${activatorSelectSql}
+     FROM activate_ri_activators
+     WHERE event_id = ? AND id = ? AND magic_token_hash = ?`,
   )
-    .bind(env.ACTIVATE_RI_EVENT_ID, planId, env.ACTIVATE_RI_EVENT_ID, magicTokenHash)
-    .first<PlanRow>();
+    .bind(env.ACTIVATE_RI_EVENT_ID, planId, magicTokenHash)
+    .first<ActivatorRow>();
 
-  if (!plan) {
+  if (!activator) {
     return null;
   }
 
-  return (await withStops(env, [plan]))[0] ?? null;
+  return (await withStops(env, [activator]))[0] ?? null;
 }
 
 export async function getPlanById(
   env: Env,
   planId: string,
 ): Promise<EditablePlanDto | null> {
-  const plan = await env.DB.prepare(
-    `${planSelectSql}
-     FROM activate_ri_plans
-     WHERE event_id = ? AND id = ?`,
-  )
-    .bind(env.ACTIVATE_RI_EVENT_ID, planId)
-    .first<PlanRow>();
-
-  if (!plan) {
+  const activator = await getActivatorById(env, planId);
+  if (!activator) {
     return null;
   }
 
-  return (await withStops(env, [plan]))[0] ?? null;
+  return (await withStops(env, [activator]))[0] ?? null;
 }
 
 export async function findActivatorForEditLinkResend(
@@ -413,12 +418,12 @@ export async function findActivatorForEditLinkResend(
   email: string,
 ): Promise<{ activator: ActivatorDto; plan: EditablePlanDto | null; editToken: string } | null> {
   const activator = await env.DB.prepare(
-    `SELECT id, event_id, email_normalized, name, phone, club, primary_callsign
+    `${activatorSelectSql}
      FROM activate_ri_activators
      WHERE event_id = ? AND email_normalized = ? AND primary_callsign = ?`,
   )
     .bind(env.ACTIVATE_RI_EVENT_ID, email, callsign)
-    .first<ActivatorDto>();
+    .first<ActivatorRow>();
 
   if (!activator) {
     return null;
@@ -434,97 +439,11 @@ export async function findActivatorForEditLinkResend(
     .bind(magicTokenHash, new Date().toISOString(), activator.id, env.ACTIVATE_RI_EVENT_ID)
     .run();
 
-  const plans = await env.DB.prepare(
-    `${planSelectSql}
-     FROM activate_ri_plans
-     WHERE event_id = ? AND activator_id = ?
-     ORDER BY created_at DESC
-     LIMIT 1`,
-  )
-    .bind(env.ACTIVATE_RI_EVENT_ID, activator.id)
-    .all<PlanRow>();
-
   return {
-    activator,
-    plan: (await withStops(env, plans.results ?? []))[0] ?? null,
+    activator: toActivatorDto(activator),
+    plan: (await withStops(env, [activator]))[0] ?? null,
     editToken,
   };
-}
-
-async function withStops(
-  env: Env,
-  plans: PlanRow[],
-): Promise<PendingPlanDto[]> {
-  if (plans.length === 0) {
-    return [];
-  }
-
-  const planIds = plans.map((plan) => plan.id);
-  const stopResult = await env.DB.prepare(
-    `SELECT
-       id,
-       plan_id,
-       event_id,
-       park_reference,
-       start_at,
-       end_at,
-       bands_json,
-       modes_json,
-       public_notes,
-       organizer_notes,
-       status,
-       created_at,
-       updated_at
-     FROM activate_ri_stops
-     WHERE event_id = ? AND plan_id IN (${planIds.map(() => "?").join(", ")})
-     ORDER BY start_at ASC, created_at ASC`,
-  )
-    .bind(env.ACTIVATE_RI_EVENT_ID, ...planIds)
-    .all<StopRow>();
-
-  const stopsByPlan = new Map<string, PendingStopDto[]>();
-  for (const stop of stopResult.results ?? []) {
-    const stops = stopsByPlan.get(stop.plan_id) ?? [];
-    stops.push(toPendingStopDto(stop));
-    stopsByPlan.set(stop.plan_id, stops);
-  }
-
-  return plans.map((plan) => ({
-    ...plan,
-    stops: stopsByPlan.get(plan.id) ?? [],
-  }));
-}
-
-function toPendingStopDto(stop: StopRow): PendingStopDto {
-  return {
-    id: stop.id,
-    plan_id: stop.plan_id,
-    event_id: stop.event_id,
-    park_reference: stop.park_reference,
-    planned_date: instantToPlannedDate(stop.start_at),
-    start_time: instantToTime(stop.start_at),
-    end_time: instantToTime(stop.end_at),
-    bands: parseStringArray(stop.bands_json),
-    modes: parseStringArray(stop.modes_json),
-    public_notes: stop.public_notes,
-    organizer_notes: stop.organizer_notes,
-    status: stop.status,
-    created_at: stop.created_at,
-    updated_at: stop.updated_at,
-  };
-}
-
-function parseStringArray(value: string): string[] {
-  try {
-    const parsed: unknown = JSON.parse(value);
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-
-    return parsed.filter((item): item is string => typeof item === "string");
-  } catch {
-    return [];
-  }
 }
 
 export async function approvePlan(
@@ -533,80 +452,45 @@ export async function approvePlan(
   actorEmail: string,
   now = new Date().toISOString(),
 ): Promise<ApprovePlanResult> {
-  const approvalOperationId = crypto.randomUUID();
-  const plan = await env.DB.prepare(
-    `SELECT status
-     FROM activate_ri_plans
-     WHERE id = ? AND event_id = ?`,
-  )
-    .bind(planId, env.ACTIVATE_RI_EVENT_ID)
-    .first<PlanStatusRow>();
-
-  if (!plan) {
+  const activator = await getActivatorById(env, planId);
+  if (!activator) {
     return { ok: false, status: 404, error: "Plan not found" };
   }
 
-  if (plan.status !== "pending") {
+  if (activator.status !== "pending") {
     return { ok: false, status: 409, error: "Plan is not pending" };
   }
 
   const [updateResult] = await env.DB.batch([
     env.DB.prepare(
-      `UPDATE activate_ri_plans
+      `UPDATE activate_ri_activators
        SET status = 'approved',
            approved_at = ?,
            approved_by = ?,
-           approval_operation_id = ?,
            updated_at = ?
        WHERE id = ? AND event_id = ? AND status = 'pending'`,
-    ).bind(
-      now,
-      actorEmail,
-      approvalOperationId,
-      now,
-      planId,
-      env.ACTIVATE_RI_EVENT_ID,
-    ),
+    ).bind(now, actorEmail, now, planId, env.ACTIVATE_RI_EVENT_ID),
     env.DB.prepare(
       `UPDATE activate_ri_stops
        SET status = 'scheduled', updated_at = ?
-       WHERE plan_id = ? AND event_id = ? AND status = 'pending-review'
-         AND EXISTS (
-           SELECT 1
-           FROM activate_ri_plans
-           WHERE id = ?
-             AND event_id = ?
-             AND status = 'approved'
-             AND approval_operation_id = ?
-         )`,
-    ).bind(
-      now,
-      planId,
-      env.ACTIVATE_RI_EVENT_ID,
-      planId,
-      env.ACTIVATE_RI_EVENT_ID,
-      approvalOperationId,
-    ),
+       WHERE activator_id = ? AND event_id = ? AND status = 'pending-review'`,
+    ).bind(now, planId, env.ACTIVATE_RI_EVENT_ID),
     activityInsert(env, {
       planId,
       actorType: "admin",
       actorEmail,
       action: "plan-approved",
-      summary: "Plan approved and published.",
-      details: { approvalOperationId },
+      summary: "Activator approved and published.",
+      details: {},
     }, now),
   ]);
 
-  if (updateResult.meta.changes < 1) {
+  if ((updateResult.meta?.changes ?? 0) < 1) {
     return { ok: false, status: 409, error: "Plan is not pending" };
   }
 
   return { ok: true };
 }
-
-type UpdatePlanResult =
-  | { ok: true; highImpactEvents: ActivityEventInput[] }
-  | { ok: false; status: 404; error: string };
 
 export async function updatePlanByTokenHash(
   env: Env,
@@ -631,23 +515,16 @@ export async function updatePlanByTokenHash(
   const highImpactEvents: ActivityEventInput[] = [];
   const statements: D1PreparedStatement[] = [
     env.DB.prepare(
-      `UPDATE activate_ri_plans
-       SET submitter_callsign = ?,
-           submitter_name = ?,
-           submitter_email = ?,
-           submitter_phone = ?,
+      `UPDATE activate_ri_activators
+       SET primary_callsign = ?,
+           name = ?,
+           email_normalized = ?,
+           phone = ?,
            club = ?,
            public_notes = ?,
            organizer_notes = ?,
            updated_at = ?
-       WHERE id = ? AND event_id = ?
-         AND EXISTS (
-           SELECT 1
-           FROM activate_ri_activators
-           WHERE id = activate_ri_plans.activator_id
-             AND event_id = ?
-             AND magic_token_hash = ?
-         )`,
+       WHERE id = ? AND event_id = ? AND magic_token_hash = ?`,
     ).bind(
       submission.submitterCallsign,
       submission.submitterName,
@@ -659,7 +536,6 @@ export async function updatePlanByTokenHash(
       now,
       existing.id,
       env.ACTIVATE_RI_EVENT_ID,
-      env.ACTIVATE_RI_EVENT_ID,
       magicTokenHash,
     ),
     activityInsert(env, {
@@ -667,7 +543,7 @@ export async function updatePlanByTokenHash(
       actorType: "activator",
       actorEmail: submission.submitterEmail,
       action: "plan-updated",
-      summary: `${submission.submitterCallsign} updated plan details.`,
+      summary: `${submission.submitterCallsign} updated activator details.`,
       details: {
         previous: planSnapshot(existing),
         next: {
@@ -680,24 +556,6 @@ export async function updatePlanByTokenHash(
         },
       },
     }, now),
-    env.DB.prepare(
-      `UPDATE activate_ri_activators
-       SET name = ?,
-           phone = ?,
-           club = ?,
-           primary_callsign = ?,
-           updated_at = ?
-       WHERE event_id = ?
-         AND magic_token_hash = ?`,
-    ).bind(
-      submission.submitterName,
-      submission.submitterPhone,
-      submission.club,
-      submission.submitterCallsign,
-      now,
-      env.ACTIVATE_RI_EVENT_ID,
-      magicTokenHash,
-    ),
   ];
 
   for (const stop of submission.stops) {
@@ -707,6 +565,7 @@ export async function updatePlanByTokenHash(
       stop.startTime,
       stop.endTime,
     );
+
     if (existingStop) {
       statements.push(
         env.DB.prepare(
@@ -722,7 +581,7 @@ export async function updatePlanByTokenHash(
                updated_at = ?,
                cancelled_at = CASE WHEN status = 'cancelled' THEN NULL ELSE cancelled_at END,
                cancel_reason = CASE WHEN status = 'cancelled' THEN '' ELSE cancel_reason END
-           WHERE id = ? AND plan_id = ? AND event_id = ?`,
+           WHERE id = ? AND activator_id = ? AND event_id = ?`,
         ).bind(
           stop.parkReference,
           startAt,
@@ -762,7 +621,7 @@ export async function updatePlanByTokenHash(
           actorType: "activator",
           actorEmail: submission.submitterEmail,
           action: "admin-notification-needed",
-          summary: `${submission.submitterCallsign} changed ${existingStop.park_reference} to ${stop.parkReference} on an approved plan.`,
+          summary: `${submission.submitterCallsign} changed ${existingStop.park_reference} to ${stop.parkReference} on an approved activator.`,
           details: {
             previous: stopSnapshot(existingStop),
             next: updatedStopSnapshot(existingStop, stop, nextStopStatus),
@@ -774,10 +633,10 @@ export async function updatePlanByTokenHash(
       statements.push(
         env.DB.prepare(
           `INSERT INTO activate_ri_stops (
-            id, plan_id, event_id, park_reference, start_at,
-            end_at, bands_json, modes_json, public_notes, organizer_notes,
-            status, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            id, activator_id, event_id, park_reference, start_at, end_at,
+            bands_json, modes_json, public_notes, organizer_notes, status,
+            created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ).bind(
           stopId,
           existing.id,
@@ -811,23 +670,6 @@ export async function updatePlanByTokenHash(
       continue;
     }
 
-    statements.push(
-      env.DB.prepare(
-        `UPDATE activate_ri_stops
-         SET status = 'cancelled',
-             cancelled_at = ?,
-             cancel_reason = ?,
-             updated_at = ?
-         WHERE id = ? AND plan_id = ? AND event_id = ?`,
-      ).bind(
-        now,
-        "Removed by activator.",
-        now,
-        existingStop.id,
-        existing.id,
-        env.ACTIVATE_RI_EVENT_ID,
-      ),
-    );
     const event = {
       planId: existing.id,
       stopId: existingStop.id,
@@ -837,6 +679,23 @@ export async function updatePlanByTokenHash(
       summary: `${submission.submitterCallsign} removed ${existingStop.park_reference}.`,
       details: { previous: stopSnapshot(existingStop) },
     };
+    statements.push(
+      env.DB.prepare(
+        `UPDATE activate_ri_stops
+         SET status = 'cancelled',
+             cancelled_at = ?,
+             cancel_reason = ?,
+             updated_at = ?
+         WHERE id = ? AND activator_id = ? AND event_id = ?`,
+      ).bind(
+        now,
+        "Removed by activator.",
+        now,
+        existingStop.id,
+        existing.id,
+        env.ACTIVATE_RI_EVENT_ID,
+      ),
+    );
     statements.push(activityInsert(env, event, now));
     if (approved) {
       highImpactEvents.push(event);
@@ -869,7 +728,7 @@ export async function cancelPlanByTokenHash(
     actorType: "activator",
     actorEmail: existing.submitter_email,
     action: "plan-cancelled",
-    summary: `${existing.submitter_callsign} cancelled the plan.`,
+    summary: `${existing.submitter_callsign} cancelled all stops.`,
     details: {
       cancelReason,
       previous: {
@@ -881,40 +740,21 @@ export async function cancelPlanByTokenHash(
 
   await env.DB.batch([
     env.DB.prepare(
-      `UPDATE activate_ri_plans
+      `UPDATE activate_ri_activators
        SET status = CASE WHEN status = 'approved' THEN status ELSE 'withdrawn' END,
            updated_at = ?
-       WHERE id = ? AND event_id = ?
-         AND EXISTS (
-           SELECT 1
-           FROM activate_ri_activators
-           WHERE id = activate_ri_plans.activator_id
-             AND event_id = ?
-             AND magic_token_hash = ?
-         )`,
-    ).bind(
-      now,
-      existing.id,
-      env.ACTIVATE_RI_EVENT_ID,
-      env.ACTIVATE_RI_EVENT_ID,
-      magicTokenHash,
-    ),
+       WHERE id = ? AND event_id = ? AND magic_token_hash = ?`,
+    ).bind(now, existing.id, env.ACTIVATE_RI_EVENT_ID, magicTokenHash),
     env.DB.prepare(
       `UPDATE activate_ri_stops
        SET status = 'cancelled',
            cancelled_at = ?,
            cancel_reason = ?,
            updated_at = ?
-       WHERE plan_id = ?
+       WHERE activator_id = ?
          AND event_id = ?
          AND status != 'completed'`,
-    ).bind(
-      now,
-      cancelReason,
-      now,
-      existing.id,
-      env.ACTIVATE_RI_EVENT_ID,
-    ),
+    ).bind(now, cancelReason, now, existing.id, env.ACTIVATE_RI_EVENT_ID),
     activityInsert(env, highImpactEvent, now),
   ]);
 
@@ -925,39 +765,6 @@ export async function cancelPlanByTokenHash(
   };
 }
 
-type EditStopPlanRow = {
-  plan_id: string;
-  status: string;
-  start_at: string;
-  park_reference: string;
-};
-
-async function findEditStopPlan(
-  env: Env,
-  magicTokenHash: string,
-  stopId: string,
-): Promise<EditStopPlanRow | null> {
-  return env.DB.prepare(
-    `SELECT r.id AS plan_id, r.status, s.start_at, s.park_reference
-     FROM activate_ri_stops s
-     INNER JOIN activate_ri_plans r ON r.id = s.plan_id
-     INNER JOIN activate_ri_activators a ON a.id = r.activator_id
-     WHERE s.id = ?
-       AND s.event_id = ?
-       AND r.event_id = ?
-       AND a.event_id = ?
-       AND a.magic_token_hash = ?`,
-  )
-    .bind(
-      stopId,
-      env.ACTIVATE_RI_EVENT_ID,
-      env.ACTIVATE_RI_EVENT_ID,
-      env.ACTIVATE_RI_EVENT_ID,
-      magicTokenHash,
-    )
-    .first<EditStopPlanRow>();
-}
-
 export async function updateStopByToken(
   env: Env,
   magicTokenHash: string,
@@ -965,17 +772,17 @@ export async function updateStopByToken(
   fields: EditStopFields,
   now = new Date().toISOString(),
 ): Promise<EditStopResult> {
-  const plan = await findEditStopPlan(env, magicTokenHash, stopId);
-  if (!plan) {
+  const activator = await findEditStopActivator(env, magicTokenHash, stopId);
+  if (!activator) {
     return { ok: false, status: 404, error: "Stop not found" };
   }
 
-  if (plan.status !== "approved") {
+  if (activator.status !== "approved") {
     return { ok: false, status: 409, error: "Plan is not approved" };
   }
 
   const { startAt, endAt } = stopTimeRangeToInstants(
-    instantToPlannedDate(plan.start_at),
+    instantToPlannedDate(activator.start_at),
     fields.startTime,
     fields.endTime,
   );
@@ -989,17 +796,11 @@ export async function updateStopByToken(
          updated_at = ?
      WHERE id = ?
        AND event_id = ?
-       AND plan_id IN (
+       AND activator_id IN (
          SELECT id
-         FROM activate_ri_plans
+         FROM activate_ri_activators
          WHERE event_id = ?
-           AND EXISTS (
-             SELECT 1
-             FROM activate_ri_activators
-             WHERE id = activate_ri_plans.activator_id
-               AND event_id = ?
-               AND magic_token_hash = ?
-           )
+           AND magic_token_hash = ?
            AND status = 'approved'
        )`,
   )
@@ -1011,7 +812,6 @@ export async function updateStopByToken(
       fields.publicNotes,
       now,
       stopId,
-      env.ACTIVATE_RI_EVENT_ID,
       env.ACTIVATE_RI_EVENT_ID,
       env.ACTIVATE_RI_EVENT_ID,
       magicTokenHash,
@@ -1032,26 +832,26 @@ export async function cancelStopByToken(
   cancelReason: string,
   now = new Date().toISOString(),
 ): Promise<CancelStopResult> {
-  const plan = await findEditStopPlan(env, magicTokenHash, stopId);
-  if (!plan) {
+  const activator = await findEditStopActivator(env, magicTokenHash, stopId);
+  if (!activator) {
     return { ok: false, status: 404, error: "Stop not found" };
   }
 
-  if (plan.status !== "approved") {
+  if (activator.status !== "approved") {
     return { ok: false, status: 409, error: "Plan is not approved" };
   }
 
   const highImpactEvent: ActivityEventInput = {
-    planId: plan.plan_id,
+    planId: activator.activator_id,
     stopId,
     actorType: "activator",
     action: "stop-cancelled",
-    summary: `Activator cancelled ${plan.park_reference}.`,
+    summary: `Activator cancelled ${activator.park_reference}.`,
     details: {
       cancelReason,
       previous: {
-        parkReference: plan.park_reference,
-        startAt: plan.start_at,
+        parkReference: activator.park_reference,
+        startAt: activator.start_at,
         status: "scheduled",
       },
     },
@@ -1066,17 +866,11 @@ export async function cancelStopByToken(
            updated_at = ?
        WHERE id = ?
          AND event_id = ?
-         AND plan_id IN (
+         AND activator_id IN (
            SELECT id
-           FROM activate_ri_plans
+           FROM activate_ri_activators
            WHERE event_id = ?
-             AND EXISTS (
-               SELECT 1
-               FROM activate_ri_activators
-               WHERE id = activate_ri_plans.activator_id
-                 AND event_id = ?
-                 AND magic_token_hash = ?
-             )
+             AND magic_token_hash = ?
              AND status = 'approved'
          )`,
     ).bind(
@@ -1084,7 +878,6 @@ export async function cancelStopByToken(
       cancelReason,
       now,
       stopId,
-      env.ACTIVATE_RI_EVENT_ID,
       env.ACTIVATE_RI_EVENT_ID,
       env.ACTIVATE_RI_EVENT_ID,
       magicTokenHash,
@@ -1096,7 +889,7 @@ export async function cancelStopByToken(
     return { ok: false, status: 404, error: "Stop not found" };
   }
 
-  const editablePlan = await getPlanById(env, plan.plan_id);
+  const editablePlan = await getPlanById(env, activator.activator_id);
   if (!editablePlan) {
     return { ok: false, status: 404, error: "Plan not found" };
   }
@@ -1120,7 +913,7 @@ export async function markEditLinkEmailEvent(
 ): Promise<void> {
   const statements = [
     activityInsert(env, {
-      planId,
+      planId: planId ?? activatorId,
       actorType: "system",
       actorEmail,
       action,
@@ -1129,16 +922,7 @@ export async function markEditLinkEmailEvent(
     }, now),
   ];
 
-  if (action === "edit-link-sent" && planId) {
-    statements.push(
-      env.DB.prepare(
-        `UPDATE activate_ri_plans
-         SET edit_link_sent_at = COALESCE(edit_link_sent_at, ?),
-             last_edit_link_sent_at = ?,
-             updated_at = ?
-         WHERE id = ? AND event_id = ?`,
-      ).bind(now, now, now, planId, env.ACTIVATE_RI_EVENT_ID),
-    );
+  if (action === "edit-link-sent") {
     statements.push(
       env.DB.prepare(
         `UPDATE activate_ri_activators
@@ -1149,16 +933,6 @@ export async function markEditLinkEmailEvent(
       ).bind(now, now, now, activatorId, env.ACTIVATE_RI_EVENT_ID),
     );
   } else if (action === "edit-link-resent") {
-    if (planId) {
-    statements.push(
-      env.DB.prepare(
-        `UPDATE activate_ri_plans
-         SET last_edit_link_sent_at = ?,
-             updated_at = ?
-         WHERE id = ? AND event_id = ?`,
-      ).bind(now, now, planId, env.ACTIVATE_RI_EVENT_ID),
-    );
-    }
     statements.push(
       env.DB.prepare(
         `UPDATE activate_ri_activators
@@ -1178,6 +952,166 @@ export async function logActivityEvent(
   now = new Date().toISOString(),
 ): Promise<void> {
   await activityInsert(env, event, now).run();
+}
+
+async function getActivatorById(
+  env: Env,
+  id: string,
+): Promise<ActivatorRow | null> {
+  return env.DB.prepare(
+    `${activatorSelectSql}
+     FROM activate_ri_activators
+     WHERE event_id = ? AND id = ?`,
+  )
+    .bind(env.ACTIVATE_RI_EVENT_ID, id)
+    .first<ActivatorRow>();
+}
+
+async function findEditStopActivator(
+  env: Env,
+  magicTokenHash: string,
+  stopId: string,
+): Promise<EditStopActivatorRow | null> {
+  return env.DB.prepare(
+    `SELECT a.id AS activator_id, a.status, s.start_at, s.park_reference
+     FROM activate_ri_stops s
+     INNER JOIN activate_ri_activators a ON a.id = s.activator_id
+     WHERE s.id = ?
+       AND s.event_id = ?
+       AND a.event_id = ?
+       AND a.magic_token_hash = ?`,
+  )
+    .bind(
+      stopId,
+      env.ACTIVATE_RI_EVENT_ID,
+      env.ACTIVATE_RI_EVENT_ID,
+      magicTokenHash,
+    )
+    .first<EditStopActivatorRow>();
+}
+
+async function withStops(
+  env: Env,
+  activators: ActivatorRow[],
+): Promise<PendingPlanDto[]> {
+  if (activators.length === 0) {
+    return [];
+  }
+
+  const activatorIds = activators.map((activator) => activator.id);
+  const stopResult = await env.DB.prepare(
+    `SELECT
+       id,
+       activator_id,
+       event_id,
+       park_reference,
+       start_at,
+       end_at,
+       bands_json,
+       modes_json,
+       public_notes,
+       organizer_notes,
+       status,
+       created_at,
+       updated_at
+     FROM activate_ri_stops
+     WHERE event_id = ? AND activator_id IN (${activatorIds.map(() => "?").join(", ")})
+     ORDER BY start_at ASC, created_at ASC`,
+  )
+    .bind(env.ACTIVATE_RI_EVENT_ID, ...activatorIds)
+    .all<StopRow>();
+
+  const stopsByActivator = new Map<string, PendingStopDto[]>();
+  for (const stop of stopResult.results ?? []) {
+    const activatorId = stringField(stop, "activator_id", "plan_id");
+    const stops = stopsByActivator.get(activatorId) ?? [];
+    stops.push(toPendingStopDto(stop));
+    stopsByActivator.set(activatorId, stops);
+  }
+
+  return activators.map((activator) => ({
+    id: activator.id,
+    event_id: activator.event_id,
+    submitter_callsign: stringField(activator, "primary_callsign", "submitter_callsign"),
+    submitter_name: stringField(activator, "name", "submitter_name"),
+    submitter_email: stringField(activator, "email_normalized", "submitter_email"),
+    submitter_phone: stringField(activator, "phone", "submitter_phone"),
+    club: activator.club,
+    public_notes: activator.public_notes,
+    organizer_notes: activator.organizer_notes,
+    status: activator.status,
+    created_at: activator.created_at,
+    updated_at: activator.updated_at,
+    approved_at: activator.approved_at,
+    approved_by: activator.approved_by,
+    stops: stopsByActivator.get(activator.id) ?? [],
+  }));
+}
+
+function toPendingStopDto(stop: StopRow): PendingStopDto {
+  const activatorId = stringField(stop, "activator_id", "plan_id");
+
+  return {
+    id: stop.id,
+    plan_id: activatorId,
+    activator_id: activatorId,
+    event_id: stop.event_id,
+    park_reference: stop.park_reference,
+    planned_date: instantToPlannedDate(stop.start_at),
+    start_time: instantToTime(stop.start_at),
+    end_time: instantToTime(stop.end_at),
+    bands: parseStringArray(stop.bands_json),
+    modes: parseStringArray(stop.modes_json),
+    public_notes: stop.public_notes,
+    organizer_notes: stop.organizer_notes,
+    status: stop.status,
+    created_at: stop.created_at,
+    updated_at: stop.updated_at,
+  };
+}
+
+function toActivatorDto(activator: ActivatorRow): ActivatorDto {
+  return {
+    id: activator.id,
+    event_id: activator.event_id,
+    email_normalized: stringField(activator, "email_normalized", "submitter_email"),
+    name: stringField(activator, "name", "submitter_name"),
+    phone: stringField(activator, "phone", "submitter_phone"),
+    club: activator.club,
+    primary_callsign: stringField(activator, "primary_callsign", "submitter_callsign"),
+  };
+}
+
+function stringField(
+  row: unknown,
+  primaryKey: string,
+  fallbackKey: string,
+): string {
+  if (!row || typeof row !== "object") {
+    return "";
+  }
+
+  const record = row as Record<string, unknown>;
+  const primary = record[primaryKey];
+  if (typeof primary === "string") {
+    return primary;
+  }
+
+  const fallback = record[fallbackKey];
+  return typeof fallback === "string" ? fallback : "";
+}
+
+function parseStringArray(value: string): string[] {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.filter((item): item is string => typeof item === "string");
+  } catch {
+    return [];
+  }
 }
 
 function activityInsert(
@@ -1202,19 +1136,6 @@ function activityInsert(
     now,
   );
 }
-
-type ActivityEventRow = {
-  id: string;
-  event_id: string;
-  plan_id: string | null;
-  stop_id: string | null;
-  actor_type: ActivityActorType;
-  actor_email: string;
-  action: string;
-  summary: string;
-  details_json: string;
-  created_at: string;
-};
 
 function toActivityEventDto(row: ActivityEventRow): ActivityEventDto {
   return {
@@ -1288,18 +1209,21 @@ function updatedStopSnapshot(
   };
 }
 
-const planSelectSql = `SELECT
+const activatorSelectSql = `SELECT
        id,
        event_id,
-       submitter_callsign,
-       submitter_name,
-       submitter_email,
-       submitter_phone,
+       email_normalized,
+       name,
+       phone,
        club,
+       primary_callsign,
+       magic_token_hash,
+       created_at,
+       updated_at,
+       magic_link_sent_at,
+       last_magic_link_sent_at,
        public_notes,
        organizer_notes,
        status,
-       created_at,
-       updated_at,
        approved_at,
        approved_by`;

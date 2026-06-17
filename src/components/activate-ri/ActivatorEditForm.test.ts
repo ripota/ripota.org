@@ -20,6 +20,12 @@ describe("ActivatorEditForm shared volunteer controls", () => {
     expect(editFormSource).toContain('name="organizerNotes"');
   });
 
+  it("does not ask activators to choose between submitted plans", () => {
+    expect(editFormSource).not.toContain("data-plan-picker");
+    expect(editFormSource).not.toContain("data-plan-select");
+    expect(editFormSource).not.toContain("Activation plan");
+  });
+
   it("protects edit saves and cancellation with Turnstile", () => {
     expect(editFormSource).toContain("cf-turnstile");
     expect(editFormSource).toContain("turnstileToken");

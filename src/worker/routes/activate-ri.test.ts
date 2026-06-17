@@ -141,6 +141,7 @@ const pendingPlanRow = {
 const pendingStopRow = {
   id: "stop-1",
   plan_id: "plan-1",
+  activator_id: "plan-1",
   event_id: "activate-ri-2026",
   park_reference: "US-2868",
   start_at: "2026-09-11T09:00:00.000Z",
@@ -160,6 +161,7 @@ const pendingPlanDto = {
     {
       id: "stop-1",
       plan_id: "plan-1",
+      activator_id: "plan-1",
       event_id: "activate-ri-2026",
       park_reference: "US-2868",
       planned_date: "2026-09-11",
@@ -223,15 +225,28 @@ function adminDb(options: AdminDbOptions = {}): D1Database {
               { club: "Rhode Island POTA" },
               { club: "Fidelity Amateur Radio Club" },
             ])
-          : sql.includes("INNER JOIN activate_ri_plans r")
+          : sql.includes("INNER JOIN activate_ri_activators a")
           ? (options.publicStopRows ?? [publicStopRow])
           : sql.includes("FROM activate_ri_stops")
             ? (options.stopRows ?? [pendingStopRow])
             : (options.planRows ?? [pendingPlanRow]),
       })),
       first: vi.fn(async () => {
-        if (sql.includes("submitter_callsign")) {
-          return options.planRows?.[0] ?? pendingPlanRow;
+        if (
+          sql.includes("FROM activate_ri_activators") ||
+          sql.includes("submitter_callsign")
+        ) {
+          if (options.planStatus === null) {
+            return null;
+          }
+
+          const row = (options.planRows?.[0] ?? pendingPlanRow) as {
+            status?: string;
+          };
+          return {
+            ...row,
+            status: options.planStatus ?? row.status ?? pendingPlanRow.status,
+          };
         }
 
         if (options.planStatus === undefined) {
@@ -281,13 +296,18 @@ function editDb(options: EditDbOptions = {}): D1Database {
       })),
       first: vi.fn(async () => {
         if (
-          sql.includes("FROM activate_ri_plans") &&
+          (sql.includes("FROM activate_ri_activators") ||
+            sql.includes("FROM activate_ri_plans")) &&
+          !sql.includes("INNER JOIN activate_ri_activators") &&
           !sql.includes("INNER JOIN activate_ri_plans")
         ) {
           return planRows[0] ?? null;
         }
 
-        if (!sql.includes("INNER JOIN activate_ri_plans")) {
+        if (
+          !sql.includes("INNER JOIN activate_ri_activators") &&
+          !sql.includes("INNER JOIN activate_ri_plans")
+        ) {
           return null;
         }
 
@@ -297,6 +317,7 @@ function editDb(options: EditDbOptions = {}): D1Database {
 
         return {
           plan_id: "plan-1",
+          activator_id: "plan-1",
           status: options.planStatus ?? "approved",
           start_at: "2026-09-11T09:00:00.000Z",
           park_reference: "US-2868",
@@ -346,7 +367,7 @@ describe("handleActivateRiApi", () => {
     });
     expect(testEnv.DB.batch).toHaveBeenCalledTimes(2);
     const insertStatements = vi.mocked(testEnv.DB.batch).mock.calls[0][0];
-    expect(insertStatements).toHaveLength(4);
+    expect(insertStatements).toHaveLength(3);
 
     const stopInsertSql = vi.mocked(testEnv.DB.prepare).mock.calls
       .map(([sql]) => sql)
@@ -963,13 +984,13 @@ describe("handleActivateRiApi", () => {
     const preparedSql = vi.mocked(testEnv.DB.prepare).mock.calls
       .map(([sql]) => sql)
       .join("\n");
-    expect(preparedSql).toContain("INNER JOIN activate_ri_plans r");
-    expect(preparedSql).toContain("r.status = 'approved'");
+    expect(preparedSql).toContain("INNER JOIN activate_ri_activators a");
+    expect(preparedSql).toContain("a.status = 'approved'");
     expect(preparedSql).toContain(
       "s.status IN ('scheduled', 'delayed', 'cancelled', 'completed')",
     );
     expect(preparedSql).toContain("s.event_id = ?");
-    expect(preparedSql).toContain("r.event_id = ?");
+    expect(preparedSql).toContain("a.event_id = ?");
     expect(preparedSql).not.toContain("SELECT *");
     expect(preparedSql).not.toMatch(
       /submitter_email|submitter_phone|edit_token_hash|approval_operation_id|organizer_notes|activate_ri_audit_events|raw_logs/i,
@@ -1197,15 +1218,11 @@ describe("handleActivateRiApi", () => {
     const planUpdateSql = prepareCalls[1][0];
     const stopUpdateSql = prepareCalls[2][0];
     const auditInsertSql = prepareCalls[3][0];
-    expect(planUpdateSql).toContain("UPDATE activate_ri_plans");
-    expect(planUpdateSql).toContain("approval_operation_id = ?");
+    expect(planUpdateSql).toContain("UPDATE activate_ri_activators");
+    expect(planUpdateSql).toContain("status = 'approved'");
     expect(stopUpdateSql).toContain("UPDATE activate_ri_stops");
-    expect(stopUpdateSql).toContain("AND approval_operation_id = ?");
-    expect(stopUpdateSql).not.toContain("AND approved_at = ?");
-    expect(stopUpdateSql).not.toContain("AND approved_by = ?");
+    expect(stopUpdateSql).toContain("activator_id = ?");
     expect(auditInsertSql).toContain("INSERT INTO activate_ri_activity_events");
-    expect(auditInsertSql).not.toContain("AND approved_at = ?");
-    expect(auditInsertSql).not.toContain("AND approved_by = ?");
 
     const batchStatements = vi.mocked(testEnv.DB.batch).mock
       .calls[0][0] as unknown as Array<{
@@ -1214,11 +1231,19 @@ describe("handleActivateRiApi", () => {
     const planUpdateBinds = batchStatements[0].bind.mock.calls[0];
     const stopUpdateBinds = batchStatements[1].bind.mock.calls[0];
     const auditInsertBinds = batchStatements[2].bind.mock.calls[0];
-    const approvalOperationId = planUpdateBinds[2];
-    expect(typeof approvalOperationId).toBe("string");
-    expect(stopUpdateBinds.at(-1)).toBe(approvalOperationId);
+    expect(planUpdateBinds).toEqual([
+      expect.any(String),
+      "admin@example.com",
+      expect.any(String),
+      "plan-1",
+      "activate-ri-2026",
+    ]);
+    expect(stopUpdateBinds).toEqual([
+      expect.any(String),
+      "plan-1",
+      "activate-ri-2026",
+    ]);
     expect(auditInsertBinds[6]).toBe("plan-approved");
-    expect(String(auditInsertBinds[8])).toContain(String(approvalOperationId));
   });
 
   it("emails activators when their plan is approved", async () => {
@@ -1287,25 +1312,22 @@ describe("handleActivateRiApi", () => {
     const planUpdateSql = prepareCalls[1][0];
     const stopUpdateSql = prepareCalls[2][0];
     const auditInsertSql = prepareCalls[3][0];
-    expect(planUpdateSql).toContain("approval_operation_id = ?");
-    expect(stopUpdateSql).toContain("AND approval_operation_id = ?");
-    expect(stopUpdateSql).not.toContain("AND approved_at = ?");
-    expect(stopUpdateSql).not.toContain("AND approved_by = ?");
+    expect(planUpdateSql).toContain("UPDATE activate_ri_activators");
+    expect(stopUpdateSql).toContain("activator_id = ?");
     expect(auditInsertSql).toContain("INSERT INTO activate_ri_activity_events");
-    expect(auditInsertSql).not.toContain("AND approved_at = ?");
-    expect(auditInsertSql).not.toContain("AND approved_by = ?");
 
     const batchStatements = vi.mocked(testEnv.DB.batch).mock
       .calls[0][0] as unknown as Array<{
       bind: { mock: { calls: unknown[][] } };
     }>;
-    const planUpdateBinds = batchStatements[0].bind.mock.calls[0];
     const stopUpdateBinds = batchStatements[1].bind.mock.calls[0];
     const auditInsertBinds = batchStatements[2].bind.mock.calls[0];
-    const approvalOperationId = planUpdateBinds[2];
-    expect(stopUpdateBinds.at(-1)).toBe(approvalOperationId);
+    expect(stopUpdateBinds).toEqual([
+      expect.any(String),
+      "plan-1",
+      "activate-ri-2026",
+    ]);
     expect(auditInsertBinds[6]).toBe("plan-approved");
-    expect(String(auditInsertBinds[8])).toContain(String(approvalOperationId));
   });
 
   it("returns 404 for missing plan approvals without scheduling stops or audit", async () => {
@@ -1388,7 +1410,6 @@ describe("handleActivateRiApi", () => {
       "stop-1",
       "activate-ri-2026",
       "activate-ri-2026",
-      "activate-ri-2026",
       expectedHash,
     ]);
     expect(updateBinds).toEqual([
@@ -1399,7 +1420,6 @@ describe("handleActivateRiApi", () => {
       "Updated trailhead plan.",
       expect.any(String),
       "stop-1",
-      "activate-ri-2026",
       "activate-ri-2026",
       "activate-ri-2026",
       expectedHash,
@@ -1432,7 +1452,6 @@ describe("handleActivateRiApi", () => {
       "Weather.",
       expect.any(String),
       "stop-1",
-      "activate-ri-2026",
       "activate-ri-2026",
       "activate-ri-2026",
       expectedHash,
