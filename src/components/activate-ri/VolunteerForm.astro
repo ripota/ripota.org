@@ -37,10 +37,13 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
     <label>
       Callsign
       <input
+        class="callsign-input"
         id="activate-ri-callsign"
         name="submitterCallsign"
         autocomplete="nickname"
+        autocapitalize="characters"
         aria-describedby="activate-ri-callsign-help"
+        spellcheck="false"
         required
       />
       <span id="activate-ri-callsign-help" class="form-help">
@@ -67,9 +70,10 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
     </label>
     <label>
       Club / group affiliation
-      <input name="club" autocomplete="organization" />
+      <input name="club" list="activate-ri-clubs" autocomplete="organization" />
     </label>
   </div>
+  <datalist id="activate-ri-clubs" data-club-options></datalist>
 
   <div class="activation-stops" data-stops>
     <fieldset class="activation-stop-fieldset activation-stop-card" data-stop-card>
@@ -276,8 +280,8 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
         </span>
         <textarea data-public-notes rows="3"></textarea>
         <span class="form-help">
-          Helpful public notes include access, parking, QRP, approximate timing,
-          or rove sequence details.
+          Helpful public notes include access, parking, QRP, or rove sequence
+          details.
         </span>
       </div>
     </fieldset>
@@ -339,6 +343,8 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
   const addStopButton = document.querySelector("[data-add-stop]");
   let isSubmitting = false;
 
+  setupCallsignFields();
+  void populateClubDatalist("activate-ri-clubs");
   setupStopCards();
 
   document.addEventListener("click", (event) => {
@@ -431,7 +437,7 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
 
   function formToPayload(data: FormData) {
     return {
-      submitterCallsign: data.get("submitterCallsign"),
+      submitterCallsign: uppercaseFormValue(data.get("submitterCallsign")),
       submitterName: data.get("submitterName"),
       submitterEmail: data.get("submitterEmail"),
       club: data.get("club"),
@@ -446,6 +452,49 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
         publicNotes: stop.querySelector<HTMLTextAreaElement>("[data-public-notes]")?.value ?? "",
       })),
     };
+  }
+
+  function uppercaseFormValue(value: FormDataEntryValue | null): FormDataEntryValue | null {
+    return typeof value === "string" ? value.toUpperCase() : value;
+  }
+
+  function setupCallsignFields(): void {
+    document.querySelectorAll<HTMLInputElement>(".callsign-input").forEach((field) => {
+      const uppercaseValue = () => {
+        field.value = field.value.toUpperCase();
+      };
+
+      field.addEventListener("input", uppercaseValue);
+      field.addEventListener("change", uppercaseValue);
+      uppercaseValue();
+    });
+  }
+
+  async function populateClubDatalist(id: string): Promise<void> {
+    const datalist = document.getElementById(id);
+    if (!datalist) {
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/activate-ri-2026/public/clubs", {
+        headers: { accept: "application/json" },
+      });
+      const body = await response.json() as { clubs?: unknown };
+      const clubs = Array.isArray(body.clubs)
+        ? body.clubs.filter((club): club is string => typeof club === "string")
+        : [];
+
+      datalist.replaceChildren(
+        ...clubs.map((club) => {
+          const option = document.createElement("option");
+          option.value = club;
+          return option;
+        }),
+      );
+    } catch {
+      datalist.replaceChildren();
+    }
   }
 
   function selectedValues(root: HTMLElement | null): string[] {

@@ -617,6 +617,10 @@ p {
   gap: 1rem;
 }
 
+.asset-downloads--wide {
+  grid-template-columns: minmax(0, 680px);
+}
+
 .asset-download {
   display: grid;
   min-height: 310px;
@@ -645,6 +649,21 @@ p {
   width: min(100%, 128px);
   aspect-ratio: 1;
   object-fit: contain;
+}
+
+.asset-download--wide {
+  min-height: auto;
+  grid-template-rows: auto auto;
+}
+
+.asset-download--wide .asset-download__preview {
+  min-height: auto;
+}
+
+.asset-download--wide .asset-download__preview img {
+  width: 100%;
+  aspect-ratio: 1200 / 630;
+  object-fit: cover;
 }
 
 .asset-download__body {
@@ -1169,6 +1188,10 @@ p {
   background: var(--surface-raised);
   color: var(--text-primary);
   padding: 0.7rem;
+}
+
+.event-form .callsign-input {
+  text-transform: uppercase;
 }
 
 .park-combobox,

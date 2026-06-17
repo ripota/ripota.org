@@ -16,6 +16,7 @@ import {
   listActivityEvents,
   listPendingPlans,
   listPublicStopRows,
+  listSeenClubs,
   logActivityEvent,
   markEditLinkEmailEvent,
   updatePlanByTokenHash,
@@ -93,6 +94,16 @@ export async function handleActivateRiApi(
     url.pathname === "/api/activate-ri-2026/public/stops"
   ) {
     return handlePublicStops(request, env, ctx);
+  }
+
+  if (
+    request.method === "GET" &&
+    url.pathname === "/api/activate-ri-2026/public/clubs"
+  ) {
+    return json(
+      { ok: true, clubs: await listSeenClubs(env) },
+      { headers: publicJsonCacheHeaders },
+    );
   }
 
   const approveMatch = url.pathname.match(

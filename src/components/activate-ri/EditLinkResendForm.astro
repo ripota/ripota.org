@@ -12,7 +12,14 @@
     <div class="form-grid">
       <label>
         Callsign
-        <input name="callsign" autocomplete="nickname" required />
+        <input
+          class="callsign-input"
+          name="callsign"
+          autocomplete="nickname"
+          autocapitalize="characters"
+          spellcheck="false"
+          required
+        />
       </label>
       <label>
         Email
@@ -31,6 +38,8 @@
   const resendStatus = document.querySelector("[data-resend-status]");
   const resendButton = document.querySelector<HTMLButtonElement>("[data-resend-button]");
   let resendSubmitting = false;
+
+  setupCallsignFields();
 
   resendForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -51,7 +60,7 @@
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          callsign: data.get("callsign"),
+          callsign: uppercaseFormValue(data.get("callsign")),
           email: data.get("email"),
         }),
       });
@@ -82,5 +91,21 @@
     const contentType = response.headers.get("content-type") ?? "";
 
     return contentType.includes("application/json") ? response.json() : {};
+  }
+
+  function uppercaseFormValue(value: FormDataEntryValue | null): FormDataEntryValue | null {
+    return typeof value === "string" ? value.toUpperCase() : value;
+  }
+
+  function setupCallsignFields(): void {
+    resendForm?.querySelectorAll<HTMLInputElement>(".callsign-input").forEach((field) => {
+      const uppercaseValue = () => {
+        field.value = field.value.toUpperCase();
+      };
+
+      field.addEventListener("input", uppercaseValue);
+      field.addEventListener("change", uppercaseValue);
+      uppercaseValue();
+    });
   }
 </script>

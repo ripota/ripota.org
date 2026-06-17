@@ -41,7 +41,14 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
   <div class="form-grid form-grid--identity" data-edit-fields hidden>
     <label>
       Callsign
-      <input name="submitterCallsign" autocomplete="nickname" required />
+      <input
+        class="callsign-input"
+        name="submitterCallsign"
+        autocomplete="nickname"
+        autocapitalize="characters"
+        spellcheck="false"
+        required
+      />
     </label>
     <label>
       Name
@@ -53,9 +60,10 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
     </label>
     <label>
       Club / group affiliation
-      <input name="club" autocomplete="organization" />
+      <input name="club" list="activate-ri-edit-clubs" autocomplete="organization" />
     </label>
   </div>
+  <datalist id="activate-ri-edit-clubs" data-club-options></datalist>
 
   <div class="activation-stops" data-edit-stops hidden></div>
 
@@ -180,6 +188,8 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
   let plans: PlanDto[] = [];
   let selectedPlanId = "";
 
+  setupCallsignFields();
+  void populateClubDatalist("activate-ri-edit-clubs");
   void loadPlan();
 
   editForm?.addEventListener("submit", async (event) => {
@@ -334,7 +344,7 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
   }
 
   function renderPlan(plan: PlanDto): void {
-    setNamedValue("submitterCallsign", stringValue(plan.submitter_callsign));
+    setNamedValue("submitterCallsign", stringValue(plan.submitter_callsign).toUpperCase());
     setNamedValue("submitterName", stringValue(plan.submitter_name));
     setNamedValue("submitterEmail", stringValue(plan.submitter_email));
     setNamedValue("club", stringValue(plan.club));
@@ -410,7 +420,7 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
 
   function formToPayload(data: FormData) {
     return {
-      submitterCallsign: data.get("submitterCallsign"),
+      submitterCallsign: uppercaseFormValue(data.get("submitterCallsign")),
       submitterName: data.get("submitterName"),
       submitterEmail: data.get("submitterEmail"),
       club: data.get("club"),
@@ -427,6 +437,49 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
         publicNotes: (stop.querySelector("[data-public-notes]") as HTMLTextAreaElement | null)?.value ?? "",
       })),
     };
+  }
+
+  function uppercaseFormValue(value: FormDataEntryValue | null): FormDataEntryValue | null {
+    return typeof value === "string" ? value.toUpperCase() : value;
+  }
+
+  function setupCallsignFields(): void {
+    editForm?.querySelectorAll<HTMLInputElement>(".callsign-input").forEach((field) => {
+      const uppercaseValue = () => {
+        field.value = field.value.toUpperCase();
+      };
+
+      field.addEventListener("input", uppercaseValue);
+      field.addEventListener("change", uppercaseValue);
+      uppercaseValue();
+    });
+  }
+
+  async function populateClubDatalist(id: string): Promise<void> {
+    const datalist = document.getElementById(id);
+    if (!datalist) {
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/activate-ri-2026/public/clubs", {
+        headers: { accept: "application/json" },
+      });
+      const body = await response.json() as { clubs?: unknown };
+      const clubs = Array.isArray(body.clubs)
+        ? body.clubs.filter((club): club is string => typeof club === "string")
+        : [];
+
+      datalist.replaceChildren(
+        ...clubs.map((club) => {
+          const option = document.createElement("option");
+          option.value = club;
+          return option;
+        }),
+      );
+    } catch {
+      datalist.replaceChildren();
+    }
   }
 
   function apiUrl(): string {

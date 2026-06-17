@@ -84,6 +84,7 @@ type AdminDbOptions = {
   planRows?: unknown[];
   stopRows?: unknown[];
   publicStopRows?: unknown[];
+  clubRows?: unknown[];
   activityRows?: unknown[];
   planStatus?: string | null;
   planUpdateChanges?: number;
@@ -188,6 +189,11 @@ function adminDb(options: AdminDbOptions = {}): D1Database {
       all: vi.fn(async () => ({
         results: sql.includes("FROM activate_ri_activity_events")
           ? (options.activityRows ?? [activityRow])
+          : sql.includes("AS club") && sql.includes("activate_ri_activators")
+          ? (options.clubRows ?? [
+              { club: "Rhode Island POTA" },
+              { club: "Fidelity Amateur Radio Club" },
+            ])
           : sql.includes("INNER JOIN activate_ri_plans r")
           ? (options.publicStopRows ?? [publicStopRow])
           : sql.includes("FROM activate_ri_stops")
@@ -717,6 +723,41 @@ describe("handleActivateRiApi", () => {
       ],
     });
     expect(JSON.stringify(body)).not.toMatch(/submitter_email|edit_token_hash|organizer_notes/i);
+  });
+
+  it("returns public club suggestions without private activator fields", async () => {
+    const testEnv = env();
+    testEnv.DB = adminDb({
+      clubRows: [
+        { club: "Fidelity Amateur Radio Club" },
+        { club: "Rhode Island POTA" },
+      ],
+    });
+
+    const response = await handleActivateRiApi(
+      adminRequest("/api/activate-ri-2026/public/clubs"),
+      testEnv,
+    );
+
+    const body = await response.json() as { clubs: unknown[] };
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe(
+      "public, max-age=60, s-maxage=60, stale-while-revalidate=300",
+    );
+    expect(body).toEqual({
+      ok: true,
+      clubs: ["Fidelity Amateur Radio Club", "Rhode Island POTA"],
+    });
+    expect(JSON.stringify(body)).not.toMatch(
+      /email|callsign|phone|edit_token_hash|organizer_notes/i,
+    );
+
+    const preparedSql = vi.mocked(testEnv.DB.prepare).mock.calls
+      .map(([sql]) => sql)
+      .join("\n");
+    expect(preparedSql).toContain("activate_ri_activators");
+    expect(preparedSql).not.toContain("SELECT *");
   });
 
   it("stores public live stops in the Worker cache on a cache miss", async () => {

@@ -72,10 +72,18 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
           phaseFocus="volunteer"
         />
         <VolunteerForm />
-        <section class="event-guidance event-guidance--compact" aria-labelledby="after-submit-title">
+        <section
+          class="event-guidance event-guidance--compact"
+          id="use-your-edit-link-when-plans-change"
+          aria-labelledby="after-submit-title"
+        >
           <div class="section-header section-header--compact">
             <p class="eyebrow">After submitting</p>
-            <h2 id="after-submit-title">Use your edit link when plans change</h2>
+            <h2 id="after-submit-title">
+              <a href="#use-your-edit-link-when-plans-change">
+                Use your edit link when plans change
+              </a>
+            </h2>
             <p class="lead">
               The site emails a private edit link after submission. Keep it for
               schedule changes, added stops, updated notes, or cancellations.

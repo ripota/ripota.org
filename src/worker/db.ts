@@ -256,6 +256,22 @@ export async function listPublicStopRows(env: Env): Promise<StopExportRow[]> {
   return result.results ?? [];
 }
 
+export async function listSeenClubs(env: Env): Promise<string[]> {
+  const result = await env.DB.prepare(
+    `SELECT DISTINCT TRIM(club) AS club
+     FROM activate_ri_activators
+     WHERE event_id = ? AND TRIM(club) <> ''
+     ORDER BY LOWER(TRIM(club)) ASC
+     LIMIT 100`,
+  )
+    .bind(env.ACTIVATE_RI_EVENT_ID)
+    .all<{ club: string }>();
+
+  return (result.results ?? [])
+    .map((row) => row.club)
+    .filter(Boolean);
+}
+
 export async function listPendingPlans(env: Env): Promise<PendingPlanDto[]> {
   const planResult = await env.DB.prepare(
     `${planSelectSql}
