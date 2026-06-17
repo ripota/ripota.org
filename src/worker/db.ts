@@ -373,6 +373,25 @@ export async function getPlanByTokenHash(
   return (await withStops(env, [plan]))[0] ?? null;
 }
 
+export async function getPlanById(
+  env: Env,
+  planId: string,
+): Promise<EditablePlanDto | null> {
+  const plan = await env.DB.prepare(
+    `${planSelectSql}
+     FROM activate_ri_plans
+     WHERE event_id = ? AND id = ?`,
+  )
+    .bind(env.ACTIVATE_RI_EVENT_ID, planId)
+    .first<PlanRow>();
+
+  if (!plan) {
+    return null;
+  }
+
+  return (await withStops(env, [plan]))[0] ?? null;
+}
+
 export async function findActivatorForEditLinkResend(
   env: Env,
   callsign: string,

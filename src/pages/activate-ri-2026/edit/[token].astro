@@ -3,6 +3,7 @@ import ActivatorEditForm from "../../../components/activate-ri/ActivatorEditForm
 import EventNav from "../../../components/activate-ri/EventNav.astro";
 import Footer from "../../../components/Footer.astro";
 import Notice from "../../../components/Notice.astro";
+import ReferenceMap from "../../../components/ReferenceMap.astro";
 import SiteHeader from "../../../components/SiteHeader.astro";
 import BaseLayout from "../../../layouts/BaseLayout.astro";
 
@@ -29,6 +30,13 @@ export function getStaticPaths() {
             Activate All RI 2026 plan before or after organizer approval.
           </p>
         </div>
+        <ReferenceMap
+          id="activate-ri-edit-map"
+          variant="volunteer"
+          title="Choose a park from the map"
+          caption="Use the map to add a stop to your activation plan below. Adding a park only edits this form; save changes when your plan is ready."
+          phaseFocus="volunteer"
+        />
         <ActivatorEditForm />
       </div>
     </section>

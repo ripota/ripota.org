@@ -1,0 +1,266 @@
+---
+import references from "../../data/ri-references.json";
+import { activateRiTimeBlocks } from "../../lib/activate-ri/time-blocks";
+import {
+  activateRiBandOptions,
+  activateRiModeOptions,
+} from "../../lib/activate-ri/validation";
+
+type Props = {
+  includeStopId?: boolean;
+  removeHidden?: boolean;
+  title?: string;
+};
+
+const {
+  includeStopId = false,
+  removeHidden = false,
+  title = "Activation stop",
+} = Astro.props;
+
+function parkOptionLabel(reference: (typeof references)[number]): string {
+  const counties = reference.counties?.join(", ");
+  const countyLabel = counties ? ` (${counties})` : "";
+
+  return `${reference.reference} - ${reference.name}${countyLabel}`;
+}
+
+function parkOptionSearch(reference: (typeof references)[number]): string {
+  return [
+    reference.reference,
+    reference.name,
+    ...(reference.counties ?? []),
+  ].join(" ").toLowerCase();
+}
+---
+
+<fieldset class="activation-stop-fieldset activation-stop-card" data-stop-card>
+  {includeStopId && <input data-stop-id type="hidden" />}
+  <div class="activation-stop-card__header">
+    <legend class="activation-stop-card__title" data-stop-title>{title}</legend>
+    <button
+      class="button activation-stop-card__remove"
+      type="button"
+      data-remove-stop
+      hidden={removeHidden}
+    >
+      Remove
+    </button>
+  </div>
+  <div class="form-grid">
+    <div class="form-field form-field--wide">
+      <span class="field-label-row">
+        <span class="form-label">Park</span>
+        <span class="required-marker" aria-label="Required field" title="Required">*</span>
+        <span class="help-popover">
+          <button
+            class="help-popover__button"
+            type="button"
+            aria-label="Help for park field"
+          >?</button>
+          <span class="help-popover__bubble" role="tooltip">
+            Choose from the suggestion list so the correct POTA reference
+            is saved with the stop.
+          </span>
+        </span>
+      </span>
+      <span class="park-combobox" data-park-combobox>
+        <input
+          data-park-input
+          aria-label="Park"
+          placeholder="Type a reference, park, or county"
+          autocomplete="off"
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded="false"
+          aria-required="true"
+          required
+        />
+        <input data-park-reference type="hidden" />
+        <span class="park-combobox__popup" data-park-results hidden>
+          <span class="park-combobox__scroller">
+            <table class="park-combobox__table">
+              <thead>
+                <tr>
+                  <th scope="col">Ref</th>
+                  <th scope="col">Park</th>
+                  <th scope="col">County</th>
+                </tr>
+              </thead>
+              <tbody>
+                {
+                  references.map((reference) => (
+                    <tr
+                      data-park-option
+                      data-reference={reference.reference}
+                      data-label={parkOptionLabel(reference)}
+                      data-search={parkOptionSearch(reference)}
+                    >
+                      <td>
+                        <button type="button" data-park-select>{reference.reference}</button>
+                      </td>
+                      <td>{reference.name}</td>
+                      <td>{reference.counties?.join(", ") ?? "Unknown county"}</td>
+                    </tr>
+                  ))
+                }
+              </tbody>
+            </table>
+          </span>
+          <span class="park-combobox__empty" data-park-empty hidden>No matching parks.</span>
+        </span>
+      </span>
+      <span class="form-help">
+        Select a park from the suggestions before submitting.
+      </span>
+      <span class="form-error" data-field-error data-error-for="park"></span>
+    </div>
+    <label>
+      <span class="field-label-row">
+        <span>Date</span>
+        <span class="required-marker" aria-label="Required field" title="Required">*</span>
+      </span>
+      <select data-planned-date required>
+        <option value="2026-09-10">Thursday, September 10 soft start</option>
+        <option value="2026-09-11">Friday, September 11</option>
+        <option value="2026-09-12">Saturday, September 12</option>
+        <option value="2026-09-13">Sunday, September 13</option>
+      </select>
+      <span class="form-error" data-field-error data-error-for="plannedDate"></span>
+    </label>
+    <div class="form-field">
+      <span class="field-label-row">
+        <span class="form-label">Time block</span>
+        <span class="required-marker" aria-label="Required field" title="Required">*</span>
+        <span class="help-popover">
+          <button
+            class="help-popover__button"
+            type="button"
+            aria-label="Help for time block field"
+          >?</button>
+          <span class="help-popover__bubble" role="tooltip">
+            The block is for schedule scanning. It does not mean you must
+            operate for exactly three hours.
+          </span>
+        </span>
+      </span>
+      <select data-time-block required>
+        <option value="">Choose a 3-hour block</option>
+        {
+          activateRiTimeBlocks.map((block) => (
+            <option value={block.value}>{block.label} UTC</option>
+          ))
+        }
+      </select>
+      <span class="form-help">
+        Pick the closest planned operating window in UTC. Update it later if plans
+        change.
+      </span>
+      <span class="form-error" data-field-error data-error-for="timeBlock"></span>
+    </div>
+    <div class="form-field">
+      <span class="field-label-row">
+        <span class="form-label">Bands</span>
+        <span class="required-marker" aria-label="Required field" title="Required">*</span>
+        <span class="help-popover">
+          <button
+            class="help-popover__button"
+            type="button"
+            aria-label="Help for bands field"
+          >?</button>
+          <span class="help-popover__bubble" role="tooltip">
+            Choose the bands you expect to try. This helps hunters plan,
+            but it is not a binding promise.
+          </span>
+        </span>
+      </span>
+      <span class="multi-select" data-multi-select data-bands>
+        <button
+          class="multi-select__button"
+          type="button"
+          data-multi-toggle
+          aria-expanded="false"
+          aria-required="true"
+        >
+          Choose bands
+        </button>
+        <span class="multi-select__menu" data-multi-menu hidden>
+          {
+            activateRiBandOptions.map((band) => (
+              <label class="multi-select__option">
+                <input type="checkbox" value={band} data-multi-option />
+                <span>{band}</span>
+              </label>
+            ))
+          }
+        </span>
+      </span>
+      <span class="form-help">
+        Select every band you expect to use.
+      </span>
+      <span class="form-error" data-field-error data-error-for="bands"></span>
+    </div>
+    <div class="form-field">
+      <span class="field-label-row">
+        <span class="form-label">Modes</span>
+        <span class="required-marker" aria-label="Required field" title="Required">*</span>
+        <span class="help-popover">
+          <button
+            class="help-popover__button"
+            type="button"
+            aria-label="Help for modes field"
+          >?</button>
+          <span class="help-popover__bubble" role="tooltip">
+            Choose the modes you expect to try. Digital includes FT8, FT4,
+            RTTY, JS8, and similar modes.
+          </span>
+        </span>
+      </span>
+      <span class="multi-select" data-multi-select data-modes>
+        <button
+          class="multi-select__button"
+          type="button"
+          data-multi-toggle
+          aria-expanded="false"
+          aria-required="true"
+        >
+          Choose modes
+        </button>
+        <span class="multi-select__menu" data-multi-menu hidden>
+          {
+            activateRiModeOptions.map((mode) => (
+              <label class="multi-select__option">
+                <input type="checkbox" value={mode} data-multi-option />
+                <span>{mode}</span>
+              </label>
+            ))
+          }
+        </span>
+      </span>
+      <span class="form-help">
+        Digital covers FT8, FT4, RTTY, JS8, and similar modes.
+      </span>
+      <span class="form-error" data-field-error data-error-for="modes"></span>
+    </div>
+  </div>
+  <div class="form-field">
+    <span class="field-label-row">
+      <span class="form-label">Public notes for hunters</span>
+      <span class="help-popover">
+        <button
+          class="help-popover__button"
+          type="button"
+          aria-label="Help for public notes field"
+        >?</button>
+        <span class="help-popover__bubble" role="tooltip">
+          These notes are shown publicly. Avoid private contact details.
+        </span>
+      </span>
+    </span>
+    <textarea data-public-notes rows="3"></textarea>
+    <span class="form-help">
+      Helpful public notes include access, parking, QRP, or rove sequence
+      details.
+    </span>
+  </div>
+</fieldset>

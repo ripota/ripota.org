@@ -10,6 +10,7 @@ import {
   cancelPlanByTokenHash,
   cancelStopByToken,
   findActivatorForEditLinkResend,
+  getPlanById,
   getPlanByTokenHash,
   getPlansByTokenHash,
   insertPendingPlan,
@@ -24,7 +25,11 @@ import {
   type EditablePlanSubmission,
   type EditStopFields,
 } from "../db";
-import { sendActivatorEditLinkEmail, sendAdminActivityEmail } from "../email";
+import {
+  sendActivatorApprovalEmail,
+  sendActivatorEditLinkEmail,
+  sendAdminActivityEmail,
+} from "../email";
 import { tokenHash } from "../edit-token";
 import type { Env } from "../env";
 import { json, readJson } from "../http";
@@ -121,6 +126,27 @@ export async function handleActivateRiApi(
         { ok: false, error: result.error },
         { status: result.status },
       );
+    }
+
+    const plan = await getPlanById(env, approveMatch[1]);
+    if (plan) {
+      const emailResult = await sendActivatorApprovalEmail(
+        env,
+        plan,
+        absoluteHelpUrl(request),
+      );
+      await logActivityEvent(env, {
+        planId: plan.id,
+        actorType: "system",
+        actorEmail: plan.submitter_email,
+        action: emailResult.ok
+          ? "approval-email-sent"
+          : "approval-email-failed",
+        summary: emailResult.ok
+          ? `Approval email sent to ${plan.submitter_email}.`
+          : `Approval email failed for ${plan.submitter_email}.`,
+        details: emailResult.ok ? {} : { error: emailResult.error },
+      });
     }
 
     return json({ ok: true });
@@ -363,6 +389,7 @@ async function handlePlanSubmission(
       submitter_email: validation.value.submitterEmail,
     },
     editUrl,
+    absoluteHelpUrl(request),
   );
   if (emailResult.ok) {
     await markEditLinkEmailEvent(
@@ -434,6 +461,17 @@ async function handleEditPlanUpdate(
   const validation = validateEditablePlanPayload(payloadResult.value);
   if (!validation.ok) {
     return json({ ok: false, errors: validation.errors }, { status: 400 });
+  }
+
+  const turnstileToken = isObject(payloadResult.value)
+    ? payloadResult.value.turnstileToken
+    : undefined;
+  const turnstileValid = await verifyTurnstile(request, env, turnstileToken);
+  if (!turnstileValid) {
+    return json(
+      { ok: false, errors: ["Turnstile verification failed."] },
+      { status: 400 },
+    );
   }
 
   const editTokenHash = await tokenHash(token);
@@ -509,6 +547,7 @@ async function handleResendEditLink(
       submitter_email: match.activator.email_normalized,
     },
     absoluteEditUrl(request, match.editToken),
+    absoluteHelpUrl(request),
   );
   await markEditLinkEmailEvent(
     env,
@@ -548,6 +587,17 @@ async function handleCancelPlan(
   const validation = validateCancelStopPayload(payloadResult.value);
   if (!validation.ok) {
     return json({ ok: false, errors: validation.errors }, { status: 400 });
+  }
+
+  const turnstileToken = isObject(payloadResult.value)
+    ? payloadResult.value.turnstileToken
+    : undefined;
+  const turnstileValid = await verifyTurnstile(request, env, turnstileToken);
+  if (!turnstileValid) {
+    return json(
+      { ok: false, errors: ["Turnstile verification failed."] },
+      { status: 400 },
+    );
   }
 
   const result = await cancelPlanByTokenHash(
@@ -826,4 +876,8 @@ function absoluteEditUrl(request: Request, editToken: string): string {
     `/activate-ri-2026/edit/${encodeURIComponent(editToken)}/`,
     request.url,
   ).href;
+}
+
+function absoluteHelpUrl(request: Request): string {
+  return new URL("/activate-ri-2026/help/", request.url).href;
 }

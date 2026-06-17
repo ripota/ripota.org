@@ -1,16 +1,19 @@
 ---
-import references from "../../data/ri-references.json";
-import { activateRiTimeBlocks } from "../../lib/activate-ri/time-blocks";
+import ActivateRiIdentityFields from "./ActivateRiIdentityFields.astro";
+import ActivateRiStopCard from "./ActivateRiStopCard.astro";
 
-function parkOptionLabel(reference: (typeof references)[number]): string {
-  const counties = reference.counties?.join(", ");
-  const countyLabel = counties ? ` (${counties})` : "";
-
-  return `${reference.reference} - ${reference.name}${countyLabel}`;
-}
+const turnstileSiteKey =
+  import.meta.env.PUBLIC_TURNSTILE_SITE_KEY;
 ---
 
-<form class="event-form" data-activator-edit>
+<script
+  is:inline
+  src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+  async
+  defer
+></script>
+
+<form class="event-form" data-activator-edit novalidate>
   <div class="admin-panel__header">
     <div>
       <p class="eyebrow">Activator edits</p>
@@ -21,16 +24,7 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
     </div>
   </div>
 
-  <datalist id="activate-ri-edit-parks">
-    {
-      references.map((reference) => (
-        <option value={parkOptionLabel(reference)} data-reference={reference.reference}>
-          {reference.reference}
-        </option>
-      ))
-    }
-  </datalist>
-
+  <p class="form-help form-required-note"><span class="required-marker" aria-hidden="true">*</span> Required fields</p>
   <p class="form-status" data-edit-status aria-live="polite">Loading plan...</p>
 
   <label data-plan-picker hidden>
@@ -38,34 +32,50 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
     <select data-plan-select></select>
   </label>
 
-  <div class="form-grid form-grid--identity" data-edit-fields hidden>
-    <label>
-      Callsign
-      <input
-        class="callsign-input"
-        name="submitterCallsign"
-        autocomplete="nickname"
-        autocapitalize="characters"
-        spellcheck="false"
-        required
-      />
-    </label>
-    <label>
-      Name
-      <input name="submitterName" autocomplete="name" required />
-    </label>
-    <label>
-      Email
-      <input name="submitterEmail" type="email" autocomplete="email" required />
-    </label>
-    <label>
-      Club / group affiliation
-      <input name="club" list="activate-ri-edit-clubs" autocomplete="organization" />
-    </label>
+  <div data-edit-fields hidden>
+    <ActivateRiIdentityFields clubDatalistId="activate-ri-edit-clubs" />
   </div>
   <datalist id="activate-ri-edit-clubs" data-club-options></datalist>
 
   <div class="activation-stops" data-edit-stops hidden></div>
+
+  <div class="form-field" data-edit-organizer-notes hidden>
+    <span class="field-label-row">
+      <span class="form-label">Notes for organizers</span>
+      <span class="help-popover">
+        <button
+          class="help-popover__button"
+          type="button"
+          aria-label="Help for organizer notes field"
+        >?</button>
+        <span class="help-popover__bubble" role="tooltip">
+          These notes are for coordinators and are not shown on the public
+          schedule.
+        </span>
+      </span>
+    </span>
+    <textarea
+      name="organizerNotes"
+      rows="3"
+      aria-describedby="activate-ri-organizer-notes-help"
+    ></textarea>
+    <span id="activate-ri-organizer-notes-help" class="form-help">
+      Use this for coordinator context, special constraints, or review notes.
+    </span>
+  </div>
+
+  <p class="form-help" data-edit-frequency-note hidden>
+    Frequencies are not collected here. Please use normal POTA spotting when
+    your activation begins.
+  </p>
+
+  <div
+    class="cf-turnstile"
+    data-sitekey={turnstileSiteKey}
+    data-action="turnstile-spin-v1"
+    data-edit-turnstile
+    hidden
+  />
 
   <div class="form-actions" data-edit-actions hidden>
     <button class="button" data-variant="light" type="button" data-add-stop>
@@ -81,71 +91,12 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
 </form>
 
 <template data-stop-template>
-  <fieldset class="activation-stop-fieldset activation-stop-card" data-stop-card>
-    <input data-stop-id type="hidden" />
-    <div class="activation-stop-card__header">
-      <legend data-stop-title>Activation stop</legend>
-      <button class="button activation-stop-card__remove" type="button" data-remove-stop>
-        Remove
-      </button>
-    </div>
-    <div class="form-grid">
-      <label>
-        Park
-        <input
-          data-park-input
-          list="activate-ri-edit-parks"
-          placeholder="Type a reference, park, or county"
-          autocomplete="off"
-          required
-        />
-        <input data-park-reference type="hidden" />
-      </label>
-      <label>
-        Date
-        <select data-planned-date required>
-          <option value="2026-09-10">Thursday, September 10 soft start</option>
-          <option value="2026-09-11">Friday, September 11</option>
-          <option value="2026-09-12">Saturday, September 12</option>
-          <option value="2026-09-13">Sunday, September 13</option>
-        </select>
-      </label>
-      <label>
-        Time block
-        <select data-time-block>
-          <option value="">Choose a 3-hour block</option>
-          {
-            activateRiTimeBlocks.map((block) => (
-              <option value={block.value}>{block.label} UTC</option>
-            ))
-          }
-        </select>
-      </label>
-      <label>
-        Start time
-        <input data-start-time pattern="[0-2][0-9]:[0-5][0-9]" required />
-      </label>
-      <label>
-        End time
-        <input data-end-time pattern="[0-2][0-9]:[0-5][0-9]" required />
-      </label>
-      <label>
-        Bands
-        <input data-bands placeholder="40m, 20m, 15m" required />
-      </label>
-      <label>
-        Modes
-        <input data-modes placeholder="SSB, CW, FT8" required />
-      </label>
-    </div>
-    <label>
-      Public notes for hunters
-      <textarea data-public-notes rows="3"></textarea>
-    </label>
-  </fieldset>
+  <ActivateRiStopCard includeStopId={true} title="Activation stop" />
 </template>
 
 <script>
+  import { timeBlockToRange } from "../../lib/activate-ri/time-blocks";
+
   type StopDto = {
     id?: unknown;
     park_reference?: unknown;
@@ -173,17 +124,12 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
   const editFields = editForm?.querySelector("[data-edit-fields]") as HTMLElement | null | undefined;
   const editStops = editForm?.querySelector("[data-edit-stops]") as HTMLElement | null | undefined;
   const editActions = editForm?.querySelector("[data-edit-actions]") as HTMLElement | null | undefined;
+  const editOrganizerNotes = editForm?.querySelector("[data-edit-organizer-notes]") as HTMLElement | null | undefined;
+  const editFrequencyNote = editForm?.querySelector("[data-edit-frequency-note]") as HTMLElement | null | undefined;
+  const editTurnstile = editForm?.querySelector("[data-edit-turnstile]") as HTMLElement | null | undefined;
   const planPicker = editForm?.querySelector("[data-plan-picker]") as HTMLElement | null | undefined;
   const planSelect = editForm?.querySelector("[data-plan-select]") as HTMLSelectElement | null | undefined;
   const stopTemplate = document.querySelector("[data-stop-template]") as HTMLTemplateElement | null;
-  const parkOptions = new Map(
-    Array.from(document.querySelectorAll<HTMLOptionElement>("#activate-ri-edit-parks option"))
-      .flatMap((option) => {
-        const reference = option.dataset.reference;
-
-        return reference ? [[option.value, reference], [reference, reference]] : [];
-      }),
-  );
   let isSaving = false;
   let plans: PlanDto[] = [];
   let selectedPlanId = "";
@@ -191,6 +137,34 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
   setupCallsignFields();
   void populateClubDatalist("activate-ri-edit-clubs");
   void loadPlan();
+
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Node)) {
+      return;
+    }
+
+    document.querySelectorAll<HTMLElement>("[data-park-combobox]").forEach((combo) => {
+      if (!combo.contains(target)) {
+        setParkPopupOpen(combo, false);
+      }
+    });
+
+    document.querySelectorAll<HTMLElement>("[data-multi-select]").forEach((multiSelect) => {
+      if (!multiSelect.contains(target)) {
+        setMultiSelectOpen(multiSelect, false);
+      }
+    });
+  });
+
+  document.addEventListener("activate-ri:add-park", (event) => {
+    const reference = (event as CustomEvent<{ reference?: string }>).detail?.reference;
+    if (!reference) {
+      return;
+    }
+
+    addParkReferenceToForm(reference);
+  });
 
   editForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -212,21 +186,23 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
 
       if (!response.ok || !data.ok) {
         editStatus?.replaceChildren(data.errors?.join(" ") ?? data.error ?? "Unable to save changes.");
+        resetTurnstile();
         return;
       }
 
       editStatus?.replaceChildren("Changes saved.");
+      resetTurnstile();
       await loadPlan(false);
     } catch {
       editStatus?.replaceChildren("Unable to save changes. Please try again later.");
+      resetTurnstile();
     } finally {
       isSaving = false;
     }
   });
 
   editForm?.querySelector("[data-add-stop]")?.addEventListener("click", () => {
-    appendStop({});
-    setupStopCards();
+    appendStop({})?.querySelector<HTMLInputElement>("[data-park-input]")?.focus();
   });
 
   editForm?.querySelector("[data-cancel-plan]")?.addEventListener("click", async () => {
@@ -239,19 +215,25 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
       const response = await fetch(`${selectedPlanUrl()}/cancel`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ cancelReason: "Cancelled by activator." }),
+        body: JSON.stringify({
+          cancelReason: "Cancelled by activator.",
+          turnstileToken: new FormData(editForm ?? undefined).get("cf-turnstile-response"),
+        }),
       });
       const data = await parseResponse(response);
 
       if (!response.ok || !data.ok) {
         editStatus?.replaceChildren(data.errors?.join(" ") ?? data.error ?? "Unable to cancel plan.");
+        resetTurnstile();
         return;
       }
 
       editStatus?.replaceChildren("Plan cancelled.");
+      resetTurnstile();
       await loadPlan(false);
     } catch {
       editStatus?.replaceChildren("Unable to cancel plan. Please try again later.");
+      resetTurnstile();
     }
   });
 
@@ -296,6 +278,9 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
       editFields.hidden = false;
       editStops.hidden = false;
       editActions.hidden = false;
+      editOrganizerNotes?.removeAttribute("hidden");
+      editFrequencyNote?.removeAttribute("hidden");
+      editTurnstile?.removeAttribute("hidden");
       if (showLoading) {
         editStatus?.replaceChildren("Loaded. Make any changes and save.");
       }
@@ -348,6 +333,7 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
     setNamedValue("submitterName", stringValue(plan.submitter_name));
     setNamedValue("submitterEmail", stringValue(plan.submitter_email));
     setNamedValue("club", stringValue(plan.club));
+    setNamedValue("organizerNotes", stringValue(plan.organizer_notes));
 
     editStops?.replaceChildren();
     const stops = Array.isArray(plan.stops)
@@ -362,26 +348,26 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
     setupStopCards();
   }
 
-  function appendStop(stop: StopDto): void {
+  function appendStop(stop: StopDto): HTMLElement | null {
     if (!stopTemplate || !editStops) {
-      return;
+      return null;
     }
 
     const node = stopTemplate.content.firstElementChild?.cloneNode(true) as HTMLElement | undefined;
     if (!node) {
-      return;
+      return null;
     }
 
     setValue(node, "[data-stop-id]", stringValue(stop.id));
-    setValue(node, "[data-park-reference]", stringValue(stop.park_reference));
-    setValue(node, "[data-park-input]", stringValue(stop.park_reference));
+    selectParkReference(node, stringValue(stop.park_reference));
     setValue(node, "[data-planned-date]", stringValue(stop.planned_date) || "2026-09-11");
-    setValue(node, "[data-start-time]", stringValue(stop.start_time));
-    setValue(node, "[data-end-time]", stringValue(stop.end_time));
-    setValue(node, "[data-bands]", arrayValue(stop.bands).join(", "));
-    setValue(node, "[data-modes]", arrayValue(stop.modes).join(", "));
+    setValue(node, "[data-time-block]", timeBlockValue(stop));
+    setSelectedValues(node.querySelector<HTMLElement>("[data-bands]"), arrayValue(stop.bands));
+    setSelectedValues(node.querySelector<HTMLElement>("[data-modes]"), arrayValue(stop.modes));
     setValue(node, "[data-public-notes]", stringValue(stop.public_notes));
     editStops.appendChild(node);
+    setupStopCards();
+    return node;
   }
 
   function setupStopCards(): void {
@@ -390,30 +376,51 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
       stop.querySelector("[data-stop-title]")?.replaceChildren(`Activation stop ${index + 1}`);
       const removeButton = stop.querySelector("[data-remove-stop]") as HTMLButtonElement | null;
       if (removeButton) {
-        removeButton.disabled = stops.length === 1;
+        removeButton.hidden = stops.length === 1;
         removeButton.onclick = () => {
           stop.remove();
           setupStopCards();
         };
       }
 
-      const parkInput = stop.querySelector("[data-park-input]") as HTMLInputElement | null;
-      const parkReference = stop.querySelector("[data-park-reference]") as HTMLInputElement | null;
-      if (parkInput && parkReference) {
+      const parkInput = stop.querySelector<HTMLInputElement>("[data-park-input]");
+      const parkReference = stop.querySelector<HTMLInputElement>("[data-park-reference]");
+      const parkCombobox = stop.querySelector<HTMLElement>("[data-park-combobox]");
+      if (parkInput && parkReference && parkCombobox) {
         const syncParkReference = () => {
-          parkReference.value = parkOptions.get(parkInput.value.trim()) ?? parkInput.value.trim();
+          parkReference.value = selectedParkReference(parkInput.value.trim(), parkCombobox);
+          filterParkOptions(parkCombobox, parkInput.value);
+        };
+
+        parkInput.onfocus = () => {
+          filterParkOptions(parkCombobox, parkInput.value);
+          setParkPopupOpen(parkCombobox, true);
         };
         parkInput.oninput = syncParkReference;
         parkInput.onchange = syncParkReference;
+        syncParkReference();
+
+        parkCombobox.querySelectorAll<HTMLElement>("[data-park-option]").forEach((option) => {
+          option.onclick = () => {
+            parkInput.value = option.dataset.label ?? "";
+            parkReference.value = option.dataset.reference ?? "";
+            setParkPopupOpen(parkCombobox, false);
+          };
+        });
       }
 
-      const blockSelect = stop.querySelector("[data-time-block]") as HTMLSelectElement | null;
-      blockSelect?.addEventListener("change", () => {
-        const [startTime, endTime] = blockSelect.value.split("-");
-        if (startTime && endTime) {
-          setValue(stop, "[data-start-time]", startTime);
-          setValue(stop, "[data-end-time]", endTime);
+      stop.querySelectorAll<HTMLElement>("[data-multi-select]").forEach((multiSelect) => {
+        const toggle = multiSelect.querySelector<HTMLButtonElement>("[data-multi-toggle]");
+        if (toggle) {
+          toggle.onclick = () => {
+            setMultiSelectOpen(multiSelect, toggle.getAttribute("aria-expanded") !== "true");
+          };
         }
+
+        multiSelect.querySelectorAll<HTMLInputElement>("[data-multi-option]").forEach((option) => {
+          option.onchange = () => updateMultiSelectLabel(multiSelect);
+        });
+        updateMultiSelectLabel(multiSelect);
       });
     });
   }
@@ -425,17 +432,23 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
       submitterEmail: data.get("submitterEmail"),
       club: data.get("club"),
       publicNotes: "",
-      organizerNotes: "",
-      stops: Array.from(document.querySelectorAll<HTMLElement>("[data-stop-card]")).map((stop) => ({
-        id: (stop.querySelector("[data-stop-id]") as HTMLInputElement | null)?.value,
-        parkReference: (stop.querySelector("[data-park-reference]") as HTMLInputElement | null)?.value,
-        plannedDate: (stop.querySelector("[data-planned-date]") as HTMLSelectElement | null)?.value,
-        startTime: (stop.querySelector("[data-start-time]") as HTMLInputElement | null)?.value,
-        endTime: (stop.querySelector("[data-end-time]") as HTMLInputElement | null)?.value,
-        bands: splitList((stop.querySelector("[data-bands]") as HTMLInputElement | null)?.value ?? ""),
-        modes: splitList((stop.querySelector("[data-modes]") as HTMLInputElement | null)?.value ?? ""),
-        publicNotes: (stop.querySelector("[data-public-notes]") as HTMLTextAreaElement | null)?.value ?? "",
-      })),
+      organizerNotes: data.get("organizerNotes"),
+      turnstileToken: data.get("cf-turnstile-response"),
+      stops: Array.from(document.querySelectorAll<HTMLElement>("[data-stop-card]")).map((stop) => {
+        const timeBlock = (stop.querySelector("[data-time-block]") as HTMLSelectElement | null)?.value ?? "";
+        const timeRange = timeBlockToRange(timeBlock) ?? { startTime: "", endTime: "" };
+
+        return {
+          id: (stop.querySelector("[data-stop-id]") as HTMLInputElement | null)?.value,
+          parkReference: (stop.querySelector("[data-park-reference]") as HTMLInputElement | null)?.value,
+          plannedDate: (stop.querySelector("[data-planned-date]") as HTMLSelectElement | null)?.value,
+          startTime: timeRange.startTime,
+          endTime: timeRange.endTime,
+          bands: selectedValues(stop.querySelector<HTMLElement>("[data-bands]")),
+          modes: selectedValues(stop.querySelector<HTMLElement>("[data-modes]")),
+          publicNotes: (stop.querySelector("[data-public-notes]") as HTMLTextAreaElement | null)?.value ?? "",
+        };
+      }),
     };
   }
 
@@ -482,6 +495,126 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
     }
   }
 
+  function addParkReferenceToForm(reference: string): void {
+    const targetStop = firstEmptyStopCard() ?? appendStop({});
+    if (!targetStop) {
+      return;
+    }
+
+    const selected = selectParkReference(targetStop, reference.toUpperCase());
+    if (!selected) {
+      editStatus?.replaceChildren(`Could not find ${reference} in the park list.`);
+      return;
+    }
+
+    setupStopCards();
+    targetStop.scrollIntoView({ behavior: "smooth", block: "center" });
+    (targetStop.querySelector("[data-planned-date]") as HTMLSelectElement | null)?.focus();
+    editStatus?.replaceChildren(`${reference.toUpperCase()} added to the activation plan. Choose the date, time, bands, and modes before saving.`);
+  }
+
+  function firstEmptyStopCard(): HTMLElement | null {
+    return Array.from(document.querySelectorAll<HTMLElement>("[data-stop-card]"))
+      .find((stop) => !stop.querySelector<HTMLInputElement>("[data-park-reference]")?.value) ?? null;
+  }
+
+  function selectParkReference(stop: HTMLElement, reference: string): boolean {
+    if (!reference) {
+      return false;
+    }
+
+    const parkInput = stop.querySelector<HTMLInputElement>("[data-park-input]");
+    const parkReference = stop.querySelector<HTMLInputElement>("[data-park-reference]");
+    const option = Array.from(stop.querySelectorAll<HTMLElement>("[data-park-option]"))
+      .find((candidate) => candidate.dataset.reference === reference);
+
+    if (!parkInput || !parkReference || !option) {
+      return false;
+    }
+
+    parkInput.value = option.dataset.label ?? reference;
+    parkReference.value = reference;
+    return true;
+  }
+
+  function selectedParkReference(value: string, combobox: HTMLElement): string {
+    const normalizedValue = value.toLowerCase();
+    const selectedOption = Array.from(combobox.querySelectorAll<HTMLElement>("[data-park-option]"))
+      .find((option) => (
+        option.dataset.reference?.toLowerCase() === normalizedValue ||
+        option.dataset.label?.toLowerCase() === normalizedValue
+      ));
+
+    return selectedOption?.dataset.reference ?? "";
+  }
+
+  function filterParkOptions(combobox: HTMLElement, value: string): void {
+    const terms = value.toLowerCase().split(/\s+/).filter(Boolean);
+    let visibleCount = 0;
+
+    combobox.querySelectorAll<HTMLElement>("[data-park-option]").forEach((option) => {
+      const search = option.dataset.search ?? "";
+      const isVisible = terms.every((term) => search.includes(term));
+      option.hidden = !isVisible;
+      if (isVisible) {
+        visibleCount += 1;
+      }
+    });
+
+    const empty = combobox.querySelector<HTMLElement>("[data-park-empty]");
+    if (empty) {
+      empty.hidden = visibleCount > 0;
+    }
+  }
+
+  function selectedValues(root: HTMLElement | null): string[] {
+    return Array.from(root?.querySelectorAll<HTMLInputElement>("[data-multi-option]:checked") ?? [])
+      .map((option) => option.value);
+  }
+
+  function setSelectedValues(root: HTMLElement | null, values: string[]): void {
+    const selected = new Set(values);
+    root?.querySelectorAll<HTMLInputElement>("[data-multi-option]").forEach((option) => {
+      option.checked = selected.has(option.value);
+    });
+    if (root) {
+      updateMultiSelectLabel(root);
+    }
+  }
+
+  function setParkPopupOpen(combobox: HTMLElement, isOpen: boolean): void {
+    combobox.querySelector<HTMLElement>("[data-park-results]")?.toggleAttribute("hidden", !isOpen);
+    combobox.querySelector<HTMLInputElement>("[data-park-input]")?.setAttribute("aria-expanded", String(isOpen));
+  }
+
+  function setMultiSelectOpen(multiSelect: HTMLElement, isOpen: boolean): void {
+    multiSelect.querySelector<HTMLElement>("[data-multi-menu]")?.toggleAttribute("hidden", !isOpen);
+    multiSelect.querySelector<HTMLButtonElement>("[data-multi-toggle]")?.setAttribute("aria-expanded", String(isOpen));
+  }
+
+  function updateMultiSelectLabel(multiSelect: HTMLElement): void {
+    const toggle = multiSelect.querySelector<HTMLButtonElement>("[data-multi-toggle]");
+    const values = selectedValues(multiSelect);
+
+    if (!toggle) {
+      return;
+    }
+
+    toggle.textContent = values.length > 0 ? values.join(", ") : multiSelect.hasAttribute("data-bands") ? "Choose bands" : "Choose modes";
+  }
+
+  function resetTurnstile(): void {
+    const turnstile = (
+      globalThis as {
+        turnstile?: {
+          reset?: () => void;
+        };
+      }
+    ).turnstile;
+
+    turnstile?.reset?.();
+  }
+
   function apiUrl(): string {
     return `/api/activate-ri-2026/edit/${encodeURIComponent(editToken())}/plans`;
   }
@@ -523,11 +656,12 @@ function parkOptionLabel(reference: (typeof references)[number]): string {
     }
   }
 
-  function splitList(value: string): string[] {
-    return value
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
+  function timeBlockValue(stop: StopDto): string {
+    const startTime = stringValue(stop.start_time);
+    const endTime = stringValue(stop.end_time);
+    const value = `${startTime}-${endTime}`;
+
+    return timeBlockToRange(value) ? value : "";
   }
 
   function arrayValue(value: unknown): string[] {

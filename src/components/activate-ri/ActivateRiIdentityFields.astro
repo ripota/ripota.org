@@ -1,0 +1,66 @@
+---
+type Props = {
+  clubDatalistId: string;
+};
+
+const { clubDatalistId } = Astro.props;
+---
+
+<div class="form-grid form-grid--identity">
+  <label>
+    <span class="field-label-row">
+      <span>Callsign</span>
+      <span class="required-marker" aria-label="Required field" title="Required">*</span>
+    </span>
+    <input
+      class="callsign-input"
+      id="activate-ri-callsign"
+      name="submitterCallsign"
+      autocomplete="nickname"
+      autocapitalize="characters"
+      aria-describedby="activate-ri-callsign-help activate-ri-callsign-error"
+      spellcheck="false"
+      required
+    />
+    <span id="activate-ri-callsign-help" class="form-help">
+      Use the callsign that should appear on the public schedule.
+    </span>
+    <span id="activate-ri-callsign-error" class="form-error" data-field-error></span>
+  </label>
+  <label>
+    <span class="field-label-row">
+      <span>Name</span>
+      <span class="required-marker" aria-label="Required field" title="Required">*</span>
+    </span>
+    <input
+      id="activate-ri-name"
+      name="submitterName"
+      autocomplete="name"
+      aria-describedby="activate-ri-name-error"
+      required
+    />
+    <span id="activate-ri-name-error" class="form-error" data-field-error></span>
+  </label>
+  <label>
+    <span class="field-label-row">
+      <span>Email</span>
+      <span class="required-marker" aria-label="Required field" title="Required">*</span>
+    </span>
+    <input
+      id="activate-ri-email"
+      name="submitterEmail"
+      type="email"
+      autocomplete="email"
+      aria-describedby="activate-ri-email-help activate-ri-email-error"
+      required
+    />
+    <span id="activate-ri-email-help" class="form-help">
+      Used for your private edit link. It is not shown publicly.
+    </span>
+    <span id="activate-ri-email-error" class="form-error" data-field-error></span>
+  </label>
+  <label>
+    Club / group affiliation
+    <input name="club" list={clubDatalistId} autocomplete="organization" />
+  </label>
+</div>

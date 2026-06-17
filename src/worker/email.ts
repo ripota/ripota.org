@@ -13,6 +13,7 @@ export async function sendActivatorEditLinkEmail(
     submitter_email: string;
   },
   editUrl: string,
+  helpUrl: string,
 ): Promise<SendEmailResult> {
   return sendEmail(env, {
     to: plan.submitter_email,
@@ -21,8 +22,14 @@ export async function sendActivatorEditLinkEmail(
       `Hi ${plan.submitter_name || plan.submitter_callsign},`,
       "",
       "We received your Activate All RI 2026 activation signup.",
+      "Organizers will review and approve your initial activation plan before it appears on the public schedule.",
+      "After approval, changes you save with your private edit link go live immediately.",
+      "",
       "Use this private link to review or update your plan:",
       editUrl,
+      "",
+      "Activator help:",
+      helpUrl,
       "",
       "This link works before and after organizer approval. Please keep it private.",
       "",
@@ -32,9 +39,45 @@ export async function sendActivatorEditLinkEmail(
     html: [
       `<p>Hi ${escapeHtml(plan.submitter_name || plan.submitter_callsign)},</p>`,
       "<p>We received your Activate All RI 2026 activation signup.</p>",
+      "<p>Organizers will review and approve your initial activation plan before it appears on the public schedule. After approval, changes you save with your private edit link go live immediately.</p>",
       `<p><a href="${escapeHtml(editUrl)}">Review or update your plan</a></p>`,
+      `<p><a href="${escapeHtml(helpUrl)}">Read the activator help page</a></p>`,
       `<p>If the button does not work, copy this link:<br><span>${escapeHtml(editUrl)}</span></p>`,
       "<p>This link works before and after organizer approval. Please keep it private.</p>",
+      "<p>73,<br>RI POTA</p>",
+    ].join(""),
+  });
+}
+
+export async function sendActivatorApprovalEmail(
+  env: Env,
+  plan: {
+    submitter_callsign: string;
+    submitter_name: string;
+    submitter_email: string;
+  },
+  helpUrl: string,
+): Promise<SendEmailResult> {
+  return sendEmail(env, {
+    to: plan.submitter_email,
+    subject: "Your Activate All RI 2026 plan is live",
+    text: [
+      `Hi ${plan.submitter_name || plan.submitter_callsign},`,
+      "",
+      "Your Activate All RI 2026 activation plan is approved and live on the public schedule.",
+      "Changes you save later with your private edit link go live immediately.",
+      "",
+      "Activator help:",
+      helpUrl,
+      "",
+      "73,",
+      "RI POTA",
+    ].join("\n"),
+    html: [
+      `<p>Hi ${escapeHtml(plan.submitter_name || plan.submitter_callsign)},</p>`,
+      "<p>Your Activate All RI 2026 activation plan is approved and live on the public schedule.</p>",
+      "<p>Changes you save later with your private edit link go live immediately.</p>",
+      `<p><a href="${escapeHtml(helpUrl)}">Read the activator help page</a></p>`,
       "<p>73,<br>RI POTA</p>",
     ].join(""),
   });

@@ -20,6 +20,16 @@ function env(): Env {
   };
 }
 
+function emailEnv(): Env {
+  return {
+    ...env(),
+    ACTIVATE_RI_EMAIL_FROM: "organizers@ripota.org",
+    EMAIL: {
+      send: vi.fn(async () => undefined),
+    } as unknown as SendEmail,
+  };
+}
+
 function adminEnv(): Env {
   return {
     ...env(),
@@ -220,6 +230,10 @@ function adminDb(options: AdminDbOptions = {}): D1Database {
             : (options.planRows ?? [pendingPlanRow]),
       })),
       first: vi.fn(async () => {
+        if (sql.includes("submitter_callsign")) {
+          return options.planRows?.[0] ?? pendingPlanRow;
+        }
+
         if (options.planStatus === undefined) {
           return { status: "pending" };
         }
@@ -318,6 +332,36 @@ describe("handleActivateRiApi", () => {
       columns: 13,
       values: 13,
     });
+  });
+
+  it("sends activators an edit link email with help and approval guidance", async () => {
+    const testEnv = emailEnv();
+
+    const response = await handleActivateRiApi(
+      post("/api/activate-ri-2026/plans", validPayload()),
+      testEnv,
+    );
+
+    expect(response.status).toBe(202);
+    const sendEmail = testEnv.EMAIL?.send;
+    expect(sendEmail).toBeDefined();
+    if (!sendEmail) {
+      throw new Error("Expected email binding.");
+    }
+    expect(sendEmail).toHaveBeenCalledOnce();
+    expect(sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "rob@example.com",
+        subject: "Your Activate All RI 2026 edit link",
+        text: expect.stringContaining("https://ripota.org/activate-ri-2026/help/"),
+        html: expect.stringContaining("https://ripota.org/activate-ri-2026/help/"),
+      }),
+    );
+    const message = vi.mocked(sendEmail).mock.calls[0][0] as {
+      text: string;
+    };
+    expect(message.text).toContain("Organizers will review and approve your initial activation plan before it appears on the public schedule.");
+    expect(message.text).toContain("After approval, changes you save with your private edit link go live immediately.");
   });
 
   it("returns validation errors for invalid plan submissions", async () => {
@@ -480,6 +524,40 @@ describe("handleActivateRiApi", () => {
     expect(init.body.get("secret")).toBe("test-secret");
     expect(init.body.get("response")).toBe("test-token");
     expect(init.body.get("remoteip")).toBe("203.0.113.10");
+  });
+
+  it("requires Turnstile for activator plan edits when configured", async () => {
+    const testEnv = turnstileEnv();
+
+    const response = await handleActivateRiApi(
+      patch("/api/activate-ri-2026/edit/token/plans/plan-1", validPayload()),
+      testEnv,
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      errors: ["Turnstile verification failed."],
+    });
+    expect(testEnv.DB.prepare).not.toHaveBeenCalled();
+  });
+
+  it("requires Turnstile for activator plan cancellation when configured", async () => {
+    const testEnv = turnstileEnv();
+
+    const response = await handleActivateRiApi(
+      post("/api/activate-ri-2026/edit/token/plans/plan-1/cancel", {
+        cancelReason: "Weather.",
+      }),
+      testEnv,
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      errors: ["Turnstile verification failed."],
+    });
+    expect(testEnv.DB.prepare).not.toHaveBeenCalled();
   });
 
   it("returns sanitized JSON errors when Turnstile verification cannot be parsed", async () => {
@@ -934,6 +1012,40 @@ describe("handleActivateRiApi", () => {
     expect(stopUpdateBinds.at(-1)).toBe(approvalOperationId);
     expect(auditInsertBinds[6]).toBe("plan-approved");
     expect(String(auditInsertBinds[8])).toContain(String(approvalOperationId));
+  });
+
+  it("emails activators when their plan is approved", async () => {
+    const testEnv = {
+      ...adminEnv(),
+      ACTIVATE_RI_EMAIL_FROM: "organizers@ripota.org",
+      EMAIL: {
+        send: vi.fn(async () => undefined),
+      } as unknown as SendEmail,
+    };
+    testEnv.DB = adminDb({ planStatus: "pending", planUpdateChanges: 1 });
+
+    const response = await handleActivateRiApi(
+      adminRequest("/api/activate-ri-2026/admin/plans/plan-1/approve", {
+        method: "POST",
+        headers: { "Cf-Access-Authenticated-User-Email": "admin@example.com" },
+      }),
+      testEnv,
+    );
+
+    expect(response.status).toBe(200);
+    expect(testEnv.EMAIL.send).toHaveBeenCalledOnce();
+    expect(testEnv.EMAIL.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "rob@example.com",
+        subject: "Your Activate All RI 2026 plan is live",
+        text: expect.stringContaining("Your Activate All RI 2026 activation plan is approved and live on the public schedule."),
+        html: expect.stringContaining("https://ripota.org/activate-ri-2026/help/"),
+      }),
+    );
+    const activitySql = vi.mocked(testEnv.DB.prepare).mock.calls
+      .map(([sql]) => sql)
+      .filter((sql) => sql.includes("INSERT INTO activate_ri_activity_events"));
+    expect(activitySql.length).toBeGreaterThanOrEqual(2);
   });
 
   it("returns 409 without scheduling stops or audit when the plan transition loses a race", async () => {
