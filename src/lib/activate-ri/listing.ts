@@ -40,6 +40,14 @@ export function uniqueSortedValues(values: string[][]): string[] {
   );
 }
 
+export function scheduleVisibleStops(
+  stops: PublicActivationStop[],
+): PublicActivationStop[] {
+  return stops.filter(
+    (stop) => !stop.id.startsWith("sample-") && stop.status !== "cancelled",
+  );
+}
+
 export function parkCounties(park: PublicParkSummary | undefined): string[] {
   return park?.counties.length ? park.counties : ["Unknown county"];
 }

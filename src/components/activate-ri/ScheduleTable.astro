@@ -65,6 +65,7 @@ const countyOptions = uniqueSortedValues(
 </div>
 
 <script>
+  import { scheduleVisibleStops } from "../../lib/activate-ri/listing";
   import { fetchPublicActivationStops } from "../../lib/activate-ri/public-stops-client";
 
   document.querySelectorAll("[data-event-filters]").forEach(setupEventFilters);
@@ -120,7 +121,7 @@ const countyOptions = uniqueSortedValues(
 
     try {
       const stops = await fetchPublicActivationStops();
-      const visibleStops = stops.filter((stop) => !stop.id.startsWith("sample-"));
+      const visibleStops = scheduleVisibleStops(stops);
       const filters = document.querySelector("[data-event-filters]") as HTMLFormElement | null;
       if (filters) {
         updateSelectOptions(filters, "mode", uniqueSortedValues(visibleStops.map((stop) => stop.modes)));

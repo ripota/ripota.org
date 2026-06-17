@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   filterPublicStops,
   formatActivatorModes,
+  scheduleVisibleStops,
   timelineOptions,
   uniqueSortedValues,
 } from "./listing";
@@ -62,6 +63,16 @@ describe("listing helpers", () => {
         county: "Bristol County",
       }).map((stop) => stop.id),
     ).toEqual(["two"]);
+  });
+
+  it("excludes cancelled stops from the public schedule rows", () => {
+    expect(
+      scheduleVisibleStops([
+        stops[0],
+        { ...stops[0], id: "cancelled", status: "cancelled" },
+        stops[1],
+      ]).map((stop) => stop.id),
+    ).toEqual(["one", "two"]);
   });
 
   it("returns unique sorted option values", () => {
