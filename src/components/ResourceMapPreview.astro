@@ -1,10 +1,7 @@
 ---
-import "leaflet/dist/leaflet.css";
+import ReferenceMap from "./ReferenceMap.astro";
+import { resourceIntro, resourceLinks } from "../data/site";
 
-import references from "../data/ri-references.json";
-import { referenceMapZoomBehavior, referenceMapZoomOffset, resourceIntro, resourceLinks } from "../data/site";
-
-const referenceJson = JSON.stringify(references);
 ---
 
 <div class="resource-layout">
@@ -24,117 +21,10 @@ const referenceJson = JSON.stringify(references);
       }
     </div>
   </div>
-  <figure class="map-preview" aria-label="Map of Rhode Island POTA references">
-    <div
-      id="ri-reference-map"
-      class="ri-reference-map"
-      data-zoom-offset={referenceMapZoomOffset}
-      data-zoom-behavior={referenceMapZoomBehavior}
-    >
-    </div>
-    <figcaption class="map-preview__caption">
-      Reference data generated from official POTA park data. Verify operating details in the POTA app before activating.
-    </figcaption>
-  </figure>
+  <ReferenceMap
+    id="ri-reference-map"
+    variant="home"
+    title="Map of Rhode Island POTA references"
+    caption="Reference data generated from official POTA park data and reviewed public boundary sources. Verify operating details in the POTA app before activating."
+  />
 </div>
-
-<script is:inline type="application/json" id="ri-reference-data" set:html={referenceJson} />
-<script>
-  import L from "leaflet";
-
-  type Reference = {
-    reference: string;
-    name: string;
-    latitude: number;
-    longitude: number;
-    grid: string;
-    locationDesc: string;
-    potaUrl: string;
-  };
-
-  const dataElement = document.getElementById("ri-reference-data");
-  const mapElement = document.getElementById("ri-reference-map");
-
-  if (dataElement && mapElement) {
-    const references = JSON.parse(dataElement.textContent ?? "[]") as Reference[];
-    const zoomOffset = Number(mapElement.dataset.zoomOffset ?? "0");
-    const map = L.map(mapElement, {
-      scrollWheelZoom: false,
-    });
-    const bounds = L.latLngBounds([]);
-    const rhodeIslandBounds = L.latLngBounds([]);
-
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    }).addTo(map);
-
-    for (const reference of references) {
-      L.circleMarker([reference.latitude, reference.longitude], {
-        radius: 7,
-        color: "#172026",
-        weight: 2,
-        fillColor: "#d7913a",
-        fillOpacity: 0.95,
-      })
-        .addTo(map)
-        .bindPopup(popupHtml(reference));
-
-      bounds.extend([reference.latitude, reference.longitude]);
-      if (isNearRhodeIsland(reference)) {
-        rhodeIslandBounds.extend([reference.latitude, reference.longitude]);
-      }
-    }
-
-    if (rhodeIslandBounds.isValid()) {
-      map.fitBounds(rhodeIslandBounds, { padding: [28, 28], maxZoom: 10 });
-      applyZoomOffset(map, zoomOffset);
-    } else if (bounds.isValid()) {
-      map.fitBounds(bounds, { padding: [24, 24] });
-      applyZoomOffset(map, zoomOffset);
-    } else {
-      map.setView([41.58, -71.48], 9);
-    }
-  }
-
-  function popupHtml(reference: Reference): string {
-    return `
-      <strong>${escapeHtml(reference.reference)}</strong>
-      <span>${escapeHtml(reference.name)}</span>
-      <em>${escapeHtml(reference.grid)} · ${escapeHtml(reference.locationDesc)}</em>
-      <a href="${escapeHtml(reference.potaUrl)}" target="_blank" rel="noreferrer">Open official POTA page</a>
-    `;
-  }
-
-  function escapeHtml(value: string): string {
-    return String(value).replace(/[&<>"']/g, (char) => {
-      const entities: Record<string, string> = {
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&#39;",
-      };
-
-      return entities[char] ?? char;
-    });
-  }
-
-  function isNearRhodeIsland(reference: Reference): boolean {
-    return (
-      reference.latitude >= 41.1 &&
-      reference.latitude <= 42.1 &&
-      reference.longitude >= -72.1 &&
-      reference.longitude <= -71
-    );
-  }
-
-  function applyZoomOffset(map: L.Map, zoomOffset: number): void {
-    if (zoomOffset === 0) {
-      return;
-    }
-
-    map.setZoom(map.getZoom() + zoomOffset);
-  }
-</script>
