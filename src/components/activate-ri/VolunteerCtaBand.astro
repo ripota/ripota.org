@@ -1,0 +1,22 @@
+---
+import { eventRoute } from "../../lib/activate-ri/paths";
+---
+
+<section class="volunteer-cta-band" aria-labelledby="volunteer-cta-title">
+  <div class="volunteer-cta-band__copy">
+    <p class="eyebrow">Activator signups</p>
+    <h2 id="volunteer-cta-title">Help fill the Rhode Island map</h2>
+    <p>
+      Submit one park or a multi-park route for organizer review, then update
+      your plan if timing or access changes.
+    </p>
+  </div>
+  <div class="button-row volunteer-cta-band__actions" aria-label="Volunteer actions">
+    <a class="button" data-variant="primary" href={eventRoute("volunteer")}>
+      Volunteer to Activate
+    </a>
+    <a class="button" data-variant="light" href={eventRoute("schedule")}>
+      See the schedule
+    </a>
+  </div>
+</section>
