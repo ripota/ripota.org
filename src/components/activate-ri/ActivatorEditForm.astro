@@ -189,7 +189,7 @@ const turnstileSiteKey =
       const data = await parseResponse(response);
 
       if (!response.ok || !data.ok) {
-        setEditStatus(data.errors?.join(" ") ?? data.error ?? "Unable to save changes.", "error");
+        showSaveError(data.errors ?? [data.error ?? "Unable to save changes."]);
         resetTurnstile();
         return;
       }
@@ -356,6 +356,7 @@ const turnstileSiteKey =
           id: (stop.querySelector("[data-stop-id]") as HTMLInputElement | null)?.value,
           parkReference: (stop.querySelector("[data-park-reference]") as HTMLInputElement | null)?.value,
           plannedDate: (stop.querySelector("[data-planned-date]") as HTMLSelectElement | null)?.value,
+          timeBlock,
           startTime: timeRange.startTime,
           endTime: timeRange.endTime,
           bands: selectedValues(stop.querySelector<HTMLElement>("[data-bands]")),
@@ -519,6 +520,50 @@ const turnstileSiteKey =
     firstInvalidControl?.focus();
     reportControlValidity(firstInvalidControl);
     return false;
+  }
+
+  function showSaveError(errors: string[]): void {
+    const messages = errors.filter((error): error is string => typeof error === "string" && error.length > 0);
+    setEditStatus(messages.join(" ") || "Unable to save changes.", "error");
+
+    const focusedControl = focusServerError(messages);
+    if (focusedControl) {
+      return;
+    }
+
+    if (editStatus instanceof HTMLElement) {
+      editStatus.tabIndex = -1;
+      editStatus.scrollIntoView({ behavior: "smooth", block: "center" });
+      editStatus.focus({ preventScroll: true });
+    }
+  }
+
+  function focusServerError(errors: string[]): ValidationControl | null {
+    for (const error of errors) {
+      const match = /^Stop (\d+) end time must be after start time\.$/.exec(error);
+      if (!match) {
+        continue;
+      }
+
+      const stopIndex = Number(match[1]) - 1;
+      const stop = Array.from(editForm?.querySelectorAll<HTMLElement>("[data-stop-card]") ?? [])[stopIndex];
+      if (!stop) {
+        return null;
+      }
+
+      const timeBlock = stop.querySelector("[data-time-block]") as HTMLSelectElement | null;
+      const errorElement = stopErrorElement(stop, "timeBlock");
+      const message = "Choose a valid time block for this activation stop.";
+      timeBlock?.setAttribute("aria-invalid", "true");
+      setControlValidity(timeBlock, message);
+      errorElement?.replaceChildren(message);
+      timeBlock?.scrollIntoView({ behavior: "smooth", block: "center" });
+      timeBlock?.focus({ preventScroll: true });
+
+      return timeBlock;
+    }
+
+    return null;
   }
 
   function focusActivatorIdentityFields(): void {

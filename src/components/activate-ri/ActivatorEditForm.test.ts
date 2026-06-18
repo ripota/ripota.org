@@ -76,8 +76,16 @@ describe("ActivatorEditForm shared volunteer controls", () => {
 
   it("derives edit start and end times from the shared time block control", () => {
     expect(editFormSource).toContain("timeBlockToRange");
+    expect(editFormSource).toContain("timeBlock,");
     expect(editFormSource).toContain("startTime: timeRange.startTime");
     expect(editFormSource).toContain("endTime: timeRange.endTime");
+  });
+
+  it("surfaces server save errors near the related edit field", () => {
+    expect(editFormSource).toContain("showSaveError(data.errors");
+    expect(editFormSource).toContain("focusServerError(messages)");
+    expect(editFormSource).toContain("Stop (\\d+) end time must be after start time");
+    expect(editFormSource).toContain('stopErrorElement(stop, "timeBlock")');
   });
 
   it("keeps existing plan-level public notes when saving from the edit page", () => {
