@@ -212,7 +212,37 @@ recipients.
 For local testing, use `.dev.vars` or a local environment-specific secret. Do
 not commit `.dev.vars`.
 
-### 6. Deploy
+### 6. Publish the sender logo BIMI record
+
+The site includes a BIMI-oriented sender logo at:
+
+```text
+https://ripota.org/assets/logos/ri-pota-bimi.svg
+```
+
+Cloudflare DNS should include this TXT record:
+
+```text
+default._bimi.ripota.org TXT "v=BIMI1; l=https://ripota.org/assets/logos/ri-pota-bimi.svg;"
+```
+
+`ripota.org` already publishes DMARC with `p=reject`, which is required for
+BIMI. Some mailbox providers, including Gmail, require a Verified Mark
+Certificate or Common Mark Certificate before showing the logo. If a certificate
+is issued later, host the PEM file over HTTPS and add the `a=` tag:
+
+```text
+default._bimi.ripota.org TXT "v=BIMI1; l=https://ripota.org/assets/logos/ri-pota-bimi.svg; a=https://ripota.org/assets/bimi/ripota.pem;"
+```
+
+After DNS publishes, validate the record and asset:
+
+```bash
+dig +short TXT default._bimi.ripota.org
+curl -I https://ripota.org/assets/logos/ri-pota-bimi.svg
+```
+
+### 7. Deploy
 
 ```bash
 npx wrangler deploy
@@ -234,7 +264,7 @@ the deployed database with:
 npx wrangler d1 migrations list ripota-org --remote
 ```
 
-### 7. Verify email delivery
+### 8. Verify email delivery
 
 Recommended smoke test:
 
