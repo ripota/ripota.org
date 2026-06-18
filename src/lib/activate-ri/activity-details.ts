@@ -3,6 +3,10 @@ export function activityDetailEntries(details: Record<string, unknown>): [string
   const previous = isRecord(details.previous) ? details.previous : null;
   const next = isRecord(details.next) ? details.next : null;
 
+  if ((previous && !next && isStopSnapshot(previous)) || (next && !previous && isStopSnapshot(next))) {
+    return stopSnapshotEntries(previous ?? next);
+  }
+
   if (previous || next) {
     for (const key of detailKeys(previous, next)) {
       if (previous && next && (!(key in previous) || !(key in next))) {
@@ -43,6 +47,33 @@ function detailKeys(previous: Record<string, unknown> | null, next: Record<strin
     .filter((key) => !isBookkeepingKey(key));
 }
 
+function stopSnapshotEntries(stop: Record<string, unknown> | null): [string, string][] {
+  if (!stop) {
+    return [];
+  }
+
+  return [
+    ["Park", detailValue(stop.parkReference)],
+    ["Date", detailValue(stop.plannedDate)],
+    ["Time", stopTimeValue(stop)],
+    ["Bands", detailValue(stop.bands)],
+    ["Modes", detailValue(stop.modes)],
+    ["Status", detailValue(stop.status)],
+    ["Public Notes", detailValue(stop.publicNotes)],
+    ["Organizer Notes", detailValue(stop.organizerNotes)],
+  ].filter((entry): entry is [string, string] => Boolean(entry[1]));
+}
+
+function stopTimeValue(stop: Record<string, unknown>): string {
+  const startTime = detailValue(stop.startTime);
+  const endTime = detailValue(stop.endTime);
+  if (startTime && endTime) {
+    return `${startTime} - ${endTime}`;
+  }
+
+  return startTime || endTime;
+}
+
 function detailValue(value: unknown): string {
   if (typeof value === "string") {
     return value;
@@ -76,6 +107,10 @@ function formatDetailLabel(key: string): string {
 
 function isBookkeepingKey(key: string): boolean {
   return /(^id$|Id$|_id$|operation|created|updated|event)/i.test(key);
+}
+
+function isStopSnapshot(value: Record<string, unknown>): boolean {
+  return "parkReference" in value && "plannedDate" in value;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
