@@ -82,19 +82,32 @@ const turnstileSiteKey =
 
 <script>
   import {
+    clearFieldError,
+    fieldErrorElement,
     firstEmptyStopCard,
     parkReferenceAlreadySelected,
     populateClubDatalist,
+    reportControlValidity,
     resetTurnstile,
     selectParkReference,
+    selectedParkReference,
     selectedValues,
+    setControlValidity,
     setSelectedValues,
     setupCallsignFields,
     setupDocumentPopupDismissal,
     setupStopCards,
+    stopErrorElement,
     uppercaseFormValue,
+    type ValidationControl,
   } from "../../lib/activate-ri/form-client";
   import { timeBlockToRange } from "../../lib/activate-ri/time-blocks";
+  import {
+    formatVolunteerMissingFieldSummary,
+    formatVolunteerProblemFieldSummary,
+    volunteerRequiredFieldMessage,
+    type VolunteerRequiredField,
+  } from "../../lib/activate-ri/volunteer-form-validation";
 
   type StopDto = {
     id?: unknown;
@@ -133,8 +146,10 @@ const turnstileSiteKey =
   let isSaving = false;
   let plans: PlanDto[] = [];
   let selectedPlanId = "";
+  let selectedPlanPublicNotes = "";
 
   setupCallsignFields(editForm ?? document);
+  setupRequiredFieldValidation();
   void populateClubDatalist("activate-ri-edit-clubs");
   void loadPlan();
   setupDocumentPopupDismissal();
@@ -152,6 +167,10 @@ const turnstileSiteKey =
     event.preventDefault();
 
     if (!editForm || isSaving) {
+      return;
+    }
+
+    if (!validateEditForm()) {
       return;
     }
 
@@ -260,6 +279,7 @@ const turnstileSiteKey =
 
       const selectedPlan = plans[0];
       selectedPlanId = stringValue(selectedPlan?.id);
+      selectedPlanPublicNotes = stringValue(selectedPlan?.public_notes);
       renderPlan(selectedPlan);
       editFields.hidden = false;
       editStops.hidden = false;
@@ -268,6 +288,7 @@ const turnstileSiteKey =
       editOrganizerNotes?.removeAttribute("hidden");
       editFrequencyNote?.removeAttribute("hidden");
       editTurnstile?.removeAttribute("hidden");
+      renderEditTurnstile();
       if (showLoading) {
         editStatus?.replaceChildren("Loaded. Make any changes and save.");
       }
@@ -293,7 +314,7 @@ const turnstileSiteKey =
     if (stops.length === 0) {
       appendStop({});
     }
-    setupStopCards();
+    setupStopCards({ validatePark: true, setupErrorDescriptions: true });
   }
 
   function appendStop(stop: StopDto): HTMLElement | null {
@@ -314,7 +335,7 @@ const turnstileSiteKey =
     setSelectedValues(node.querySelector<HTMLElement>("[data-modes]"), arrayValue(stop.modes));
     setValue(node, "[data-public-notes]", stringValue(stop.public_notes));
     editStops.appendChild(node);
-    setupStopCards();
+    setupStopCards({ validatePark: true, setupErrorDescriptions: true });
     return node;
   }
 
@@ -324,10 +345,10 @@ const turnstileSiteKey =
       submitterName: data.get("submitterName"),
       submitterEmail: data.get("submitterEmail"),
       club: data.get("club"),
-      publicNotes: "",
+      publicNotes: selectedPlanPublicNotes,
       organizerNotes: data.get("organizerNotes"),
       turnstileToken: data.get("cf-turnstile-response"),
-      stops: Array.from(document.querySelectorAll<HTMLElement>("[data-stop-card]")).map((stop) => {
+      stops: Array.from(editForm?.querySelectorAll<HTMLElement>("[data-stop-card]") ?? []).map((stop) => {
         const timeBlock = (stop.querySelector("[data-time-block]") as HTMLSelectElement | null)?.value ?? "";
         const timeRange = timeBlockToRange(timeBlock) ?? { startTime: "", endTime: "" };
 
@@ -367,11 +388,137 @@ const turnstileSiteKey =
       return;
     }
 
-    setupStopCards();
+    setupStopCards({ validatePark: true, setupErrorDescriptions: true });
     if (options.focusIdentity) {
       focusActivatorIdentityFields();
     }
     editStatus?.replaceChildren(`${normalizedReference} added to the activation plan. Choose the date, time, bands, and modes before saving.`);
+  }
+
+  function setupRequiredFieldValidation(): void {
+    ["submitterCallsign", "submitterName", "submitterEmail"].forEach((name) => {
+      const field = editForm?.elements.namedItem(name) as HTMLInputElement | null;
+      const errorElement = fieldErrorElement(field);
+
+      field?.addEventListener("input", () => {
+        if (field.value.trim()) {
+          clearFieldError(field, errorElement);
+        }
+      });
+    });
+  }
+
+  function validateEditForm(): boolean {
+    const invalidFields: VolunteerRequiredField[] = [];
+    const problemFields: VolunteerRequiredField[] = [];
+    const invalidControls: ValidationControl[] = [];
+
+    const recordField = (
+      field: VolunteerRequiredField,
+      control: ValidationControl | null,
+      errorElement: HTMLElement | null,
+      message = volunteerRequiredFieldMessage(field),
+      problem = false,
+    ) => {
+      if (!control) {
+        return;
+      }
+
+      control.setAttribute("aria-invalid", "true");
+      setControlValidity(control, message);
+      errorElement?.replaceChildren(message);
+      invalidFields.push(field);
+      if (problem) {
+        problemFields.push(field);
+      }
+      invalidControls.push(control);
+    };
+
+    const validateNamedRequiredField = (field: Extract<VolunteerRequiredField, "submitterCallsign" | "submitterName" | "submitterEmail">) => {
+      const control = editForm?.elements.namedItem(field) as HTMLInputElement | null;
+      const errorElement = fieldErrorElement(control);
+
+      if (!control) {
+        return;
+      }
+
+      clearFieldError(control, errorElement);
+
+      if (!control.value.trim()) {
+        recordField(field, control, errorElement);
+      } else if (field === "submitterEmail" && !control.validity.valid) {
+        recordField(field, control, errorElement, "Enter a valid email address.", true);
+      }
+    };
+
+    validateNamedRequiredField("submitterCallsign");
+    validateNamedRequiredField("submitterName");
+    validateNamedRequiredField("submitterEmail");
+
+    const stops = Array.from(editForm?.querySelectorAll<HTMLElement>("[data-stop-card]") ?? []);
+
+    stops.forEach((stop, index) => {
+      const parkInput = stop.querySelector<HTMLInputElement>("[data-park-input]");
+      const parkReference = stop.querySelector<HTMLInputElement>("[data-park-reference]");
+      const parkCombobox = stop.querySelector<HTMLElement>("[data-park-combobox]");
+      const plannedDate = stop.querySelector("[data-planned-date]") as HTMLSelectElement | null;
+      const timeBlock = stop.querySelector("[data-time-block]") as HTMLSelectElement | null;
+
+      if (parkInput && parkReference && parkCombobox) {
+        clearFieldError(parkInput, stopErrorElement(stop, "park"));
+        parkReference.value = selectedParkReference(parkInput.value.trim(), parkCombobox);
+
+        if (!parkReference.value) {
+          recordField(`stop.${index}.park`, parkInput, stopErrorElement(stop, "park"));
+        }
+      }
+
+      if (plannedDate) {
+        clearFieldError(plannedDate, stopErrorElement(stop, "plannedDate"));
+        if (!plannedDate.value) {
+          recordField(`stop.${index}.plannedDate`, plannedDate, stopErrorElement(stop, "plannedDate"));
+        }
+      }
+
+      if (timeBlock) {
+        clearFieldError(timeBlock, stopErrorElement(stop, "timeBlock"));
+        if (!timeBlock.value) {
+          recordField(`stop.${index}.timeBlock`, timeBlock, stopErrorElement(stop, "timeBlock"));
+        }
+      }
+
+      stop.querySelectorAll<HTMLElement>("[data-multi-select]").forEach((multiSelect) => {
+        const toggle = multiSelect.querySelector<HTMLButtonElement>("[data-multi-toggle]");
+        const hasSelection = selectedValues(multiSelect).length > 0;
+        const field = multiSelect.hasAttribute("data-bands")
+          ? `stop.${index}.bands`
+          : `stop.${index}.modes`;
+
+        clearFieldError(toggle, stopErrorElement(stop, multiSelect.hasAttribute("data-bands") ? "bands" : "modes"));
+
+        if (!hasSelection) {
+          recordField(
+            field as VolunteerRequiredField,
+            toggle,
+            stopErrorElement(stop, multiSelect.hasAttribute("data-bands") ? "bands" : "modes"),
+          );
+        }
+      });
+    });
+
+    if (invalidFields.length === 0) {
+      setEditStatus("");
+      return true;
+    }
+
+    const summary = problemFields.length > 0
+      ? formatVolunteerProblemFieldSummary(invalidFields)
+      : formatVolunteerMissingFieldSummary(invalidFields);
+    setEditStatus(summary, "error");
+    const firstInvalidControl = invalidControls[0] ?? null;
+    firstInvalidControl?.focus();
+    reportControlValidity(firstInvalidControl);
+    return false;
   }
 
   function focusActivatorIdentityFields(): void {
@@ -400,6 +547,44 @@ const turnstileSiteKey =
       editConfirmation.showModal();
       editConfirmation.querySelector<HTMLAnchorElement>("[data-edit-confirmation-overview]")?.focus();
     }
+  }
+
+  function renderEditTurnstile(): void {
+    if (!editTurnstile || editTurnstile.hidden || editTurnstile.dataset.rendered === "true") {
+      return;
+    }
+
+    if (editTurnstile.querySelector("iframe")) {
+      editTurnstile.dataset.rendered = "true";
+      return;
+    }
+
+    const sitekey = editTurnstile.dataset.sitekey;
+    if (!sitekey) {
+      return;
+    }
+
+    const turnstile = (
+      window as typeof window & {
+        turnstile?: {
+          render?: (
+            container: string | HTMLElement,
+            options: { sitekey: string; action?: string },
+          ) => string;
+        };
+      }
+    ).turnstile;
+
+    if (!turnstile?.render) {
+      window.setTimeout(renderEditTurnstile, 250);
+      return;
+    }
+
+    turnstile.render(editTurnstile, {
+      sitekey,
+      action: editTurnstile.dataset.action,
+    });
+    editTurnstile.dataset.rendered = "true";
   }
 
   function apiUrl(): string {

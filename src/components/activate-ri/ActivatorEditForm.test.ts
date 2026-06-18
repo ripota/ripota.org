@@ -64,12 +64,26 @@ describe("ActivatorEditForm shared volunteer controls", () => {
     expect(editFormSource).toContain("cf-turnstile");
     expect(editFormSource).toContain("turnstileToken");
     expect(editFormSource).toContain('data.get("cf-turnstile-response")');
+    expect(editFormSource).toContain("renderEditTurnstile();");
+    expect(editFormSource).toContain("turnstile.render(editTurnstile");
+  });
+
+  it("validates edits before posting them", () => {
+    expect(editFormSource).toContain("validateEditForm()");
+    expect(editFormSource).toContain("formatVolunteerMissingFieldSummary");
+    expect(editFormSource).toContain("reportControlValidity(firstInvalidControl)");
   });
 
   it("derives edit start and end times from the shared time block control", () => {
     expect(editFormSource).toContain("timeBlockToRange");
     expect(editFormSource).toContain("startTime: timeRange.startTime");
     expect(editFormSource).toContain("endTime: timeRange.endTime");
+  });
+
+  it("keeps existing plan-level public notes when saving from the edit page", () => {
+    expect(editFormSource).toContain("selectedPlanPublicNotes = stringValue(selectedPlan?.public_notes)");
+    expect(editFormSource).toContain("publicNotes: selectedPlanPublicNotes");
+    expect(editFormSource).not.toContain('publicNotes: ""');
   });
 
   it("does not scroll or focus into the date field after adding a park from the map", () => {
