@@ -87,6 +87,40 @@ describe("Activate RI API acceptance flow", () => {
     ]);
   });
 
+  it("approves plans when the browser URL-encodes the activator id", async () => {
+    const db = createMigratedSqliteD1();
+    cleanup = db.close;
+    const env = testEnv(db.DB);
+
+    const submitResponse = await handleActivateRiApi(
+      jsonRequest("/api/activate-ri-2026/plans", volunteerPayload()),
+      env,
+    );
+    expect(submitResponse.status).toBe(202);
+
+    const pendingResponse = await handleActivateRiApi(
+      adminRequest("/api/activate-ri-2026/admin/plans"),
+      env,
+    );
+    expect(pendingResponse.status).toBe(200);
+    const pendingBody = (await pendingResponse.json()) as {
+      plans: Array<{ id: string }>;
+    };
+    expect(pendingBody.plans).toHaveLength(1);
+    expect(pendingBody.plans[0].id).toContain(":");
+
+    const encodedPlanId = encodeURIComponent(pendingBody.plans[0].id);
+    const approveResponse = await handleActivateRiApi(
+      adminRequest(`/api/activate-ri-2026/admin/plans/${encodedPlanId}/approve`, {
+        method: "POST",
+      }),
+      env,
+    );
+
+    expect(approveResponse.status).toBe(200);
+    await expect(approveResponse.json()).resolves.toEqual({ ok: true });
+  });
+
   it("merges repeated submissions for the same activator into one editable stop list", async () => {
     const db = createMigratedSqliteD1();
     cleanup = db.close;

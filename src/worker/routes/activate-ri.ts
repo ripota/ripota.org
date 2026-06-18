@@ -136,7 +136,12 @@ export async function handleActivateRiApi(
       return identity;
     }
 
-    const result = await approvePlan(env, approveMatch[1], identity.email);
+    const planId = decodePathSegment(approveMatch[1]);
+    if (!planId) {
+      return json({ ok: false, error: "Plan not found" }, { status: 404 });
+    }
+
+    const result = await approvePlan(env, planId, identity.email);
     if (!result.ok) {
       return json(
         { ok: false, error: result.error },
@@ -144,7 +149,7 @@ export async function handleActivateRiApi(
       );
     }
 
-    const plan = await getPlanById(env, approveMatch[1]);
+    const plan = await getPlanById(env, planId);
     if (plan) {
       const emailResult = await sendActivatorApprovalEmail(
         env,
