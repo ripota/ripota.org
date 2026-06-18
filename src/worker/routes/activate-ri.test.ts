@@ -318,9 +318,19 @@ function editDb(options: EditDbOptions = {}): D1Database {
         return {
           plan_id: "plan-1",
           activator_id: "plan-1",
+          email_normalized: "rob@example.com",
+          primary_callsign: "N1RWJ",
           status: options.planStatus ?? "approved",
           start_at: "2026-09-11T09:00:00.000Z",
+          end_at: "2026-09-11T11:00:00.000Z",
           park_reference: "US-2868",
+          bands_json: '["40m","20m"]',
+          modes_json: '["SSB","CW"]',
+          public_notes: "Meet near the trailhead.",
+          organizer_notes: "Confirm parking.",
+          stop_status: "scheduled",
+          created_at: "2026-06-16T12:00:00.000Z",
+          updated_at: "2026-06-16T12:00:00.000Z",
         };
       }),
     };
@@ -779,10 +789,10 @@ describe("handleActivateRiApi", () => {
     const notificationBinds = preparedStatements
       .flatMap((statement) => statement.bind.mock.calls)
       .find((binds) => binds.includes("activator-notification-sent"));
-    expect(notificationBinds).toBeUndefined();
+    expect(notificationBinds).toBeDefined();
   });
 
-  it("does not email activators for band and mode only plan edits", async () => {
+  it("emails activators for band and mode only plan edits", async () => {
     const testEnv = emailEnv();
     testEnv.DB = adminDb({
       planRows: [{ ...pendingPlanRow, status: "pending" }],
@@ -805,7 +815,14 @@ describe("handleActivateRiApi", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(testEnv.EMAIL?.send).not.toHaveBeenCalled();
+    expect(testEnv.EMAIL?.send).toHaveBeenCalledOnce();
+    expect(testEnv.EMAIL?.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "rob@example.com",
+        subject: "Your Activate All RI 2026 plan was updated",
+        text: expect.stringContaining("Status: Pending organizer approval"),
+      }),
+    );
   });
 
   it("emails activators after full plan cancellation", async () => {
@@ -840,7 +857,7 @@ describe("handleActivateRiApi", () => {
     const notificationBinds = preparedStatements
       .flatMap((statement) => statement.bind.mock.calls)
       .find((binds) => binds.includes("activator-notification-sent"));
-    expect(notificationBinds).toBeUndefined();
+    expect(notificationBinds).toBeDefined();
   });
 
   it("records skipped admin notifications when no admin recipients are configured", async () => {
@@ -1651,6 +1668,50 @@ describe("handleActivateRiApi", () => {
     expect(JSON.stringify(updateBinds)).not.toContain(token);
   });
 
+  it("emails activators and logs activity when approved stops are updated", async () => {
+    const testEnv = emailEnv();
+    testEnv.DB = editDb();
+
+    const response = await handleActivateRiApi(
+      patch("/api/activate-ri-2026/edit/magic-token/stops/stop-1", {
+        startTime: "10:00",
+        endTime: "12:00",
+        bands: ["40m", "20m"],
+        modes: ["SSB", "CW"],
+        publicNotes: "Updated trailhead plan.",
+      }),
+      testEnv,
+    );
+
+    expect(response.status).toBe(200);
+    expect(testEnv.EMAIL?.send).toHaveBeenCalledOnce();
+    expect(testEnv.EMAIL?.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "rob@example.com",
+        subject: "Your Activate All RI 2026 plan was updated",
+        text: expect.stringContaining("Status: Live on the public schedule"),
+      }),
+    );
+    expect(testEnv.EMAIL?.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: expect.stringContaining(
+          "- 2026-09-11 09:00-11:00: Beavertail State Park (US-2868)",
+        ),
+      }),
+    );
+
+    const preparedStatements = vi.mocked(testEnv.DB.prepare).mock.results.map(
+      (result) => result.value as { bind: { mock: { calls: unknown[][] } } },
+    );
+    const bindCalls = preparedStatements.flatMap((statement) =>
+      statement.bind.mock.calls
+    );
+    expect(bindCalls.find((binds) => binds.includes("stop-updated"))).toBeDefined();
+    expect(
+      bindCalls.find((binds) => binds.includes("activator-notification-sent")),
+    ).toBeDefined();
+  });
+
   it("cancels approved stops through a hashed edit token", async () => {
     const testEnv = env();
     testEnv.DB = editDb();
@@ -1682,6 +1743,39 @@ describe("handleActivateRiApi", () => {
       expectedHash,
     ]);
     expect(JSON.stringify(cancelBinds)).not.toContain(token);
+  });
+
+  it("emails activators and logs notification activity when approved stops are cancelled", async () => {
+    const testEnv = emailEnv();
+    testEnv.DB = editDb();
+
+    const response = await handleActivateRiApi(
+      post("/api/activate-ri-2026/edit/magic-token/stops/stop-1/cancel", {
+        cancelReason: "Weather.",
+      }),
+      testEnv,
+    );
+
+    expect(response.status).toBe(200);
+    expect(testEnv.EMAIL?.send).toHaveBeenCalledOnce();
+    expect(testEnv.EMAIL?.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "rob@example.com",
+        subject: "Your Activate All RI 2026 plan was updated",
+        text: expect.stringContaining("Status: Live on the public schedule"),
+      }),
+    );
+
+    const preparedStatements = vi.mocked(testEnv.DB.prepare).mock.results.map(
+      (result) => result.value as { bind: { mock: { calls: unknown[][] } } },
+    );
+    const bindCalls = preparedStatements.flatMap((statement) =>
+      statement.bind.mock.calls
+    );
+    expect(bindCalls.find((binds) => binds.includes("stop-cancelled"))).toBeDefined();
+    expect(
+      bindCalls.find((binds) => binds.includes("activator-notification-sent")),
+    ).toBeDefined();
   });
 
   it("notifies admins when an approved stop is cancelled", async () => {

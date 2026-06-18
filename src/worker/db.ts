@@ -56,7 +56,7 @@ export type EditStopFields = {
 };
 
 export type EditStopResult =
-  | { ok: true }
+  | { ok: true; plan: EditablePlanDto }
   | { ok: false; status: 404 | 409; error: string };
 
 export type CancelStopResult =
@@ -168,9 +168,19 @@ type UpdatePlanResult =
 
 type EditStopActivatorRow = {
   activator_id: string;
+  email_normalized: string;
+  primary_callsign: string;
   status: ActivatorStatus;
   start_at: string;
+  end_at: string;
   park_reference: string;
+  bands_json: string;
+  modes_json: string;
+  public_notes: string;
+  organizer_notes: string;
+  stop_status: string;
+  created_at: string;
+  updated_at: string;
 };
 
 type ActivityEventRow = {
@@ -902,7 +912,51 @@ export async function updateStopByToken(
     return { ok: false, status: 404, error: "Stop not found" };
   }
 
-  return { ok: true };
+  await activityInsert(env, {
+    planId: activator.activator_id,
+    stopId,
+    actorType: "activator",
+    actorEmail: activator.email_normalized,
+    action: "stop-updated",
+    summary: `${activator.primary_callsign} updated ${activator.park_reference}.`,
+    details: {
+      previous: stopSnapshot({
+        id: stopId,
+        plan_id: activator.activator_id,
+        activator_id: activator.activator_id,
+        event_id: env.ACTIVATE_RI_EVENT_ID,
+        park_reference: activator.park_reference,
+        planned_date: instantToPlannedDate(activator.start_at),
+        start_time: instantToTime(activator.start_at),
+        end_time: instantToTime(activator.end_at),
+        bands: parseStringArray(activator.bands_json),
+        modes: parseStringArray(activator.modes_json),
+        public_notes: activator.public_notes,
+        organizer_notes: activator.organizer_notes,
+        status: activator.stop_status,
+        created_at: activator.created_at,
+        updated_at: activator.updated_at,
+      }),
+      next: {
+        id: stopId,
+        parkReference: activator.park_reference,
+        plannedDate: instantToPlannedDate(startAt),
+        startTime: fields.startTime,
+        endTime: fields.endTime,
+        bands: fields.bands,
+        modes: fields.modes,
+        publicNotes: fields.publicNotes,
+        status: activator.stop_status,
+      },
+    },
+  }, now).run();
+
+  const editablePlan = await getPlanById(env, activator.activator_id);
+  if (!editablePlan) {
+    return { ok: false, status: 404, error: "Plan not found" };
+  }
+
+  return { ok: true, plan: editablePlan };
 }
 
 export async function cancelStopByToken(
@@ -1084,7 +1138,21 @@ async function findEditStopActivator(
   stopId: string,
 ): Promise<EditStopActivatorRow | null> {
   return env.DB.prepare(
-    `SELECT a.id AS activator_id, a.status, s.start_at, s.park_reference
+    `SELECT
+       a.id AS activator_id,
+       a.email_normalized,
+       a.primary_callsign,
+       a.status,
+       s.start_at,
+       s.end_at,
+       s.park_reference,
+       s.bands_json,
+       s.modes_json,
+       s.public_notes,
+       s.organizer_notes,
+       s.status AS stop_status,
+       s.created_at,
+       s.updated_at
      FROM activate_ri_stops s
      INNER JOIN activate_ri_activators a ON a.id = s.activator_id
      WHERE s.id = ?

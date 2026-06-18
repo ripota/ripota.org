@@ -141,6 +141,7 @@ export async function sendActivatorPlanUpdatedEmail(
   editUrl: string,
 ): Promise<SendEmailResult> {
   const stopLines = planStopSummaryLines(plan, { includeCancelled: false });
+  const statusLabel = planStatusLabel(plan.status);
 
   return sendEmail(env, {
     kind: "activator-plan-updated",
@@ -150,6 +151,8 @@ export async function sendActivatorPlanUpdatedEmail(
       `Hi ${plan.submitter_name || plan.submitter_callsign},`,
       "",
       "We saved your Activate All RI 2026 plan update.",
+      "",
+      `Status: ${statusLabel}`,
       "",
       "Current stops:",
       ...stopLines,
@@ -165,6 +168,7 @@ export async function sendActivatorPlanUpdatedEmail(
     html: [
       `<p>Hi ${escapeHtml(plan.submitter_name || plan.submitter_callsign)},</p>`,
       "<p>We saved your Activate All RI 2026 plan update.</p>",
+      `<p>Status: ${escapeHtml(statusLabel)}</p>`,
       "<p>Current stops:</p>",
       stopSummaryListHtml(stopLines),
       `<p>Private edit link:<br><a href="${escapeHtml(editUrl)}">${escapeHtml(editUrl)}</a></p>`,
@@ -180,6 +184,9 @@ export async function sendActivatorPlanCancelledEmail(
   editUrl: string,
 ): Promise<SendEmailResult> {
   const stopLines = planStopSummaryLines(plan, { includeCancelled: true });
+  const statusLabel = plan.status === "approved"
+    ? "Approved plan with cancelled itinerary"
+    : planStatusLabel("withdrawn");
 
   return sendEmail(env, {
     kind: "activator-plan-cancelled",
@@ -189,6 +196,8 @@ export async function sendActivatorPlanCancelledEmail(
       `Hi ${plan.submitter_name || plan.submitter_callsign},`,
       "",
       "Your Activate All RI 2026 activation plan has been cancelled.",
+      "",
+      `Status: ${statusLabel}`,
       "",
       "Cancelled stops:",
       ...stopLines,
@@ -204,6 +213,7 @@ export async function sendActivatorPlanCancelledEmail(
     html: [
       `<p>Hi ${escapeHtml(plan.submitter_name || plan.submitter_callsign)},</p>`,
       "<p>Your Activate All RI 2026 activation plan has been cancelled.</p>",
+      `<p>Status: ${escapeHtml(statusLabel)}</p>`,
       "<p>Cancelled stops:</p>",
       stopSummaryListHtml(stopLines),
       `<p>Private edit link:<br><a href="${escapeHtml(editUrl)}">${escapeHtml(editUrl)}</a></p>`,
@@ -430,6 +440,18 @@ function adminEmails(env: Env): string[] {
     .split(",")
     .map((email) => email.trim())
     .filter(Boolean);
+}
+
+function planStatusLabel(status: string): string {
+  if (status === "approved") {
+    return "Live on the public schedule";
+  }
+
+  if (status === "withdrawn") {
+    return "Cancelled";
+  }
+
+  return "Pending organizer approval";
 }
 
 const referencesByCode = new Map(

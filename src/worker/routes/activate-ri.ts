@@ -342,6 +342,21 @@ async function handleEditStop(
     );
   }
 
+  const activatorEmailResult = await sendActivatorPlanUpdatedEmail(
+    env,
+    result.plan,
+    absoluteEditUrl(request, token),
+  );
+  await logActivityEvent(env, {
+    planId: result.plan.id,
+    stopId,
+    actorType: "system",
+    actorEmail: result.plan.submitter_email,
+    action: activatorNotificationAction(activatorEmailResult),
+    summary: activatorNotificationSummary(activatorEmailResult, "stop update"),
+    details: emailActivityDetails(activatorEmailResult),
+  });
+
   return json({ ok: true });
 }
 
@@ -382,6 +397,21 @@ async function handleCancelStop(
       { status: result.status },
     );
   }
+
+  const activatorEmailResult = await sendActivatorPlanUpdatedEmail(
+    env,
+    result.plan,
+    absoluteEditUrl(request, token),
+  );
+  await logActivityEvent(env, {
+    planId: result.plan.id,
+    stopId,
+    actorType: "system",
+    actorEmail: result.plan.submitter_email,
+    action: activatorNotificationAction(activatorEmailResult),
+    summary: activatorNotificationSummary(activatorEmailResult, "stop cancellation"),
+    details: emailActivityDetails(activatorEmailResult),
+  });
 
   if (result.highImpactEvents.length > 0) {
     const emailResult = await sendAdminActivityEmail(
@@ -563,45 +593,36 @@ async function handleEditPlanUpdate(
     );
   }
 
-  if (
-    updateResult.highImpactEvents.length > 0 ||
-    updateResult.activatorNotificationEvents.length > 0
-  ) {
-    const plan = await getPlanByTokenHash(env, editTokenHash, planId);
-    if (plan) {
-      if (updateResult.highImpactEvents.length > 0) {
-        const emailResult = await sendAdminActivityEmail(
-          env,
-          plan,
-          updateResult.highImpactEvents,
-        );
-        await logActivityEvent(env, {
-          planId: plan.id,
-          actorType: "system",
-          action: adminNotificationAction(emailResult),
-          summary: adminNotificationSummary(emailResult, "high-impact edit"),
-          details: emailActivityDetails(emailResult, { includeRecipients: true }),
-        });
-      }
-
-      if (updateResult.activatorNotificationEvents.length > 0) {
-        const emailResult = await sendActivatorPlanUpdatedEmail(
-          env,
-          plan,
-          absoluteEditUrl(request, token),
-        );
-        if (emailResult.status !== "sent") {
-          await logActivityEvent(env, {
-            planId: plan.id,
-            actorType: "system",
-            actorEmail: plan.submitter_email,
-            action: activatorNotificationAction(emailResult),
-            summary: activatorNotificationSummary(emailResult, "plan update"),
-            details: emailActivityDetails(emailResult),
-          });
-        }
-      }
+  const plan = await getPlanByTokenHash(env, editTokenHash, planId);
+  if (plan) {
+    if (updateResult.highImpactEvents.length > 0) {
+      const emailResult = await sendAdminActivityEmail(
+        env,
+        plan,
+        updateResult.highImpactEvents,
+      );
+      await logActivityEvent(env, {
+        planId: plan.id,
+        actorType: "system",
+        action: adminNotificationAction(emailResult),
+        summary: adminNotificationSummary(emailResult, "high-impact edit"),
+        details: emailActivityDetails(emailResult, { includeRecipients: true }),
+      });
     }
+
+    const emailResult = await sendActivatorPlanUpdatedEmail(
+      env,
+      plan,
+      absoluteEditUrl(request, token),
+    );
+    await logActivityEvent(env, {
+      planId: plan.id,
+      actorType: "system",
+      actorEmail: plan.submitter_email,
+      action: activatorNotificationAction(emailResult),
+      summary: activatorNotificationSummary(emailResult, "plan update"),
+      details: emailActivityDetails(emailResult),
+    });
   }
 
   return json({ ok: true });
@@ -749,16 +770,14 @@ async function handleCancelPlan(
     activatorEmailPlan,
     absoluteEditUrl(request, token),
   );
-  if (activatorEmailResult.status !== "sent") {
-    await logActivityEvent(env, {
-      planId: activatorEmailPlan.id,
-      actorType: "system",
-      actorEmail: activatorEmailPlan.submitter_email,
-      action: activatorNotificationAction(activatorEmailResult),
-      summary: activatorNotificationSummary(activatorEmailResult, "plan cancellation"),
-      details: emailActivityDetails(activatorEmailResult),
-    });
-  }
+  await logActivityEvent(env, {
+    planId: activatorEmailPlan.id,
+    actorType: "system",
+    actorEmail: activatorEmailPlan.submitter_email,
+    action: activatorNotificationAction(activatorEmailResult),
+    summary: activatorNotificationSummary(activatorEmailResult, "plan cancellation"),
+    details: emailActivityDetails(activatorEmailResult),
+  });
 
   if (result.highImpactEvents.length > 0) {
     const emailResult = await sendAdminActivityEmail(
