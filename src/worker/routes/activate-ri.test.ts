@@ -1517,8 +1517,15 @@ describe("handleActivateRiApi", () => {
       html: string;
       text: string;
     };
+    expect(message.text).toContain("Status: Live on the public schedule");
+    expect(message.text).toContain("Current stops:");
+    expect(message.text).toContain(
+      "- 2026-09-11 09:00-11:00: Beavertail State Park (US-2868)",
+    );
     expect(message.text).toContain("Public schedule:");
     expect(message.text).toContain("https://ripota.org/activate-ri-2026/schedule/");
+    expect(message.html).toContain("Current stops:");
+    expect(message.html).toContain("Beavertail State Park (US-2868)");
     expect(message.html).toContain("https://ripota.org/activate-ri-2026/schedule/");
     const activitySql = vi.mocked(testEnv.DB.prepare).mock.calls
       .map(([sql]) => sql)

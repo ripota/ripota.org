@@ -38,8 +38,13 @@ visible in the admin activity log.
 2. Approval changes the plan to `approved`.
 3. Pending stops are changed to `scheduled`.
 4. A `plan-approved` activity event is written.
-5. Approval does not generate or reveal the edit link. The activator already
-   received it during signup, or can request a resend.
+5. The Worker sends the activator an approval receipt email containing:
+   - the live status (`Live on the public schedule`)
+   - the current saved stop list
+   - the public schedule URL
+   - the activator help URL
+6. Approval does not generate or reveal a new edit link. The activator already
+   received the private link during signup, or can request a resend.
 
 ### Activator edits
 
@@ -52,9 +57,9 @@ visible in the admin activity log.
 5. Approved plans update immediately and the live public schedule/coverage API
    reflects the new D1 data.
 6. Every meaningful edit writes activity events.
-7. Stop add/remove, park changes, date changes, and time changes trigger an
-   activator receipt email with the current saved stop list and private edit
-   link. Band/mode-only edits do not send an activator receipt.
+7. Saved plan edits trigger an activator receipt email with the current saved
+   status, current saved stop list, and private edit link. The route currently
+   sends the same receipt for logistical edits and band/mode-only edits.
 8. High-impact approved-plan changes trigger an admin notification attempt.
    The activity log records `admin-notification-sent`,
    `admin-notification-failed`, or `admin-notification-skipped`.
@@ -62,8 +67,9 @@ visible in the admin activity log.
 High-impact events currently include approved stop removals/cancellations,
 approved park/date changes, and full plan cancellation.
 
-Activator receipt emails, including the initial edit-link email, render stop
-summaries from the saved D1 plan state, sorted by date, start time, park
+Activator receipt emails, including the initial edit-link email, approval email,
+plan-update email, and cancellation email, share one receipt layout. They render
+stop summaries from the saved D1 plan state, sorted by date, start time, park
 reference, and park name:
 
 ```text

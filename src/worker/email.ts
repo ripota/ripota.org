@@ -34,15 +34,17 @@ type SendEmailResult =
       recipientHashes: string[];
     };
 
+type ActivatorEmailPlan = {
+  submitter_callsign: string;
+  submitter_name: string;
+  submitter_email: string;
+  status?: string;
+  stops?: EditablePlanDto["stops"];
+};
+
 export async function sendActivatorEditLinkEmail(
   env: Env,
-  plan: {
-    submitter_callsign: string;
-    submitter_name: string;
-    submitter_email: string;
-    status?: string;
-    stops?: EditablePlanDto["stops"];
-  },
+  plan: ActivatorEmailPlan,
   editUrl: string,
   helpUrl: string,
   options: { requiresAdminApproval?: boolean } = {},
@@ -56,82 +58,45 @@ export async function sendActivatorEditLinkEmail(
     { includeCancelled: false },
   );
 
-  return sendEmail(env, {
+  return sendActivatorReceiptEmail(env, {
     kind: "activator-edit-link",
-    to: plan.submitter_email,
+    plan,
     subject: "Your Activate All RI 2026 edit link",
-    text: [
-      `Hi ${plan.submitter_name || plan.submitter_callsign},`,
-      "",
-      "Your Activate All RI 2026 activation signup was saved.",
-      "",
-      `Status: ${statusLabel}`,
-      "",
-      "Current stops:",
-      ...stopLines,
-      "",
-      "Private edit link:",
-      editUrl,
-      "",
+    introLines: ["Your Activate All RI 2026 activation signup was saved."],
+    statusLabel,
+    stopLines,
+    stopsHeading: "Current stops",
+    editUrl,
+    privateLinkNote:
       "Keep this link private. You can use it to update your plan again if timing or parks change.",
-      "",
-      "Activator help:",
-      helpUrl,
-      "",
-      "73,",
-      "RI POTA",
-    ].join("\n"),
-    html: [
-      `<p>Hi ${escapeHtml(plan.submitter_name || plan.submitter_callsign)},</p>`,
-      "<p>Your Activate All RI 2026 activation signup was saved.</p>",
-      `<p>Status: ${escapeHtml(statusLabel)}</p>`,
-      "<p>Current stops:</p>",
-      stopSummaryListHtml(stopLines),
-      `<p>Private edit link:<br><a href="${escapeHtml(editUrl)}">${escapeHtml(editUrl)}</a></p>`,
-      "<p>Keep this link private. You can use it to update your plan again if timing or parks change.</p>",
-      `<p><a href="${escapeHtml(helpUrl)}">Read the activator help page</a></p>`,
-      "<p>73,<br>RI POTA</p>",
-    ].join(""),
+    helpUrl,
   });
 }
 
 export async function sendActivatorApprovalEmail(
   env: Env,
-  plan: {
-    submitter_callsign: string;
-    submitter_name: string;
-    submitter_email: string;
-  },
+  plan: ActivatorEmailPlan,
   helpUrl: string,
   scheduleUrl: string,
 ): Promise<SendEmailResult> {
-  return sendEmail(env, {
+  const stopLines = planStopSummaryLines(
+    { stops: plan.stops ?? [] },
+    { includeCancelled: false },
+  );
+
+  return sendActivatorReceiptEmail(env, {
     kind: "activator-approval",
-    to: plan.submitter_email,
+    plan,
     subject: "Your Activate All RI 2026 plan is live",
-    text: [
-      `Hi ${plan.submitter_name || plan.submitter_callsign},`,
-      "",
+    introLines: [
       "Your Activate All RI 2026 activation plan is approved and live on the public schedule.",
       "Changes you save later with your private edit link go live immediately.",
-      "",
-      "Public schedule:",
-      scheduleUrl,
-      "",
-      "Activator help:",
-      helpUrl,
-      "",
-      "73,",
-      "RI POTA",
-    ].join("\n"),
-    html: [
-      `<p>Hi ${escapeHtml(plan.submitter_name || plan.submitter_callsign)},</p>`,
-      "<p>Your Activate All RI 2026 activation plan is approved and live on the public schedule.</p>",
-      "<p>Changes you save later with your private edit link go live immediately.</p>",
-      `<p><a href="${escapeHtml(scheduleUrl)}">View the public schedule</a></p>`,
-      `<p><a href="${escapeHtml(helpUrl)}">Read the activator help page</a></p>`,
-      "<p>73,<br>RI POTA</p>",
-    ].join(""),
+    ],
+    statusLabel: "Live on the public schedule",
+    stopLines,
+    stopsHeading: "Current stops",
+    scheduleUrl,
+    helpUrl,
   });
 }
 
@@ -143,38 +108,17 @@ export async function sendActivatorPlanUpdatedEmail(
   const stopLines = planStopSummaryLines(plan, { includeCancelled: false });
   const statusLabel = planStatusLabel(plan.status);
 
-  return sendEmail(env, {
+  return sendActivatorReceiptEmail(env, {
     kind: "activator-plan-updated",
-    to: plan.submitter_email,
+    plan,
     subject: "Your Activate All RI 2026 plan was updated",
-    text: [
-      `Hi ${plan.submitter_name || plan.submitter_callsign},`,
-      "",
-      "We saved your Activate All RI 2026 plan update.",
-      "",
-      `Status: ${statusLabel}`,
-      "",
-      "Current stops:",
-      ...stopLines,
-      "",
-      "Private edit link:",
-      editUrl,
-      "",
+    introLines: ["We saved your Activate All RI 2026 plan update."],
+    statusLabel,
+    stopLines,
+    stopsHeading: "Current stops",
+    editUrl,
+    privateLinkNote:
       "Keep this link private. You can use it to update your plan again if timing or parks change.",
-      "",
-      "73,",
-      "RI POTA",
-    ].join("\n"),
-    html: [
-      `<p>Hi ${escapeHtml(plan.submitter_name || plan.submitter_callsign)},</p>`,
-      "<p>We saved your Activate All RI 2026 plan update.</p>",
-      `<p>Status: ${escapeHtml(statusLabel)}</p>`,
-      "<p>Current stops:</p>",
-      stopSummaryListHtml(stopLines),
-      `<p>Private edit link:<br><a href="${escapeHtml(editUrl)}">${escapeHtml(editUrl)}</a></p>`,
-      "<p>Keep this link private. You can use it to update your plan again if timing or parks change.</p>",
-      "<p>73,<br>RI POTA</p>",
-    ].join(""),
   });
 }
 
@@ -188,38 +132,79 @@ export async function sendActivatorPlanCancelledEmail(
     ? "Approved plan with cancelled itinerary"
     : planStatusLabel("withdrawn");
 
-  return sendEmail(env, {
+  return sendActivatorReceiptEmail(env, {
     kind: "activator-plan-cancelled",
-    to: plan.submitter_email,
+    plan,
     subject: "Your Activate All RI 2026 plan was cancelled",
-    text: [
-      `Hi ${plan.submitter_name || plan.submitter_callsign},`,
-      "",
-      "Your Activate All RI 2026 activation plan has been cancelled.",
-      "",
-      `Status: ${statusLabel}`,
-      "",
-      "Cancelled stops:",
-      ...stopLines,
-      "",
-      "Private edit link:",
-      editUrl,
-      "",
+    introLines: ["Your Activate All RI 2026 activation plan has been cancelled."],
+    statusLabel,
+    stopLines,
+    stopsHeading: "Cancelled stops",
+    editUrl,
+    privateLinkNote:
       "You can use the link if you need to review this signup or submit an updated plan later.",
-      "",
-      "73,",
-      "RI POTA",
-    ].join("\n"),
-    html: [
-      `<p>Hi ${escapeHtml(plan.submitter_name || plan.submitter_callsign)},</p>`,
-      "<p>Your Activate All RI 2026 activation plan has been cancelled.</p>",
-      `<p>Status: ${escapeHtml(statusLabel)}</p>`,
-      "<p>Cancelled stops:</p>",
-      stopSummaryListHtml(stopLines),
-      `<p>Private edit link:<br><a href="${escapeHtml(editUrl)}">${escapeHtml(editUrl)}</a></p>`,
-      "<p>You can use the link if you need to review this signup or submit an updated plan later.</p>",
-      "<p>73,<br>RI POTA</p>",
-    ].join(""),
+  });
+}
+
+function sendActivatorReceiptEmail(
+  env: Env,
+  receipt: {
+    kind:
+      | "activator-edit-link"
+      | "activator-approval"
+      | "activator-plan-updated"
+      | "activator-plan-cancelled";
+    plan: ActivatorEmailPlan;
+    subject: string;
+    introLines: string[];
+    statusLabel: string;
+    stopLines: string[];
+    stopsHeading: string;
+    editUrl?: string;
+    privateLinkNote?: string;
+    helpUrl?: string;
+    scheduleUrl?: string;
+  },
+): Promise<SendEmailResult> {
+  const greetingName = receipt.plan.submitter_name ||
+    receipt.plan.submitter_callsign;
+  const text = [
+    `Hi ${greetingName},`,
+    "",
+    ...receipt.introLines,
+    "",
+    `Status: ${receipt.statusLabel}`,
+    "",
+    `${receipt.stopsHeading}:`,
+    ...receipt.stopLines,
+    "",
+    ...textUrlBlock("Private edit link", receipt.editUrl),
+    ...textLineBlock(receipt.privateLinkNote),
+    ...textUrlBlock("Public schedule", receipt.scheduleUrl),
+    ...textUrlBlock("Activator help", receipt.helpUrl),
+    "73,",
+    "RI POTA",
+  ].join("\n");
+
+  const html = [
+    `<p>Hi ${escapeHtml(greetingName)},</p>`,
+    ...receipt.introLines.map((line) => `<p>${escapeHtml(line)}</p>`),
+    `<p>Status: ${escapeHtml(receipt.statusLabel)}</p>`,
+    `<p>${escapeHtml(receipt.stopsHeading)}:</p>`,
+    stopSummaryListHtml(receipt.stopLines),
+    ...htmlUrlBlock("Private edit link", receipt.editUrl),
+    ...htmlLineBlock(receipt.privateLinkNote),
+    ...htmlUrlBlock("View the public schedule", receipt.scheduleUrl),
+    ...htmlUrlBlock("Read the activator help page", receipt.helpUrl),
+    "<p>73,<br>RI POTA</p>",
+  ].join("");
+
+  return sendEmail(env, {
+    kind: receipt.kind,
+    to: receipt.plan.submitter_email,
+    subject: receipt.subject,
+    text,
+    html,
   });
 }
 
@@ -493,6 +478,24 @@ function stopSummaryListHtml(stopLines: string[]): string {
     ...stopLines.map((line) => `<li>${escapeHtml(line.replace(/^- /, ""))}</li>`),
     "</ul>",
   ].join("");
+}
+
+function textLineBlock(line: string | undefined): string[] {
+  return line ? [line, ""] : [];
+}
+
+function textUrlBlock(label: string, url: string | undefined): string[] {
+  return url ? [`${label}:`, url, ""] : [];
+}
+
+function htmlLineBlock(line: string | undefined): string[] {
+  return line ? [`<p>${escapeHtml(line)}</p>`] : [];
+}
+
+function htmlUrlBlock(label: string, url: string | undefined): string[] {
+  return url
+    ? [`<p><a href="${escapeHtml(url)}">${escapeHtml(label)}</a></p>`]
+    : [];
 }
 
 function escapeHtml(value: string): string {
