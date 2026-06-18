@@ -1,11 +1,11 @@
 {
-  "fingerprint": "dd05f606d0eca578c4960cb884ef6079b0956c33165763097594dc4c8ee48a9a",
-  "generatedAt": "2026-06-18T10:46:49.478Z",
+  "fingerprint": "96cab51cb09788742ec13a4ebcd3c3015679be7004b16d7c5ad7e6a5eb5edfa5",
+  "generatedAt": "2026-06-18T20:38:16.764Z",
   "inputs": {
     "event": "8cc178f0f0d5db0440bcd1b49d73d5f90a09381cb1184330a053143571cde4ba",
     "parks": "e42276b4dfffdef8c927908b5c154a537c4fdee33a511ff1a14d73e6453531c7",
-    "stops": "046749304c0091ae5bd7c7a7deb048215db54a4e2978210bfeca130799a58708",
-    "template": "d5c42b5a4ce14b68c609e3092f3943eb5e3c2ec0e33d49615ebc0c401a6fdfae"
+    "stops": "31489dad79f187063bf0bc046cc651fa3df3c1f178ffbadb34f40a4eaab3492f",
+    "template": "60fbbd2428085752432c004fd50ad3b48fe9cfe619d20364aeb6b38c1f0c9c2c"
   },
   "stopsSource": "remote",
   "stopsUrl": "https://ripota.org/api/activate-ri-2026/public/stops"
