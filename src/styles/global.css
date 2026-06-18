@@ -714,6 +714,16 @@ p {
   min-width: 0;
 }
 
+.event-hero__date {
+  width: fit-content;
+  border-bottom: 3px solid var(--accent);
+  padding-bottom: 0.22rem;
+  color: var(--text-on-hero);
+  font-size: clamp(0.98rem, 1.7vw, 1.18rem);
+  letter-spacing: 0.08em;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.32);
+}
+
 .event-hero h1 {
   max-width: 7.5ch;
   color: var(--text-on-hero);
