@@ -997,6 +997,18 @@ p {
   font-weight: 800;
 }
 
+.event-filter--timezone {
+  grid-column: 1 / -1;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.event-filter--timezone legend {
+  margin-bottom: 0.35rem;
+  padding: 0;
+}
+
 .event-filter__control {
   width: 100%;
   border: 1px solid var(--border-subtle);
@@ -1004,6 +1016,62 @@ p {
   background: var(--surface-raised);
   color: var(--text-primary);
   padding: 0.65rem;
+}
+
+.timezone-segments {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  width: fit-content;
+  max-width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--surface-ink);
+  border-radius: 8px;
+  background: var(--surface-raised);
+}
+
+.timezone-segment {
+  position: relative;
+  display: inline-flex;
+  min-width: 5.75rem;
+  cursor: pointer;
+}
+
+.timezone-segment + .timezone-segment {
+  border-left: 1px solid var(--surface-ink);
+}
+
+.timezone-segment input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.timezone-segment span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 2.7rem;
+  padding: 0.55rem 0.95rem;
+  color: var(--surface-ink);
+  font-weight: 900;
+  line-height: 1;
+  text-align: center;
+}
+
+.timezone-segment input:checked + span {
+  background: var(--surface-ink);
+  color: var(--surface-raised);
+}
+
+.timezone-segment input:focus-visible + span {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: -3px;
 }
 
 .event-table {

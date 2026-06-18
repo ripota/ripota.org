@@ -4,28 +4,38 @@ import {
   timelineOptions,
   uniqueSortedValues,
 } from "../../lib/activate-ri/listing";
-import { activationTimeZoneOptions } from "../../lib/activate-ri/time";
+import { timeZoneOptionForValue } from "../../lib/activate-ri/time";
 import type { PublicParkSummary } from "../../lib/activate-ri/types";
 
 const publicParks = parks as PublicParkSummary[];
 const countyOptions = uniqueSortedValues(
   publicParks.map((park) => (park.counties?.length ? park.counties : ["Unknown county"])),
 );
+const scheduleTimeZoneOptions = ["utc", "eastern", "central", "mountain", "pacific"].map((value) =>
+  timeZoneOptionForValue(value),
+);
 ---
 
 <form class="event-filters" data-event-filters aria-label="Schedule filters">
-  <label class="event-filter">
-    Timezone
-    <select class="event-filter__control" data-timezone>
+  <fieldset class="event-filter event-filter--timezone">
+    <legend>Timezone</legend>
+    <div class="timezone-segments" role="radiogroup" aria-label="Schedule timezone">
       {
-        activationTimeZoneOptions.map((option) => (
-          <option value={option.value} selected={option.value === "eastern"}>
-            {option.label}
-          </option>
+        scheduleTimeZoneOptions.map((option) => (
+          <label class="timezone-segment">
+            <input
+              type="radio"
+              name="schedule-timezone"
+              value={option.value}
+              checked={option.value === "eastern"}
+              data-timezone
+            />
+            <span>{option.label}</span>
+          </label>
         ))
       }
-    </select>
-  </label>
+    </div>
+  </fieldset>
   <label class="event-filter">
     Mode
     <select class="event-filter__control" data-filter="mode">
@@ -97,10 +107,13 @@ const countyOptions = uniqueSortedValues(
     const controls = Array.from(
       filters.querySelectorAll("[data-filter]"),
     ) as unknown as HTMLSelectElement[];
-    const timezoneControl = filters.querySelector("[data-timezone]") as HTMLSelectElement | null;
+    const timezoneControls = Array.from(
+      filters.querySelectorAll<HTMLInputElement>("[data-timezone]"),
+    );
 
-    if (timezoneControl) {
-      timezoneControl.value = timeZoneOptionForValue(new URLSearchParams(window.location.search).get("timezone")).value;
+    const selectedTimezone = timeZoneOptionForValue(new URLSearchParams(window.location.search).get("timezone")).value;
+    for (const control of timezoneControls) {
+      control.checked = control.value === selectedTimezone;
     }
 
     const applyFilters = () => {
@@ -126,12 +139,20 @@ const countyOptions = uniqueSortedValues(
     };
 
     controls.forEach((control) => control.addEventListener("change", applyFilters));
-    timezoneControl?.addEventListener("change", () => {
-      updateTimezoneUrl(timezoneControl.value);
-      applyTimezone(table, timezoneControl.value);
-    });
-    applyTimezone(table, timezoneControl?.value ?? "eastern");
+    timezoneControls.forEach((control) => control.addEventListener("change", () => {
+      if (!control.checked) {
+        return;
+      }
+
+      updateTimezoneUrl(control.value);
+      applyTimezone(table, control.value);
+    }));
+    applyTimezone(table, selectedTimezoneValue(timezoneControls) ?? "eastern");
     applyFilters();
+  }
+
+  function selectedTimezoneValue(controls: HTMLInputElement[]): string | undefined {
+    return controls.find((control) => control.checked)?.value;
   }
 
   async function setupLiveSchedule(table: HTMLTableElement): Promise<void> {
