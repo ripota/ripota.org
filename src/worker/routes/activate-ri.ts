@@ -21,6 +21,7 @@ import {
   listSeenClubs,
   logActivityEvent,
   markEditLinkEmailEvent,
+  markEditLinkSent,
   updatePlanByTokenHash,
   updateStopByToken,
   type EditablePlanSubmission,
@@ -159,22 +160,20 @@ export async function handleActivateRiApi(
         absoluteHelpUrl(request),
         absoluteScheduleUrl(request),
       );
-      await logActivityEvent(env, {
-        planId: plan.id,
-        actorType: "system",
-        actorEmail: plan.submitter_email,
-        action: emailResult.status === "sent"
-          ? "approval-email-sent"
-          : emailResult.status === "skipped"
+      if (emailResult.status !== "sent") {
+        await logActivityEvent(env, {
+          planId: plan.id,
+          actorType: "system",
+          actorEmail: plan.submitter_email,
+          action: emailResult.status === "skipped"
             ? "approval-email-skipped"
             : "approval-email-failed",
-        summary: emailResult.status === "sent"
-          ? `Approval email sent to ${plan.submitter_email}.`
-          : emailResult.status === "skipped"
+          summary: emailResult.status === "skipped"
             ? `Approval email skipped for ${plan.submitter_email}.`
             : `Approval email failed for ${plan.submitter_email}.`,
-        details: emailActivityDetails(emailResult),
-      });
+          details: emailActivityDetails(emailResult),
+        });
+      }
     }
 
     return json({ ok: true });
@@ -456,29 +455,21 @@ async function handlePlanSubmission(
     { requiresAdminApproval: result.requiresAdminApproval },
   );
   if (emailResult.status === "sent") {
-    await markEditLinkEmailEvent(
-      env,
-      result.planId,
-      result.activatorId,
-      validation.value.submitterEmail,
-      "edit-link-sent",
-      `Private edit link sent to ${validation.value.submitterEmail}.`,
-    );
-  } else {
-    await markEditLinkEmailEvent(
-      env,
-      result.planId,
-      result.activatorId,
-      validation.value.submitterEmail,
-      emailResult.status === "skipped"
-        ? "edit-link-send-skipped"
-        : "edit-link-send-failed",
-      emailResult.status === "skipped"
-        ? `Private edit link email skipped for ${validation.value.submitterEmail}.`
-        : `Private edit link email failed for ${validation.value.submitterEmail}.`,
-      emailActivityDetails(emailResult),
-    );
+    await markEditLinkSent(env, result.activatorId);
   }
+  await logActivityEvent(env, {
+    planId: result.planId,
+    actorType: "activator",
+    actorEmail: validation.value.submitterEmail,
+    action: "plan-created",
+    summary: `${validation.value.submitterCallsign} submitted ${validation.value.stops.length} activation stop${validation.value.stops.length === 1 ? "" : "s"}.`,
+    details: {
+      submitterCallsign: validation.value.submitterCallsign,
+      submitterEmail: validation.value.submitterEmail,
+      stopCount: validation.value.stops.length,
+      editLinkEmail: emailActivityDetails(emailResult),
+    },
+  });
 
   if (result.requiresAdminApproval) {
     const adminEmailResult = await sendAdminPendingPlanEmail(env, {
@@ -599,14 +590,16 @@ async function handleEditPlanUpdate(
           plan,
           absoluteEditUrl(request, token),
         );
-        await logActivityEvent(env, {
-          planId: plan.id,
-          actorType: "system",
-          actorEmail: plan.submitter_email,
-          action: activatorNotificationAction(emailResult),
-          summary: activatorNotificationSummary(emailResult, "plan update"),
-          details: emailActivityDetails(emailResult),
-        });
+        if (emailResult.status !== "sent") {
+          await logActivityEvent(env, {
+            planId: plan.id,
+            actorType: "system",
+            actorEmail: plan.submitter_email,
+            action: activatorNotificationAction(emailResult),
+            summary: activatorNotificationSummary(emailResult, "plan update"),
+            details: emailActivityDetails(emailResult),
+          });
+        }
       }
     }
   }
@@ -756,14 +749,16 @@ async function handleCancelPlan(
     activatorEmailPlan,
     absoluteEditUrl(request, token),
   );
-  await logActivityEvent(env, {
-    planId: activatorEmailPlan.id,
-    actorType: "system",
-    actorEmail: activatorEmailPlan.submitter_email,
-    action: activatorNotificationAction(activatorEmailResult),
-    summary: activatorNotificationSummary(activatorEmailResult, "plan cancellation"),
-    details: emailActivityDetails(activatorEmailResult),
-  });
+  if (activatorEmailResult.status !== "sent") {
+    await logActivityEvent(env, {
+      planId: activatorEmailPlan.id,
+      actorType: "system",
+      actorEmail: activatorEmailPlan.submitter_email,
+      action: activatorNotificationAction(activatorEmailResult),
+      summary: activatorNotificationSummary(activatorEmailResult, "plan cancellation"),
+      details: emailActivityDetails(activatorEmailResult),
+    });
+  }
 
   if (result.highImpactEvents.length > 0) {
     const emailResult = await sendAdminActivityEmail(

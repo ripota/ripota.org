@@ -365,9 +365,9 @@ describe("handleActivateRiApi", () => {
       ok: true,
       message: "Submission received for organizer review.",
     });
-    expect(testEnv.DB.batch).toHaveBeenCalledTimes(2);
+    expect(testEnv.DB.batch).toHaveBeenCalledOnce();
     const insertStatements = vi.mocked(testEnv.DB.batch).mock.calls[0][0];
-    expect(insertStatements).toHaveLength(4);
+    expect(insertStatements).toHaveLength(3);
 
     const stopInsertSql = vi.mocked(testEnv.DB.prepare).mock.calls
       .map(([sql]) => sql)
@@ -377,6 +377,20 @@ describe("handleActivateRiApi", () => {
       columns: 13,
       values: 13,
     });
+    const preparedStatements = vi.mocked(testEnv.DB.prepare).mock.results.map(
+      (result) => result.value as { bind: { mock: { calls: unknown[][] } } },
+    );
+    const planCreatedBinds = preparedStatements
+      .flatMap((statement) => statement.bind.mock.calls)
+      .find((binds) => binds.includes("plan-created"));
+    expect(planCreatedBinds).toBeDefined();
+    const actionIndex = planCreatedBinds?.indexOf("plan-created") ?? -1;
+    expect(JSON.parse(String(planCreatedBinds?.[actionIndex + 2]))).toEqual(
+      expect.objectContaining({
+        editLinkEmail: expect.objectContaining({ status: "skipped" }),
+        stopCount: 1,
+      }),
+    );
   });
 
   it("sends activators an edit link email with help and approval guidance", async () => {
@@ -625,7 +639,7 @@ describe("handleActivateRiApi", () => {
       ok: true,
       message: "Submission received for organizer review.",
     });
-    expect(testEnv.DB.batch).toHaveBeenCalledTimes(2);
+    expect(testEnv.DB.batch).toHaveBeenCalledOnce();
     expect(fetch).toHaveBeenCalledOnce();
 
     const [url, init] = fetch.mock.calls[0] as unknown as [
@@ -765,7 +779,7 @@ describe("handleActivateRiApi", () => {
     const notificationBinds = preparedStatements
       .flatMap((statement) => statement.bind.mock.calls)
       .find((binds) => binds.includes("activator-notification-sent"));
-    expect(notificationBinds).toBeDefined();
+    expect(notificationBinds).toBeUndefined();
   });
 
   it("does not email activators for band and mode only plan edits", async () => {
@@ -826,7 +840,7 @@ describe("handleActivateRiApi", () => {
     const notificationBinds = preparedStatements
       .flatMap((statement) => statement.bind.mock.calls)
       .find((binds) => binds.includes("activator-notification-sent"));
-    expect(notificationBinds).toBeDefined();
+    expect(notificationBinds).toBeUndefined();
   });
 
   it("records skipped admin notifications when no admin recipients are configured", async () => {
@@ -1492,7 +1506,7 @@ describe("handleActivateRiApi", () => {
     const activitySql = vi.mocked(testEnv.DB.prepare).mock.calls
       .map(([sql]) => sql)
       .filter((sql) => sql.includes("INSERT INTO activate_ri_activity_events"));
-    expect(activitySql.length).toBeGreaterThanOrEqual(2);
+    expect(activitySql).toHaveLength(1);
   });
 
   it("returns 409 without scheduling stops or audit when the plan transition loses a race", async () => {

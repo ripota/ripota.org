@@ -354,14 +354,47 @@
       return;
     }
 
+    const visibleEvents = compactActivityEvents(events);
     activityList.replaceChildren();
-    if (events.length === 0) {
+    if (visibleEvents.length === 0) {
       activityStatus.replaceChildren("No activity events yet.");
       return;
     }
 
-    activityStatus.replaceChildren(`${events.length} recent event${events.length === 1 ? "" : "s"}.`);
-    activityList.replaceChildren(...events.map(createActivityCard));
+    activityStatus.replaceChildren(`${visibleEvents.length} recent event${visibleEvents.length === 1 ? "" : "s"}.`);
+    activityList.replaceChildren(...visibleEvents.map(createActivityCard));
+  }
+
+  function compactActivityEvents(events: ActivityEvent[]): ActivityEvent[] {
+    return events.filter((event) => !hasCanonicalActivityEvent(event, events));
+  }
+
+  function hasCanonicalActivityEvent(event: ActivityEvent, events: ActivityEvent[]): boolean {
+    const action = stringValue(event.action);
+    const planId = stringValue(event.plan_id);
+    if (!planId || !routineEmailActionAnchors.has(action)) {
+      return false;
+    }
+
+    const eventTime = Date.parse(stringValue(event.created_at));
+    if (!Number.isFinite(eventTime)) {
+      return false;
+    }
+
+    const anchorActions = routineEmailActionAnchors.get(action) ?? new Set<string>();
+    return events.some((candidate) => {
+      if (candidate === event || stringValue(candidate.plan_id) !== planId) {
+        return false;
+      }
+
+      const candidateAction = stringValue(candidate.action);
+      if (!anchorActions.has(candidateAction)) {
+        return false;
+      }
+
+      const candidateTime = Date.parse(stringValue(candidate.created_at));
+      return Number.isFinite(candidateTime) && Math.abs(candidateTime - eventTime) <= 2000;
+    });
   }
 
   function createActivityCard(event: ActivityEvent) {
@@ -432,6 +465,22 @@
   function formatAction(action: string): string {
     return action.replaceAll("-", " ") || "activity";
   }
+
+  const routineEmailActionAnchors = new Map<string, Set<string>>([
+    ["edit-link-sent", new Set(["plan-created"])],
+    ["approval-email-sent", new Set(["plan-approved"])],
+    [
+      "activator-notification-sent",
+      new Set([
+        "plan-updated",
+        "stop-updated",
+        "stop-added",
+        "stop-withdrawn",
+        "plan-cancelled",
+        "stop-cancelled",
+      ]),
+    ],
+  ]);
 
   function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);

@@ -265,19 +265,6 @@ export async function insertPendingPlan(
     );
   }
 
-  statements.push(activityInsert(env, {
-    planId: activatorId,
-    actorType: "activator",
-    actorEmail: submission.submitterEmail,
-    action: "plan-created",
-    summary: `${submission.submitterCallsign} submitted ${submission.stops.length} activation stop${submission.stops.length === 1 ? "" : "s"}.`,
-    details: {
-      submitterCallsign: submission.submitterCallsign,
-      submitterEmail: submission.submitterEmail,
-      stopCount: submission.stops.length,
-    },
-  }, now));
-
   await env.DB.batch(statements);
 
   return {
@@ -1001,6 +988,20 @@ export async function cancelStopByToken(
   return { ok: true, plan: editablePlan, highImpactEvents: [highImpactEvent] };
 }
 
+export async function markEditLinkSent(
+  env: Env,
+  activatorId: string,
+  now = new Date().toISOString(),
+): Promise<void> {
+  await env.DB.prepare(
+    `UPDATE activate_ri_activators
+     SET magic_link_sent_at = COALESCE(magic_link_sent_at, ?),
+         last_magic_link_sent_at = ?,
+         updated_at = ?
+     WHERE id = ? AND event_id = ?`,
+  ).bind(now, now, now, activatorId, env.ACTIVATE_RI_EVENT_ID).run();
+}
+
 export async function markEditLinkEmailEvent(
   env: Env,
   planId: string | undefined,
@@ -1027,15 +1028,7 @@ export async function markEditLinkEmailEvent(
   ];
 
   if (action === "edit-link-sent") {
-    statements.push(
-      env.DB.prepare(
-        `UPDATE activate_ri_activators
-         SET magic_link_sent_at = COALESCE(magic_link_sent_at, ?),
-             last_magic_link_sent_at = ?,
-             updated_at = ?
-         WHERE id = ? AND event_id = ?`,
-      ).bind(now, now, now, activatorId, env.ACTIVATE_RI_EVENT_ID),
-    );
+    statements.push(markEditLinkSentStatement(env, activatorId, now));
   } else if (action === "edit-link-resent") {
     statements.push(
       env.DB.prepare(
@@ -1048,6 +1041,20 @@ export async function markEditLinkEmailEvent(
   }
 
   await env.DB.batch(statements);
+}
+
+function markEditLinkSentStatement(
+  env: Env,
+  activatorId: string,
+  now: string,
+): D1PreparedStatement {
+  return env.DB.prepare(
+    `UPDATE activate_ri_activators
+     SET magic_link_sent_at = COALESCE(magic_link_sent_at, ?),
+         last_magic_link_sent_at = ?,
+         updated_at = ?
+     WHERE id = ? AND event_id = ?`,
+  ).bind(now, now, now, activatorId, env.ACTIVATE_RI_EVENT_ID);
 }
 
 export async function logActivityEvent(
