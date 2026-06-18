@@ -15,4 +15,16 @@ describe("activityDetailEntries", () => {
       next: { publicNotes: "" },
     })).toEqual([["Public Notes", "Meet near the trailhead. -> None"]]);
   });
+
+  it("labels admin email recipients without exposing hash terminology", () => {
+    expect(activityDetailEntries({
+      status: "sent",
+      recipientsCount: 2,
+      recipients: ["admin@example.com", "organizer@example.com"],
+    })).toEqual([
+      ["Status", "sent"],
+      ["Recipients Count", "2"],
+      ["Recipients", "admin@example.com, organizer@example.com"],
+    ]);
+  });
 });

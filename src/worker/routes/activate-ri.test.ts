@@ -698,6 +698,32 @@ describe("handleActivateRiApi", () => {
     );
   });
 
+  it("records admin notification recipient emails in admin activity details", async () => {
+    const testEnv = emailEnv();
+    testEnv.ACTIVATE_RI_ADMIN_EMAILS = "admin@example.com, organizer@example.com";
+
+    const response = await handleActivateRiApi(
+      post("/api/activate-ri-2026/plans", validPayload()),
+      testEnv,
+    );
+
+    expect(response.status).toBe(202);
+    const preparedStatements = vi.mocked(testEnv.DB.prepare).mock.results.map(
+      (result) => result.value as { bind: { mock: { calls: unknown[][] } } },
+    );
+    const notificationBinds = preparedStatements
+      .flatMap((statement) => statement.bind.mock.calls)
+      .find((binds) => binds.includes("admin-notification-sent"));
+    expect(notificationBinds).toBeDefined();
+    const actionIndex = notificationBinds?.indexOf("admin-notification-sent") ?? -1;
+    expect(JSON.parse(String(notificationBinds?.[actionIndex + 2]))).toEqual(
+      expect.objectContaining({
+        recipients: ["admin@example.com", "organizer@example.com"],
+        recipientsCount: 2,
+      }),
+    );
+  });
+
   it("requires Turnstile for activator plan cancellation when configured", async () => {
     const testEnv = turnstileEnv();
 

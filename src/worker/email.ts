@@ -7,6 +7,7 @@ type SendEmailResult =
       status: "sent";
       attemptId: string;
       recipientsCount: number;
+      recipients: string[];
       recipientHashes: string[];
     }
   | {
@@ -19,6 +20,7 @@ type SendEmailResult =
         | "no-admin-recipients"
         | "no-trigger-events";
       recipientsCount: number;
+      recipients: string[];
       recipientHashes: string[];
     }
   | {
@@ -27,6 +29,7 @@ type SendEmailResult =
       attemptId: string;
       error: string;
       recipientsCount: number;
+      recipients: string[];
       recipientHashes: string[];
     };
 
@@ -217,6 +220,7 @@ async function sendEmail(
       kind: message.kind,
       reason: "email-binding-missing",
       recipientsCount: recipients.length,
+      recipients,
       recipientHashes,
       subject: message.subject,
     });
@@ -231,6 +235,7 @@ async function sendEmail(
       kind: message.kind,
       reason: "email-sender-missing",
       recipientsCount: recipients.length,
+      recipients,
       recipientHashes,
       subject: message.subject,
     });
@@ -253,6 +258,7 @@ async function sendEmail(
       attemptId,
       kind: message.kind,
       recipientsCount: recipients.length,
+      recipients,
       recipientHashes,
       subject: message.subject,
     });
@@ -264,6 +270,7 @@ async function sendEmail(
       kind: message.kind,
       error: error instanceof Error ? error.message : "Email send failed.",
       recipientsCount: recipients.length,
+      recipients,
       recipientHashes,
       subject: message.subject,
     });
@@ -282,6 +289,7 @@ async function skippedEmail(
     kind,
     reason,
     recipientsCount: recipients.length,
+    recipients,
     recipientHashes: await emailHashes(recipients),
   });
 }

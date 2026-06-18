@@ -394,7 +394,7 @@ async function handleCancelStop(
       actorType: "system",
       action: adminNotificationAction(emailResult),
       summary: adminNotificationSummary(emailResult, "stop cancellation"),
-      details: emailActivityDetails(emailResult),
+      details: emailActivityDetails(emailResult, { includeRecipients: true }),
     });
   }
 
@@ -485,7 +485,7 @@ async function handlePlanSubmission(
       actorType: "system",
       action: adminNotificationAction(adminEmailResult),
       summary: adminNotificationSummary(adminEmailResult, "pending submission"),
-      details: emailActivityDetails(adminEmailResult),
+      details: emailActivityDetails(adminEmailResult, { includeRecipients: true }),
     });
   }
 
@@ -579,7 +579,7 @@ async function handleEditPlanUpdate(
         actorType: "system",
         action: adminNotificationAction(emailResult),
         summary: adminNotificationSummary(emailResult, "high-impact edit"),
-        details: emailActivityDetails(emailResult),
+        details: emailActivityDetails(emailResult, { includeRecipients: true }),
       });
     }
   }
@@ -731,7 +731,7 @@ async function handleCancelPlan(
       actorType: "system",
       action: adminNotificationAction(emailResult),
       summary: adminNotificationSummary(emailResult, "plan cancellation"),
-      details: emailActivityDetails(emailResult),
+      details: emailActivityDetails(emailResult, { includeRecipients: true }),
     });
   }
 
@@ -995,6 +995,7 @@ type EmailActivityResult =
       status: "sent";
       attemptId: string;
       recipientsCount: number;
+      recipients: string[];
       recipientHashes: string[];
     }
   | {
@@ -1003,6 +1004,7 @@ type EmailActivityResult =
       attemptId: string;
       reason: string;
       recipientsCount: number;
+      recipients: string[];
       recipientHashes: string[];
     }
   | {
@@ -1011,6 +1013,7 @@ type EmailActivityResult =
       attemptId: string;
       error: string;
       recipientsCount: number;
+      recipients: string[];
       recipientHashes: string[];
     };
 
@@ -1043,12 +1046,15 @@ function adminNotificationSummary(
 
 function emailActivityDetails(
   result: EmailActivityResult,
+  options: { includeRecipients?: boolean } = {},
 ): Record<string, unknown> {
   return {
     emailAttemptId: result.attemptId,
     status: result.status,
     recipientsCount: result.recipientsCount,
-    recipientHashes: result.recipientHashes,
+    ...(options.includeRecipients
+      ? { recipients: result.recipients }
+      : { recipientHashes: result.recipientHashes }),
     ...(result.status === "skipped" ? { reason: result.reason } : {}),
     ...(result.status === "failed" ? { error: result.error } : {}),
   };
