@@ -122,6 +122,9 @@ function setupParkCombobox(stop: HTMLElement, validatePark: boolean): void {
       }
     }
     filterParkOptions(parkCombobox, parkInput.value);
+    if (document.activeElement === parkInput) {
+      setParkPopupOpen(parkCombobox, true);
+    }
   };
 
   parkInput.onfocus = () => {

@@ -40,6 +40,11 @@ describe("ActivatorEditForm shared volunteer controls", () => {
     expect(formClientSource).toContain("setMultiSelectOpen");
   });
 
+  it("reopens the park picker when typing into a focused dynamically added stop", () => {
+    expect(formClientSource).toContain("if (document.activeElement === parkInput)");
+    expect(formClientSource).toContain("setParkPopupOpen(parkCombobox, true)");
+  });
+
   it("does not ask activators to choose between submitted plans", () => {
     expect(editFormSource).not.toContain("data-plan-picker");
     expect(editFormSource).not.toContain("data-plan-select");
