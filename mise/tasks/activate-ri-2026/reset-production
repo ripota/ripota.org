@@ -11,13 +11,11 @@ wrangler=(npx wrangler)
 base_env=(--env "")
 
 reset_sql="
-BEGIN TRANSACTION;
 DELETE FROM activate_ri_edit_tokens;
 DELETE FROM activate_ri_activity_events;
 DELETE FROM activate_ri_audit_events;
 DELETE FROM activate_ri_stops;
 DELETE FROM activate_ri_activators;
-COMMIT;
 "
 
 verify_sql="
