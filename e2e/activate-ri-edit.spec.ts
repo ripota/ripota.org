@@ -71,6 +71,38 @@ test("activator edit link shows one merged stop list for repeated submissions", 
   }
 });
 
+test("activator edit map add activation scrolls to identity fields and skips duplicate parks", async ({
+  page,
+}) => {
+  const server = await startActivateRiServer();
+  const callsign = randomCallsign();
+  const email = `${callsign.toLowerCase()}@example.com`;
+
+  try {
+    const editUrl = await submitVolunteerStop(page, server.origin, {
+      callsign,
+      email,
+      park: "US-2868",
+      date: "2026-09-11",
+      timeBlock: "13:00-16:00",
+      band: "40m",
+      mode: "SSB",
+    });
+
+    await page.goto(editUrl);
+    await expect(page.getByLabel(/Callsign/).first()).toHaveValue(callsign);
+    await expectParkReferences(page, ["US-2868"]);
+
+    await addParkFromMap(page, "US-2868");
+
+    await expect(page.getByLabel(/Callsign/).first()).toBeFocused();
+    await expect(page.locator("[data-stop-card]")).toHaveCount(1);
+    await expectParkReferences(page, ["US-2868"]);
+  } finally {
+    await server.stop();
+  }
+});
+
 async function approvePendingActivator(
   request: APIRequestContext,
   origin: string,
@@ -187,6 +219,26 @@ async function submitVolunteerStop(
   expect(submitBody.editUrl).toBeTruthy();
 
   return submitBody.editUrl ?? "";
+}
+
+async function addParkFromMap(page: Page, reference: string): Promise<void> {
+  await page.evaluate((selectedReference) => {
+    document.dispatchEvent(
+      new CustomEvent("activate-ri:add-park", {
+        detail: { reference: selectedReference },
+      }),
+    );
+  }, reference);
+}
+
+async function expectParkReferences(page: Page, references: string[]): Promise<void> {
+  await expect
+    .poll(async () =>
+      page.locator("[data-park-reference]").evaluateAll((fields) =>
+        fields.map((field) => (field as HTMLInputElement).value),
+      ),
+    )
+    .toEqual(references);
 }
 
 function randomCallsign(): string {

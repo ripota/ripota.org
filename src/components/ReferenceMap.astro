@@ -461,7 +461,7 @@ const payload = JSON.stringify({
     const volunteerAction =
       payload.variant === "volunteer"
         ? `<button class="map-popup__action" type="button" data-map-add-activation data-reference="${escapeHtml(item.reference)}">Add activation</button>`
-        : `<a href="/activate-ri-2026/volunteer/">Volunteer for this park</a>`;
+        : `<a href="/activate-ri-2026/volunteer/?park=${encodeURIComponent(item.reference)}">Volunteer for this park</a>`;
 
     return `
       <strong>${escapeHtml(item.reference)}</strong>

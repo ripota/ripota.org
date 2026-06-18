@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { startActivateRiServer } from "./helpers/activate-ri-server";
 
 test.setTimeout(60_000);
@@ -132,6 +132,49 @@ test("volunteer can submit a plan that can be approved and shown publicly", asyn
     await server.stop();
   }
 });
+
+test("volunteer map add activation scrolls to identity fields and skips duplicate parks", async ({
+  page,
+}) => {
+  const server = await startActivateRiServer();
+
+  try {
+    await page.goto(`${server.origin}/activate-ri-2026/volunteer/`);
+
+    await addParkFromVolunteerMap(page, "US-2868");
+
+    await expect(page.getByLabel(/Callsign/).first()).toBeFocused();
+    await expectParkReferences(page, ["US-2868"]);
+
+    await addParkFromVolunteerMap(page, "US-2868");
+
+    await expect(page.getByLabel(/Callsign/).first()).toBeFocused();
+    await expect(page.locator("[data-stop-card]")).toHaveCount(1);
+    await expectParkReferences(page, ["US-2868"]);
+  } finally {
+    await server.stop();
+  }
+});
+
+async function addParkFromVolunteerMap(page: Page, reference: string): Promise<void> {
+  await page.evaluate((selectedReference) => {
+    document.dispatchEvent(
+      new CustomEvent("activate-ri:add-park", {
+        detail: { reference: selectedReference },
+      }),
+    );
+  }, reference);
+}
+
+async function expectParkReferences(page: Page, references: string[]): Promise<void> {
+  await expect
+    .poll(async () =>
+      page.locator("[data-park-reference]").evaluateAll((fields) =>
+        fields.map((field) => (field as HTMLInputElement).value),
+      ),
+    )
+    .toEqual(references);
+}
 
 function randomCallsign(): string {
   const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";

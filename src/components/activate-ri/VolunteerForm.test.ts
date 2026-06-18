@@ -22,3 +22,18 @@ describe("VolunteerForm existing activation hint", () => {
     expect(volunteerFormSource).toContain("You can also keep going here; submitting this form will merge these parks into your existing plan.");
   });
 });
+
+describe("VolunteerForm park prefill workflow", () => {
+  it("scrolls URL park prefill to the first identity field", () => {
+    expect(volunteerFormSource).toContain(
+      "addParkReferenceToForm(reference.toUpperCase(), { silentInvalid: true, focusIdentity: true });",
+    );
+    expect(volunteerFormSource).toContain("focusVolunteerIdentityFields();");
+  });
+
+  it("does not scroll or focus into the date field after adding a park", () => {
+    expect(volunteerFormSource).not.toContain(
+      'targetStop.scrollIntoView({ behavior: "smooth", block: "center" });\n    (targetStop.querySelector("[data-planned-date]") as HTMLSelectElement | null)?.focus();',
+    );
+  });
+});

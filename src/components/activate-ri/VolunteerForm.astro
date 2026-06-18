@@ -161,7 +161,7 @@ const turnstileSiteKey =
       return;
     }
 
-    addParkReferenceToForm(reference);
+    addParkReferenceToForm(reference, { focusIdentity: true });
   });
 
   form?.addEventListener("submit", async (event) => {
@@ -553,32 +553,55 @@ const turnstileSiteKey =
       return;
     }
 
-    addParkReferenceToForm(reference.toUpperCase(), { silentInvalid: true });
+    addParkReferenceToForm(reference.toUpperCase(), { silentInvalid: true, focusIdentity: true });
   }
 
-  function addParkReferenceToForm(reference: string, options: { silentInvalid?: boolean } = {}): void {
+  function addParkReferenceToForm(reference: string, options: { focusIdentity?: boolean; silentInvalid?: boolean } = {}): void {
+    const normalizedReference = reference.trim().toUpperCase();
+
+    if (parkReferenceAlreadySelected(normalizedReference)) {
+      if (options.focusIdentity) {
+        focusVolunteerIdentityFields();
+      }
+      setFormStatus(`${normalizedReference} is already in the activation plan.`);
+      return;
+    }
+
     const targetStop = firstEmptyStopCard() ?? appendBlankStop();
     if (!targetStop) {
       return;
     }
 
-    const selected = selectParkReference(targetStop, reference);
+    const selected = selectParkReference(targetStop, normalizedReference);
     if (!selected) {
       if (!options.silentInvalid) {
-        setFormStatus(`Could not find ${reference} in the park list.`, "error");
+        setFormStatus(`Could not find ${normalizedReference} in the park list.`, "error");
       }
       return;
     }
 
     setupStopCards();
-    targetStop.scrollIntoView({ behavior: "smooth", block: "center" });
-    (targetStop.querySelector("[data-planned-date]") as HTMLSelectElement | null)?.focus();
-    setFormStatus(`${reference} added to the activation plan. Choose the date, time, bands, and modes before submitting.`);
+    if (options.focusIdentity) {
+      focusVolunteerIdentityFields();
+    }
+    setFormStatus(`${normalizedReference} added to the activation plan. Choose the date, time, bands, and modes before submitting.`);
+  }
+
+  function focusVolunteerIdentityFields(): void {
+    form?.scrollIntoView({ behavior: "smooth", block: "start" });
+    (form?.elements.namedItem("submitterCallsign") as HTMLInputElement | null)?.focus({
+      preventScroll: true,
+    });
   }
 
   function firstEmptyStopCard(): HTMLElement | null {
     return Array.from(document.querySelectorAll<HTMLElement>("[data-stop-card]"))
       .find((stop) => !stop.querySelector<HTMLInputElement>("[data-park-reference]")?.value) ?? null;
+  }
+
+  function parkReferenceAlreadySelected(reference: string): boolean {
+    return Array.from(document.querySelectorAll<HTMLInputElement>("[data-park-reference]"))
+      .some((field) => field.value.toUpperCase() === reference);
   }
 
   function selectParkReference(stop: HTMLElement, reference: string): boolean {

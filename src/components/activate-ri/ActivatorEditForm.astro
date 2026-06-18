@@ -174,7 +174,7 @@ const turnstileSiteKey =
       return;
     }
 
-    addParkReferenceToForm(reference);
+    addParkReferenceToForm(reference, { focusIdentity: true });
   });
 
   editForm?.addEventListener("submit", async (event) => {
@@ -471,27 +471,50 @@ const turnstileSiteKey =
     }
   }
 
-  function addParkReferenceToForm(reference: string): void {
+  function addParkReferenceToForm(reference: string, options: { focusIdentity?: boolean } = {}): void {
+    const normalizedReference = reference.trim().toUpperCase();
+
+    if (parkReferenceAlreadySelected(normalizedReference)) {
+      if (options.focusIdentity) {
+        focusActivatorIdentityFields();
+      }
+      editStatus?.replaceChildren(`${normalizedReference} is already in the activation plan.`);
+      return;
+    }
+
     const targetStop = firstEmptyStopCard() ?? appendStop({});
     if (!targetStop) {
       return;
     }
 
-    const selected = selectParkReference(targetStop, reference.toUpperCase());
+    const selected = selectParkReference(targetStop, normalizedReference);
     if (!selected) {
-      editStatus?.replaceChildren(`Could not find ${reference} in the park list.`);
+      editStatus?.replaceChildren(`Could not find ${normalizedReference} in the park list.`);
       return;
     }
 
     setupStopCards();
-    targetStop.scrollIntoView({ behavior: "smooth", block: "center" });
-    (targetStop.querySelector("[data-planned-date]") as HTMLSelectElement | null)?.focus();
-    editStatus?.replaceChildren(`${reference.toUpperCase()} added to the activation plan. Choose the date, time, bands, and modes before saving.`);
+    if (options.focusIdentity) {
+      focusActivatorIdentityFields();
+    }
+    editStatus?.replaceChildren(`${normalizedReference} added to the activation plan. Choose the date, time, bands, and modes before saving.`);
   }
 
   function firstEmptyStopCard(): HTMLElement | null {
     return Array.from(document.querySelectorAll<HTMLElement>("[data-stop-card]"))
       .find((stop) => !stop.querySelector<HTMLInputElement>("[data-park-reference]")?.value) ?? null;
+  }
+
+  function focusActivatorIdentityFields(): void {
+    editForm?.scrollIntoView({ behavior: "smooth", block: "start" });
+    (editForm?.elements.namedItem("submitterCallsign") as HTMLInputElement | null)?.focus({
+      preventScroll: true,
+    });
+  }
+
+  function parkReferenceAlreadySelected(reference: string): boolean {
+    return Array.from(document.querySelectorAll<HTMLInputElement>("[data-park-reference]"))
+      .some((field) => field.value.toUpperCase() === reference);
   }
 
   function selectParkReference(stop: HTMLElement, reference: string): boolean {

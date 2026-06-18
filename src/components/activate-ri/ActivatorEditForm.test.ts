@@ -37,4 +37,10 @@ describe("ActivatorEditForm shared volunteer controls", () => {
     expect(editFormSource).toContain("startTime: timeRange.startTime");
     expect(editFormSource).toContain("endTime: timeRange.endTime");
   });
+
+  it("does not scroll or focus into the date field after adding a park from the map", () => {
+    expect(editFormSource).not.toContain(
+      'targetStop.scrollIntoView({ behavior: "smooth", block: "center" });\n    (targetStop.querySelector("[data-planned-date]") as HTMLSelectElement | null)?.focus();',
+    );
+  });
 });
