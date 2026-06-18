@@ -1,10 +1,11 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type APIRequestContext, type Page, test } from "@playwright/test";
 import { startActivateRiServer } from "./helpers/activate-ri-server";
 
 test.setTimeout(60_000);
 
 test("activator edit link shows one merged stop list for repeated submissions", async ({
   page,
+  request,
 }) => {
   const server = await startActivateRiServer();
   const callsign = randomCallsign();
@@ -20,6 +21,7 @@ test("activator edit link shows one merged stop list for repeated submissions", 
       band: "40m",
       mode: "SSB",
     });
+    await approvePendingActivator(request, server.origin, callsign, email);
 
     const secondEditUrl = await submitVolunteerStop(page, server.origin, {
       callsign,
@@ -31,6 +33,27 @@ test("activator edit link shows one merged stop list for repeated submissions", 
       mode: "CW",
     });
     expect(secondEditUrl).not.toBe(firstEditUrl);
+    await expectPublicStops(request, server.origin, callsign, [
+      "US-2868",
+      "US-2869",
+    ]);
+
+    await page.route("**/api/activate-ri-2026/public/stops", async (route) => {
+      const headers = {
+        ...route.request().headers(),
+        "cache-control": "no-cache",
+      };
+      await route.continue({ headers });
+    });
+    await page.goto(`${server.origin}/activate-ri-2026/schedule/`);
+    const firstScheduleRow = page.getByRole("row", {
+      name: new RegExp(`US-2868.*${callsign}`),
+    });
+    const secondScheduleRow = page.getByRole("row", {
+      name: new RegExp(`US-2869.*${callsign}`),
+    });
+    await expect(firstScheduleRow).toContainText("Scheduled");
+    await expect(secondScheduleRow).toContainText("Scheduled");
 
     await page.goto(secondEditUrl);
 
@@ -47,6 +70,78 @@ test("activator edit link shows one merged stop list for repeated submissions", 
     await server.stop();
   }
 });
+
+async function approvePendingActivator(
+  request: APIRequestContext,
+  origin: string,
+  callsign: string,
+  email: string,
+): Promise<void> {
+  const pendingResponse = await request.get(
+    `${origin}/api/activate-ri-2026/admin/plans`,
+    {
+      headers: {
+        "Cf-Access-Authenticated-User-Email": "local-admin@ripota.org",
+      },
+    },
+  );
+  expect(pendingResponse.ok()).toBe(true);
+  const pendingBody = (await pendingResponse.json()) as {
+    plans: Array<{
+      id: string;
+      submitter_callsign: string;
+      submitter_email: string;
+    }>;
+  };
+  const pendingPlan = pendingBody.plans.find(
+    (plan) =>
+      plan.submitter_callsign === callsign && plan.submitter_email === email,
+  );
+  expect(pendingPlan).toBeDefined();
+
+  const approveResponse = await request.post(
+    `${origin}/api/activate-ri-2026/admin/plans/${pendingPlan?.id}/approve`,
+    {
+      headers: {
+        "Cf-Access-Authenticated-User-Email": "local-admin@ripota.org",
+      },
+    },
+  );
+  expect(approveResponse.ok()).toBe(true);
+}
+
+async function expectPublicStops(
+  request: APIRequestContext,
+  origin: string,
+  callsign: string,
+  parkReferences: string[],
+): Promise<void> {
+  const publicResponse = await request.get(
+    `${origin}/api/activate-ri-2026/public/stops`,
+    {
+      headers: { "cache-control": "no-cache" },
+    },
+  );
+  expect(publicResponse.ok()).toBe(true);
+  const publicBody = (await publicResponse.json()) as {
+    stops: Array<{
+      activatorCallsign: string;
+      parkReference: string;
+      status: string;
+    }>;
+  };
+  for (const parkReference of parkReferences) {
+    expect(publicBody.stops).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          activatorCallsign: callsign,
+          parkReference,
+          status: "scheduled",
+        }),
+      ]),
+    );
+  }
+}
 
 async function submitVolunteerStop(
   page: Page,

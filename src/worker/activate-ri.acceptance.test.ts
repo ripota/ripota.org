@@ -144,6 +144,87 @@ describe("Activate RI API acceptance flow", () => {
       }),
     ]);
   });
+
+  it("publishes new stops immediately for an already approved activator", async () => {
+    const db = createMigratedSqliteD1();
+    cleanup = db.close;
+    const env = testEnv(db.DB);
+
+    const firstResponse = await handleActivateRiApi(
+      jsonRequest("/api/activate-ri-2026/plans", volunteerPayload()),
+      env,
+    );
+    expect(firstResponse.status).toBe(202);
+
+    const pendingResponse = await handleActivateRiApi(
+      adminRequest("/api/activate-ri-2026/admin/plans"),
+      env,
+    );
+    const pendingBody = (await pendingResponse.json()) as {
+      plans: Array<{ id: string }>;
+    };
+    expect(pendingBody.plans).toHaveLength(1);
+
+    const approveResponse = await handleActivateRiApi(
+      adminRequest(`/api/activate-ri-2026/admin/plans/${pendingBody.plans[0].id}/approve`, {
+        method: "POST",
+      }),
+      env,
+    );
+    expect(approveResponse.status).toBe(200);
+
+    const secondResponse = await handleActivateRiApi(
+      jsonRequest("/api/activate-ri-2026/plans", {
+        ...volunteerPayload(),
+        stops: [
+          {
+            parkReference: "US-2869",
+            plannedDate: "2026-09-12",
+            timeBlock: "10:00-13:00",
+            bands: ["20m"],
+            modes: ["CW"],
+          },
+        ],
+      }),
+      env,
+    );
+    expect(secondResponse.status).toBe(202);
+
+    const nextPendingResponse = await handleActivateRiApi(
+      adminRequest("/api/activate-ri-2026/admin/plans"),
+      env,
+    );
+    const nextPendingBody = (await nextPendingResponse.json()) as {
+      plans: unknown[];
+    };
+    expect(nextPendingBody.plans).toHaveLength(0);
+
+    const publicResponse = await handleActivateRiApi(
+      new Request("https://ripota.org/api/activate-ri-2026/public/stops"),
+      env,
+    );
+    const publicBody = (await publicResponse.json()) as {
+      stops: Array<{
+        parkReference: string;
+        activatorCallsign: string;
+        status: string;
+      }>;
+    };
+    expect(publicBody.stops).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parkReference: "US-2868",
+          activatorCallsign: "N1RWJ",
+          status: "scheduled",
+        }),
+        expect.objectContaining({
+          parkReference: "US-2869",
+          activatorCallsign: "N1RWJ",
+          status: "scheduled",
+        }),
+      ]),
+    );
+  });
 });
 
 function testEnv(DB: D1Database): Env {
