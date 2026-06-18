@@ -2,7 +2,7 @@ name: Update Activate RI Share Card
 
 on:
   schedule:
-    - cron: "0 */3 * * *"
+    - cron: "17 */3 * * *"
   workflow_dispatch:
     inputs:
       force:
@@ -21,6 +21,7 @@ concurrency:
 jobs:
   update-share-card:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     env:
       PLAYWRIGHT_CHROMIUM_CHANNEL: chrome
     steps:
