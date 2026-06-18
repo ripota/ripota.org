@@ -430,6 +430,18 @@ describe("Activate RI API acceptance flow", () => {
       );
     expect(adminApprovalEmails).toHaveLength(1);
     expect(adminApprovalEmails[0].to).toEqual(["admin@example.com"]);
+
+    const activatorEditLinkEmails = (sendEmail.mock.calls as unknown[][])
+      .map(([message]) => message as unknown as { subject?: string; text?: string })
+      .filter((message) =>
+        message.subject === "Your Activate All RI 2026 edit link"
+      );
+    expect(activatorEditLinkEmails.at(-1)?.text).toContain(
+      "Status: Live on the public schedule",
+    );
+    expect(activatorEditLinkEmails.at(-1)?.text).not.toContain(
+      "Organizers will review and approve your initial activation plan",
+    );
   });
 });
 

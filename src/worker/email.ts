@@ -40,10 +40,22 @@ export async function sendActivatorEditLinkEmail(
     submitter_callsign: string;
     submitter_name: string;
     submitter_email: string;
+    status?: string;
+    stops?: EditablePlanDto["stops"];
   },
   editUrl: string,
   helpUrl: string,
+  options: { requiresAdminApproval?: boolean } = {},
 ): Promise<SendEmailResult> {
+  const requiresAdminApproval = options.requiresAdminApproval ?? true;
+  const statusLabel = requiresAdminApproval
+    ? "Pending organizer approval"
+    : "Live on the public schedule";
+  const stopLines = planStopSummaryLines(
+    { stops: plan.stops ?? [] },
+    { includeCancelled: false },
+  );
+
   return sendEmail(env, {
     kind: "activator-edit-link",
     to: plan.submitter_email,
@@ -51,29 +63,33 @@ export async function sendActivatorEditLinkEmail(
     text: [
       `Hi ${plan.submitter_name || plan.submitter_callsign},`,
       "",
-      "We received your Activate All RI 2026 activation signup.",
-      "Organizers will review and approve your initial activation plan before it appears on the public schedule.",
-      "After approval, changes you save with your private edit link go live immediately.",
+      "Your Activate All RI 2026 activation signup was saved.",
       "",
-      "Use this private link to review or update your plan:",
+      `Status: ${statusLabel}`,
+      "",
+      "Current stops:",
+      ...stopLines,
+      "",
+      "Private edit link:",
       editUrl,
+      "",
+      "Keep this link private. You can use it to update your plan again if timing or parks change.",
       "",
       "Activator help:",
       helpUrl,
-      "",
-      "This link works before and after organizer approval. Please keep it private.",
       "",
       "73,",
       "RI POTA",
     ].join("\n"),
     html: [
       `<p>Hi ${escapeHtml(plan.submitter_name || plan.submitter_callsign)},</p>`,
-      "<p>We received your Activate All RI 2026 activation signup.</p>",
-      "<p>Organizers will review and approve your initial activation plan before it appears on the public schedule. After approval, changes you save with your private edit link go live immediately.</p>",
-      `<p><a href="${escapeHtml(editUrl)}">Review or update your plan</a></p>`,
+      "<p>Your Activate All RI 2026 activation signup was saved.</p>",
+      `<p>Status: ${escapeHtml(statusLabel)}</p>`,
+      "<p>Current stops:</p>",
+      stopSummaryListHtml(stopLines),
+      `<p>Private edit link:<br><a href="${escapeHtml(editUrl)}">${escapeHtml(editUrl)}</a></p>`,
+      "<p>Keep this link private. You can use it to update your plan again if timing or parks change.</p>",
       `<p><a href="${escapeHtml(helpUrl)}">Read the activator help page</a></p>`,
-      `<p>If the button does not work, copy this link:<br><span>${escapeHtml(editUrl)}</span></p>`,
-      "<p>This link works before and after organizer approval. Please keep it private.</p>",
       "<p>73,<br>RI POTA</p>",
     ].join(""),
   });
@@ -421,7 +437,7 @@ const referencesByCode = new Map(
 );
 
 function planStopSummaryLines(
-  plan: EditablePlanDto,
+  plan: { stops: EditablePlanDto["stops"] },
   options: { includeCancelled: boolean },
 ): string[] {
   const lines = plan.stops

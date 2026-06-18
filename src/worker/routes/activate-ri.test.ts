@@ -381,6 +381,7 @@ describe("handleActivateRiApi", () => {
 
   it("sends activators an edit link email with help and approval guidance", async () => {
     const testEnv = emailEnv();
+    testEnv.DB = adminDb();
 
     const response = await handleActivateRiApi(
       post("/api/activate-ri-2026/plans", validPayload()),
@@ -398,6 +399,18 @@ describe("handleActivateRiApi", () => {
       expect.objectContaining({
         to: "rob@example.com",
         subject: "Your Activate All RI 2026 edit link",
+        text: expect.stringContaining("Status: Pending organizer approval"),
+      }),
+    );
+    expect(sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: expect.stringContaining(
+          "- 2026-09-11 09:00-11:00: Beavertail State Park (US-2868)",
+        ),
+      }),
+    );
+    expect(sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
         text: expect.stringContaining("https://ripota.org/activate-ri-2026/help/"),
         html: expect.stringContaining("https://ripota.org/activate-ri-2026/help/"),
       }),
@@ -405,8 +418,37 @@ describe("handleActivateRiApi", () => {
     const message = vi.mocked(sendEmail).mock.calls[0][0] as {
       text: string;
     };
-    expect(message.text).toContain("Organizers will review and approve your initial activation plan before it appears on the public schedule.");
-    expect(message.text).toContain("After approval, changes you save with your private edit link go live immediately.");
+    expect(message.text).not.toContain(
+      "Organizers will review and approve your initial activation plan",
+    );
+  });
+
+  it("does not tell approved activators that repeat submissions need review", async () => {
+    const testEnv = emailEnv();
+    testEnv.DB = adminDb({
+      planRows: [{ ...pendingPlanRow, status: "approved" }],
+    });
+
+    const response = await handleActivateRiApi(
+      post("/api/activate-ri-2026/plans", validPayload()),
+      testEnv,
+    );
+
+    expect(response.status).toBe(202);
+    const sendEmail = testEnv.EMAIL?.send;
+    expect(sendEmail).toBeDefined();
+    if (!sendEmail) {
+      throw new Error("Expected email binding.");
+    }
+    expect(sendEmail).toHaveBeenCalledOnce();
+
+    const message = vi.mocked(sendEmail).mock.calls[0][0] as {
+      text: string;
+    };
+    expect(message.text).toContain("Status: Live on the public schedule");
+    expect(message.text).not.toContain(
+      "Organizers will review and approve your initial activation plan",
+    );
   });
 
   it("sends admins an approval-needed email when an activation plan is submitted", async () => {

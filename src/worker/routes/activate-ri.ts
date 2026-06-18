@@ -441,15 +441,19 @@ async function handlePlanSubmission(
 
   const result = await insertPendingPlan(env, validation.value);
   const editUrl = absoluteEditUrl(request, result.editToken);
+  const savedPlan = await getPlanById(env, result.planId);
   const emailResult = await sendActivatorEditLinkEmail(
     env,
-    {
+    savedPlan ?? {
       submitter_callsign: validation.value.submitterCallsign,
       submitter_name: validation.value.submitterName,
       submitter_email: validation.value.submitterEmail,
+      status: result.requiresAdminApproval ? "pending" : "approved",
+      stops: [],
     },
     editUrl,
     absoluteHelpUrl(request),
+    { requiresAdminApproval: result.requiresAdminApproval },
   );
   if (emailResult.status === "sent") {
     await markEditLinkEmailEvent(
@@ -645,6 +649,7 @@ async function handleResendEditLink(
     },
     absoluteEditUrl(request, match.editToken),
     absoluteHelpUrl(request),
+    { requiresAdminApproval: match.plan?.status !== "approved" },
   );
   await markEditLinkEmailEvent(
     env,

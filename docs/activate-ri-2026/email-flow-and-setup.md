@@ -16,8 +16,11 @@ setup required in Cloudflare.
 6. The plan is stored as `pending` under that activator.
 7. A `plan-created` activity event is written.
 8. The Worker sends the activator an email containing:
+   - the current saved status (`Pending organizer approval` or
+     `Live on the public schedule`)
+   - the current saved stop list
    - the private edit URL
-   - a note that the link works before and after organizer approval
+   - the activator help URL
 9. Email success or failure is written as `edit-link-sent` or
    `edit-link-send-failed`.
 10. The Worker sends admins an approval-needed email if
@@ -59,8 +62,9 @@ visible in the admin activity log.
 High-impact events currently include approved stop removals/cancellations,
 approved park/date changes, and full plan cancellation.
 
-Activator receipt emails render stop summaries from the saved D1 plan state,
-sorted by date, start time, park reference, and park name:
+Activator receipt emails, including the initial edit-link email, render stop
+summaries from the saved D1 plan state, sorted by date, start time, park
+reference, and park name:
 
 ```text
 - YYYY-MM-DD HH:MM-HH:MM: Park Name (US-1234)
