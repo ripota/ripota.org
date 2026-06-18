@@ -9,13 +9,13 @@ Do not delete and recreate the D1 database unless the binding and
 
 ## What gets deleted
 
-The reset removes all Activate RI signup, stop, edit-link, moderation, and
+The reset removes all Activate RI signup, stop, edit-token, moderation, and
 activity/audit rows:
 
+- `activate_ri_edit_tokens`
 - `activate_ri_activity_events`
 - `activate_ri_audit_events`
 - `activate_ri_stops`
-- `activate_ri_plans`
 - `activate_ri_activators`
 
 It intentionally keeps the D1 migration table and schema intact.
@@ -35,21 +35,14 @@ The operational setup doc has the token troubleshooting details:
 docs/activate-ri-2026/email-flow-and-setup.md
 ```
 
-Optional but recommended: export a SQL backup before deleting rows.
-
-```bash
-mkdir -p tmp/d1-backups
-npx wrangler d1 export ripota-org \
-  --remote \
-  --output "tmp/d1-backups/ripota-org-before-reset-$(date +%Y%m%d-%H%M%S).sql"
-```
+The production reset task backs up the database before deleting rows.
 
 Cloudflare D1 also has Time Travel recovery for remote databases. Before a
 production reset, capture the current bookmark so the reset can be undone if
-needed:
+needed. The production backup task prints this bookmark:
 
 ```bash
-npx wrangler d1 time-travel info ripota-org
+mise run backup-production
 ```
 
 Save the bookmark printed by Wrangler outside the repo.
@@ -60,10 +53,10 @@ Use this when clearing data created by `wrangler dev` or local API testing:
 
 ```bash
 npx wrangler d1 execute ripota-org --local --command="
+DELETE FROM activate_ri_edit_tokens;
 DELETE FROM activate_ri_activity_events;
 DELETE FROM activate_ri_audit_events;
 DELETE FROM activate_ri_stops;
-DELETE FROM activate_ri_plans;
 DELETE FROM activate_ri_activators;
 "
 ```
@@ -76,20 +69,16 @@ mise run activate-ri-2026:d1-apply-local
 
 ## Reset the deployed database
 
-Use `--remote` for the deployed Cloudflare D1 database:
+Use the guarded mise task for the deployed Cloudflare D1 database:
 
 ```bash
-npx wrangler d1 execute ripota-org --remote --command="
-DELETE FROM activate_ri_activity_events;
-DELETE FROM activate_ri_audit_events;
-DELETE FROM activate_ri_stops;
-DELETE FROM activate_ri_plans;
-DELETE FROM activate_ri_activators;
-"
+mise run activate-ri-2026:reset-production -- --confirm
 ```
 
-Wrangler may prompt before executing against the remote database. Read the
-target database in the prompt before confirming.
+The task checks Wrangler authentication, runs `mise run backup-production`, then
+deletes only the current Activate RI operational rows from the remote
+`ripota-org` D1 database. Wrangler may prompt before executing against the remote
+database. Read the target database in the prompt before confirming.
 
 ## Verify the reset
 
@@ -97,15 +86,15 @@ Local:
 
 ```bash
 npx wrangler d1 execute ripota-org --local --command="
-SELECT 'plans' AS table_name, COUNT(*) AS row_count FROM activate_ri_plans
-UNION ALL
-SELECT 'activators', COUNT(*) FROM activate_ri_activators
-UNION ALL
-SELECT 'stops', COUNT(*) FROM activate_ri_stops
+SELECT 'edit_tokens' AS table_name, COUNT(*) AS row_count FROM activate_ri_edit_tokens
 UNION ALL
 SELECT 'activity_events', COUNT(*) FROM activate_ri_activity_events
 UNION ALL
-SELECT 'audit_events', COUNT(*) FROM activate_ri_audit_events;
+SELECT 'audit_events', COUNT(*) FROM activate_ri_audit_events
+UNION ALL
+SELECT 'stops', COUNT(*) FROM activate_ri_stops
+UNION ALL
+SELECT 'activators', COUNT(*) FROM activate_ri_activators;
 "
 ```
 
@@ -113,19 +102,20 @@ Remote:
 
 ```bash
 npx wrangler d1 execute ripota-org --remote --command="
-SELECT 'plans' AS table_name, COUNT(*) AS row_count FROM activate_ri_plans
-UNION ALL
-SELECT 'activators', COUNT(*) FROM activate_ri_activators
-UNION ALL
-SELECT 'stops', COUNT(*) FROM activate_ri_stops
+SELECT 'edit_tokens' AS table_name, COUNT(*) AS row_count FROM activate_ri_edit_tokens
 UNION ALL
 SELECT 'activity_events', COUNT(*) FROM activate_ri_activity_events
 UNION ALL
-SELECT 'audit_events', COUNT(*) FROM activate_ri_audit_events;
+SELECT 'audit_events', COUNT(*) FROM activate_ri_audit_events
+UNION ALL
+SELECT 'stops', COUNT(*) FROM activate_ri_stops
+UNION ALL
+SELECT 'activators', COUNT(*) FROM activate_ri_activators;
 "
 ```
 
-All five counts should be `0`.
+The production reset task prints this verification query after the reset. All
+five counts should be `0`.
 
 ## Undo a production reset
 

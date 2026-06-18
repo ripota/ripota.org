@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; -*-
+#MISE description="Back up and reset production Activate RI operational data"
+#MISE raw=true
+#USAGE flag "--confirm" help="Actually reset the remote production D1 rows"
+
+set -euo pipefail
+
+database_name="ripota-org"
+wrangler=(npx wrangler)
+base_env=(--env "")
+
+reset_sql="
+BEGIN TRANSACTION;
+DELETE FROM activate_ri_edit_tokens;
+DELETE FROM activate_ri_activity_events;
+DELETE FROM activate_ri_audit_events;
+DELETE FROM activate_ri_stops;
+DELETE FROM activate_ri_activators;
+COMMIT;
+"
+
+verify_sql="
+SELECT 'edit_tokens' AS table_name, COUNT(*) AS row_count FROM activate_ri_edit_tokens
+UNION ALL
+SELECT 'activity_events', COUNT(*) FROM activate_ri_activity_events
+UNION ALL
+SELECT 'audit_events', COUNT(*) FROM activate_ri_audit_events
+UNION ALL
+SELECT 'stops', COUNT(*) FROM activate_ri_stops
+UNION ALL
+SELECT 'activators', COUNT(*) FROM activate_ri_activators;
+"
+
+if [[ "${usage_confirm:-false}" != "true" ]]; then
+  cat <<'EOF'
+This task deletes production Activate RI operational rows from the remote D1
+database. It keeps the schema and D1 migration metadata intact.
+
+Run with --confirm to continue:
+
+  mise run activate-ri-2026:reset-production -- --confirm
+EOF
+  exit 64
+fi
+
+echo "Checking Cloudflare Wrangler authentication."
+"${wrangler[@]}" whoami
+
+mise run backup-production
+
+echo "Resetting production Activate RI operational rows in ${database_name}."
+"${wrangler[@]}" d1 execute "${database_name}" --remote "${base_env[@]}" --command="${reset_sql}"
+
+echo "Verifying production Activate RI operational row counts."
+"${wrangler[@]}" d1 execute "${database_name}" --remote "${base_env[@]}" --command="${verify_sql}"
