@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "./env";
 import { handleActivateRiApi } from "./routes/activate-ri";
 import { createMigratedSqliteD1 } from "./test-utils/sqlite-d1";
@@ -224,6 +224,68 @@ describe("Activate RI API acceptance flow", () => {
         }),
       ]),
     );
+  });
+
+  it("does not email admins for approval when an approved activator adds stops", async () => {
+    const db = createMigratedSqliteD1();
+    cleanup = db.close;
+    const env = {
+      ...testEnv(db.DB),
+      ACTIVATE_RI_ADMIN_EMAILS: "admin@example.com",
+      EMAIL: {
+        send: async () => ({ messageId: "test-message" }),
+      } as unknown as SendEmail,
+    };
+    const sendEmail = vi.fn(async () => ({ messageId: "test-message" }));
+    env.EMAIL = { send: sendEmail } as unknown as SendEmail;
+
+    const firstResponse = await handleActivateRiApi(
+      jsonRequest("/api/activate-ri-2026/plans", volunteerPayload()),
+      env,
+    );
+    expect(firstResponse.status).toBe(202);
+
+    const pendingResponse = await handleActivateRiApi(
+      adminRequest("/api/activate-ri-2026/admin/plans"),
+      env,
+    );
+    const pendingBody = (await pendingResponse.json()) as {
+      plans: Array<{ id: string }>;
+    };
+    expect(pendingBody.plans).toHaveLength(1);
+
+    const approveResponse = await handleActivateRiApi(
+      adminRequest(`/api/activate-ri-2026/admin/plans/${pendingBody.plans[0].id}/approve`, {
+        method: "POST",
+      }),
+      env,
+    );
+    expect(approveResponse.status).toBe(200);
+
+    const secondResponse = await handleActivateRiApi(
+      jsonRequest("/api/activate-ri-2026/plans", {
+        ...volunteerPayload(),
+        stops: [
+          {
+            parkReference: "US-2869",
+            plannedDate: "2026-09-12",
+            timeBlock: "10:00-13:00",
+            bands: ["20m"],
+            modes: ["CW"],
+          },
+        ],
+      }),
+      env,
+    );
+    expect(secondResponse.status).toBe(202);
+
+    const adminApprovalEmails = sendEmail.mock.calls
+      .map(([message]) => message as { subject?: string; to?: unknown })
+      .filter((message) =>
+        message.subject === "Activate RI approval needed: N1RWJ"
+      );
+    expect(adminApprovalEmails).toHaveLength(1);
+    expect(adminApprovalEmails[0].to).toEqual(["admin@example.com"]);
   });
 });
 

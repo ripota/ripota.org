@@ -461,18 +461,20 @@ async function handlePlanSubmission(
     );
   }
 
-  const adminEmailResult = await sendAdminPendingPlanEmail(env, {
-    submitter_callsign: validation.value.submitterCallsign,
-    submitter_name: validation.value.submitterName,
-    submitter_email: validation.value.submitterEmail,
-  });
-  await logActivityEvent(env, {
-    planId: result.planId,
-    actorType: "system",
-    action: adminNotificationAction(adminEmailResult),
-    summary: adminNotificationSummary(adminEmailResult, "pending submission"),
-    details: emailActivityDetails(adminEmailResult),
-  });
+  if (result.requiresAdminApproval) {
+    const adminEmailResult = await sendAdminPendingPlanEmail(env, {
+      submitter_callsign: validation.value.submitterCallsign,
+      submitter_name: validation.value.submitterName,
+      submitter_email: validation.value.submitterEmail,
+    });
+    await logActivityEvent(env, {
+      planId: result.planId,
+      actorType: "system",
+      action: adminNotificationAction(adminEmailResult),
+      summary: adminNotificationSummary(adminEmailResult, "pending submission"),
+      details: emailActivityDetails(adminEmailResult),
+    });
+  }
 
   return json(
     {

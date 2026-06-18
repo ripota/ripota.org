@@ -40,6 +40,7 @@ export type InsertPendingPlanResult = {
   activatorId: string;
   planId: string;
   editToken: string;
+  requiresAdminApproval: boolean;
 };
 
 export type ApprovePlanResult =
@@ -275,7 +276,12 @@ export async function insertPendingPlan(
 
   await env.DB.batch(statements);
 
-  return { activatorId, planId: activatorId, editToken };
+  return {
+    activatorId,
+    planId: activatorId,
+    editToken,
+    requiresAdminApproval: nextStatus === "pending",
+  };
 }
 
 export async function listPublicStopRows(env: Env): Promise<StopExportRow[]> {
