@@ -61,6 +61,13 @@ export function formatActivationTimeRange(
   return `${start}-${end} ${zone}`;
 }
 
+export function formatActivationDateTimeRange(
+  input: Required<ActivationTimeInput>,
+  option = activationTimeZoneOptions[0],
+): string {
+  return `${formatActivationDate(input, option)} ${formatActivationTimeRange(input, option)}`;
+}
+
 export function stopTimeToInstant(plannedDate: string, time: string): string {
   return utcDate(plannedDate, time).toISOString();
 }

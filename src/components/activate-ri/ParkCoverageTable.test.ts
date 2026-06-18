@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import source from "./ParkCoverageTable.astro?raw";
 
 describe("ParkCoverageTable markup", () => {
+  it("does not expose timezone controls for the EDT event coverage view", () => {
+    expect(source).not.toContain("data-timezone");
+    expect(source).not.toContain("updateTimezoneUrl");
+    expect(source).not.toContain("activationTimeZoneOptions");
+  });
+
   it("uses a single volunteer button instead of repeating needs coverage across uncovered rows", () => {
     expect(source).toContain('<a class="button event-table-action" data-variant="primary" href={volunteerHref(park.reference)}>');
     expect(source).toContain('link.className = "button event-table-action"');

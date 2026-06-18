@@ -1,6 +1,7 @@
 import type { ActivityEventInput, EditablePlanDto } from "./db";
 import type { Env } from "./env";
 import references from "../data/ri-references.json";
+import { formatActivationDateTimeRange } from "../lib/activate-ri/time";
 
 type SendEmailResult =
   | {
@@ -457,7 +458,11 @@ function planStopSummaryLines(
     )
     .map(
       (stop) =>
-        `- ${stop.planned_date} ${stop.start_time}-${stop.end_time}: ${parkLabel(stop.park_reference)}`,
+        `- ${formatActivationDateTimeRange({
+          plannedDate: stop.planned_date,
+          startTime: stop.start_time,
+          endTime: stop.end_time,
+        })}: ${parkLabel(stop.park_reference)}`,
     );
 
   return lines.length > 0 ? lines : ["- No current stops."];

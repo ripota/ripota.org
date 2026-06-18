@@ -429,7 +429,7 @@ describe("handleActivateRiApi", () => {
     expect(sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         text: expect.stringContaining(
-          "- 2026-09-11 09:00-11:00: Beavertail State Park (US-2868)",
+          "- Sep 11, 2026 05:00-07:00 EDT: Beavertail State Park (US-2868)",
         ),
       }),
     );
@@ -764,8 +764,8 @@ describe("handleActivateRiApi", () => {
         text: expect.stringContaining(
           [
             "Current stops:",
-            "- 2026-09-11 09:00-11:00: Beavertail State Park (US-2868)",
-            "- 2026-09-12 09:00-11:00: Colt State Park (US-2872)",
+            "- Sep 11, 2026 05:00-07:00 EDT: Beavertail State Park (US-2868)",
+            "- Sep 12, 2026 05:00-07:00 EDT: Colt State Park (US-2872)",
           ].join("\n"),
         ),
       }),
@@ -845,7 +845,7 @@ describe("handleActivateRiApi", () => {
         text: expect.stringContaining(
           [
             "Cancelled stops:",
-            "- 2026-09-11 09:00-11:00: Beavertail State Park (US-2868)",
+            "- Sep 11, 2026 05:00-07:00 EDT: Beavertail State Park (US-2868)",
           ].join("\n"),
         ),
       }),
@@ -1520,7 +1520,7 @@ describe("handleActivateRiApi", () => {
     expect(message.text).toContain("Status: Live on the public schedule");
     expect(message.text).toContain("Current stops:");
     expect(message.text).toContain(
-      "- 2026-09-11 09:00-11:00: Beavertail State Park (US-2868)",
+      "- Sep 11, 2026 05:00-07:00 EDT: Beavertail State Park (US-2868)",
     );
     expect(message.text).toContain("Public schedule:");
     expect(message.text).toContain("https://ripota.org/activate-ri-2026/schedule/");
@@ -1702,7 +1702,7 @@ describe("handleActivateRiApi", () => {
     expect(testEnv.EMAIL?.send).toHaveBeenCalledWith(
       expect.objectContaining({
         text: expect.stringContaining(
-          "- 2026-09-11 09:00-11:00: Beavertail State Park (US-2868)",
+          "- Sep 11, 2026 05:00-07:00 EDT: Beavertail State Park (US-2868)",
         ),
       }),
     );

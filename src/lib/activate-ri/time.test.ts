@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   activationTimeZoneOptions,
   formatActivationDate,
+  formatActivationDateTimeRange,
   formatActivationTimeRange,
   instantToEventDate,
   stopTimeRangeToInstants,
@@ -47,6 +48,16 @@ describe("activation time helpers", () => {
         eastern,
       ),
     ).toBe("10:00-13:00 EDT");
+  });
+
+  it("formats activation date and time range with an EDT timezone suffix", () => {
+    expect(
+      formatActivationDateTimeRange({
+        plannedDate: "2026-09-11",
+        startTime: "09:00",
+        endTime: "11:00",
+      }),
+    ).toBe("Sep 11, 2026 05:00-07:00 EDT");
   });
 
   it("handles UTC ranges that cross midnight", () => {
