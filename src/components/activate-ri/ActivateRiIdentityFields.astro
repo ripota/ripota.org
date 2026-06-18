@@ -59,8 +59,26 @@ const { clubDatalistId } = Astro.props;
     </span>
     <span id="activate-ri-email-error" class="form-error" data-field-error></span>
   </label>
-  <label>
-    Club / group affiliation
-    <input name="club" list={clubDatalistId} autocomplete="organization" />
-  </label>
+  <div class="form-field">
+    <label class="form-label" for={`${clubDatalistId}-input`}>
+      Club / group affiliation
+    </label>
+    <span class="club-combobox" data-club-combobox>
+      <input
+        id={`${clubDatalistId}-input`}
+        name="club"
+        list={clubDatalistId}
+        autocomplete="organization"
+        aria-controls={`${clubDatalistId}-suggestions`}
+        aria-expanded="false"
+        data-club-input
+      />
+      <span
+        id={`${clubDatalistId}-suggestions`}
+        class="club-combobox__popup"
+        data-club-suggestions-for={clubDatalistId}
+        hidden
+      ></span>
+    </span>
+  </div>
 </div>

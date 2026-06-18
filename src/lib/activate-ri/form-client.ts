@@ -30,16 +30,18 @@ export function setupCallsignFields(root: Document | Element = document): void {
 
 export async function populateClubDatalist(id: string): Promise<void> {
   const datalist = document.getElementById(id);
+  const suggestions = document.querySelector<HTMLElement>(`[data-club-suggestions-for="${id}"]`);
   if (!datalist) {
     return;
   }
 
+  let clubs: string[] = [];
   try {
     const response = await fetch("/api/activate-ri-2026/public/clubs", {
       headers: { accept: "application/json" },
     });
     const body = await response.json() as { clubs?: unknown };
-    const clubs = Array.isArray(body.clubs)
+    clubs = Array.isArray(body.clubs)
       ? body.clubs.filter((club): club is string => typeof club === "string")
       : [];
 
@@ -52,7 +54,11 @@ export async function populateClubDatalist(id: string): Promise<void> {
     );
   } catch {
     datalist.replaceChildren();
+    clubs = [];
   }
+
+  populateClubSuggestions(id, suggestions, clubs);
+  setupClubCombobox(id);
 }
 
 export function setupDocumentPopupDismissal(): void {
@@ -73,7 +79,84 @@ export function setupDocumentPopupDismissal(): void {
         setMultiSelectOpen(multiSelect, false);
       }
     });
+
+    document.querySelectorAll<HTMLElement>("[data-club-combobox]").forEach((combo) => {
+      if (!combo.contains(target)) {
+        setClubSuggestionsOpen(combo, false);
+      }
+    });
   });
+}
+
+function populateClubSuggestions(
+  id: string,
+  suggestions: HTMLElement | null,
+  clubs: string[],
+): void {
+  if (!suggestions) {
+    return;
+  }
+
+  suggestions.replaceChildren(
+    ...clubs.map((club) => {
+      const option = document.createElement("button");
+      option.type = "button";
+      option.dataset.clubOption = "";
+      option.dataset.search = club.toLowerCase();
+      option.value = club;
+      option.textContent = club;
+      option.setAttribute("aria-controls", `${id}-input`);
+      return option;
+    }),
+  );
+}
+
+function setupClubCombobox(id: string): void {
+  const input = document.getElementById(`${id}-input`) as HTMLInputElement | null;
+  const suggestions = document.querySelector<HTMLElement>(`[data-club-suggestions-for="${id}"]`);
+  const combobox = input?.closest<HTMLElement>("[data-club-combobox]");
+  if (!input || !suggestions || !combobox) {
+    return;
+  }
+
+  const filterAndOpen = () => {
+    const visibleCount = filterClubSuggestions(suggestions, input.value);
+    setClubSuggestionsOpen(combobox, visibleCount > 0);
+  };
+
+  input.onfocus = filterAndOpen;
+  input.oninput = filterAndOpen;
+  input.onkeydown = (event) => {
+    if (event.key === "Escape") {
+      setClubSuggestionsOpen(combobox, false);
+    }
+  };
+
+  suggestions.querySelectorAll<HTMLButtonElement>("[data-club-option]").forEach((option) => {
+    option.onclick = () => {
+      input.value = option.value;
+      setClubSuggestionsOpen(combobox, false);
+      input.focus();
+    };
+  });
+}
+
+function filterClubSuggestions(suggestions: HTMLElement, value: string): number {
+  const terms = value.toLowerCase().split(/\s+/).filter(Boolean);
+  let visibleCount = 0;
+  suggestions.querySelectorAll<HTMLElement>("[data-club-option]").forEach((option) => {
+    const search = option.dataset.search ?? "";
+    const isVisible = terms.every((term) => search.includes(term));
+    option.hidden = !isVisible;
+    visibleCount += isVisible ? 1 : 0;
+  });
+
+  return visibleCount;
+}
+
+function setClubSuggestionsOpen(combobox: HTMLElement, isOpen: boolean): void {
+  combobox.querySelector<HTMLElement>("[data-club-suggestions-for]")?.toggleAttribute("hidden", !isOpen);
+  combobox.querySelector<HTMLInputElement>("[data-club-input]")?.setAttribute("aria-expanded", String(isOpen));
 }
 
 export function setupStopCards(options: StopSetupOptions = {}): void {

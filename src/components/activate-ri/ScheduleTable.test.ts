@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import source from "./ScheduleTable.astro?raw";
 
 describe("ScheduleTable markup", () => {
-  it("does not expose timezone controls for the EDT event schedule", () => {
-    expect(source).not.toContain("data-timezone");
-    expect(source).not.toContain('name="schedule-timezone"');
+  it("uses a native timezone select for mobile schedule filtering", () => {
+    expect(source).toContain("data-timezone");
+    expect(source).toContain('name="schedule-timezone"');
     expect(source).not.toContain("updateTimezoneUrl");
   });
 
