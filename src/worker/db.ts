@@ -159,7 +159,11 @@ export type ActivatorPlansDto = {
 };
 
 type UpdatePlanResult =
-  | { ok: true; highImpactEvents: ActivityEventInput[] }
+  | {
+      ok: true;
+      highImpactEvents: ActivityEventInput[];
+      activatorNotificationEvents: ActivityEventInput[];
+    }
   | { ok: false; status: 404; error: string };
 
 type EditStopActivatorRow = {
@@ -558,6 +562,7 @@ export async function updatePlanByTokenHash(
       .filter((id): id is string => typeof id === "string" && id.length > 0),
   );
   const highImpactEvents: ActivityEventInput[] = [];
+  const activatorNotificationEvents: ActivityEventInput[] = [];
   const statements: D1PreparedStatement[] = [
     env.DB.prepare(
       `UPDATE activate_ri_activators
@@ -672,6 +677,26 @@ export async function updatePlanByTokenHash(
           },
         });
       }
+
+      if (
+        existingStop.park_reference !== stop.parkReference ||
+        existingStop.planned_date !== stop.plannedDate ||
+        existingStop.start_time !== stop.startTime ||
+        existingStop.end_time !== stop.endTime
+      ) {
+        activatorNotificationEvents.push({
+          planId: existing.id,
+          stopId: existingStop.id,
+          actorType: "activator",
+          actorEmail: submission.submitterEmail,
+          action: "activator-notification-needed",
+          summary: `${submission.submitterCallsign} changed activation stop timing or park.`,
+          details: {
+            previous: stopSnapshot(existingStop),
+            next: updatedStopSnapshot(existingStop, stop, nextStopStatus),
+          },
+        });
+      }
     } else {
       const stopId = crypto.randomUUID();
       statements.push(
@@ -706,6 +731,15 @@ export async function updatePlanByTokenHash(
         summary: `${submission.submitterCallsign} added ${stop.parkReference}.`,
         details: { next: stop },
       }, now));
+      activatorNotificationEvents.push({
+        planId: existing.id,
+        stopId,
+        actorType: "activator",
+        actorEmail: submission.submitterEmail,
+        action: "activator-notification-needed",
+        summary: `${submission.submitterCallsign} added ${stop.parkReference}.`,
+        details: { next: stop },
+      });
     }
   }
 
@@ -741,6 +775,10 @@ export async function updatePlanByTokenHash(
       ),
     );
     statements.push(activityInsert(env, event, now));
+    activatorNotificationEvents.push({
+      ...event,
+      action: "activator-notification-needed",
+    });
     if (approved) {
       highImpactEvents.push(event);
     }
@@ -748,7 +786,7 @@ export async function updatePlanByTokenHash(
 
   await env.DB.batch(statements);
 
-  return { ok: true, highImpactEvents };
+  return { ok: true, highImpactEvents, activatorNotificationEvents };
 }
 
 export async function cancelPlanByTokenHash(

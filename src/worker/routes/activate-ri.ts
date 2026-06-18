@@ -29,6 +29,8 @@ import {
 import {
   sendActivatorApprovalEmail,
   sendActivatorEditLinkEmail,
+  sendActivatorPlanCancelledEmail,
+  sendActivatorPlanUpdatedEmail,
   sendAdminActivityEmail,
   sendAdminPendingPlanEmail,
 } from "../email";
@@ -566,21 +568,42 @@ async function handleEditPlanUpdate(
     );
   }
 
-  if (updateResult.highImpactEvents.length > 0) {
+  if (
+    updateResult.highImpactEvents.length > 0 ||
+    updateResult.activatorNotificationEvents.length > 0
+  ) {
     const plan = await getPlanByTokenHash(env, editTokenHash, planId);
     if (plan) {
-      const emailResult = await sendAdminActivityEmail(
-        env,
-        plan,
-        updateResult.highImpactEvents,
-      );
-      await logActivityEvent(env, {
-        planId: plan.id,
-        actorType: "system",
-        action: adminNotificationAction(emailResult),
-        summary: adminNotificationSummary(emailResult, "high-impact edit"),
-        details: emailActivityDetails(emailResult, { includeRecipients: true }),
-      });
+      if (updateResult.highImpactEvents.length > 0) {
+        const emailResult = await sendAdminActivityEmail(
+          env,
+          plan,
+          updateResult.highImpactEvents,
+        );
+        await logActivityEvent(env, {
+          planId: plan.id,
+          actorType: "system",
+          action: adminNotificationAction(emailResult),
+          summary: adminNotificationSummary(emailResult, "high-impact edit"),
+          details: emailActivityDetails(emailResult, { includeRecipients: true }),
+        });
+      }
+
+      if (updateResult.activatorNotificationEvents.length > 0) {
+        const emailResult = await sendActivatorPlanUpdatedEmail(
+          env,
+          plan,
+          absoluteEditUrl(request, token),
+        );
+        await logActivityEvent(env, {
+          planId: plan.id,
+          actorType: "system",
+          actorEmail: plan.submitter_email,
+          action: activatorNotificationAction(emailResult),
+          summary: activatorNotificationSummary(emailResult, "plan update"),
+          details: emailActivityDetails(emailResult),
+        });
+      }
     }
   }
 
@@ -707,9 +730,10 @@ async function handleCancelPlan(
     );
   }
 
+  const editTokenHash = await tokenHash(token);
   const result = await cancelPlanByTokenHash(
     env,
-    await tokenHash(token),
+    editTokenHash,
     planId,
     validation.cancelReason,
   );
@@ -719,6 +743,22 @@ async function handleCancelPlan(
       { status: result.status },
     );
   }
+
+  const currentPlan = await getPlanByTokenHash(env, editTokenHash, planId);
+  const activatorEmailPlan = currentPlan ?? result.plan;
+  const activatorEmailResult = await sendActivatorPlanCancelledEmail(
+    env,
+    activatorEmailPlan,
+    absoluteEditUrl(request, token),
+  );
+  await logActivityEvent(env, {
+    planId: activatorEmailPlan.id,
+    actorType: "system",
+    actorEmail: activatorEmailPlan.submitter_email,
+    action: activatorNotificationAction(activatorEmailResult),
+    summary: activatorNotificationSummary(activatorEmailResult, "plan cancellation"),
+    details: emailActivityDetails(activatorEmailResult),
+  });
 
   if (result.highImpactEvents.length > 0) {
     const emailResult = await sendAdminActivityEmail(
@@ -1042,6 +1082,33 @@ function adminNotificationSummary(
   }
 
   return `Admin notification failed for ${reason}.`;
+}
+
+function activatorNotificationAction(result: EmailActivityResult): string {
+  if (result.status === "sent") {
+    return "activator-notification-sent";
+  }
+
+  if (result.status === "skipped") {
+    return "activator-notification-skipped";
+  }
+
+  return "activator-notification-failed";
+}
+
+function activatorNotificationSummary(
+  result: EmailActivityResult,
+  reason: string,
+): string {
+  if (result.status === "sent") {
+    return `Activator notification sent for ${reason}.`;
+  }
+
+  if (result.status === "skipped") {
+    return `Activator notification skipped for ${reason}.`;
+  }
+
+  return `Activator notification failed for ${reason}.`;
 }
 
 function emailActivityDetails(

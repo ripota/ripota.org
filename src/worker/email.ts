@@ -1,5 +1,6 @@
 import type { ActivityEventInput, EditablePlanDto } from "./db";
 import type { Env } from "./env";
+import references from "../data/ri-references.json";
 
 type SendEmailResult =
   | {
@@ -118,6 +119,84 @@ export async function sendActivatorApprovalEmail(
   });
 }
 
+export async function sendActivatorPlanUpdatedEmail(
+  env: Env,
+  plan: EditablePlanDto,
+  editUrl: string,
+): Promise<SendEmailResult> {
+  const stopLines = planStopSummaryLines(plan, { includeCancelled: false });
+
+  return sendEmail(env, {
+    kind: "activator-plan-updated",
+    to: plan.submitter_email,
+    subject: "Your Activate All RI 2026 plan was updated",
+    text: [
+      `Hi ${plan.submitter_name || plan.submitter_callsign},`,
+      "",
+      "We saved your Activate All RI 2026 plan update.",
+      "",
+      "Current stops:",
+      ...stopLines,
+      "",
+      "Private edit link:",
+      editUrl,
+      "",
+      "Keep this link private. You can use it to update your plan again if timing or parks change.",
+      "",
+      "73,",
+      "RI POTA",
+    ].join("\n"),
+    html: [
+      `<p>Hi ${escapeHtml(plan.submitter_name || plan.submitter_callsign)},</p>`,
+      "<p>We saved your Activate All RI 2026 plan update.</p>",
+      "<p>Current stops:</p>",
+      stopSummaryListHtml(stopLines),
+      `<p>Private edit link:<br><a href="${escapeHtml(editUrl)}">${escapeHtml(editUrl)}</a></p>`,
+      "<p>Keep this link private. You can use it to update your plan again if timing or parks change.</p>",
+      "<p>73,<br>RI POTA</p>",
+    ].join(""),
+  });
+}
+
+export async function sendActivatorPlanCancelledEmail(
+  env: Env,
+  plan: EditablePlanDto,
+  editUrl: string,
+): Promise<SendEmailResult> {
+  const stopLines = planStopSummaryLines(plan, { includeCancelled: true });
+
+  return sendEmail(env, {
+    kind: "activator-plan-cancelled",
+    to: plan.submitter_email,
+    subject: "Your Activate All RI 2026 plan was cancelled",
+    text: [
+      `Hi ${plan.submitter_name || plan.submitter_callsign},`,
+      "",
+      "Your Activate All RI 2026 activation plan has been cancelled.",
+      "",
+      "Cancelled stops:",
+      ...stopLines,
+      "",
+      "Private edit link:",
+      editUrl,
+      "",
+      "You can use the link if you need to review this signup or submit an updated plan later.",
+      "",
+      "73,",
+      "RI POTA",
+    ].join("\n"),
+    html: [
+      `<p>Hi ${escapeHtml(plan.submitter_name || plan.submitter_callsign)},</p>`,
+      "<p>Your Activate All RI 2026 activation plan has been cancelled.</p>",
+      "<p>Cancelled stops:</p>",
+      stopSummaryListHtml(stopLines),
+      `<p>Private edit link:<br><a href="${escapeHtml(editUrl)}">${escapeHtml(editUrl)}</a></p>`,
+      "<p>You can use the link if you need to review this signup or submit an updated plan later.</p>",
+      "<p>73,<br>RI POTA</p>",
+    ].join(""),
+  });
+}
+
 export async function sendAdminActivityEmail(
   env: Env,
   plan: EditablePlanDto,
@@ -196,6 +275,8 @@ export async function sendAdminPendingPlanEmail(
 type EmailKind =
   | "activator-edit-link"
   | "activator-approval"
+  | "activator-plan-updated"
+  | "activator-plan-cancelled"
   | "admin-activity"
   | "admin-pending-plan";
 
@@ -333,6 +414,47 @@ function adminEmails(env: Env): string[] {
     .split(",")
     .map((email) => email.trim())
     .filter(Boolean);
+}
+
+const referencesByCode = new Map(
+  references.map((reference) => [reference.reference, reference.name]),
+);
+
+function planStopSummaryLines(
+  plan: EditablePlanDto,
+  options: { includeCancelled: boolean },
+): string[] {
+  const lines = plan.stops
+    .filter((stop) => options.includeCancelled || stop.status !== "cancelled")
+    .sort((left, right) =>
+      left.planned_date.localeCompare(right.planned_date) ||
+      left.start_time.localeCompare(right.start_time) ||
+      left.park_reference.localeCompare(right.park_reference) ||
+      parkName(left.park_reference).localeCompare(parkName(right.park_reference)),
+    )
+    .map(
+      (stop) =>
+        `- ${stop.planned_date} ${stop.start_time}-${stop.end_time}: ${parkLabel(stop.park_reference)}`,
+    );
+
+  return lines.length > 0 ? lines : ["- No current stops."];
+}
+
+function parkLabel(reference: string): string {
+  const name = parkName(reference);
+  return name ? `${name} (${reference})` : reference;
+}
+
+function parkName(reference: string): string {
+  return referencesByCode.get(reference) ?? "";
+}
+
+function stopSummaryListHtml(stopLines: string[]): string {
+  return [
+    "<ul>",
+    ...stopLines.map((line) => `<li>${escapeHtml(line.replace(/^- /, ""))}</li>`),
+    "</ul>",
+  ].join("");
 }
 
 function escapeHtml(value: string): string {

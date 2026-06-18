@@ -51,6 +51,9 @@ Every meaningful action writes an event row:
 - `stop-updated`
 - `stop-withdrawn`
 - `plan-cancelled`
+- `activator-notification-sent`
+- `activator-notification-skipped`
+- `activator-notification-failed`
 - `admin-notification-sent`
 - `admin-notification-failed`
 
@@ -71,6 +74,8 @@ Cloudflare Email Service should be used through the Worker `send_email` binding.
 
 - signup/edit-link email to the activator
 - forgot-link resend email to the activator
+- saved-edit receipt email to the activator for stop add/remove, park changes,
+  date changes, time changes, and full plan cancellation
 - high-impact edit notification email to admins
 
 Email failures must not roll back accepted plan changes. Failures are logged as activity events.

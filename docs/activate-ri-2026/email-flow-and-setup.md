@@ -49,12 +49,22 @@ visible in the admin activity log.
 5. Approved plans update immediately and the live public schedule/coverage API
    reflects the new D1 data.
 6. Every meaningful edit writes activity events.
-7. High-impact approved-plan changes trigger an admin notification attempt.
+7. Stop add/remove, park changes, date changes, and time changes trigger an
+   activator receipt email with the current saved stop list and private edit
+   link. Band/mode-only edits do not send an activator receipt.
+8. High-impact approved-plan changes trigger an admin notification attempt.
    The activity log records `admin-notification-sent`,
    `admin-notification-failed`, or `admin-notification-skipped`.
 
 High-impact events currently include approved stop removals/cancellations,
 approved park/date changes, and full plan cancellation.
+
+Activator receipt emails render stop summaries from the saved D1 plan state,
+sorted by date, start time, park reference, and park name:
+
+```text
+- YYYY-MM-DD HH:MM-HH:MM: Park Name (US-1234)
+```
 
 ### Forgot-link resend
 
