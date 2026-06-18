@@ -205,7 +205,6 @@ export async function insertPendingPlan(
         phone = excluded.phone,
         club = excluded.club,
         primary_callsign = excluded.primary_callsign,
-        magic_token_hash = excluded.magic_token_hash,
         public_notes = excluded.public_notes,
         organizer_notes = excluded.organizer_notes,
         status = CASE
@@ -228,6 +227,7 @@ export async function insertPendingPlan(
       now,
       now,
     ),
+    editTokenInsert(env, activatorId, magicTokenHash, now),
   ];
 
   for (const stop of submission.stops) {
@@ -371,9 +371,20 @@ export async function getPlansByTokenHash(
   const activator = await env.DB.prepare(
     `${activatorSelectSql}
      FROM activate_ri_activators
-     WHERE event_id = ? AND magic_token_hash = ?`,
+     WHERE event_id = ?
+       AND (
+         magic_token_hash = ?
+         OR EXISTS (
+           SELECT 1
+           FROM activate_ri_edit_tokens t
+           WHERE t.activator_id = activate_ri_activators.id
+             AND t.event_id = activate_ri_activators.event_id
+             AND t.token_hash = ?
+             AND t.revoked_at IS NULL
+         )
+       )`,
   )
-    .bind(env.ACTIVATE_RI_EVENT_ID, magicTokenHash)
+    .bind(env.ACTIVATE_RI_EVENT_ID, magicTokenHash, magicTokenHash)
     .first<ActivatorRow>();
 
   if (!activator) {
@@ -394,9 +405,21 @@ export async function getPlanByTokenHash(
   const activator = await env.DB.prepare(
     `${activatorSelectSql}
      FROM activate_ri_activators
-     WHERE event_id = ? AND id = ? AND magic_token_hash = ?`,
+     WHERE event_id = ?
+       AND id = ?
+       AND (
+         magic_token_hash = ?
+         OR EXISTS (
+           SELECT 1
+           FROM activate_ri_edit_tokens t
+           WHERE t.activator_id = activate_ri_activators.id
+             AND t.event_id = activate_ri_activators.event_id
+             AND t.token_hash = ?
+             AND t.revoked_at IS NULL
+         )
+       )`,
   )
-    .bind(env.ACTIVATE_RI_EVENT_ID, planId, magicTokenHash)
+    .bind(env.ACTIVATE_RI_EVENT_ID, planId, magicTokenHash, magicTokenHash)
     .first<ActivatorRow>();
 
   if (!activator) {
@@ -437,13 +460,12 @@ export async function findActivatorForEditLinkResend(
 
   const editToken = generateEditToken();
   const magicTokenHash = await tokenHash(editToken);
-  await env.DB.prepare(
-    `UPDATE activate_ri_activators
-     SET magic_token_hash = ?, updated_at = ?
-     WHERE id = ? AND event_id = ?`,
-  )
-    .bind(magicTokenHash, new Date().toISOString(), activator.id, env.ACTIVATE_RI_EVENT_ID)
-    .run();
+  await editTokenInsert(
+    env,
+    activator.id,
+    magicTokenHash,
+    new Date().toISOString(),
+  ).run();
 
   return {
     activator: toActivatorDto(activator),
@@ -530,7 +552,7 @@ export async function updatePlanByTokenHash(
            public_notes = ?,
            organizer_notes = ?,
            updated_at = ?
-       WHERE id = ? AND event_id = ? AND magic_token_hash = ?`,
+       WHERE id = ? AND event_id = ?`,
     ).bind(
       submission.submitterCallsign,
       submission.submitterName,
@@ -542,7 +564,6 @@ export async function updatePlanByTokenHash(
       now,
       existing.id,
       env.ACTIVATE_RI_EVENT_ID,
-      magicTokenHash,
     ),
     activityInsert(env, {
       planId: existing.id,
@@ -749,8 +770,8 @@ export async function cancelPlanByTokenHash(
       `UPDATE activate_ri_activators
        SET status = CASE WHEN status = 'approved' THEN status ELSE 'withdrawn' END,
            updated_at = ?
-       WHERE id = ? AND event_id = ? AND magic_token_hash = ?`,
-    ).bind(now, existing.id, env.ACTIVATE_RI_EVENT_ID, magicTokenHash),
+       WHERE id = ? AND event_id = ?`,
+    ).bind(now, existing.id, env.ACTIVATE_RI_EVENT_ID),
     env.DB.prepare(
       `UPDATE activate_ri_stops
        SET status = 'cancelled',
@@ -806,8 +827,18 @@ export async function updateStopByToken(
          SELECT id
          FROM activate_ri_activators
          WHERE event_id = ?
-           AND magic_token_hash = ?
            AND status = 'approved'
+           AND (
+             magic_token_hash = ?
+             OR EXISTS (
+               SELECT 1
+               FROM activate_ri_edit_tokens t
+               WHERE t.activator_id = activate_ri_activators.id
+                 AND t.event_id = activate_ri_activators.event_id
+                 AND t.token_hash = ?
+                 AND t.revoked_at IS NULL
+             )
+           )
        )`,
   )
     .bind(
@@ -820,6 +851,7 @@ export async function updateStopByToken(
       stopId,
       env.ACTIVATE_RI_EVENT_ID,
       env.ACTIVATE_RI_EVENT_ID,
+      magicTokenHash,
       magicTokenHash,
     )
     .run();
@@ -876,8 +908,18 @@ export async function cancelStopByToken(
            SELECT id
            FROM activate_ri_activators
            WHERE event_id = ?
-             AND magic_token_hash = ?
              AND status = 'approved'
+             AND (
+               magic_token_hash = ?
+               OR EXISTS (
+                 SELECT 1
+                 FROM activate_ri_edit_tokens t
+                 WHERE t.activator_id = activate_ri_activators.id
+                   AND t.event_id = activate_ri_activators.event_id
+                   AND t.token_hash = ?
+                   AND t.revoked_at IS NULL
+               )
+             )
          )`,
     ).bind(
       now,
@@ -886,6 +928,7 @@ export async function cancelStopByToken(
       stopId,
       env.ACTIVATE_RI_EVENT_ID,
       env.ACTIVATE_RI_EVENT_ID,
+      magicTokenHash,
       magicTokenHash,
     ),
     activityInsert(env, highImpactEvent, now),
@@ -985,15 +1028,45 @@ async function findEditStopActivator(
      WHERE s.id = ?
        AND s.event_id = ?
        AND a.event_id = ?
-       AND a.magic_token_hash = ?`,
+       AND (
+         a.magic_token_hash = ?
+         OR EXISTS (
+           SELECT 1
+           FROM activate_ri_edit_tokens t
+           WHERE t.activator_id = a.id
+             AND t.event_id = a.event_id
+             AND t.token_hash = ?
+             AND t.revoked_at IS NULL
+         )
+       )`,
   )
     .bind(
       stopId,
       env.ACTIVATE_RI_EVENT_ID,
       env.ACTIVATE_RI_EVENT_ID,
       magicTokenHash,
+      magicTokenHash,
     )
     .first<EditStopActivatorRow>();
+}
+
+function editTokenInsert(
+  env: Env,
+  activatorId: string,
+  magicTokenHash: string,
+  now: string,
+): D1PreparedStatement {
+  return env.DB.prepare(
+    `INSERT OR IGNORE INTO activate_ri_edit_tokens (
+      token_hash, activator_id, event_id, created_at, last_sent_at
+    ) VALUES (?, ?, ?, ?, ?)`,
+  ).bind(
+    magicTokenHash,
+    activatorId,
+    env.ACTIVATE_RI_EVENT_ID,
+    now,
+    now,
+  );
 }
 
 async function withStops(

@@ -19,6 +19,7 @@ const migrations = [
   "0004_activators_and_plans.sql",
   "0005_stop_utc_instants.sql",
   "0006_activator_owned_stops.sql",
+  "0007_activate_ri_edit_tokens.sql",
 ];
 
 export function createMigratedSqliteD1(): SqliteD1Context {

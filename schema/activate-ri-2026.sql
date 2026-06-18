@@ -29,6 +29,22 @@ CREATE UNIQUE INDEX activate_ri_activators_magic_token_idx
 CREATE INDEX activate_ri_activators_status_idx
   ON activate_ri_activators(status);
 
+CREATE TABLE activate_ri_edit_tokens (
+  token_hash TEXT PRIMARY KEY,
+  activator_id TEXT NOT NULL REFERENCES activate_ri_activators(id) ON DELETE CASCADE,
+  event_id TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  last_sent_at TEXT,
+  revoked_at TEXT
+);
+
+CREATE INDEX activate_ri_edit_tokens_activator_idx
+  ON activate_ri_edit_tokens(activator_id, event_id);
+
+CREATE INDEX activate_ri_edit_tokens_active_idx
+  ON activate_ri_edit_tokens(event_id, token_hash)
+  WHERE revoked_at IS NULL;
+
 CREATE TABLE activate_ri_stops (
   id TEXT PRIMARY KEY,
   activator_id TEXT NOT NULL REFERENCES activate_ri_activators(id) ON DELETE CASCADE,

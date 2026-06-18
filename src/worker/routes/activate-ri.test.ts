@@ -367,7 +367,7 @@ describe("handleActivateRiApi", () => {
     });
     expect(testEnv.DB.batch).toHaveBeenCalledTimes(2);
     const insertStatements = vi.mocked(testEnv.DB.batch).mock.calls[0][0];
-    expect(insertStatements).toHaveLength(3);
+    expect(insertStatements).toHaveLength(4);
 
     const stopInsertSql = vi.mocked(testEnv.DB.prepare).mock.calls
       .map(([sql]) => sql)
@@ -1411,6 +1411,7 @@ describe("handleActivateRiApi", () => {
       "activate-ri-2026",
       "activate-ri-2026",
       expectedHash,
+      expectedHash,
     ]);
     expect(updateBinds).toEqual([
       "2026-09-11T10:00:00.000Z",
@@ -1422,6 +1423,7 @@ describe("handleActivateRiApi", () => {
       "stop-1",
       "activate-ri-2026",
       "activate-ri-2026",
+      expectedHash,
       expectedHash,
     ]);
     expect(JSON.stringify(updateBinds)).not.toContain(token);
@@ -1454,6 +1456,7 @@ describe("handleActivateRiApi", () => {
       "stop-1",
       "activate-ri-2026",
       "activate-ri-2026",
+      expectedHash,
       expectedHash,
     ]);
     expect(JSON.stringify(cancelBinds)).not.toContain(token);

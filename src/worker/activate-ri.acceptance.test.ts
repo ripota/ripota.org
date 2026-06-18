@@ -90,13 +90,18 @@ describe("Activate RI API acceptance flow", () => {
   it("merges repeated submissions for the same activator into one editable stop list", async () => {
     const db = createMigratedSqliteD1();
     cleanup = db.close;
-    const env = testEnv(db.DB);
+    const env = {
+      ...testEnv(db.DB),
+      ALLOW_LOCAL_ADMIN_AUTH: "true" as const,
+    };
 
     const firstResponse = await handleActivateRiApi(
       jsonRequest("/api/activate-ri-2026/plans", volunteerPayload()),
       env,
     );
     expect(firstResponse.status).toBe(202);
+    const firstBody = (await firstResponse.json()) as { editUrl: string };
+    const firstEditPath = editApiPlansPath(firstBody.editUrl);
 
     const secondResponse = await handleActivateRiApi(
       jsonRequest("/api/activate-ri-2026/plans", {
@@ -114,6 +119,19 @@ describe("Activate RI API acceptance flow", () => {
       env,
     );
     expect(secondResponse.status).toBe(202);
+
+    const firstEditResponse = await handleActivateRiApi(
+      new Request(`https://ripota.org${firstEditPath}`),
+      env,
+    );
+    expect(firstEditResponse.status).toBe(200);
+    const firstEditBody = (await firstEditResponse.json()) as {
+      plans: Array<{ stops: Array<{ park_reference: string }> }>;
+    };
+    expect(firstEditBody.plans[0].stops).toEqual([
+      expect.objectContaining({ park_reference: "US-2868" }),
+      expect.objectContaining({ park_reference: "US-2869" }),
+    ]);
 
     const pendingResponse = await handleActivateRiApi(
       adminRequest("/api/activate-ri-2026/admin/plans"),
@@ -143,6 +161,51 @@ describe("Activate RI API acceptance flow", () => {
         status: "pending-review",
       }),
     ]);
+  });
+
+  it("keeps an existing edit link working after a resend request", async () => {
+    const db = createMigratedSqliteD1();
+    cleanup = db.close;
+    const env = {
+      ...testEnv(db.DB),
+      ALLOW_LOCAL_ADMIN_AUTH: "true" as const,
+      ACTIVATE_RI_EMAIL_FROM: "activate-ri-2026@ripota.org",
+      EMAIL: {
+        send: vi.fn(async () => ({ messageId: "test-message" })),
+      } as unknown as SendEmail,
+    };
+
+    const submitResponse = await handleActivateRiApi(
+      jsonRequest("/api/activate-ri-2026/plans", volunteerPayload()),
+      env,
+    );
+    expect(submitResponse.status).toBe(202);
+    const submitBody = (await submitResponse.json()) as { editUrl: string };
+    const firstEditPath = editApiPlansPath(submitBody.editUrl);
+
+    const resendResponse = await handleActivateRiApi(
+      jsonRequest("/api/activate-ri-2026/resend-edit-link", {
+        callsign: "N1RWJ",
+        email: "rob@example.com",
+      }),
+      env,
+    );
+    expect(resendResponse.status).toBe(200);
+
+    const firstEditResponse = await handleActivateRiApi(
+      new Request(`https://ripota.org${firstEditPath}`),
+      env,
+    );
+    expect(firstEditResponse.status).toBe(200);
+    await expect(firstEditResponse.json()).resolves.toMatchObject({
+      ok: true,
+      plans: [
+        {
+          submitter_callsign: "N1RWJ",
+          submitter_email: "rob@example.com",
+        },
+      ],
+    });
   });
 
   it("publishes new stops immediately for an already approved activator", async () => {
@@ -279,8 +342,8 @@ describe("Activate RI API acceptance flow", () => {
     );
     expect(secondResponse.status).toBe(202);
 
-    const adminApprovalEmails = sendEmail.mock.calls
-      .map(([message]) => message as { subject?: string; to?: unknown })
+    const adminApprovalEmails = (sendEmail.mock.calls as unknown[][])
+      .map(([message]) => message as unknown as { subject?: string; to?: unknown })
       .filter((message) =>
         message.subject === "Activate RI approval needed: N1RWJ"
       );
@@ -329,6 +392,14 @@ function jsonRequest(path: string, payload: unknown): Request {
     headers: { "content-type": "application/json" },
     body: JSON.stringify(payload),
   });
+}
+
+function editApiPlansPath(editUrl: string): string {
+  const editPath = new URL(editUrl).pathname.replace(/\/$/, "");
+  return editPath.replace(
+    "/activate-ri-2026/edit/",
+    "/api/activate-ri-2026/edit/",
+  ) + "/plans";
 }
 
 function adminRequest(path: string, init: RequestInit = {}): Request {
