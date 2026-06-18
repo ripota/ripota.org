@@ -1,14 +1,30 @@
 import { describe, expect, it } from "vitest";
 import identityFieldsSource from "./ActivateRiIdentityFields.astro?raw";
+import frequencyNoteSource from "./ActivateRiFrequencyNote.astro?raw";
+import organizerNotesSource from "./ActivateRiOrganizerNotesField.astro?raw";
+import requiredNoteSource from "./ActivateRiRequiredNote.astro?raw";
+import stopsSectionSource from "./ActivateRiStopsSection.astro?raw";
 import volunteerFormSource from "./VolunteerForm.astro?raw";
 
 describe("VolunteerForm required field indicators", () => {
   it("uses compact asterisks and explains them once", () => {
-    expect(volunteerFormSource).toContain(
+    expect(requiredNoteSource).toContain(
       '<p class="form-help form-required-note"><span class="required-marker" aria-hidden="true">*</span> Required fields</p>',
     );
+    expect(volunteerFormSource).toContain("ActivateRiRequiredNote");
     expect(identityFieldsSource).toContain('aria-label="Required field"');
     expect(identityFieldsSource).not.toContain("<span class=\"required-marker\">Required</span>");
+  });
+});
+
+describe("VolunteerForm shared controls", () => {
+  it("uses shared stop, organizer notes, and frequency controls", () => {
+    expect(volunteerFormSource).toContain("ActivateRiStopsSection");
+    expect(volunteerFormSource).toContain("ActivateRiOrganizerNotesField");
+    expect(volunteerFormSource).toContain("ActivateRiFrequencyNote");
+    expect(stopsSectionSource).toContain("data-add-stop");
+    expect(organizerNotesSource).toContain('name="organizerNotes"');
+    expect(frequencyNoteSource).toContain("Frequencies are not collected here.");
   });
 });
 

@@ -1,0 +1,35 @@
+---
+import ActivateRiStopCard from "./ActivateRiStopCard.astro";
+
+type Props = {
+  hidden?: boolean;
+  includeInitialStop?: boolean;
+  includeStopId?: boolean;
+  mode: "volunteer" | "edit";
+};
+
+const {
+  hidden = false,
+  includeInitialStop = false,
+  includeStopId = false,
+  mode,
+} = Astro.props;
+---
+
+{
+  mode === "edit" ? (
+    <div class="activation-stops" data-stops-container data-edit-stops hidden={hidden}>
+      {includeInitialStop && <ActivateRiStopCard includeStopId={includeStopId} title="Activation stop 1" removeHidden={true} />}
+    </div>
+  ) : (
+    <div class="activation-stops" data-stops-container data-stops hidden={hidden}>
+      {includeInitialStop && <ActivateRiStopCard includeStopId={includeStopId} title="Activation stop 1" removeHidden={true} />}
+    </div>
+  )
+}
+
+<div class="form-actions" data-add-stop-actions hidden={hidden}>
+  <button class="button" data-variant="light" type="button" data-add-stop>
+    Add another park
+  </button>
+</div>

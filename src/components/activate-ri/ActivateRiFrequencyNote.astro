@@ -1,0 +1,12 @@
+---
+type Props = {
+  hidden?: boolean;
+};
+
+const { hidden = false } = Astro.props;
+---
+
+<p class="form-help" data-frequency-note hidden={hidden}>
+  Frequencies are not collected here. Please use normal POTA spotting when
+  your activation begins.
+</p>

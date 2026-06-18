@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 import identityFieldsSource from "./ActivateRiIdentityFields.astro?raw";
+import organizerNotesSource from "./ActivateRiOrganizerNotesField.astro?raw";
+import requiredNoteSource from "./ActivateRiRequiredNote.astro?raw";
 import stopCardSource from "./ActivateRiStopCard.astro?raw";
+import stopsSectionSource from "./ActivateRiStopsSection.astro?raw";
 import editFormSource from "./ActivatorEditForm.astro?raw";
+import formClientSource from "../../lib/activate-ri/form-client?raw";
 
 describe("ActivatorEditForm shared volunteer controls", () => {
   it("uses the same required-field indicators as the volunteer form", () => {
-    expect(editFormSource).toContain("form-required-note");
+    expect(editFormSource).toContain("ActivateRiRequiredNote");
+    expect(requiredNoteSource).toContain("form-required-note");
     expect(identityFieldsSource).toContain('aria-label="Required field"');
     expect(stopCardSource).toContain('aria-label="Required field"');
   });
@@ -17,7 +22,22 @@ describe("ActivatorEditForm shared volunteer controls", () => {
     expect(stopCardSource).toContain("data-bands");
     expect(stopCardSource).toContain("data-modes");
     expect(stopCardSource).toContain("data-public-notes");
-    expect(editFormSource).toContain('name="organizerNotes"');
+    expect(editFormSource).toContain("ActivateRiOrganizerNotesField");
+    expect(organizerNotesSource).toContain('name="organizerNotes"');
+  });
+
+  it("uses the shared stop section for add-park placement", () => {
+    expect(editFormSource).toContain("ActivateRiStopsSection");
+    expect(stopsSectionSource).toContain("data-add-stop-actions");
+    expect(stopsSectionSource).toContain("Add another park");
+    expect(editFormSource).not.toContain('<button class="button" data-variant="light" type="button" data-add-stop>');
+  });
+
+  it("shares client behavior for stop cards and picker controls", () => {
+    expect(editFormSource).toContain("../../lib/activate-ri/form-client");
+    expect(formClientSource).toContain("setupStopCards");
+    expect(formClientSource).toContain("setParkPopupOpen");
+    expect(formClientSource).toContain("setMultiSelectOpen");
   });
 
   it("does not ask activators to choose between submitted plans", () => {

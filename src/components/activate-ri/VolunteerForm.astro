@@ -1,6 +1,9 @@
 ---
 import ActivateRiIdentityFields from "./ActivateRiIdentityFields.astro";
-import ActivateRiStopCard from "./ActivateRiStopCard.astro";
+import ActivateRiFrequencyNote from "./ActivateRiFrequencyNote.astro";
+import ActivateRiOrganizerNotesField from "./ActivateRiOrganizerNotesField.astro";
+import ActivateRiRequiredNote from "./ActivateRiRequiredNote.astro";
+import ActivateRiStopsSection from "./ActivateRiStopsSection.astro";
 
 const turnstileSiteKey =
   import.meta.env.PUBLIC_TURNSTILE_SITE_KEY;
@@ -14,7 +17,7 @@ const turnstileSiteKey =
 ></script>
 
 <form class="event-form" method="post" action="/api/activate-ri-2026/plans" data-activate-ri-volunteer novalidate>
-  <p class="form-help form-required-note"><span class="required-marker" aria-hidden="true">*</span> Required fields</p>
+  <ActivateRiRequiredNote />
   <ActivateRiIdentityFields clubDatalistId="activate-ri-clubs" />
   <datalist id="activate-ri-clubs" data-club-options></datalist>
   <div
@@ -35,45 +38,11 @@ const turnstileSiteKey =
     </div>
   </div>
 
-  <div class="activation-stops" data-stops>
-    <ActivateRiStopCard title="Activation stop 1" removeHidden={true} />
-  </div>
+  <ActivateRiStopsSection mode="volunteer" includeInitialStop={true} />
 
-  <div class="form-actions">
-    <button class="button" data-variant="light" type="button" data-add-stop>
-      Add another park
-    </button>
-  </div>
+  <ActivateRiOrganizerNotesField />
 
-  <div class="form-field">
-    <span class="field-label-row">
-      <span class="form-label">Notes for organizers</span>
-      <span class="help-popover">
-        <button
-          class="help-popover__button"
-          type="button"
-          aria-label="Help for organizer notes field"
-        >?</button>
-        <span class="help-popover__bubble" role="tooltip">
-          These notes are for coordinators and are not shown on the public
-          schedule.
-        </span>
-      </span>
-    </span>
-    <textarea
-      name="organizerNotes"
-      rows="3"
-      aria-describedby="activate-ri-organizer-notes-help"
-    ></textarea>
-    <span id="activate-ri-organizer-notes-help" class="form-help">
-      Use this for coordinator context, special constraints, or review notes.
-    </span>
-  </div>
-
-  <p class="form-help">
-    Frequencies are not collected here. Please use normal POTA spotting when
-    your activation begins.
-  </p>
+  <ActivateRiFrequencyNote />
 
   <div
     class="cf-turnstile"
@@ -105,6 +74,26 @@ const turnstileSiteKey =
 
 <script>
   import {
+    appendBlankStop,
+    clearFieldError,
+    fieldErrorElement,
+    firstEmptyStopCard,
+    parkReferenceAlreadySelected,
+    populateClubDatalist,
+    reportControlValidity,
+    resetTurnstile,
+    selectParkReference,
+    selectedParkReference,
+    selectedValues,
+    setupCallsignFields,
+    setupDocumentPopupDismissal,
+    setupStopCards,
+    setControlValidity,
+    stopErrorElement,
+    uppercaseFormValue,
+    type ValidationControl,
+  } from "../../lib/activate-ri/form-client";
+  import {
     formatVolunteerMissingFieldSummary,
     formatVolunteerProblemFieldSummary,
     volunteerRequiredFieldMessage,
@@ -115,7 +104,7 @@ const turnstileSiteKey =
   const status = document.querySelector("[data-form-status]") as HTMLOutputElement | null;
   const submitButton = document.querySelector("[data-submit-button]") as HTMLButtonElement | null;
   const submitConfirmation = document.querySelector("[data-submit-confirmation]") as HTMLDialogElement | null;
-  const stopsContainer = document.querySelector("[data-stops]");
+  const stopsContainer = document.querySelector<HTMLElement>("[data-stops-container]");
   const addStopButton = document.querySelector("[data-add-stop]");
   const existingActivationNotice = document.querySelector<HTMLElement>("[data-existing-activation-notice]");
   const existingActivationStatus = document.querySelector<HTMLElement>("[data-existing-activation-status]");
@@ -129,30 +118,14 @@ const turnstileSiteKey =
   setupRequiredFieldValidation();
   setupExistingActivationHint();
   void populateClubDatalist("activate-ri-clubs");
-  setupStopCards();
+  setupStopCards({ validatePark: true, setupErrorDescriptions: true });
   prefillParkFromUrl();
-
-  document.addEventListener("click", (event) => {
-    const target = event.target;
-    if (!(target instanceof Node)) {
-      return;
-    }
-
-    document.querySelectorAll<HTMLElement>("[data-park-combobox]").forEach((combo) => {
-      if (!combo.contains(target)) {
-        setParkPopupOpen(combo, false);
-      }
-    });
-
-    document.querySelectorAll<HTMLElement>("[data-multi-select]").forEach((multiSelect) => {
-      if (!multiSelect.contains(target)) {
-        setMultiSelectOpen(multiSelect, false);
-      }
-    });
-  });
+  setupDocumentPopupDismissal();
 
   addStopButton?.addEventListener("click", () => {
-    appendBlankStop()?.querySelector<HTMLInputElement>("[data-park-input]")?.focus();
+    const stop = appendBlankStop(stopsContainer);
+    setupStopCards({ validatePark: true, setupErrorDescriptions: true });
+    stop?.querySelector<HTMLInputElement>("[data-park-input]")?.focus();
   });
 
   document.addEventListener("activate-ri:add-park", (event) => {
@@ -192,7 +165,7 @@ const turnstileSiteKey =
 
       if (response.ok && data.ok) {
         form.reset();
-        setupStopCards();
+        setupStopCards({ validatePark: true, setupErrorDescriptions: true });
         setFormStatus(data.message ?? "Submission received for organizer review.", "success");
         resetTurnstile();
         showSubmitConfirmation();
@@ -371,22 +344,6 @@ const turnstileSiteKey =
     };
   }
 
-  function uppercaseFormValue(value: FormDataEntryValue | null): FormDataEntryValue | null {
-    return typeof value === "string" ? value.toUpperCase() : value;
-  }
-
-  function setupCallsignFields(): void {
-    document.querySelectorAll<HTMLInputElement>(".callsign-input").forEach((field) => {
-      const uppercaseValue = () => {
-        field.value = field.value.toUpperCase();
-      };
-
-      field.addEventListener("input", uppercaseValue);
-      field.addEventListener("change", uppercaseValue);
-      uppercaseValue();
-    });
-  }
-
   function setupRequiredFieldValidation(): void {
     ["submitterCallsign", "submitterName", "submitterEmail"].forEach((name) => {
       const field = form?.elements.namedItem(name) as HTMLInputElement | null;
@@ -398,153 +355,6 @@ const turnstileSiteKey =
         }
       });
     });
-  }
-
-  async function populateClubDatalist(id: string): Promise<void> {
-    const datalist = document.getElementById(id);
-    if (!datalist) {
-      return;
-    }
-
-    try {
-      const response = await fetch("/api/activate-ri-2026/public/clubs", {
-        headers: { accept: "application/json" },
-      });
-      const body = await response.json() as { clubs?: unknown };
-      const clubs = Array.isArray(body.clubs)
-        ? body.clubs.filter((club): club is string => typeof club === "string")
-        : [];
-
-      datalist.replaceChildren(
-        ...clubs.map((club) => {
-          const option = document.createElement("option");
-          option.value = club;
-          return option;
-        }),
-      );
-    } catch {
-      datalist.replaceChildren();
-    }
-  }
-
-  function selectedValues(root: HTMLElement | null): string[] {
-    return Array.from(root?.querySelectorAll<HTMLInputElement>("[data-multi-option]:checked") ?? [])
-      .map((option) => option.value);
-  }
-
-  function resetTurnstile(): void {
-    const turnstile = (
-      globalThis as {
-        turnstile?: {
-          reset?: () => void;
-        };
-      }
-    ).turnstile;
-
-    turnstile?.reset?.();
-  }
-
-  function setupStopCards(): void {
-    const stops = Array.from(document.querySelectorAll<HTMLElement>("[data-stop-card]"));
-
-    stops.forEach((stop, index) => {
-      const title = stop.querySelector("[data-stop-title]");
-      const removeButton = stop.querySelector<HTMLButtonElement>("[data-remove-stop]");
-      const parkInput = stop.querySelector<HTMLInputElement>("[data-park-input]");
-      const parkReference = stop.querySelector<HTMLInputElement>("[data-park-reference]");
-      const parkCombobox = stop.querySelector<HTMLElement>("[data-park-combobox]");
-      const plannedDate = stop.querySelector("[data-planned-date]") as HTMLSelectElement | null;
-      const timeBlock = stop.querySelector("[data-time-block]") as HTMLSelectElement | null;
-
-      title?.replaceChildren(`Activation stop ${index + 1}`);
-      setupStopErrorDescriptions(stop, index);
-
-      if (removeButton) {
-        removeButton.hidden = stops.length === 1;
-        removeButton.onclick = () => {
-          stop.remove();
-          setupStopCards();
-        };
-      }
-
-      if (parkInput && parkReference && parkCombobox) {
-        const syncParkReference = () => {
-          parkReference.value = selectedParkReference(parkInput.value.trim(), parkCombobox);
-          parkInput.setCustomValidity(
-            parkReference.value ? "" : "Choose a park from the suggestions.",
-          );
-          if (parkReference.value) {
-            clearFieldError(parkInput, stopErrorElement(stop, "park"));
-          }
-          filterParkOptions(parkCombobox, parkInput.value);
-        };
-
-        parkInput.onfocus = () => {
-          filterParkOptions(parkCombobox, parkInput.value);
-          setParkPopupOpen(parkCombobox, true);
-        };
-        parkInput.oninput = syncParkReference;
-        parkInput.onchange = syncParkReference;
-        syncParkReference();
-
-        parkCombobox.querySelectorAll<HTMLElement>("[data-park-option]").forEach((option) => {
-          option.onclick = () => {
-            const label = option.dataset.label ?? "";
-            parkInput.value = label;
-            parkReference.value = option.dataset.reference ?? "";
-            clearFieldError(parkInput, stopErrorElement(stop, "park"));
-            setParkPopupOpen(parkCombobox, false);
-          };
-        });
-      }
-
-      plannedDate?.addEventListener("change", () => {
-        if (plannedDate.value) {
-          clearFieldError(plannedDate, stopErrorElement(stop, "plannedDate"));
-        }
-      });
-
-      timeBlock?.addEventListener("change", () => {
-        if (timeBlock.value) {
-          clearFieldError(timeBlock, stopErrorElement(stop, "timeBlock"));
-        }
-      });
-
-      stop.querySelectorAll<HTMLElement>("[data-multi-select]").forEach((multiSelect) => {
-        const toggle = multiSelect.querySelector<HTMLButtonElement>("[data-multi-toggle]");
-        if (toggle) {
-          toggle.onclick = () => {
-            setMultiSelectOpen(multiSelect, toggle.getAttribute("aria-expanded") !== "true");
-          };
-        }
-
-        multiSelect.querySelectorAll<HTMLInputElement>("[data-multi-option]").forEach((option) => {
-          option.onchange = () => {
-            updateMultiSelectLabel(multiSelect);
-            if (selectedValues(multiSelect).length > 0) {
-              clearFieldError(
-                toggle,
-                stopErrorElement(stop, multiSelect.hasAttribute("data-bands") ? "bands" : "modes"),
-              );
-            }
-          };
-        });
-        updateMultiSelectLabel(multiSelect);
-      });
-    });
-  }
-
-  function appendBlankStop(): HTMLElement | null {
-    const firstStop = document.querySelector<HTMLElement>("[data-stop-card]");
-    if (!firstStop || !stopsContainer) {
-      return null;
-    }
-
-    const nextStop = firstStop.cloneNode(true) as HTMLElement;
-    clearStopCard(nextStop);
-    stopsContainer.appendChild(nextStop);
-    setupStopCards();
-    return nextStop;
   }
 
   function prefillParkFromUrl(): void {
@@ -567,7 +377,7 @@ const turnstileSiteKey =
       return;
     }
 
-    const targetStop = firstEmptyStopCard() ?? appendBlankStop();
+    const targetStop = firstEmptyStopCard() ?? appendBlankStop(stopsContainer);
     if (!targetStop) {
       return;
     }
@@ -580,7 +390,7 @@ const turnstileSiteKey =
       return;
     }
 
-    setupStopCards();
+    setupStopCards({ validatePark: true, setupErrorDescriptions: true });
     if (options.focusIdentity) {
       focusVolunteerIdentityFields();
     }
@@ -593,34 +403,6 @@ const turnstileSiteKey =
       preventScroll: true,
     });
   }
-
-  function firstEmptyStopCard(): HTMLElement | null {
-    return Array.from(document.querySelectorAll<HTMLElement>("[data-stop-card]"))
-      .find((stop) => !stop.querySelector<HTMLInputElement>("[data-park-reference]")?.value) ?? null;
-  }
-
-  function parkReferenceAlreadySelected(reference: string): boolean {
-    return Array.from(document.querySelectorAll<HTMLInputElement>("[data-park-reference]"))
-      .some((field) => field.value.toUpperCase() === reference);
-  }
-
-  function selectParkReference(stop: HTMLElement, reference: string): boolean {
-    const parkInput = stop.querySelector<HTMLInputElement>("[data-park-input]");
-    const parkReference = stop.querySelector<HTMLInputElement>("[data-park-reference]");
-    const option = Array.from(stop.querySelectorAll<HTMLElement>("[data-park-option]"))
-      .find((candidate) => candidate.dataset.reference === reference);
-
-    if (!parkInput || !parkReference || !option) {
-      return false;
-    }
-
-    parkInput.value = option.dataset.label ?? reference;
-    parkReference.value = reference;
-    parkInput.setCustomValidity("");
-    return true;
-  }
-
-  type ValidationControl = HTMLInputElement | HTMLSelectElement | HTMLButtonElement | HTMLTextAreaElement;
 
   function validateVolunteerForm(): boolean {
     const invalidFields: VolunteerRequiredField[] = [];
@@ -735,81 +517,6 @@ const turnstileSiteKey =
     return false;
   }
 
-  type StopErrorKey = "park" | "plannedDate" | "timeBlock" | "bands" | "modes";
-
-  function setupStopErrorDescriptions(stop: HTMLElement, index: number): void {
-    (["park", "plannedDate", "timeBlock", "bands", "modes"] as StopErrorKey[]).forEach((key) => {
-      const errorElement = stopErrorElement(stop, key);
-      if (!errorElement) {
-        return;
-      }
-
-      errorElement.id = `activate-ri-stop-${index + 1}-${key}-error`;
-
-      const control = stopControl(stop, key);
-      if (control) {
-        appendDescribedBy(control, errorElement.id);
-      }
-    });
-  }
-
-  function stopControl(stop: HTMLElement, key: StopErrorKey): ValidationControl | null {
-    if (key === "park") {
-      return stop.querySelector<HTMLInputElement>("[data-park-input]");
-    }
-
-    if (key === "plannedDate") {
-      return stop.querySelector("[data-planned-date]") as HTMLSelectElement | null;
-    }
-
-    if (key === "timeBlock") {
-      return stop.querySelector("[data-time-block]") as HTMLSelectElement | null;
-    }
-
-    const multiSelect = stop.querySelector<HTMLElement>(
-      key === "bands" ? "[data-bands]" : "[data-modes]",
-    );
-
-    return multiSelect?.querySelector<HTMLButtonElement>("[data-multi-toggle]") ?? null;
-  }
-
-  function stopErrorElement(stop: HTMLElement, key: StopErrorKey): HTMLElement | null {
-    return stop.querySelector<HTMLElement>(`[data-field-error][data-error-for="${key}"]`);
-  }
-
-  function fieldErrorElement(control: Element | null): HTMLElement | null {
-    const describedBy = control?.getAttribute("aria-describedby") ?? "";
-
-    return describedBy
-      .split(/\s+/)
-      .map((id) => document.getElementById(id))
-      .find((element): element is HTMLElement => element?.hasAttribute("data-field-error") ?? false) ?? null;
-  }
-
-  function clearFieldError(control: ValidationControl | null, errorElement: HTMLElement | null): void {
-    control?.removeAttribute("aria-invalid");
-    setControlValidity(control, "");
-    errorElement?.replaceChildren();
-  }
-
-  function setControlValidity(control: ValidationControl | null, message: string): void {
-    control?.setCustomValidity(message);
-  }
-
-  function reportControlValidity(control: ValidationControl | null): void {
-    control?.reportValidity();
-  }
-
-  function appendDescribedBy(control: ValidationControl, id: string): void {
-    const ids = new Set(
-      (control.getAttribute("aria-describedby") ?? "")
-        .split(/\s+/)
-        .filter(Boolean),
-    );
-    ids.add(id);
-    control.setAttribute("aria-describedby", Array.from(ids).join(" "));
-  }
-
   function setFormStatus(message: string, kind?: "error" | "success"): void {
     status?.replaceChildren(message);
 
@@ -831,76 +538,4 @@ const turnstileSiteKey =
     }
   }
 
-  function clearStopCard(stop: HTMLElement): void {
-    stop.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input:not([type='checkbox']), textarea").forEach((field) => {
-      field.value = "";
-    });
-    stop.querySelectorAll<HTMLInputElement>("input[type='checkbox']").forEach((field) => {
-      field.checked = false;
-    });
-    (Array.from(stop.querySelectorAll("select")) as HTMLSelectElement[]).forEach((field) => {
-      field.selectedIndex = 0;
-    });
-    stop.querySelectorAll<HTMLElement>("[data-park-results], [data-multi-menu]").forEach((popup) => {
-      popup.hidden = true;
-    });
-    stop.querySelectorAll<HTMLElement>("[data-multi-select]").forEach(updateMultiSelectLabel);
-    stop.querySelectorAll("[aria-invalid]").forEach((field) => {
-      clearFieldError(field as ValidationControl, fieldErrorElement(field));
-    });
-    stop.querySelectorAll<HTMLElement>("[data-field-error]").forEach((error) => {
-      error.replaceChildren();
-    });
-  }
-
-  function selectedParkReference(value: string, combobox: HTMLElement): string {
-    const normalizedValue = value.toLowerCase();
-    const selectedOption = Array.from(combobox.querySelectorAll<HTMLElement>("[data-park-option]"))
-      .find((option) => (
-        option.dataset.reference?.toLowerCase() === normalizedValue ||
-        option.dataset.label?.toLowerCase() === normalizedValue
-      ));
-
-    return selectedOption?.dataset.reference ?? "";
-  }
-
-  function filterParkOptions(combobox: HTMLElement, value: string): void {
-    const terms = value.toLowerCase().split(/\s+/).filter(Boolean);
-    let visibleCount = 0;
-
-    combobox.querySelectorAll<HTMLElement>("[data-park-option]").forEach((option) => {
-      const search = option.dataset.search ?? "";
-      const isVisible = terms.every((term) => search.includes(term));
-      option.hidden = !isVisible;
-      if (isVisible) {
-        visibleCount += 1;
-      }
-    });
-
-    const empty = combobox.querySelector<HTMLElement>("[data-park-empty]");
-    if (empty) {
-      empty.hidden = visibleCount > 0;
-    }
-  }
-
-  function setParkPopupOpen(combobox: HTMLElement, isOpen: boolean): void {
-    combobox.querySelector<HTMLElement>("[data-park-results]")?.toggleAttribute("hidden", !isOpen);
-    combobox.querySelector<HTMLInputElement>("[data-park-input]")?.setAttribute("aria-expanded", String(isOpen));
-  }
-
-  function setMultiSelectOpen(multiSelect: HTMLElement, isOpen: boolean): void {
-    multiSelect.querySelector<HTMLElement>("[data-multi-menu]")?.toggleAttribute("hidden", !isOpen);
-    multiSelect.querySelector<HTMLButtonElement>("[data-multi-toggle]")?.setAttribute("aria-expanded", String(isOpen));
-  }
-
-  function updateMultiSelectLabel(multiSelect: HTMLElement): void {
-    const toggle = multiSelect.querySelector<HTMLButtonElement>("[data-multi-toggle]");
-    const values = selectedValues(multiSelect);
-
-    if (!toggle) {
-      return;
-    }
-
-    toggle.textContent = values.length > 0 ? values.join(", ") : multiSelect.hasAttribute("data-bands") ? "Choose bands" : "Choose modes";
-  }
 </script>

@@ -1,0 +1,32 @@
+---
+type Props = {
+  hidden?: boolean;
+};
+
+const { hidden = false } = Astro.props;
+---
+
+<div class="form-field" data-organizer-notes hidden={hidden}>
+  <span class="field-label-row">
+    <span class="form-label">Notes for organizers</span>
+    <span class="help-popover">
+      <button
+        class="help-popover__button"
+        type="button"
+        aria-label="Help for organizer notes field"
+      >?</button>
+      <span class="help-popover__bubble" role="tooltip">
+        These notes are for coordinators and are not shown on the public
+        schedule.
+      </span>
+    </span>
+  </span>
+  <textarea
+    name="organizerNotes"
+    rows="3"
+    aria-describedby="activate-ri-organizer-notes-help"
+  ></textarea>
+  <span id="activate-ri-organizer-notes-help" class="form-help">
+    Use this for coordinator context, special constraints, or review notes.
+  </span>
+</div>
