@@ -208,6 +208,53 @@ describe("Activate RI API acceptance flow", () => {
     });
   });
 
+  it("checks whether a callsign and email already have an activation without sending email", async () => {
+    const db = createMigratedSqliteD1();
+    cleanup = db.close;
+    const sendEmail = vi.fn(async () => ({ messageId: "test-message" }));
+    const env = {
+      ...testEnv(db.DB),
+      ACTIVATE_RI_EMAIL_FROM: "activate-ri-2026@ripota.org",
+      EMAIL: {
+        send: sendEmail,
+      } as unknown as SendEmail,
+    };
+
+    const submitResponse = await handleActivateRiApi(
+      jsonRequest("/api/activate-ri-2026/plans", volunteerPayload()),
+      env,
+    );
+    expect(submitResponse.status).toBe(202);
+    sendEmail.mockClear();
+
+    const matchResponse = await handleActivateRiApi(
+      jsonRequest("/api/activate-ri-2026/activation-lookup", {
+        callsign: "n1rwj",
+        email: "ROB@example.com",
+      }),
+      env,
+    );
+    expect(matchResponse.status).toBe(200);
+    await expect(matchResponse.json()).resolves.toEqual({
+      ok: true,
+      exists: true,
+    });
+    expect(sendEmail).not.toHaveBeenCalled();
+
+    const missResponse = await handleActivateRiApi(
+      jsonRequest("/api/activate-ri-2026/activation-lookup", {
+        callsign: "K1ABC",
+        email: "rob@example.com",
+      }),
+      env,
+    );
+    expect(missResponse.status).toBe(200);
+    await expect(missResponse.json()).resolves.toEqual({
+      ok: true,
+      exists: false,
+    });
+  });
+
   it("publishes new stops immediately for an already approved activator", async () => {
     const db = createMigratedSqliteD1();
     cleanup = db.close;

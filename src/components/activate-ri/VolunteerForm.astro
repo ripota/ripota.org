@@ -17,6 +17,23 @@ const turnstileSiteKey =
   <p class="form-help form-required-note"><span class="required-marker" aria-hidden="true">*</span> Required fields</p>
   <ActivateRiIdentityFields clubDatalistId="activate-ri-clubs" />
   <datalist id="activate-ri-clubs" data-club-options></datalist>
+  <div
+    class="existing-activation-notice"
+    data-existing-activation-notice
+    aria-live="polite"
+    hidden
+  >
+    <p>
+      <strong>We already have an activation plan for this callsign and email.</strong>
+      You can also keep going here; submitting this form will merge these parks into your existing plan.
+    </p>
+    <div class="form-actions">
+      <button class="button" data-variant="light" type="button" data-send-existing-edit-link>
+        Email me my edit link
+      </button>
+      <span class="form-help" data-existing-activation-status></span>
+    </div>
+  </div>
 
   <div class="activation-stops" data-stops>
     <ActivateRiStopCard title="Activation stop 1" removeHidden={true} />
@@ -100,10 +117,17 @@ const turnstileSiteKey =
   const submitConfirmation = document.querySelector("[data-submit-confirmation]") as HTMLDialogElement | null;
   const stopsContainer = document.querySelector("[data-stops]");
   const addStopButton = document.querySelector("[data-add-stop]");
+  const existingActivationNotice = document.querySelector<HTMLElement>("[data-existing-activation-notice]");
+  const existingActivationStatus = document.querySelector<HTMLElement>("[data-existing-activation-status]");
+  const sendExistingEditLinkButton = document.querySelector<HTMLButtonElement>("[data-send-existing-edit-link]");
   let isSubmitting = false;
+  let existingActivationCheckId = 0;
+  let lastExistingActivationLookup = "";
+  let isSendingExistingEditLink = false;
 
   setupCallsignFields();
   setupRequiredFieldValidation();
+  setupExistingActivationHint();
   void populateClubDatalist("activate-ri-clubs");
   setupStopCards();
   prefillParkFromUrl();
@@ -195,6 +219,137 @@ const turnstileSiteKey =
     }
 
     return response.json();
+  }
+
+  function setupExistingActivationHint(): void {
+    const callsignField = form?.elements.namedItem("submitterCallsign") as HTMLInputElement | null;
+    const emailField = form?.elements.namedItem("submitterEmail") as HTMLInputElement | null;
+
+    callsignField?.addEventListener("blur", () => {
+      void checkExistingActivation();
+    });
+    emailField?.addEventListener("blur", () => {
+      void checkExistingActivation();
+    });
+    callsignField?.addEventListener("input", () => clearExistingActivationHint());
+    emailField?.addEventListener("input", () => clearExistingActivationHint());
+    sendExistingEditLinkButton?.addEventListener("click", () => {
+      void sendExistingEditLink();
+    });
+  }
+
+  async function checkExistingActivation(): Promise<void> {
+    const identity = currentActivatorIdentity();
+    if (!identity || identity.emailField.validity.valid === false) {
+      clearExistingActivationHint();
+      return;
+    }
+
+    const lookupKey = `${identity.callsign}\n${identity.email}`;
+    if (lookupKey === lastExistingActivationLookup && !existingActivationNotice?.hidden) {
+      return;
+    }
+
+    const checkId = ++existingActivationCheckId;
+    lastExistingActivationLookup = lookupKey;
+
+    try {
+      const response = await fetch("/api/activate-ri-2026/activation-lookup", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          callsign: identity.callsign,
+          email: identity.email,
+        }),
+      });
+      const data = await parseResponse(response) as { ok: boolean; exists?: boolean };
+
+      if (checkId !== existingActivationCheckId) {
+        return;
+      }
+
+      if (response.ok && data.ok && data.exists) {
+        showExistingActivationHint();
+      } else {
+        clearExistingActivationHint({ keepLookup: true });
+      }
+    } catch {
+      clearExistingActivationHint({ keepLookup: true });
+    }
+  }
+
+  async function sendExistingEditLink(): Promise<void> {
+    const identity = currentActivatorIdentity();
+    if (!identity || isSendingExistingEditLink) {
+      return;
+    }
+
+    isSendingExistingEditLink = true;
+    if (sendExistingEditLinkButton) {
+      sendExistingEditLinkButton.disabled = true;
+    }
+    existingActivationStatus?.replaceChildren("Sending...");
+
+    try {
+      const response = await fetch("/api/activate-ri-2026/resend-edit-link", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          callsign: identity.callsign,
+          email: identity.email,
+        }),
+      });
+      const data = await parseResponse(response);
+
+      if (!response.ok || !data.ok) {
+        existingActivationStatus?.replaceChildren(data.errors?.join(" ") ?? "Unable to send the edit link.");
+        return;
+      }
+
+      existingActivationStatus?.replaceChildren(data.message ?? "If we found a matching signup, we sent the private edit link.");
+    } catch {
+      existingActivationStatus?.replaceChildren("Unable to send the edit link. Please try again later.");
+    } finally {
+      isSendingExistingEditLink = false;
+      if (sendExistingEditLinkButton) {
+        sendExistingEditLinkButton.disabled = false;
+      }
+    }
+  }
+
+  function currentActivatorIdentity(): {
+    callsign: string;
+    email: string;
+    emailField: HTMLInputElement;
+  } | null {
+    const callsignField = form?.elements.namedItem("submitterCallsign") as HTMLInputElement | null;
+    const emailField = form?.elements.namedItem("submitterEmail") as HTMLInputElement | null;
+    const callsign = callsignField?.value.trim().toUpperCase() ?? "";
+    const email = emailField?.value.trim().toLowerCase() ?? "";
+
+    if (!callsign || !email || !emailField) {
+      return null;
+    }
+
+    return { callsign, email, emailField };
+  }
+
+  function showExistingActivationHint(): void {
+    if (existingActivationNotice) {
+      existingActivationNotice.hidden = false;
+    }
+    existingActivationStatus?.replaceChildren();
+  }
+
+  function clearExistingActivationHint(options: { keepLookup?: boolean } = {}): void {
+    existingActivationCheckId += 1;
+    if (!options.keepLookup) {
+      lastExistingActivationLookup = "";
+    }
+    if (existingActivationNotice) {
+      existingActivationNotice.hidden = true;
+    }
+    existingActivationStatus?.replaceChildren();
   }
 
   function formToPayload(data: FormData) {

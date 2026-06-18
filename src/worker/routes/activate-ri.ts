@@ -6,6 +6,7 @@ import {
 import { planRowsToPublicStops } from "../../lib/activate-ri/public-export";
 import { requireAccessIdentity } from "../access";
 import {
+  activatorSignupExists,
   approvePlan,
   cancelPlanByTokenHash,
   cancelStopByToken,
@@ -229,6 +230,13 @@ export async function handleActivateRiApi(
     url.pathname === "/api/activate-ri-2026/resend-edit-link"
   ) {
     return handleResendEditLink(request, env);
+  }
+
+  if (
+    request.method === "POST" &&
+    url.pathname === "/api/activate-ri-2026/activation-lookup"
+  ) {
+    return handleActivationLookup(request, env);
   }
 
   return json({ ok: false, error: "Not found" }, { status: 404 });
@@ -629,6 +637,33 @@ async function handleResendEditLink(
   );
 
   return json({ ok: true, message: resendLinkMessage });
+}
+
+async function handleActivationLookup(
+  request: Request,
+  env: Env,
+): Promise<Response> {
+  const payloadResult = await readRequiredPayload(request);
+  if (!payloadResult.ok) {
+    return json(
+      { ok: false, errors: [payloadResult.error] },
+      { status: payloadResult.status },
+    );
+  }
+
+  const validation = validateResendPayload(payloadResult.value);
+  if (!validation.ok) {
+    return json({ ok: false, errors: validation.errors }, { status: 400 });
+  }
+
+  return json({
+    ok: true,
+    exists: await activatorSignupExists(
+      env,
+      validation.callsign,
+      validation.email,
+    ),
+  });
 }
 
 async function handleCancelPlan(

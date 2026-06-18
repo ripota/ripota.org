@@ -11,3 +11,14 @@ describe("VolunteerForm required field indicators", () => {
     expect(identityFieldsSource).not.toContain("<span class=\"required-marker\">Required</span>");
   });
 });
+
+describe("VolunteerForm existing activation hint", () => {
+  it("checks callsign and email for an existing activation and offers an edit link", () => {
+    expect(volunteerFormSource).toContain("data-existing-activation-notice");
+    expect(volunteerFormSource).toContain("/api/activate-ri-2026/activation-lookup");
+    expect(volunteerFormSource).toContain("/api/activate-ri-2026/resend-edit-link");
+    expect(volunteerFormSource).toContain("We already have an activation plan for this callsign and email.");
+    expect(volunteerFormSource).toContain("Email me my edit link");
+    expect(volunteerFormSource).toContain("You can also keep going here; submitting this form will merge these parks into your existing plan.");
+  });
+});

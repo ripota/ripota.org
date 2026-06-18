@@ -474,6 +474,23 @@ export async function findActivatorForEditLinkResend(
   };
 }
 
+export async function activatorSignupExists(
+  env: Env,
+  callsign: string,
+  email: string,
+): Promise<boolean> {
+  const row = await env.DB.prepare(
+    `SELECT 1 AS matched
+     FROM activate_ri_activators
+     WHERE event_id = ? AND email_normalized = ? AND primary_callsign = ?
+     LIMIT 1`,
+  )
+    .bind(env.ACTIVATE_RI_EVENT_ID, email, callsign)
+    .first<{ matched: number }>();
+
+  return row !== null;
+}
+
 export async function approvePlan(
   env: Env,
   planId: string,
