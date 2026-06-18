@@ -18,6 +18,9 @@ const {
   title = "Activation stop",
 } = Astro.props;
 
+const defaultBands = ["40m", "20m", "15m"];
+const defaultModes = ["SSB"];
+
 function parkOptionLabel(reference: (typeof references)[number]): string {
   const counties = reference.counties?.join(", ");
   const countyLabel = counties ? ` (${counties})` : "";
@@ -188,7 +191,7 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
           {
             activateRiBandOptions.map((band) => (
               <label class="multi-select__option">
-                <input type="checkbox" value={band} data-multi-option />
+                <input type="checkbox" value={band} data-multi-option checked={defaultBands.includes(band)} />
                 <span>{band}</span>
               </label>
             ))
@@ -230,7 +233,7 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
           {
             activateRiModeOptions.map((mode) => (
               <label class="multi-select__option">
-                <input type="checkbox" value={mode} data-multi-option />
+                <input type="checkbox" value={mode} data-multi-option checked={defaultModes.includes(mode)} />
                 <span>{mode}</span>
               </label>
             ))

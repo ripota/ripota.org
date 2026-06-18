@@ -29,7 +29,7 @@ const statusLabels: Record<string, string> = {
 
 function formatStop(stop: ParkCoverage["nextStop"]) {
   if (!stop) {
-    return "Needs coverage";
+    return "TBD";
   }
 
   return `${formatActivationDate(stop)}, ${formatActivationTimeRange(stop)}`;
@@ -120,9 +120,9 @@ function parkCounties(park: ParkCoverage) {
               <span>{formatList(parkCounties(park))}</span>
             </th>
             <td data-label="Status">
-              {statusLabels[park.status] ?? park.status}
+              {!isParkVolunteerActionable(park.status) && (statusLabels[park.status] ?? park.status)}
               {isParkVolunteerActionable(park.status) && (
-                <a class="button event-table-action" href={volunteerHref(park.reference)}>
+                <a class="button event-table-action" data-variant="primary" href={volunteerHref(park.reference)}>
                   Volunteer
                 </a>
               )}
@@ -144,7 +144,7 @@ function parkCounties(park: ParkCoverage) {
                   ))}
                 </div>
               ) : (
-                "Needs coverage"
+                "TBD"
               )}
             </td>
             <td data-label="Activator">
@@ -416,11 +416,13 @@ function parkCounties(park: ParkCoverage) {
   function appendStatusCell(row: HTMLTableRowElement, park: CoverageRow): void {
     const cell = document.createElement("td");
     cell.dataset.label = "Status";
-    cell.append(coverageStatusLabel(park.status));
 
-    if (isParkVolunteerActionable(park.status)) {
+    if (!isParkVolunteerActionable(park.status)) {
+      cell.append(coverageStatusLabel(park.status));
+    } else {
       const link = document.createElement("a");
       link.className = "button event-table-action";
+      link.dataset.variant = "primary";
       link.href = volunteerHref(park.reference);
       link.textContent = "Volunteer";
       cell.appendChild(link);
@@ -438,7 +440,7 @@ function parkCounties(park: ParkCoverage) {
     const cell = document.createElement("td");
     cell.dataset.label = label;
     if (stops.length === 0) {
-      cell.textContent = row.children.length === 2 ? "Needs coverage" : "TBD";
+      cell.textContent = "TBD";
       row.appendChild(cell);
       return;
     }

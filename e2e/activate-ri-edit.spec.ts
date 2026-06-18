@@ -199,13 +199,8 @@ async function submitVolunteerStop(
   await page.locator("[data-planned-date]").selectOption(options.date);
   await page.locator("[data-time-block]").selectOption(options.timeBlock);
 
-  await page.getByRole("button", { name: "Choose bands" }).click();
-  await page.getByLabel(options.band).check();
-  await page.keyboard.press("Escape");
-
-  await page.getByRole("button", { name: "Choose modes" }).click();
-  await page.getByLabel(options.mode).check();
-  await page.keyboard.press("Escape");
+  await setMultiSelect(page, "[data-bands]", [options.band]);
+  await setMultiSelect(page, "[data-modes]", [options.mode]);
 
   const submitResponsePromise = page.waitForResponse(
     (response) => response.url() === `${origin}/api/activate-ri-2026/plans`,
@@ -229,6 +224,22 @@ async function addParkFromMap(page: Page, reference: string): Promise<void> {
       }),
     );
   }, reference);
+}
+
+async function setMultiSelect(
+  page: Page,
+  selector: string,
+  selectedValues: string[],
+): Promise<void> {
+  const root = page.locator(selector).first();
+  await root.locator("[data-multi-toggle]").click();
+
+  for (const option of await root.locator("[data-multi-option]").all()) {
+    const value = await option.getAttribute("value");
+    await option.setChecked(value !== null && selectedValues.includes(value));
+  }
+
+  await page.keyboard.press("Escape");
 }
 
 async function expectParkReferences(page: Page, references: string[]): Promise<void> {

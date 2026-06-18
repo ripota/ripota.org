@@ -23,13 +23,8 @@ test("volunteer can submit a plan that can be approved and shown publicly", asyn
     await page.locator("[data-planned-date]").selectOption("2026-09-11");
     await page.locator("[data-time-block]").selectOption("13:00-16:00");
 
-    await page.getByRole("button", { name: "Choose bands" }).click();
-    await page.getByLabel("40m").check();
-    await page.keyboard.press("Escape");
-
-    await page.getByRole("button", { name: "Choose modes" }).click();
-    await page.getByLabel("SSB").check();
-    await page.keyboard.press("Escape");
+    await expect(page.locator("[data-bands] [data-multi-toggle]")).toHaveText("40m, 20m, 15m");
+    await expect(page.locator("[data-modes] [data-multi-toggle]")).toHaveText("SSB");
 
     const submitResponsePromise = page.waitForResponse(
       (response) =>
@@ -110,7 +105,7 @@ test("volunteer can submit a plan that can be approved and shown publicly", asyn
           plannedDate: "2026-09-11",
           startTime: "13:00",
           endTime: "16:00",
-          bands: ["40m"],
+          bands: ["40m", "20m", "15m"],
           modes: ["SSB"],
           status: "scheduled",
         }),

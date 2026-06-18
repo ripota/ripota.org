@@ -26,6 +26,15 @@ describe("ActivatorEditForm shared volunteer controls", () => {
     expect(organizerNotesSource).toContain('name="organizerNotes"');
   });
 
+  it("defaults new stop cards to the common HF SSB plan", () => {
+    expect(stopCardSource).toContain('const defaultBands = ["40m", "20m", "15m"];');
+    expect(stopCardSource).toContain('const defaultModes = ["SSB"];');
+    expect(stopCardSource).toContain('checked={defaultBands.includes(band)}');
+    expect(stopCardSource).toContain('checked={defaultModes.includes(mode)}');
+    expect(formClientSource).toContain('setSelectedValues(stop.querySelector<HTMLElement>("[data-bands]"), ["40m", "20m", "15m"]);');
+    expect(formClientSource).toContain('setSelectedValues(stop.querySelector<HTMLElement>("[data-modes]"), ["SSB"]);');
+  });
+
   it("uses the shared stop section for add-park placement", () => {
     expect(editFormSource).toContain("ActivateRiStopsSection");
     expect(stopsSectionSource).toContain("data-add-stop-actions");

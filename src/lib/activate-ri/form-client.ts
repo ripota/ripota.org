@@ -196,6 +196,7 @@ export function appendBlankStop(stopsContainer: HTMLElement | null): HTMLElement
 
   const nextStop = firstStop.cloneNode(true) as HTMLElement;
   clearStopCard(nextStop);
+  applyDefaultStopSelections(nextStop);
   stopsContainer.appendChild(nextStop);
   return nextStop;
 }
@@ -220,6 +221,11 @@ export function clearStopCard(stop: HTMLElement): void {
   stop.querySelectorAll<HTMLElement>("[data-field-error]").forEach((error) => {
     error.replaceChildren();
   });
+}
+
+function applyDefaultStopSelections(stop: HTMLElement): void {
+  setSelectedValues(stop.querySelector<HTMLElement>("[data-bands]"), ["40m", "20m", "15m"]);
+  setSelectedValues(stop.querySelector<HTMLElement>("[data-modes]"), ["SSB"]);
 }
 
 export function firstEmptyStopCard(root: Document | Element = document): HTMLElement | null {
