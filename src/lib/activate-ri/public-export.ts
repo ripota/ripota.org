@@ -1,5 +1,5 @@
 import type { PublicActivationStop } from "./types";
-import { instantToPlannedDate, instantToTime } from "./time";
+import { instantToEventDate, instantToTime } from "./time";
 
 const publicStatuses = new Set(["scheduled", "delayed", "cancelled", "completed"]);
 
@@ -30,7 +30,7 @@ export function routeRowsToPublicStops(rows: unknown): PublicActivationStop[] {
       {
         id: exportRow.id,
         parkReference: exportRow.park_reference,
-        plannedDate: instantToPlannedDate(exportRow.start_at),
+        plannedDate: instantToEventDate(exportRow.start_at),
         startTime: instantToTime(exportRow.start_at),
         endTime: instantToTime(exportRow.end_at),
         activatorCallsign: exportRow.submitter_callsign,

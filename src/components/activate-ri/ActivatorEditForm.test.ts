@@ -76,6 +76,7 @@ describe("ActivatorEditForm shared volunteer controls", () => {
 
   it("derives edit start and end times from the shared time block control", () => {
     expect(editFormSource).toContain("timeBlockToRange");
+    expect(editFormSource).toContain("utcRangeToTimeBlockValue");
     expect(editFormSource).toContain("timeBlock,");
     expect(editFormSource).toContain("startTime: timeRange.startTime");
     expect(editFormSource).toContain("endTime: timeRange.endTime");

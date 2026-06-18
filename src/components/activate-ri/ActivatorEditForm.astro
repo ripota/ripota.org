@@ -101,7 +101,10 @@ const turnstileSiteKey =
     uppercaseFormValue,
     type ValidationControl,
   } from "../../lib/activate-ri/form-client";
-  import { timeBlockToRange } from "../../lib/activate-ri/time-blocks";
+  import {
+    timeBlockToRange,
+    utcRangeToTimeBlockValue,
+  } from "../../lib/activate-ri/time-blocks";
   import {
     formatVolunteerMissingFieldSummary,
     formatVolunteerProblemFieldSummary,
@@ -676,9 +679,8 @@ const turnstileSiteKey =
   function timeBlockValue(stop: StopDto): string {
     const startTime = stringValue(stop.start_time);
     const endTime = stringValue(stop.end_time);
-    const value = `${startTime}-${endTime}`;
 
-    return timeBlockToRange(value) ? value : "";
+    return utcRangeToTimeBlockValue(startTime, endTime);
   }
 
   function arrayValue(value: unknown): string[] {

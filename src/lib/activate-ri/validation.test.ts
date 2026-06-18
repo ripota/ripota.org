@@ -19,13 +19,14 @@ describe("validateRouteSubmission", () => {
     ],
   };
 
-  it("keeps compact submitted block values with spaced display labels", () => {
+  it("keeps EDT submitted block values with UTC backend ranges", () => {
     expect(activateRiTimeBlocks[0]).toEqual(expect.objectContaining({
-      value: "04:00-07:00",
-      label: "04:00 - 07:00",
+      value: "00:00-03:00",
+      label: "00:00 - 03:00 EDT",
       startTime: "04:00",
       endTime: "07:00",
       easternLabel: "00:00 - 03:00 EDT",
+      utcDateOffset: 0,
     }));
   });
 
@@ -69,6 +70,32 @@ describe("validateRouteSubmission", () => {
     }
   });
 
+  it("allows the final evening EDT block on the next UTC date", () => {
+    const result = validateRouteSubmission({
+      ...validSubmission,
+      stops: [
+        {
+          parkReference: "US-2868",
+          plannedDate: "2026-09-11",
+          timeBlock: "21:00-24:00",
+          bands: ["40m"],
+          modes: ["ssb"],
+        },
+      ],
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.stops[0]).toEqual(
+        expect.objectContaining({
+          plannedDate: "2026-09-11",
+          startTime: "01:00",
+          endTime: "04:00",
+        }),
+      );
+    }
+  });
+
   it("normalizes allowed three-hour blocks to start and end times", () => {
     const result = validateRouteSubmission({
       ...validSubmission,
@@ -76,14 +103,14 @@ describe("validateRouteSubmission", () => {
         {
           parkReference: "US-2868",
           plannedDate: "2026-09-11",
-          timeBlock: "13:00-16:00",
+          timeBlock: "09:00-12:00",
           bands: ["40m", "20m"],
           modes: ["ssb", "cw"],
         },
         {
           parkReference: "US-2872",
           plannedDate: "2026-09-11",
-          timeBlock: "16:00-19:00",
+          timeBlock: "12:00-15:00",
           bands: ["20m"],
           modes: ["digital"],
         },
@@ -116,7 +143,7 @@ describe("validateRouteSubmission", () => {
         {
           parkReference: "US-2868",
           plannedDate: "2026-09-11",
-          timeBlock: "22:00-01:00",
+          timeBlock: "18:00-21:00",
           bands: ["40m"],
           modes: ["ssb"],
         },
@@ -165,7 +192,7 @@ describe("validateRouteSubmission", () => {
           ...validSubmission.stops[0],
           startTime: undefined,
           endTime: undefined,
-          timeBlock: "09:00-12:00",
+          timeBlock: "09:30-12:30",
         },
       ],
     });
@@ -173,7 +200,7 @@ describe("validateRouteSubmission", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.errors).toContain(
-        "Stop 1 time block must be one of 04:00-07:00, 07:00-10:00, 10:00-13:00, 13:00-16:00, 16:00-19:00, 19:00-22:00, 22:00-01:00.",
+        "Stop 1 time block must be one of 00:00-03:00, 03:00-06:00, 06:00-09:00, 09:00-12:00, 12:00-15:00, 15:00-18:00, 18:00-21:00, 21:00-24:00 EDT.",
       );
     }
   });

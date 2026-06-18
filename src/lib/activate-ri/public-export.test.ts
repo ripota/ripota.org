@@ -82,6 +82,24 @@ describe("routeRowsToPublicStops", () => {
     ]);
   });
 
+  it("exports the Eastern event date for late EDT stops stored on the next UTC date", () => {
+    expect(
+      routeRowsToPublicStops([
+        {
+          ...validRow,
+          start_at: "2026-09-12T01:00:00.000Z",
+          end_at: "2026-09-12T04:00:00.000Z",
+        },
+      ]),
+    ).toEqual([
+      expect.objectContaining({
+        plannedDate: "2026-09-11",
+        startTime: "01:00",
+        endTime: "04:00",
+      }),
+    ]);
+  });
+
   it("returns an empty array for non-array input", () => {
     expect(routeRowsToPublicStops(null)).toEqual([]);
     expect(routeRowsToPublicStops({ results: [] })).toEqual([]);

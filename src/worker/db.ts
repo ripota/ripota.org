@@ -4,10 +4,11 @@ import type {
   StopExportRow,
 } from "../lib/activate-ri/types";
 import {
-  instantToPlannedDate,
+  instantToEventDate,
   instantToTime,
   stopTimeRangeToInstants,
 } from "../lib/activate-ri/time";
+import { timeBlockUtcDateOffset } from "../lib/activate-ri/time-blocks";
 import { generateEditToken, tokenHash } from "./edit-token";
 import type { Env } from "./env";
 
@@ -249,6 +250,7 @@ export async function insertPendingPlan(
       stop.plannedDate,
       stop.startTime,
       stop.endTime,
+      { utcDateOffset: timeBlockUtcDateOffset(stop.timeBlock) },
     );
     statements.push(
       env.DB.prepare(
@@ -610,6 +612,7 @@ export async function updatePlanByTokenHash(
       stop.plannedDate,
       stop.startTime,
       stop.endTime,
+      { utcDateOffset: timeBlockUtcDateOffset(stop.timeBlock) },
     );
 
     if (existingStop) {
@@ -861,9 +864,10 @@ export async function updateStopByToken(
   }
 
   const { startAt, endAt } = stopTimeRangeToInstants(
-    instantToPlannedDate(activator.start_at),
+    instantToEventDate(activator.start_at),
     fields.startTime,
     fields.endTime,
+    { utcDateOffset: fields.startTime < "04:00" ? 1 : 0 },
   );
   const result = await env.DB.prepare(
     `UPDATE activate_ri_stops
@@ -926,7 +930,7 @@ export async function updateStopByToken(
         activator_id: activator.activator_id,
         event_id: env.ACTIVATE_RI_EVENT_ID,
         park_reference: activator.park_reference,
-        planned_date: instantToPlannedDate(activator.start_at),
+        planned_date: instantToEventDate(activator.start_at),
         start_time: instantToTime(activator.start_at),
         end_time: instantToTime(activator.end_at),
         bands: parseStringArray(activator.bands_json),
@@ -940,7 +944,7 @@ export async function updateStopByToken(
       next: {
         id: stopId,
         parkReference: activator.park_reference,
-        plannedDate: instantToPlannedDate(startAt),
+        plannedDate: instantToEventDate(startAt),
         startTime: fields.startTime,
         endTime: fields.endTime,
         bands: fields.bands,
@@ -1266,7 +1270,7 @@ function toPendingStopDto(stop: StopRow): PendingStopDto {
     activator_id: activatorId,
     event_id: stop.event_id,
     park_reference: stop.park_reference,
-    planned_date: instantToPlannedDate(stop.start_at),
+    planned_date: instantToEventDate(stop.start_at),
     start_time: instantToTime(stop.start_at),
     end_time: instantToTime(stop.end_at),
     bands: parseStringArray(stop.bands_json),

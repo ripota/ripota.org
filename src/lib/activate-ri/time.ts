@@ -43,16 +43,20 @@ export function formatActivationDate(
     day: "numeric",
     year: "numeric",
     timeZone: option.timeZone,
-  }).format(utcDate(input.plannedDate, input.startTime));
+  }).format(eventUtcDate(input.plannedDate, input.startTime));
 }
 
 export function formatActivationTimeRange(
   input: Required<ActivationTimeInput>,
   option = activationTimeZoneOptions[0],
 ): string {
-  const start = formatTime(utcDate(input.plannedDate, input.startTime), option);
-  const end = formatTime(endDate(input.plannedDate, input.startTime, input.endTime), option);
-  const zone = formatTimeZone(utcDate(input.plannedDate, input.startTime), option);
+  const startDate = eventUtcDate(input.plannedDate, input.startTime);
+  const start = formatTime(startDate, option);
+  const end = formatTime(
+    endDateFromStart(startDate, input.startTime, input.endTime),
+    option,
+  );
+  const zone = formatTimeZone(startDate, option);
 
   return `${start}-${end} ${zone}`;
 }
@@ -65,15 +69,35 @@ export function stopTimeRangeToInstants(
   plannedDate: string,
   startTime: string,
   endTime: string,
+  options: { utcDateOffset?: number } = {},
 ): { startAt: string; endAt: string } {
+  const startDate = utcDate(
+    addUtcDays(plannedDate, options.utcDateOffset ?? 0),
+    startTime,
+  );
+
   return {
-    startAt: stopTimeToInstant(plannedDate, startTime),
-    endAt: endDate(plannedDate, startTime, endTime).toISOString(),
+    startAt: startDate.toISOString(),
+    endAt: endDateFromStart(startDate, startTime, endTime).toISOString(),
   };
 }
 
 export function instantToPlannedDate(instant: string): string {
   return instant.slice(0, 10);
+}
+
+export function instantToEventDate(instant: string): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: "America/New_York",
+  }).formatToParts(new Date(instant));
+  const values = Object.fromEntries(
+    parts.map((part) => [part.type, part.value]),
+  );
+
+  return `${values.year}-${values.month}-${values.day}`;
 }
 
 export function instantToTime(instant: string): string {
@@ -84,13 +108,30 @@ function utcDate(plannedDate: string, time: string): Date {
   return new Date(`${plannedDate}T${time}:00Z`);
 }
 
-function endDate(plannedDate: string, startTime: string, endTime: string): Date {
-  const date = utcDate(plannedDate, endTime);
+function eventUtcDate(plannedDate: string, time: string): Date {
+  return utcDate(addUtcDays(plannedDate, time < "04:00" ? 1 : 0), time);
+}
+
+function endDateFromStart(startDate: Date, startTime: string, endTime: string): Date {
+  const date = new Date(startDate);
+  const [hours, minutes] = endTime.split(":").map(Number);
+  date.setUTCHours(hours, minutes, 0, 0);
   if (endTime <= startTime) {
     date.setUTCDate(date.getUTCDate() + 1);
   }
 
   return date;
+}
+
+function addUtcDays(date: string, days: number): string {
+  if (days === 0) {
+    return date;
+  }
+
+  const utc = new Date(`${date}T00:00:00Z`);
+  utc.setUTCDate(utc.getUTCDate() + days);
+
+  return utc.toISOString().slice(0, 10);
 }
 
 function formatTime(date: Date, option: ActivationTimeZoneOption): string {

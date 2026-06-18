@@ -144,7 +144,7 @@ describe("Activate RI API acceptance flow", () => {
           {
             parkReference: "US-2869",
             plannedDate: "2026-09-12",
-            timeBlock: "10:00-13:00",
+            timeBlock: "06:00-09:00",
             bands: ["20m"],
             modes: ["CW"],
           },
@@ -324,7 +324,7 @@ describe("Activate RI API acceptance flow", () => {
           {
             parkReference: "US-2869",
             plannedDate: "2026-09-12",
-            timeBlock: "10:00-13:00",
+            timeBlock: "06:00-09:00",
             bands: ["20m"],
             modes: ["CW"],
           },
@@ -413,7 +413,7 @@ describe("Activate RI API acceptance flow", () => {
           {
             parkReference: "US-2869",
             plannedDate: "2026-09-12",
-            timeBlock: "10:00-13:00",
+            timeBlock: "06:00-09:00",
             bands: ["20m"],
             modes: ["CW"],
           },
@@ -470,7 +470,7 @@ function volunteerPayload(): Record<string, unknown> {
       {
         parkReference: "US-2868",
         plannedDate: "2026-09-11",
-        timeBlock: "13:00-16:00",
+        timeBlock: "09:00-12:00",
         bands: ["40m"],
         modes: ["SSB"],
         publicNotes: "Acceptance test public note.",

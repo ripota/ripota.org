@@ -21,7 +21,7 @@ test("volunteer can submit a plan that can be approved and shown publicly", asyn
     await page.locator("[data-park-input]").fill("US-2868");
     await page.getByRole("button", { name: "US-2868" }).click();
     await page.locator("[data-planned-date]").selectOption("2026-09-11");
-    await page.locator("[data-time-block]").selectOption("13:00-16:00");
+    await page.locator("[data-time-block]").selectOption("09:00-12:00");
 
     await expect(page.locator("[data-bands] [data-multi-toggle]")).toHaveText("40m, 20m, 15m");
     await expect(page.locator("[data-modes] [data-multi-toggle]")).toHaveText("SSB");
