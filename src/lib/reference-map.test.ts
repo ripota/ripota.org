@@ -127,6 +127,30 @@ describe("buildReferenceMapItems", () => {
     });
   });
 
+  it("places activation-zone markers halfway along buffered trail geometry", () => {
+    const trailGeojson = JSON.stringify({
+      type: "FeatureCollection",
+      features: [
+        trailVertexCap(0, -71.6, 41.4),
+        trailVertexCap(1, -71.5, 41.4),
+        trailVertexCap(2, -71.4, 41.4),
+      ],
+    });
+    const [item] = buildReferenceMapItems({
+      references: [{ ...references[0], reference: "US-TRAIL" }],
+      boundaries: [{
+        ...boundaries[0],
+        reference: "US-TRAIL",
+        geometryKind: "activation-zone",
+        localGeojson: "./boundaries/us-trail.geojson",
+      }],
+      geojsonByPath: { "./boundaries/us-trail.geojson": trailGeojson },
+    });
+
+    expect(item.marker?.latitude).toBeCloseTo(41.4);
+    expect(item.marker?.longitude).toBeCloseTo(-71.5);
+  });
+
   it("attaches derived coverage and sorted stops when event data is provided", () => {
     const parks: PublicParkSummary[] = references.map((reference) => ({
       reference: reference.reference,
@@ -181,6 +205,23 @@ describe("buildReferenceMapItems", () => {
     ]);
   });
 });
+
+function trailVertexCap(index: number, longitude: number, latitude: number) {
+  return {
+    type: "Feature",
+    properties: { bufferPart: "vertex-cap", vertexIndex: index },
+    geometry: {
+      type: "Polygon",
+      coordinates: [[
+        [longitude - 0.001, latitude - 0.001],
+        [longitude + 0.001, latitude - 0.001],
+        [longitude + 0.001, latitude + 0.001],
+        [longitude - 0.001, latitude + 0.001],
+        [longitude - 0.001, latitude - 0.001],
+      ]],
+    },
+  };
+}
 
 describe("reference map viewport configuration", () => {
   it("allows fitBounds to choose a tighter fractional zoom without clipping points", () => {

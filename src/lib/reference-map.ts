@@ -160,7 +160,8 @@ export function buildReferenceMapItems({
       grid: reference.grid ?? "",
       locationDesc: reference.locationDesc ?? "",
       potaUrl: reference.potaUrl ?? "",
-      marker: markerForGeojson(geojson) ?? markerForReference(reference),
+      marker:
+        markerForGeojson(geojson, boundary?.geometryKind) ?? markerForReference(reference),
       geometryKind: boundary?.geometryKind ?? "point",
       boundaryStatus: boundary?.status ?? "unknown",
       sourceName: boundary?.sourceName ?? "Parks on the Air reference coordinate",
@@ -189,9 +190,19 @@ function markerForReference(reference: ReferenceMapReference): ReferenceMapItem[
   };
 }
 
-function markerForGeojson(geojson: ReferenceMapGeoJson | null): ReferenceMapItem["marker"] {
+function markerForGeojson(
+  geojson: ReferenceMapGeoJson | null,
+  geometryKind?: ReferenceMapGeometryKind,
+): ReferenceMapItem["marker"] {
   if (!geojson) {
     return null;
+  }
+
+  if (geometryKind === "activation-zone") {
+    const trailMarker = markerForTrailActivationZone(geojson.features);
+    if (trailMarker) {
+      return trailMarker;
+    }
   }
 
   const bounds = coordinateBounds(geojson.features);
@@ -203,6 +214,73 @@ function markerForGeojson(geojson: ReferenceMapGeoJson | null): ReferenceMapItem
     latitude: (bounds.minLatitude + bounds.maxLatitude) / 2,
     longitude: (bounds.minLongitude + bounds.maxLongitude) / 2,
   };
+}
+
+function markerForTrailActivationZone(features: unknown[]): ReferenceMapItem["marker"] {
+  const trailPoints = features
+    .flatMap((feature) => {
+      if (typeof feature !== "object" || feature === null) {
+        return [];
+      }
+
+      const properties = "properties" in feature ? feature.properties : null;
+      const geometry = "geometry" in feature ? feature.geometry : null;
+      if (
+        typeof properties !== "object" ||
+        properties === null ||
+        !("bufferPart" in properties) ||
+        properties.bufferPart !== "vertex-cap" ||
+        !("vertexIndex" in properties) ||
+        typeof properties.vertexIndex !== "number"
+      ) {
+        return [];
+      }
+
+      const bounds = coordinateBounds(geometry);
+      if (!bounds) {
+        return [];
+      }
+
+      return [{
+        index: properties.vertexIndex,
+        latitude: (bounds.minLatitude + bounds.maxLatitude) / 2,
+        longitude: (bounds.minLongitude + bounds.maxLongitude) / 2,
+      }];
+    })
+    .sort((left, right) => left.index - right.index);
+
+  if (trailPoints.length === 0) {
+    return null;
+  }
+  if (trailPoints.length === 1) {
+    return trailPoints[0];
+  }
+
+  const segmentLengths = trailPoints.slice(1).map((point, index) => {
+    const previous = trailPoints[index];
+    const latitudeRadians = ((previous.latitude + point.latitude) / 2) * Math.PI / 180;
+    const longitudeDistance =
+      (point.longitude - previous.longitude) * Math.cos(latitudeRadians);
+    return Math.hypot(longitudeDistance, point.latitude - previous.latitude);
+  });
+  const midpointDistance = segmentLengths.reduce((sum, length) => sum + length, 0) / 2;
+  let traveled = 0;
+
+  for (let index = 0; index < segmentLengths.length; index += 1) {
+    const segmentLength = segmentLengths[index];
+    if (traveled + segmentLength >= midpointDistance) {
+      const start = trailPoints[index];
+      const end = trailPoints[index + 1];
+      const progress = segmentLength === 0 ? 0 : (midpointDistance - traveled) / segmentLength;
+      return {
+        latitude: start.latitude + (end.latitude - start.latitude) * progress,
+        longitude: start.longitude + (end.longitude - start.longitude) * progress,
+      };
+    }
+    traveled += segmentLength;
+  }
+
+  return trailPoints.at(-1) ?? null;
 }
 
 function coordinateBounds(value: unknown): {

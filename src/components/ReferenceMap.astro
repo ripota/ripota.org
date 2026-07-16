@@ -23,6 +23,7 @@ type Props = {
   phaseFocus?: "volunteer" | "hunter";
   legendPlacement?: "overlay" | "below" | "none";
   legendTitle?: string;
+  showBoundaries?: boolean;
 };
 
 const {
@@ -33,6 +34,7 @@ const {
   phaseFocus = "volunteer",
   legendPlacement = variant === "home" ? "none" : "overlay",
   legendTitle,
+  showBoundaries = true,
 } = Astro.props;
 const rawGeojsonByPath = import.meta.glob("../data/boundaries/*.geojson", {
   eager: true,
@@ -70,7 +72,10 @@ const dataId = `${id}-data`;
 const payload = JSON.stringify({
   variant,
   phaseFocus,
-  items: mapItems,
+  items: mapItems.map((item) => ({
+    ...item,
+    geojson: showBoundaries ? item.geojson : null,
+  })),
   parks: isEventMap ? eventParks : [],
   coverageStatusLabels,
   referenceMapStatusColors,
