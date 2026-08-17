@@ -228,6 +228,17 @@ function setupParkCombobox(stop: HTMLElement, validatePark: boolean): void {
       setParkPopupOpen(parkCombobox, false);
     };
   });
+
+  const coverageFilter = parkCombobox.querySelector<HTMLInputElement>("[data-park-coverage-filter]");
+  if (coverageFilter) {
+    coverageFilter.onchange = () => {
+      document.dispatchEvent(
+        new CustomEvent("activate-ri:coverage-filter-change", {
+          detail: { enabled: coverageFilter.checked },
+        }),
+      );
+    };
+  }
 }
 
 function setupStopRequiredCleanup(stop: HTMLElement): void {
@@ -288,7 +299,7 @@ export function clearStopCard(stop: HTMLElement): void {
   stop.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input:not([type='checkbox']), textarea").forEach((field) => {
     field.value = "";
   });
-  stop.querySelectorAll<HTMLInputElement>("input[type='checkbox']").forEach((field) => {
+  stop.querySelectorAll<HTMLInputElement>("input[type='checkbox']:not([data-park-coverage-filter])").forEach((field) => {
     field.checked = false;
   });
   (Array.from(stop.querySelectorAll("select")) as HTMLSelectElement[]).forEach((field) => {
@@ -353,12 +364,18 @@ export function selectedParkReference(value: string, combobox: HTMLElement): str
 }
 
 export function filterParkOptions(combobox: HTMLElement, value: string): void {
-  const terms = value.toLowerCase().split(/\s+/).filter(Boolean);
+  const onlyNeedsCoverage =
+    combobox.querySelector<HTMLInputElement>("[data-park-coverage-filter]")?.checked ?? false;
   let visibleCount = 0;
 
   combobox.querySelectorAll<HTMLElement>("[data-park-option]").forEach((option) => {
     const search = option.dataset.search ?? "";
-    const isVisible = terms.every((term) => search.includes(term));
+    const isVisible = parkOptionMatchesFilters(
+      search,
+      value,
+      onlyNeedsCoverage,
+      option.dataset.needsCoverage === "true",
+    );
     option.hidden = !isVisible;
     if (isVisible) {
       visibleCount += 1;
@@ -368,7 +385,20 @@ export function filterParkOptions(combobox: HTMLElement, value: string): void {
   const empty = combobox.querySelector<HTMLElement>("[data-park-empty]");
   if (empty) {
     empty.hidden = visibleCount > 0;
+    empty.textContent = onlyNeedsCoverage
+      ? "No parks needing coverage match."
+      : "No matching parks.";
   }
+}
+
+export function parkOptionMatchesFilters(
+  search: string,
+  value: string,
+  onlyNeedsCoverage: boolean,
+  needsCoverage: boolean,
+): boolean {
+  const terms = value.toLowerCase().split(/\s+/).filter(Boolean);
+  return terms.every((term) => search.includes(term)) && (!onlyNeedsCoverage || needsCoverage);
 }
 
 export function selectedValues(root: HTMLElement | null): string[] {

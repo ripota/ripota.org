@@ -53,3 +53,12 @@ describe("VolunteerForm park prefill workflow", () => {
     );
   });
 });
+
+describe("VolunteerForm coverage filtering", () => {
+  it("loads live coverage for the park suggestion filter", () => {
+    expect(volunteerFormSource).toContain("setupParkCoverageFilters");
+    expect(volunteerFormSource).toContain("deriveParkCoverage");
+    expect(volunteerFormSource).toContain("data-park-coverage-filter");
+    expect(volunteerFormSource).toContain("activate-ri:coverage-filter-change");
+  });
+});

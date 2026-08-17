@@ -13,6 +13,12 @@ const countyOptions = uniqueSortedValues(
 );
 ---
 
+<p class="event-coverage-shortcut">
+  <a href="/activate-ri-2026/parks/?coverage=needed" data-coverage-shortcut>
+    Find parks that still need coverage <span data-coverage-gap-count></span><span aria-hidden="true"> →</span>
+  </a>
+</p>
+
 <form class="event-filters" data-event-filters aria-label="Schedule filters">
   <label class="event-filter">
     Time zone
@@ -74,6 +80,8 @@ const countyOptions = uniqueSortedValues(
 </div>
 
 <script>
+  import type { PublicParkSummary } from "../../lib/activate-ri/types";
+  import { summarizeParkCoverage } from "../../lib/activate-ri/coverage";
   import { scheduleVisibleStops } from "../../lib/activate-ri/listing";
   import { fetchPublicActivationStops } from "../../lib/activate-ri/public-stops-client";
   import {
@@ -129,7 +137,7 @@ const countyOptions = uniqueSortedValues(
       return;
     }
 
-    let parks: Array<{ reference: string; name: string; counties?: string[] }> = [];
+    let parks: PublicParkSummary[] = [];
     try {
       parks = JSON.parse(table.dataset.parks ?? "[]");
     } catch {
@@ -139,6 +147,10 @@ const countyOptions = uniqueSortedValues(
     try {
       const stops = await fetchPublicActivationStops();
       const visibleStops = scheduleVisibleStops(stops);
+      const gapCount = summarizeParkCoverage(parks, stops).gaps;
+      document.querySelectorAll<HTMLElement>("[data-coverage-gap-count]").forEach((count) => {
+        count.textContent = `(${gapCount})`;
+      });
       const filters = document.querySelector("[data-event-filters]") as HTMLFormElement | null;
       if (filters) {
         updateSelectOptions(filters, "mode", uniqueSortedValues(visibleStops.map((stop) => stop.modes)));

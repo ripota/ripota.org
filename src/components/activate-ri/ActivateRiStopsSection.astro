@@ -23,7 +23,14 @@ const {
     </div>
   ) : (
     <div class="activation-stops" data-stops-container data-stops hidden={hidden}>
-      {includeInitialStop && <ActivateRiStopCard includeStopId={includeStopId} title="Activation stop 1" removeHidden={true} />}
+      {includeInitialStop && (
+        <ActivateRiStopCard
+          includeStopId={includeStopId}
+          title="Activation stop 1"
+          removeHidden={true}
+          showCoverageFilter={true}
+        />
+      )}
     </div>
   )
 }

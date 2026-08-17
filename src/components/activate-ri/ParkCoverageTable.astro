@@ -55,6 +55,10 @@ function parkCounties(park: ParkCoverage) {
 ---
 
 <form class="event-filters" data-event-filters aria-label="Park coverage filters">
+  <label class="event-coverage-toggle">
+    <input type="checkbox" value="needed" data-coverage-filter />
+    <span>Only parks needing coverage</span>
+  </label>
   <label class="event-filter">
     Mode
     <select class="event-filter__control" data-filter="mode">
@@ -100,6 +104,7 @@ function parkCounties(park: ParkCoverage) {
             data-filter-row
             data-counties={dataList(parkCounties(park))}
             data-has-stops={park.stops.length > 0 ? "true" : "false"}
+            data-needs-coverage={isParkVolunteerActionable(park.status) ? "true" : "false"}
           >
             <th scope="row" data-label="Park">
               {park.name}
@@ -197,6 +202,26 @@ function parkCounties(park: ParkCoverage) {
   function setupParkFilters(root: Element): void {
     const filters = root as HTMLFormElement;
     const table = filters.nextElementSibling?.querySelector("[data-filtered-table]");
+    const coverageFilter = filters.querySelector<HTMLInputElement>("[data-coverage-filter]");
+    const stopControls = Array.from(
+      filters.querySelectorAll(
+        '[data-filter="mode"], [data-filter="band"], [data-filter="timeline"]',
+      ),
+    ) as unknown as HTMLSelectElement[];
+
+    if (coverageFilter) {
+      coverageFilter.checked = new URL(window.location.href).searchParams.get("coverage") === "needed";
+    }
+
+    const syncCoverageControls = () => {
+      const needsCoverage = coverageFilter?.checked ?? false;
+      for (const control of stopControls) {
+        if (needsCoverage) {
+          control.value = "all";
+        }
+        control.disabled = needsCoverage;
+      }
+    };
 
     const applyFilters = () => {
       const rows = Array.from(table?.querySelectorAll<HTMLElement>("[data-filter-row]") ?? []);
@@ -207,12 +232,14 @@ function parkCounties(park: ParkCoverage) {
       const values = Object.fromEntries(
         controls.map((control) => [control.dataset.filter ?? "", control.value]),
       );
+      const needsCoverage = coverageFilter?.checked ?? false;
       const hasStopFilters =
         active(values.mode) || active(values.band) || active(values.timeline);
       let visibleCount = 0;
 
       for (const row of rows) {
         const countyMatches = matchesList(row.dataset.counties, values.county);
+        const coverageMatches = !needsCoverage || row.dataset.needsCoverage === "true";
         const stops = Array.from(row.querySelectorAll<HTMLElement>("[data-filter-stop]"));
         const matchingStops = stops.filter(
           (stop) =>
@@ -225,20 +252,30 @@ function parkCounties(park: ParkCoverage) {
           stop.hidden = hasStopFilters && !matchingStops.includes(stop);
         }
 
-        const isVisible = countyMatches && (!hasStopFilters || matchingStops.length > 0);
+        const isVisible =
+          countyMatches && coverageMatches && (!hasStopFilters || matchingStops.length > 0);
         row.hidden = !isVisible;
         visibleCount += isVisible ? 1 : 0;
       }
 
       if (empty) {
         empty.hidden = visibleCount > 0 || rows.length === 0;
+        const cell = empty.querySelector("td");
+        if (cell) {
+          cell.textContent = needsCoverage
+            ? "No parks needing coverage match these filters."
+            : "No parks match these filters.";
+        }
       }
     };
 
     filters.onchange = () => {
+      syncCoverageControls();
+      updateCoverageUrl(coverageFilter?.checked ?? false);
       applyEasternTime(table);
       applyFilters();
     };
+    syncCoverageControls();
     applyEasternTime(table);
     applyFilters();
   }
@@ -367,6 +404,7 @@ function parkCounties(park: ParkCoverage) {
     row.dataset.filterRow = "";
     row.dataset.counties = countyList(park).join("|");
     row.dataset.hasStops = park.stops.length > 0 ? "true" : "false";
+    row.dataset.needsCoverage = isParkVolunteerActionable(park.status) ? "true" : "false";
 
     const heading = document.createElement("th");
     heading.scope = "row";
@@ -538,6 +576,16 @@ function parkCounties(park: ParkCoverage) {
 
   function active(value: string | undefined): boolean {
     return Boolean(value && value !== "all");
+  }
+
+  function updateCoverageUrl(needsCoverage: boolean): void {
+    const url = new URL(window.location.href);
+    if (needsCoverage) {
+      url.searchParams.set("coverage", "needed");
+    } else {
+      url.searchParams.delete("coverage");
+    }
+    window.history.replaceState({}, "", url);
   }
 
   function matchesList(value: string | undefined, filter: string | undefined): boolean {

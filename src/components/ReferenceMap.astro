@@ -82,7 +82,27 @@ const payload = JSON.stringify({
 });
 ---
 
-<figure class:list={["map-preview", "reference-map-preview", `reference-map-preview--legend-${legendPlacement}`]} aria-label={title}>
+<figure
+  class:list={[
+    "map-preview",
+    "reference-map-preview",
+    `reference-map-preview--legend-${legendPlacement}`,
+    { "reference-map-preview--has-toolbar": variant === "volunteer" },
+  ]}
+  aria-label={title}
+>
+  {
+    variant === "volunteer" && (
+      <div class="reference-map-toolbar">
+        <label class="event-coverage-toggle">
+          <input type="checkbox" data-map-coverage-filter />
+          <span>
+            Only show parks needing coverage <span data-map-coverage-count></span>
+          </span>
+        </label>
+      </div>
+    )
+  }
   {
     showLegend && legendPlacement === "overlay" && (
       <div class="map-legend" aria-label={legendTitle ?? "Coverage status legend"}>
@@ -196,6 +216,12 @@ const payload = JSON.stringify({
     referenceMapStatusColors: Record<string, string>;
   };
 
+  type MapItemLayers = {
+    boundaries: L.Path[];
+    markers: L.CircleMarker[];
+    displayLayers: L.Layer[];
+  };
+
   document.querySelectorAll<HTMLElement>("[data-reference-map]").forEach(setupReferenceMap);
 
   function setupReferenceMap(mapElement: HTMLElement): void {
@@ -207,13 +233,7 @@ const payload = JSON.stringify({
     const payload = JSON.parse(dataElement.textContent ?? "{}") as MapPayload;
     const map = L.map(mapElement, referenceMapLeafletOptions);
     const bounds = L.latLngBounds([]);
-    const layersByReference = new Map<
-      string,
-      {
-        boundaries: L.Path[];
-        markers: L.CircleMarker[];
-      }
-    >();
+    const layersByReference = new Map<string, MapItemLayers>();
 
     L.control.zoom({
       position: "topleft",
@@ -236,9 +256,15 @@ const payload = JSON.stringify({
     fitReferenceBounds(map, bounds);
     setupPopupActions(mapElement);
     updateMapLegend(mapElement, payload);
+    const applyCoverageFilter = setupCoverageFilter(
+      mapElement,
+      map,
+      payload,
+      layersByReference,
+    );
 
     if (payload.variant !== "home") {
-      refreshLiveCoverage(mapElement, payload, layersByReference);
+      refreshLiveCoverage(mapElement, payload, layersByReference, applyCoverageFilter);
     }
   }
 
@@ -247,9 +273,10 @@ const payload = JSON.stringify({
     bounds: L.LatLngBounds,
     payload: MapPayload,
     item: MapItem,
-  ): { boundaries: L.Path[]; markers: L.CircleMarker[] } {
+  ): MapItemLayers {
     const boundaries: L.Path[] = [];
     const markers: L.CircleMarker[] = [];
+    const displayLayers: L.Layer[] = [];
     const style = itemStyle(payload, item);
 
     if (item.geojson) {
@@ -268,6 +295,7 @@ const payload = JSON.stringify({
           }
         },
       }).addTo(map);
+      displayLayers.push(layer);
 
       const layerBounds = layer.getBounds();
       if (layerBounds.isValid()) {
@@ -287,10 +315,11 @@ const payload = JSON.stringify({
         .addTo(map)
         .bindPopup(() => popupHtml(payload, item));
       markers.push(marker);
+      displayLayers.push(marker);
       bounds.extend([item.marker.latitude, item.marker.longitude]);
     }
 
-    return { boundaries, markers };
+    return { boundaries, markers, displayLayers };
   }
 
   function itemStyle(payload: MapPayload, item: MapItem) {
@@ -308,7 +337,7 @@ const payload = JSON.stringify({
   function updateMapItemLayers(
     payload: MapPayload,
     item: MapItem,
-    layers: { boundaries: L.Path[]; markers: L.CircleMarker[] } | undefined,
+    layers: MapItemLayers | undefined,
   ): void {
     if (!layers) {
       return;
@@ -363,10 +392,67 @@ const payload = JSON.stringify({
     });
   }
 
+  function setupCoverageFilter(
+    mapElement: HTMLElement,
+    map: L.Map,
+    payload: MapPayload,
+    layersByReference: Map<string, MapItemLayers>,
+  ): () => void {
+    const mapPreview = mapElement.closest(".map-preview");
+    const filter = mapPreview?.querySelector<HTMLInputElement>("[data-map-coverage-filter]");
+    const count = mapPreview?.querySelector<HTMLElement>("[data-map-coverage-count]");
+
+    const applyFilter = () => {
+      const onlyNeedsCoverage = filter?.checked ?? false;
+      let coverageGapCount = 0;
+
+      for (const item of payload.items) {
+        const needsCoverage =
+          item.coverage?.status === "uncovered" ||
+          item.coverage?.status === "cancelled-needs-replacement";
+        coverageGapCount += needsCoverage ? 1 : 0;
+
+        for (const layer of layersByReference.get(item.reference)?.displayLayers ?? []) {
+          if (!onlyNeedsCoverage || needsCoverage) {
+            if (!map.hasLayer(layer)) {
+              layer.addTo(map);
+            }
+          } else if (map.hasLayer(layer)) {
+            map.removeLayer(layer);
+          }
+        }
+      }
+
+      if (count) {
+        count.textContent = `(${coverageGapCount})`;
+      }
+    };
+
+    filter?.addEventListener("change", () => {
+      applyFilter();
+      document.dispatchEvent(
+        new CustomEvent("activate-ri:coverage-filter-change", {
+          detail: { enabled: filter.checked },
+        }),
+      );
+    });
+    document.addEventListener("activate-ri:coverage-filter-change", (event) => {
+      if (!filter) {
+        return;
+      }
+      filter.checked =
+        (event as CustomEvent<{ enabled?: boolean }>).detail?.enabled ?? false;
+      applyFilter();
+    });
+    applyFilter();
+    return applyFilter;
+  }
+
   async function refreshLiveCoverage(
     mapElement: HTMLElement,
     payload: MapPayload,
-    layersByReference: Map<string, { boundaries: L.Path[]; markers: L.CircleMarker[] }>,
+    layersByReference: Map<string, MapItemLayers>,
+    applyCoverageFilter: () => void,
   ): Promise<void> {
     try {
       const stops = await fetchPublicActivationStops();
@@ -382,6 +468,7 @@ const payload = JSON.stringify({
         updateMapItemLayers(payload, item, layersByReference.get(item.reference));
       }
       updateMapLegend(mapElement, payload);
+      applyCoverageFilter();
     } catch {
       return;
     }

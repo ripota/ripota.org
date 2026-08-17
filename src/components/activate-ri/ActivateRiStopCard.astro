@@ -9,12 +9,14 @@ import {
 type Props = {
   includeStopId?: boolean;
   removeHidden?: boolean;
+  showCoverageFilter?: boolean;
   title?: string;
 };
 
 const {
   includeStopId = false,
   removeHidden = false,
+  showCoverageFilter = false,
   title = "Activation stop",
 } = Astro.props;
 
@@ -81,6 +83,18 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
         />
         <input data-park-reference type="hidden" />
         <span class="park-combobox__popup" data-park-results hidden>
+          {
+            showCoverageFilter && (
+              <span class="park-combobox__filters" data-park-coverage-control hidden>
+                <label>
+                  <input type="checkbox" data-park-coverage-filter />
+                  <span>
+                    Only parks needing coverage <span data-park-coverage-count></span>
+                  </span>
+                </label>
+              </span>
+            )
+          }
           <span class="park-combobox__scroller">
             <table class="park-combobox__table">
               <thead>

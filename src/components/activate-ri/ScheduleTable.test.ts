@@ -12,4 +12,10 @@ describe("ScheduleTable markup", () => {
     expect(source).toContain('appendCell(row, "Time", formatActivationTimeRange(stop));');
     expect(source).not.toContain('`${stop.startTime}-${stop.endTime} UTC`');
   });
+
+  it("links directly to the parks that still need coverage", () => {
+    expect(source).toContain('href="/activate-ri-2026/parks/?coverage=needed"');
+    expect(source).toContain('Find parks that still need coverage');
+    expect(source).toContain('summarizeParkCoverage(parks, stops).gaps');
+  });
 });

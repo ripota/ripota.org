@@ -11,6 +11,15 @@ describe("ReferenceMap volunteer links", () => {
       'href="/activate-ri-2026/volunteer/?park=${encodeURIComponent(item.reference)}"',
     );
   });
+
+  it("lets volunteers hide parks that already have coverage", () => {
+    expect(referenceMapSource).toContain("Only show parks needing coverage");
+    expect(referenceMapSource).toContain("data-map-coverage-filter");
+    expect(referenceMapSource).toContain('item.coverage?.status === "uncovered"');
+    expect(referenceMapSource).toContain('item.coverage?.status === "cancelled-needs-replacement"');
+    expect(referenceMapSource).toContain("map.removeLayer(layer)");
+    expect(referenceMapSource).toContain("applyCoverageFilter();");
+  });
 });
 
 describe("Activate All RI maps", () => {

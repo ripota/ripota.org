@@ -17,4 +17,13 @@ describe("ParkCoverageTable markup", () => {
     expect(source).not.toContain('row.children.length === 2 ? "Needs coverage" : "TBD"');
     expect(source).not.toContain(') : (\n                "Needs coverage"\n              )');
   });
+
+  it("filters and deep-links to parks that need volunteer coverage", () => {
+    expect(source).toContain('data-coverage-filter');
+    expect(source).toContain('Only parks needing coverage');
+    expect(source).toContain('searchParams.get("coverage") === "needed"');
+    expect(source).toContain('row.dataset.needsCoverage = isParkVolunteerActionable(park.status) ? "true" : "false"');
+    expect(source).toContain('control.disabled = needsCoverage');
+    expect(source).toContain('url.searchParams.set("coverage", "needed")');
+  });
 });

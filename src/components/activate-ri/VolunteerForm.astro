@@ -73,10 +73,13 @@ const turnstileSiteKey =
 </dialog>
 
 <script>
+  import references from "../../data/ri-references.json";
+  import { deriveParkCoverage, isParkVolunteerActionable } from "../../lib/activate-ri/coverage";
   import {
     appendBlankStop,
     clearFieldError,
     fieldErrorElement,
+    filterParkOptions,
     firstEmptyStopCard,
     parkReferenceAlreadySelected,
     populateClubDatalist,
@@ -93,6 +96,8 @@ const turnstileSiteKey =
     uppercaseFormValue,
     type ValidationControl,
   } from "../../lib/activate-ri/form-client";
+  import { fetchPublicActivationStops } from "../../lib/activate-ri/public-stops-client";
+  import type { PublicParkSummary } from "../../lib/activate-ri/types";
   import {
     formatVolunteerMissingFieldSummary,
     formatVolunteerProblemFieldSummary,
@@ -115,12 +120,59 @@ const turnstileSiteKey =
   let isSendingExistingEditLink = false;
 
   setupCallsignFields();
+  document.addEventListener("activate-ri:coverage-filter-change", syncParkCoverageFilters);
   setupRequiredFieldValidation();
   setupExistingActivationHint();
   void populateClubDatalist("activate-ri-clubs");
   setupStopCards({ validatePark: true, setupErrorDescriptions: true });
+  void setupParkCoverageFilters();
   prefillParkFromUrl();
   setupDocumentPopupDismissal();
+
+  async function setupParkCoverageFilters(): Promise<void> {
+    try {
+      const stops = await fetchPublicActivationStops();
+      const coverage = deriveParkCoverage(
+        references as PublicParkSummary[],
+        stops.filter((stop) => !stop.id.startsWith("sample-")),
+      );
+      const parksNeedingCoverage = new Set(
+        coverage
+          .filter((park) => isParkVolunteerActionable(park.status))
+          .map((park) => park.reference),
+      );
+
+      document.querySelectorAll<HTMLElement>("[data-park-option]").forEach((option) => {
+        option.dataset.needsCoverage = String(
+          parksNeedingCoverage.has(option.dataset.reference ?? ""),
+        );
+      });
+      document.querySelectorAll<HTMLElement>("[data-park-coverage-control]").forEach((control) => {
+        control.hidden = false;
+      });
+      document.querySelectorAll<HTMLElement>("[data-park-coverage-count]").forEach((count) => {
+        count.textContent = `(${parksNeedingCoverage.size})`;
+      });
+      refreshParkOptionFilters();
+    } catch {
+      return;
+    }
+  }
+
+  function syncParkCoverageFilters(event: Event): void {
+    const enabled = (event as CustomEvent<{ enabled?: boolean }>).detail?.enabled ?? false;
+    document.querySelectorAll<HTMLInputElement>("[data-park-coverage-filter]").forEach((filter) => {
+      filter.checked = enabled;
+    });
+    refreshParkOptionFilters();
+  }
+
+  function refreshParkOptionFilters(): void {
+    document.querySelectorAll<HTMLElement>("[data-park-combobox]").forEach((combobox) => {
+      const value = combobox.querySelector<HTMLInputElement>("[data-park-input]")?.value ?? "";
+      filterParkOptions(combobox, value);
+    });
+  }
 
   addStopButton?.addEventListener("click", () => {
     const stop = appendBlankStop(stopsContainer);
