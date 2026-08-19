@@ -82,6 +82,7 @@ const turnstileSiteKey =
 
 <script>
   import {
+    applyRepeatedStopPreferences,
     clearFieldError,
     fieldErrorElement,
     firstEmptyStopCard,
@@ -89,6 +90,7 @@ const turnstileSiteKey =
     populateClubDatalist,
     reportControlValidity,
     resetTurnstile,
+    repeatedStopPreferences,
     selectParkReference,
     selectedParkReference,
     selectedValues,
@@ -100,6 +102,7 @@ const turnstileSiteKey =
     stopErrorElement,
     uppercaseFormValue,
     type ValidationControl,
+    type RepeatedStopPreferences,
   } from "../../lib/activate-ri/form-client";
   import {
     timeBlockToRange,
@@ -213,7 +216,7 @@ const turnstileSiteKey =
   });
 
   editForm?.querySelector("[data-add-stop]")?.addEventListener("click", () => {
-    appendStop({})?.querySelector<HTMLInputElement>("[data-park-input]")?.focus();
+    appendRepeatedStop()?.querySelector<HTMLInputElement>("[data-park-input]")?.focus();
   });
 
   editForm?.querySelector("[data-cancel-plan]")?.addEventListener("click", async () => {
@@ -320,7 +323,10 @@ const turnstileSiteKey =
     setupStopCards({ validatePark: true, setupErrorDescriptions: true });
   }
 
-  function appendStop(stop: StopDto): HTMLElement | null {
+  function appendStop(
+    stop: StopDto,
+    preferences?: RepeatedStopPreferences,
+  ): HTMLElement | null {
     if (!stopTemplate || !editStops) {
       return null;
     }
@@ -334,12 +340,30 @@ const turnstileSiteKey =
     selectParkReference(node, stringValue(stop.park_reference));
     setValue(node, "[data-planned-date]", stringValue(stop.planned_date) || "2026-09-11");
     setValue(node, "[data-time-block]", timeBlockValue(stop));
-    setSelectedValues(node.querySelector<HTMLElement>("[data-bands]"), arrayValue(stop.bands));
-    setSelectedValues(node.querySelector<HTMLElement>("[data-modes]"), arrayValue(stop.modes));
+    if (Array.isArray(stop.bands)) {
+      setSelectedValues(node.querySelector<HTMLElement>("[data-bands]"), arrayValue(stop.bands));
+    }
+    if (Array.isArray(stop.modes)) {
+      setSelectedValues(node.querySelector<HTMLElement>("[data-modes]"), arrayValue(stop.modes));
+    }
     setValue(node, "[data-public-notes]", stringValue(stop.public_notes));
+    if (preferences) {
+      applyRepeatedStopPreferences(node, preferences);
+    }
     editStops.appendChild(node);
     setupStopCards({ validatePark: true, setupErrorDescriptions: true });
     return node;
+  }
+
+  function appendRepeatedStop(): HTMLElement | null {
+    const previousStop = Array.from(
+      editStops?.querySelectorAll<HTMLElement>("[data-stop-card]") ?? [],
+    ).at(-1);
+
+    return appendStop(
+      {},
+      previousStop ? repeatedStopPreferences(previousStop) : undefined,
+    );
   }
 
   function formToPayload(data: FormData) {
@@ -381,7 +405,7 @@ const turnstileSiteKey =
       return;
     }
 
-    const targetStop = firstEmptyStopCard() ?? appendStop({});
+    const targetStop = firstEmptyStopCard() ?? appendRepeatedStop();
     if (!targetStop) {
       return;
     }

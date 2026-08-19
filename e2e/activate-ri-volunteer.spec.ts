@@ -151,6 +151,45 @@ test("volunteer map add activation scrolls to identity fields and skips duplicat
   }
 });
 
+test("additional parks inherit date, bands, and modes without copying stop details", async ({
+  page,
+}) => {
+  const server = await startActivateRiServer();
+
+  try {
+    await page.goto(`${server.origin}/activate-ri-2026/volunteer/`);
+
+    const firstStop = page.locator("[data-stop-card]").first();
+    await firstStop.locator("[data-park-input]").fill("US-2868");
+    await firstStop.getByRole("button", { name: "US-2868" }).click();
+    await firstStop.locator("[data-planned-date]").selectOption("2026-09-12");
+    await firstStop.locator("[data-time-block]").selectOption("09:00-12:00");
+    await firstStop.locator("[data-public-notes]").fill("First stop only");
+    await firstStop.locator("[data-bands] [data-multi-toggle]").click();
+    await firstStop.locator('[data-bands] [value="40m"]').uncheck();
+    await firstStop.locator('[data-bands] [value="10m"]').check();
+    await firstStop.locator("[data-modes] [data-multi-toggle]").click();
+    await firstStop.locator('[data-modes] [value="CW"]').check();
+
+    await page.getByRole("button", { name: "Add another park" }).click();
+
+    const secondStop = page.locator("[data-stop-card]").nth(1);
+    await expect(secondStop.locator("[data-park-input]")).toHaveValue("");
+    await expect(secondStop.locator("[data-park-reference]")).toHaveValue("");
+    await expect(secondStop.locator("[data-planned-date]")).toHaveValue("2026-09-12");
+    await expect(secondStop.locator("[data-time-block]")).toHaveValue("");
+    await expect(secondStop.locator("[data-public-notes]")).toHaveValue("");
+    await expect(secondStop.locator("[data-bands] [data-multi-toggle]")).toHaveText(
+      "20m, 15m, 10m",
+    );
+    await expect(secondStop.locator("[data-modes] [data-multi-toggle]")).toHaveText(
+      "SSB, CW",
+    );
+  } finally {
+    await server.stop();
+  }
+});
+
 async function addParkFromVolunteerMap(page: Page, reference: string): Promise<void> {
   await page.evaluate((selectedReference) => {
     document.dispatchEvent(

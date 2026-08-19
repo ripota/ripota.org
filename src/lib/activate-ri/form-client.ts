@@ -12,6 +12,12 @@ export type StopSetupOptions = {
   setupErrorDescriptions?: boolean;
 };
 
+export type RepeatedStopPreferences = {
+  plannedDate: string;
+  bands: string[];
+  modes: string[];
+};
+
 export function uppercaseFormValue(value: FormDataEntryValue | null): FormDataEntryValue | null {
   return typeof value === "string" ? value.toUpperCase() : value;
 }
@@ -288,9 +294,13 @@ export function appendBlankStop(stopsContainer: HTMLElement | null): HTMLElement
     return null;
   }
 
+  const previousStop = Array.from(
+    stopsContainer.querySelectorAll<HTMLElement>("[data-stop-card]"),
+  ).at(-1) ?? firstStop;
+  const preferences = repeatedStopPreferences(previousStop);
   const nextStop = firstStop.cloneNode(true) as HTMLElement;
   clearStopCard(nextStop);
-  applyDefaultStopSelections(nextStop);
+  applyRepeatedStopPreferences(nextStop, preferences);
   stopsContainer.appendChild(nextStop);
   return nextStop;
 }
@@ -317,9 +327,25 @@ export function clearStopCard(stop: HTMLElement): void {
   });
 }
 
-function applyDefaultStopSelections(stop: HTMLElement): void {
-  setSelectedValues(stop.querySelector<HTMLElement>("[data-bands]"), ["40m", "20m", "15m"]);
-  setSelectedValues(stop.querySelector<HTMLElement>("[data-modes]"), ["SSB"]);
+export function repeatedStopPreferences(stop: HTMLElement): RepeatedStopPreferences {
+  return {
+    plannedDate:
+      (stop.querySelector("[data-planned-date]") as HTMLSelectElement | null)?.value ?? "",
+    bands: selectedValues(stop.querySelector<HTMLElement>("[data-bands]")),
+    modes: selectedValues(stop.querySelector<HTMLElement>("[data-modes]")),
+  };
+}
+
+export function applyRepeatedStopPreferences(
+  stop: HTMLElement,
+  preferences: RepeatedStopPreferences,
+): void {
+  const plannedDate = stop.querySelector("[data-planned-date]") as HTMLSelectElement | null;
+  if (plannedDate && preferences.plannedDate) {
+    plannedDate.value = preferences.plannedDate;
+  }
+  setSelectedValues(stop.querySelector<HTMLElement>("[data-bands]"), preferences.bands);
+  setSelectedValues(stop.querySelector<HTMLElement>("[data-modes]"), preferences.modes);
 }
 
 export function firstEmptyStopCard(root: Document | Element = document): HTMLElement | null {
