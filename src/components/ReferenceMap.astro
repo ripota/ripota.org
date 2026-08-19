@@ -149,7 +149,7 @@ const payload = JSON.stringify({
 <script>
   import L from "leaflet";
   import { fetchPublicActivationStops } from "../lib/activate-ri/public-stops-client";
-  import { fetchLivePotaSpots } from "../lib/pota/live-spots-client";
+  import { livePotaSpotsStore } from "../lib/pota/live-spots-store";
   import type { LivePotaSpot } from "../lib/pota/spots";
   import { isPreviewFeatureEnabled } from "../lib/preview";
   import {
@@ -268,11 +268,16 @@ const payload = JSON.stringify({
     );
 
     if (payload.variant === "home" && isPreviewFeatureEnabled("on-air")) {
-      void refreshLiveSpots(payload, layersByReference);
-      window.setInterval(
-        () => void refreshLiveSpots(payload, layersByReference),
-        60_000,
-      );
+      livePotaSpotsStore.subscribe((state) => {
+        if (state.status !== "loading") {
+          updateLiveSpots(
+            payload,
+            layersByReference,
+            state.status === "ready" ? state.snapshot.spots : [],
+          );
+        }
+      });
+      livePotaSpotsStore.start();
     } else {
       refreshLiveCoverage(mapElement, payload, layersByReference, applyCoverageFilter);
     }
@@ -385,17 +390,11 @@ const payload = JSON.stringify({
     });
   }
 
-  async function refreshLiveSpots(
+  function updateLiveSpots(
     payload: MapPayload,
     layersByReference: Map<string, MapItemLayers>,
-  ): Promise<void> {
-    let spots: LivePotaSpot[] = [];
-    try {
-      spots = await fetchLivePotaSpots();
-    } catch {
-      spots = [];
-    }
-
+    spots: LivePotaSpot[],
+  ): void {
     const spotsByReference = new Map<string, LivePotaSpot[]>();
     for (const spot of spots) {
       const parkSpots = spotsByReference.get(spot.parkReference) ?? [];

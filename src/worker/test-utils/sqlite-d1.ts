@@ -20,6 +20,7 @@ const migrations = [
   "0005_stop_utc_instants.sql",
   "0006_activator_owned_stops.sql",
   "0007_activate_ri_edit_tokens.sql",
+  "0008_pota_spots_cache.sql",
 ];
 
 export function createMigratedSqliteD1(): SqliteD1Context {

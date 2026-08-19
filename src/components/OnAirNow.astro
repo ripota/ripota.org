@@ -23,11 +23,13 @@
 </section>
 
 <script>
-  import { fetchLivePotaSpots } from "../lib/pota/live-spots-client";
+  import type { LivePotaSpotsSnapshot } from "../lib/pota/live-spots-client";
+  import {
+    livePotaSpotsStore,
+    type LivePotaSpotsState,
+  } from "../lib/pota/live-spots-store";
   import type { LivePotaSpot } from "../lib/pota/spots";
   import { isPreviewFeatureEnabled } from "../lib/preview";
-
-  const refreshIntervalMilliseconds = 60_000;
 
   if (isPreviewFeatureEnabled("on-air")) {
     document.querySelectorAll<HTMLElement>("[data-on-air-now]").forEach((root) => {
@@ -36,33 +38,23 @@
   }
 
   function setupOnAirNow(root: HTMLElement): void {
-    let refreshInProgress = false;
-
-    const refresh = async () => {
-      if (refreshInProgress) {
-        return;
-      }
-
-      refreshInProgress = true;
-      try {
-        renderSpots(root, await fetchLivePotaSpots());
-      } catch {
-        renderUnavailable(root);
-      } finally {
-        refreshInProgress = false;
-      }
-    };
-
-    void refresh();
-    window.setInterval(() => void refresh(), refreshIntervalMilliseconds);
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") {
-        void refresh();
-      }
-    });
+    livePotaSpotsStore.subscribe((state) => renderState(root, state));
+    livePotaSpotsStore.start();
   }
 
-  function renderSpots(root: HTMLElement, spots: LivePotaSpot[]): void {
+  function renderState(root: HTMLElement, state: LivePotaSpotsState): void {
+    if (state.status === "ready") {
+      renderSpots(root, state.snapshot);
+    } else if (state.status === "unavailable") {
+      renderUnavailable(root);
+    }
+  }
+
+  function renderSpots(
+    root: HTMLElement,
+    snapshot: LivePotaSpotsSnapshot,
+  ): void {
+    const spots = snapshot.spots;
     const status = root.querySelector<HTMLElement>("[data-on-air-status]");
     const list = root.querySelector<HTMLUListElement>("[data-on-air-list]");
     const empty = root.querySelector<HTMLElement>("[data-on-air-empty]");
@@ -82,15 +74,15 @@
         : "Live check complete.";
     }
     if (updated) {
-      updated.textContent = `Last checked ${formatCheckedTime(new Date())}.`;
+      updated.textContent = snapshot.stale
+        ? `Temporarily showing the last successful update from ${formatCheckedTime(new Date(snapshot.generatedAt))}.`
+        : `Last updated ${formatCheckedTime(new Date(snapshot.generatedAt))}.`;
       updated.hidden = false;
     }
+    setPanelVisible(root, true);
   }
 
   function renderUnavailable(root: HTMLElement): void {
-    root.querySelector<HTMLElement>("[data-on-air-status]")?.replaceChildren(
-      "Live spots are temporarily unavailable. Use the official POTA app for current activity.",
-    );
     const list = root.querySelector<HTMLUListElement>("[data-on-air-list]");
     list?.replaceChildren();
     if (list) {
@@ -104,6 +96,12 @@
     if (updated) {
       updated.hidden = true;
     }
+    setPanelVisible(root, false);
+  }
+
+  function setPanelVisible(root: HTMLElement, visible: boolean): void {
+    const panel = root.closest<HTMLElement>("[data-on-air-section]") ?? root;
+    panel.hidden = !visible;
   }
 
   function renderSpot(spot: LivePotaSpot): HTMLLIElement {

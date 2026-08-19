@@ -28,7 +28,7 @@ export default {
       request.method === "GET" &&
       url.pathname === "/api/pota/spots"
     ) {
-      return handlePotaSpots(request, ctx);
+      return handlePotaSpots(request, env, ctx);
     }
 
     if (url.pathname.startsWith("/api/")) {

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import worker from "./index";
 import type { Env } from "./env";
+import { createMigratedSqliteD1 } from "./test-utils/sqlite-d1";
 
 function env(): Env {
   return {
@@ -107,18 +108,23 @@ describe("worker routing", () => {
 
   it("routes public live POTA spots through the Worker adapter", async () => {
     const testEnv = env();
+    const database = createMigratedSqliteD1();
+    testEnv.DB = database.DB;
     vi.stubGlobal("fetch", vi.fn(async () => Response.json([])));
 
-    const response = await worker.fetch(
-      request("/api/pota/spots", {
-        headers: { "cache-control": "no-cache" },
-      }),
-      testEnv,
-    );
+    try {
+      const response = await worker.fetch(request("/api/pota/spots"), testEnv);
 
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({ ok: true, spots: [] });
-    expect(testEnv.ASSETS.fetch).not.toHaveBeenCalled();
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({
+        ok: true,
+        stale: false,
+        spots: [],
+      });
+      expect(testEnv.ASSETS.fetch).not.toHaveBeenCalled();
+    } finally {
+      database.close();
+    }
   });
 
   it("requires Access identity before serving the Activate RI admin page", async () => {

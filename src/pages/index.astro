@@ -17,7 +17,13 @@ import BaseLayout from "../layouts/BaseLayout.astro";
   <main id="main">
     <Hero />
     <PreviewGate feature="on-air">
-      <section class="section" id="on-air" aria-labelledby="on-air-now-title">
+      <section
+        class="section"
+        id="on-air"
+        aria-labelledby="on-air-now-title"
+        data-on-air-section
+        hidden
+      >
         <div class="container">
           <OnAirNow />
         </div>

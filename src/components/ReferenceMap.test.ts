@@ -32,9 +32,9 @@ describe("Activate All RI maps", () => {
 });
 
 describe("homepage live spots map", () => {
-  it("polls live POTA spots and replaces active marker state", () => {
-    expect(referenceMapSource).toContain("fetchLivePotaSpots");
-    expect(referenceMapSource).toContain("60_000");
+  it("subscribes to shared live POTA spots and replaces active marker state", () => {
+    expect(referenceMapSource).toContain("livePotaSpotsStore.subscribe");
+    expect(referenceMapSource).not.toContain("window.setInterval");
     expect(referenceMapSource).toContain('item.liveSpots = spotsByReference.get(item.reference) ?? []');
     expect(referenceMapSource).toContain('"reference-map-marker--live"');
     expect(referenceMapSource).toContain("On air now");
