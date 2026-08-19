@@ -2,6 +2,10 @@ import type { Env } from "./env";
 import { requireAccessIdentity } from "./access";
 import { json } from "./http";
 import { handleActivateRiApi } from "./routes/activate-ri";
+import {
+  handleActivateRiEmbed,
+  isActivateRiEmbedPath,
+} from "./routes/activate-ri-embed";
 import { handlePotaSpots } from "./routes/pota";
 
 const activateRiAdminPathPattern = /^\/activate-ri-2026\/admin\/?$/;
@@ -33,6 +37,10 @@ export default {
 
     if (url.pathname.startsWith("/api/")) {
       return json({ ok: false, error: "Not found" }, { status: 404 });
+    }
+
+    if (isActivateRiEmbedPath(url.pathname)) {
+      return handleActivateRiEmbed(request, env);
     }
 
     if (

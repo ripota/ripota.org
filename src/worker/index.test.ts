@@ -127,6 +127,23 @@ describe("worker routing", () => {
     }
   });
 
+  it("routes the Activate All RI embed through the Worker without site chrome", async () => {
+    const testEnv = env();
+
+    const response = await worker.fetch(
+      request("/embed/activate-ri-2026/?preview=unknown"),
+      testEnv,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe(
+      "text/html; charset=utf-8",
+    );
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    await expect(response.text()).resolves.toContain("Activate All RI 2026");
+    expect(testEnv.ASSETS.fetch).not.toHaveBeenCalled();
+  });
+
   it("requires Access identity before serving the Activate RI admin page", async () => {
     const testEnv = env();
 

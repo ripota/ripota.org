@@ -12,6 +12,7 @@
     "binding": "ASSETS",
     "run_worker_first": [
       "/api/*",
+      "/embed/*",
       "/activate-ri-2026/admin*",
       "/activate-ri-2026/edit/*"
     ]

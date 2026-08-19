@@ -45,6 +45,24 @@ export type PotaSpotsHandlerOptions = {
   sleep?: (milliseconds: number) => Promise<void>;
 };
 
+export type RiPotaSpotsSnapshot = {
+  generatedAt: string;
+  stale: boolean;
+  spots: LivePotaSpot[];
+};
+
+export type RiPotaSpotsSnapshotResult =
+  | {
+      ok: true;
+      snapshot: RiPotaSpotsSnapshot;
+      fetchedAt: number;
+      observedAt: number;
+    }
+  | {
+      ok: false;
+      retryAfterSeconds: number;
+    };
+
 export async function handlePotaSpots(
   request: Request,
   env: Pick<Env, "DB">,
@@ -63,15 +81,30 @@ export async function handlePotaSpots(
     }
   }
 
+  const result = await getRiPotaSpotsSnapshot(env, options);
+  if (!result.ok) {
+    return unavailableResponse(result.retryAfterSeconds);
+  }
+
+  return cacheResponse(
+    cache,
+    cacheKey,
+    snapshotResponse(result),
+    ctx,
+  );
+}
+
+export async function getRiPotaSpotsSnapshot(
+  env: Pick<Env, "DB">,
+  options: PotaSpotsHandlerOptions = {},
+): Promise<RiPotaSpotsSnapshotResult> {
+  const now = options.now ?? (() => new Date());
+  const requestTime = now().valueOf();
+
   const row = await readCacheRow(env);
   const snapshot = storedSnapshot(row);
   if (snapshot && snapshotIsFresh(snapshot, requestTime)) {
-    return cacheResponse(
-      cache,
-      cacheKey,
-      snapshotResponse(snapshot, requestTime, false),
-      ctx,
-    );
+    return availableSnapshot(snapshot, requestTime, false);
   }
 
   const lease = await acquireRefreshLease(env, row, requestTime);
@@ -86,27 +119,25 @@ export async function handlePotaSpots(
     );
     const responseTime = now().valueOf();
     if (refreshedSnapshot) {
-      return cacheResponse(
-        cache,
-        cacheKey,
-        snapshotResponse(refreshedSnapshot, responseTime, false),
-        ctx,
-      );
+      return availableSnapshot(refreshedSnapshot, responseTime, false);
     }
 
     if (snapshot && snapshotIsSafeToDisplay(snapshot, responseTime)) {
-      return snapshotResponse(snapshot, responseTime, true);
+      return availableSnapshot(snapshot, responseTime, true);
     }
 
-    return unavailableResponse();
+    return { ok: false, retryAfterSeconds: 60 };
   }
 
   const refreshMayBeInProgress = row.refresh_lease_until > requestTime ||
     row.retry_after <= requestTime;
   if (!refreshMayBeInProgress) {
     return staleIsSafe
-      ? snapshotResponse(snapshot, requestTime, true)
-      : unavailableResponse(retryAfterSeconds(row, requestTime));
+      ? availableSnapshot(snapshot, requestTime, true)
+      : {
+          ok: false,
+          retryAfterSeconds: retryAfterSeconds(row, requestTime),
+        };
   }
 
   const latestRow = await waitForRefreshCompletion(
@@ -117,18 +148,16 @@ export async function handlePotaSpots(
   const latestSnapshot = storedSnapshot(latestRow);
   const responseTime = now().valueOf();
   if (latestSnapshot && snapshotIsFresh(latestSnapshot, responseTime)) {
-    return cacheResponse(
-      cache,
-      cacheKey,
-      snapshotResponse(latestSnapshot, responseTime, false),
-      ctx,
-    );
+    return availableSnapshot(latestSnapshot, responseTime, false);
   }
   if (latestSnapshot && snapshotIsSafeToDisplay(latestSnapshot, responseTime)) {
-    return snapshotResponse(latestSnapshot, responseTime, true);
+    return availableSnapshot(latestSnapshot, responseTime, true);
   }
 
-  return unavailableResponse(retryAfterSeconds(latestRow, responseTime));
+  return {
+    ok: false,
+    retryAfterSeconds: retryAfterSeconds(latestRow, responseTime),
+  };
 }
 
 async function waitForRefreshCompletion(
@@ -298,23 +327,36 @@ async function refreshSnapshot(
   }
 }
 
-function snapshotResponse(
+function availableSnapshot(
   snapshot: StoredSnapshot,
   now: number,
   stale: boolean,
-): Response {
-  return json(
-    {
-      ok: true,
+): RiPotaSpotsSnapshotResult {
+  return {
+    ok: true,
+    fetchedAt: snapshot.fetchedAt,
+    observedAt: now,
+    snapshot: {
       generatedAt: new Date(snapshot.fetchedAt).toISOString(),
       stale,
       spots: unexpiredSpots(snapshot, now),
     },
+  };
+}
+
+function snapshotResponse(result: Extract<RiPotaSpotsSnapshotResult, { ok: true }>): Response {
+  return json(
+    {
+      ok: true,
+      ...result.snapshot,
+    },
     {
       headers: {
-        "cache-control": stale ? "no-store" : freshCacheControl(snapshot, now),
+        "cache-control": result.snapshot.stale
+          ? "no-store"
+          : freshCacheControl(result.fetchedAt, result.observedAt),
         "x-content-type-options": "nosniff",
-        "x-ripota-pota-fetched-at": String(snapshot.fetchedAt),
+        "x-ripota-pota-fetched-at": String(result.fetchedAt),
       },
     },
   );
@@ -333,9 +375,9 @@ function unexpiredSpots(snapshot: StoredSnapshot, now: number): LivePotaSpot[] {
   });
 }
 
-function freshCacheControl(snapshot: StoredSnapshot, now: number): string {
+function freshCacheControl(fetchedAt: number, now: number): string {
   const remainingSeconds = Math.floor(
-    (snapshot.fetchedAt + freshnessMilliseconds - now) / 1_000,
+    (fetchedAt + freshnessMilliseconds - now) / 1_000,
   );
   if (remainingSeconds <= 0) {
     return "no-store";
