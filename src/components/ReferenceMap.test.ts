@@ -30,3 +30,13 @@ describe("Activate All RI maps", () => {
     expect(referenceMapSource).toContain("geojson: showBoundaries ? item.geojson : null");
   });
 });
+
+describe("homepage live spots map", () => {
+  it("polls live POTA spots and replaces active marker state", () => {
+    expect(referenceMapSource).toContain("fetchLivePotaSpots");
+    expect(referenceMapSource).toContain("60_000");
+    expect(referenceMapSource).toContain('item.liveSpots = spotsByReference.get(item.reference) ?? []');
+    expect(referenceMapSource).toContain('"reference-map-marker--live"');
+    expect(referenceMapSource).toContain("On air now");
+  });
+});

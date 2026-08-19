@@ -149,6 +149,9 @@ const payload = JSON.stringify({
 <script>
   import L from "leaflet";
   import { fetchPublicActivationStops } from "../lib/activate-ri/public-stops-client";
+  import { fetchLivePotaSpots } from "../lib/pota/live-spots-client";
+  import type { LivePotaSpot } from "../lib/pota/spots";
+  import { isPreviewFeatureEnabled } from "../lib/preview";
   import {
     formatActivationDate,
     formatActivationTimeRange,
@@ -205,6 +208,7 @@ const payload = JSON.stringify({
       properties?: Record<string, unknown>;
     } | null;
     coverage: MapCoverage | null;
+    liveSpots?: LivePotaSpot[];
   };
 
   type MapPayload = {
@@ -263,7 +267,13 @@ const payload = JSON.stringify({
       layersByReference,
     );
 
-    if (payload.variant !== "home") {
+    if (payload.variant === "home" && isPreviewFeatureEnabled("on-air")) {
+      void refreshLiveSpots(payload, layersByReference);
+      window.setInterval(
+        () => void refreshLiveSpots(payload, layersByReference),
+        60_000,
+      );
+    } else {
       refreshLiveCoverage(mapElement, payload, layersByReference, applyCoverageFilter);
     }
   }
@@ -305,7 +315,8 @@ const payload = JSON.stringify({
 
     if (item.marker) {
       const marker = L.circleMarker([item.marker.latitude, item.marker.longitude], {
-        radius: payload.variant === "home" ? 6 : 7,
+        radius: style.markerRadius,
+        className: "reference-map-marker",
         color: style.color,
         fillColor: style.fillColor,
         fillOpacity: style.markerFillOpacity,
@@ -323,14 +334,21 @@ const payload = JSON.stringify({
   }
 
   function itemStyle(payload: MapPayload, item: MapItem) {
-    const color = item.coverage?.color ?? "#172026";
-    const fillColor = payload.variant === "home" ? "#d7913a" : color;
+    const isLive = payload.variant === "home" && (item.liveSpots?.length ?? 0) > 0;
+    const color = isLive ? "#6f4300" : item.coverage?.color ?? "#172026";
+    const fillColor = isLive
+      ? "#f6bd46"
+      : payload.variant === "home"
+        ? "#d7913a"
+        : color;
 
     return {
       color,
       fillColor,
       boundaryFillOpacity: payload.variant === "home" ? 0.16 : 0.22,
       markerFillOpacity: 0.95,
+      markerRadius: isLive ? 10 : payload.variant === "home" ? 6 : 7,
+      isLive,
     };
   }
 
@@ -353,13 +371,42 @@ const payload = JSON.stringify({
       layer.bindPopup(() => popupHtml(payload, item));
     });
     layers.markers.forEach((marker) => {
+      marker.setRadius(style.markerRadius);
       marker.setStyle({
         color: style.color,
         fillColor: style.fillColor,
         fillOpacity: style.markerFillOpacity,
       });
+      marker.getElement()?.classList.toggle(
+        "reference-map-marker--live",
+        style.isLive,
+      );
       marker.bindPopup(() => popupHtml(payload, item));
     });
+  }
+
+  async function refreshLiveSpots(
+    payload: MapPayload,
+    layersByReference: Map<string, MapItemLayers>,
+  ): Promise<void> {
+    let spots: LivePotaSpot[] = [];
+    try {
+      spots = await fetchLivePotaSpots();
+    } catch {
+      spots = [];
+    }
+
+    const spotsByReference = new Map<string, LivePotaSpot[]>();
+    for (const spot of spots) {
+      const parkSpots = spotsByReference.get(spot.parkReference) ?? [];
+      parkSpots.push(spot);
+      spotsByReference.set(spot.parkReference, parkSpots);
+    }
+
+    for (const item of payload.items) {
+      item.liveSpots = spotsByReference.get(item.reference) ?? [];
+      updateMapItemLayers(payload, item, layersByReference.get(item.reference));
+    }
   }
 
   function fitReferenceBounds(map: L.Map, bounds: L.LatLngBounds): void {
@@ -545,6 +592,7 @@ const payload = JSON.stringify({
         <strong>${escapeHtml(item.reference)}</strong>
         <span>${escapeHtml(item.name)}</span>
         <em>${escapeHtml(detailLine(item))}</em>
+        ${liveSpotsHtml(item)}
         <span>Reference data comes from official POTA park data and local public boundary sources.</span>
         ${officialLink(item)}
       `;
@@ -564,6 +612,27 @@ const payload = JSON.stringify({
       <span class="map-popup__links">
         <a href="/activate-ri-2026/parks/">Open coverage table</a>
         ${volunteerAction}
+      </span>
+    `;
+  }
+
+  function liveSpotsHtml(item: MapItem): string {
+    const spots = item.liveSpots ?? [];
+    if (spots.length === 0) {
+      return "";
+    }
+
+    return `
+      <span class="map-popup__live-label">On air now</span>
+      <span class="map-popup__stops">
+        ${spots.map((spot) => `
+          <span class="map-popup__stop">
+            <b>${escapeHtml(spot.activatorCallsign)}</b>
+            <span>${escapeHtml(spot.frequency)} kHz · ${escapeHtml(spot.mode)}</span>
+            <span>Spotted ${escapeHtml(formatLiveSpotTime(spot.spotTime))}</span>
+            ${spot.sourceLabel ? `<span>via ${escapeHtml(spot.sourceLabel)}</span>` : ""}
+          </span>
+        `).join("")}
       </span>
     `;
   }
@@ -610,6 +679,21 @@ const payload = JSON.stringify({
 
   function formatList(items: string[]): string {
     return items.length > 0 ? items.join(", ") : "TBD";
+  }
+
+  function formatLiveSpotTime(value: string): string {
+    const timestamp = /(Z|[+-]\d{2}:?\d{2})$/i.test(value) ? value : `${value}Z`;
+    const date = new Date(timestamp);
+    if (!Number.isFinite(date.valueOf())) {
+      return value;
+    }
+
+    return new Intl.DateTimeFormat("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: "UTC",
+      timeZoneName: "short",
+    }).format(date);
   }
 
   function escapeHtml(value: string): string {

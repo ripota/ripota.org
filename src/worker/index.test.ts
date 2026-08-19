@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import worker from "./index";
 import type { Env } from "./env";
 
@@ -25,6 +25,10 @@ function localRequest(path: string, init?: RequestInit): Request {
 }
 
 describe("worker routing", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("rewrites real Activate RI edit tokens to the static edit shell", async () => {
     const testEnv = env();
 
@@ -98,6 +102,22 @@ describe("worker routing", () => {
       ok: true,
       eventId: "activate-ri-2026",
     });
+    expect(testEnv.ASSETS.fetch).not.toHaveBeenCalled();
+  });
+
+  it("routes public live POTA spots through the Worker adapter", async () => {
+    const testEnv = env();
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json([])));
+
+    const response = await worker.fetch(
+      request("/api/pota/spots", {
+        headers: { "cache-control": "no-cache" },
+      }),
+      testEnv,
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ ok: true, spots: [] });
     expect(testEnv.ASSETS.fetch).not.toHaveBeenCalled();
   });
 

@@ -1,0 +1,177 @@
+<section class="on-air-now" aria-labelledby="on-air-now-title" data-on-air-now>
+  <div class="section-header section-header--compact">
+    <p class="eyebrow">Live official spots</p>
+    <h2 id="on-air-now-title">On air now</h2>
+    <p class="lead">
+      Rhode Island parks with a current official POTA spot. This live view is
+      separate from planned event schedules and refreshes automatically.
+    </p>
+  </div>
+
+  <p class="on-air-now__status" data-on-air-status aria-live="polite">
+    Checking current spots...
+  </p>
+  <ul class="on-air-now__list" data-on-air-list hidden></ul>
+  <p class="on-air-now__empty" data-on-air-empty hidden>
+    No Rhode Island parks have a current active spot.
+  </p>
+  <p class="on-air-now__updated" data-on-air-updated hidden></p>
+  <p class="on-air-now__source">
+    Spots can expire or change at any time. Confirm details in the
+    <a href="https://pota.app/">official POTA app</a> before calling.
+  </p>
+</section>
+
+<script>
+  import { fetchLivePotaSpots } from "../lib/pota/live-spots-client";
+  import type { LivePotaSpot } from "../lib/pota/spots";
+  import { isPreviewFeatureEnabled } from "../lib/preview";
+
+  const refreshIntervalMilliseconds = 60_000;
+
+  if (isPreviewFeatureEnabled("on-air")) {
+    document.querySelectorAll<HTMLElement>("[data-on-air-now]").forEach((root) => {
+      setupOnAirNow(root);
+    });
+  }
+
+  function setupOnAirNow(root: HTMLElement): void {
+    let refreshInProgress = false;
+
+    const refresh = async () => {
+      if (refreshInProgress) {
+        return;
+      }
+
+      refreshInProgress = true;
+      try {
+        renderSpots(root, await fetchLivePotaSpots());
+      } catch {
+        renderUnavailable(root);
+      } finally {
+        refreshInProgress = false;
+      }
+    };
+
+    void refresh();
+    window.setInterval(() => void refresh(), refreshIntervalMilliseconds);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        void refresh();
+      }
+    });
+  }
+
+  function renderSpots(root: HTMLElement, spots: LivePotaSpot[]): void {
+    const status = root.querySelector<HTMLElement>("[data-on-air-status]");
+    const list = root.querySelector<HTMLUListElement>("[data-on-air-list]");
+    const empty = root.querySelector<HTMLElement>("[data-on-air-empty]");
+    const updated = root.querySelector<HTMLElement>("[data-on-air-updated]");
+    const activeParkCount = new Set(spots.map((spot) => spot.parkReference)).size;
+
+    list?.replaceChildren(...spots.map(renderSpot));
+    if (list) {
+      list.hidden = spots.length === 0;
+    }
+    if (empty) {
+      empty.hidden = spots.length > 0;
+    }
+    if (status) {
+      status.textContent = spots.length > 0
+        ? `${activeParkCount} ${activeParkCount === 1 ? "park has" : "parks have"} current spot${spots.length === 1 ? "" : "s"}.`
+        : "Live check complete.";
+    }
+    if (updated) {
+      updated.textContent = `Last checked ${formatCheckedTime(new Date())}.`;
+      updated.hidden = false;
+    }
+  }
+
+  function renderUnavailable(root: HTMLElement): void {
+    root.querySelector<HTMLElement>("[data-on-air-status]")?.replaceChildren(
+      "Live spots are temporarily unavailable. Use the official POTA app for current activity.",
+    );
+    const list = root.querySelector<HTMLUListElement>("[data-on-air-list]");
+    list?.replaceChildren();
+    if (list) {
+      list.hidden = true;
+    }
+    const empty = root.querySelector<HTMLElement>("[data-on-air-empty]");
+    if (empty) {
+      empty.hidden = true;
+    }
+    const updated = root.querySelector<HTMLElement>("[data-on-air-updated]");
+    if (updated) {
+      updated.hidden = true;
+    }
+  }
+
+  function renderSpot(spot: LivePotaSpot): HTMLLIElement {
+    const item = document.createElement("li");
+    const park = document.createElement("a");
+    const activator = document.createElement("a");
+    const radio = document.createElement("span");
+    const time = document.createElement("time");
+    const source = document.createElement("span");
+
+    park.className = "on-air-now__park";
+    park.href = spot.parkUrl;
+    park.target = "_blank";
+    park.rel = "noreferrer";
+    park.textContent = `${spot.parkReference} · ${spot.parkName}`;
+
+    activator.className = "on-air-now__activator";
+    activator.href = `https://www.qrz.com/db/${encodeURIComponent(spot.activatorCallsign)}`;
+    activator.target = "_blank";
+    activator.rel = "noreferrer";
+    activator.textContent = spot.activatorCallsign;
+
+    radio.className = "on-air-now__radio";
+    radio.textContent = `${spot.frequency} kHz · ${spot.mode}`;
+
+    time.className = "on-air-now__time";
+    time.dateTime = normalizedSpotTimestamp(spot.spotTime);
+    time.textContent = `Spotted ${formatSpotTime(spot.spotTime)}`;
+
+    source.className = "on-air-now__spotter";
+    source.textContent = [
+      spot.spotterCallsign ? `by ${spot.spotterCallsign}` : "",
+      spot.sourceLabel ? `via ${spot.sourceLabel}` : "",
+    ].filter(Boolean).join(" ");
+
+    item.appendChild(park);
+    item.appendChild(activator);
+    item.appendChild(radio);
+    item.appendChild(time);
+    if (source.textContent) {
+      item.appendChild(source);
+    }
+    return item;
+  }
+
+  function normalizedSpotTimestamp(value: string): string {
+    return /(Z|[+-]\d{2}:?\d{2})$/i.test(value) ? value : `${value}Z`;
+  }
+
+  function formatSpotTime(value: string): string {
+    const date = new Date(normalizedSpotTimestamp(value));
+    if (!Number.isFinite(date.valueOf())) {
+      return value;
+    }
+
+    return new Intl.DateTimeFormat("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: "UTC",
+      timeZoneName: "short",
+    }).format(date);
+  }
+
+  function formatCheckedTime(date: Date): string {
+    return new Intl.DateTimeFormat("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      second: "2-digit",
+    }).format(date);
+  }
+</script>

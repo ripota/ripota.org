@@ -1,0 +1,28 @@
+---
+type Props = {
+  feature: string;
+};
+
+const { feature } = Astro.props;
+---
+
+<div class="preview-gate" data-preview-feature={feature} hidden>
+  <slot />
+</div>
+
+<script>
+  import { enabledPreviewFeatures } from "../lib/preview";
+
+  const enabledFeatures = enabledPreviewFeatures(
+    new URLSearchParams(window.location.search),
+  );
+
+  document
+    .querySelectorAll<HTMLElement>("[data-preview-feature]")
+    .forEach((element) => {
+      const feature = element.dataset.previewFeature?.trim().toLowerCase();
+      if (feature && enabledFeatures.has(feature)) {
+        element.hidden = false;
+      }
+    });
+</script>

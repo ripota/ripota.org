@@ -345,6 +345,77 @@ p {
   align-items: center;
 }
 
+.preview-gate[hidden] {
+  display: none;
+}
+
+.preview-gate:not([hidden]) {
+  display: contents;
+}
+
+.on-air-now {
+  display: grid;
+  gap: 1rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  padding: clamp(1.2rem, 3vw, 2rem);
+  box-shadow: var(--shadow-soft);
+}
+
+.on-air-now .section-header {
+  margin-bottom: 0;
+}
+
+.on-air-now__status {
+  color: var(--surface-ink);
+  font-weight: 850;
+}
+
+.on-air-now__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.on-air-now__list li {
+  display: grid;
+  gap: 0.3rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--border-subtle));
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface-raised));
+  padding: 0.9rem;
+}
+
+.on-air-now__park,
+.on-air-now__activator {
+  width: fit-content;
+  color: var(--link-strong);
+  font-weight: 850;
+}
+
+.on-air-now__park {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.1rem;
+}
+
+.on-air-now__radio {
+  color: var(--surface-ink);
+  font-weight: 800;
+}
+
+.on-air-now__time,
+.on-air-now__spotter,
+.on-air-now__updated,
+.on-air-now__source,
+.on-air-now__empty {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
 .resource-copy {
   display: grid;
   gap: 1.25rem;
@@ -427,6 +498,40 @@ p {
   font-size: 1.2rem;
   font-weight: 900;
   line-height: 34px;
+}
+
+.ri-reference-map path.reference-map-marker--live {
+  filter: drop-shadow(0 0 4px #f6bd46) drop-shadow(0 0 9px rgba(246, 189, 70, 0.8));
+  animation: live-map-marker-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes live-map-marker-pulse {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 3px #f6bd46) drop-shadow(0 0 7px rgba(246, 189, 70, 0.65));
+  }
+
+  50% {
+    filter: drop-shadow(0 0 6px #f6bd46) drop-shadow(0 0 13px rgba(246, 189, 70, 0.95));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ri-reference-map path.reference-map-marker--live {
+    animation: none;
+  }
+}
+
+.ri-reference-map .leaflet-popup-content .map-popup__live-label {
+  width: fit-content;
+  border-radius: 999px;
+  background: #f6bd46;
+  color: #3f2900;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.76rem;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .map-popup__stops,

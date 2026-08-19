@@ -2,6 +2,7 @@ import type { Env } from "./env";
 import { requireAccessIdentity } from "./access";
 import { json } from "./http";
 import { handleActivateRiApi } from "./routes/activate-ri";
+import { handlePotaSpots } from "./routes/pota";
 
 const activateRiAdminPathPattern = /^\/activate-ri-2026\/admin\/?$/;
 const activateRiEditPathPattern = /^\/activate-ri-2026\/edit\/[^/]+\/?$/;
@@ -21,6 +22,13 @@ export default {
 
     if (url.pathname.startsWith("/api/activate-ri-2026/")) {
       return handleActivateRiApi(request, env, ctx);
+    }
+
+    if (
+      request.method === "GET" &&
+      url.pathname === "/api/pota/spots"
+    ) {
+      return handlePotaSpots(request, ctx);
     }
 
     if (url.pathname.startsWith("/api/")) {
