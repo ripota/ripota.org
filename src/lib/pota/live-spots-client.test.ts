@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { fetchLivePotaSpots } from "./live-spots-client";
+import {
+  fetchLivePotaSpots,
+  shouldWarnAboutStaleSnapshot,
+} from "./live-spots-client";
 
 describe("fetchLivePotaSpots", () => {
   it("loads the normalized same-origin live spots endpoint", async () => {
@@ -35,5 +38,30 @@ describe("fetchLivePotaSpots", () => {
     await expect(
       fetchLivePotaSpots(async () => Response.json({ ok: true, spots: [] })),
     ).rejects.toThrow(/invalid/i);
+  });
+});
+
+describe("shouldWarnAboutStaleSnapshot", () => {
+  const generatedAt = "2026-08-19T14:00:00.000Z";
+
+  it("does not warn for a stale snapshot less than five minutes old", () => {
+    expect(shouldWarnAboutStaleSnapshot(
+      { spots: [], generatedAt, stale: true },
+      new Date("2026-08-19T14:04:59.999Z"),
+    )).toBe(false);
+  });
+
+  it("warns once a stale snapshot is five minutes old", () => {
+    expect(shouldWarnAboutStaleSnapshot(
+      { spots: [], generatedAt, stale: true },
+      new Date("2026-08-19T14:05:00.000Z"),
+    )).toBe(true);
+  });
+
+  it("does not warn for a fresh snapshot regardless of its age", () => {
+    expect(shouldWarnAboutStaleSnapshot(
+      { spots: [], generatedAt, stale: false },
+      new Date("2026-08-19T15:00:00.000Z"),
+    )).toBe(false);
   });
 });
