@@ -10,6 +10,7 @@ export type TimelineFilter =
   | "2026-09-13";
 
 export type StopFilters = {
+  activator?: string;
   mode?: string;
   band?: string;
   timeline?: string;
@@ -58,6 +59,7 @@ export function filterPublicStops(
   filters: StopFilters,
 ): PublicActivationStop[] {
   const parksByReference = new Map(parks.map((park) => [park.reference, park]));
+  const activator = normalizeFilter(filters.activator).toUpperCase();
   const mode = normalizeFilter(filters.mode);
   const band = normalizeFilter(filters.band);
   const timeline = normalizeFilter(filters.timeline);
@@ -67,6 +69,7 @@ export function filterPublicStops(
     const park = parksByReference.get(stop.parkReference);
 
     return (
+      (!activator || stop.activatorCallsign.toUpperCase() === activator) &&
       matchesList(stop.modes, mode) &&
       matchesList(stop.bands, band) &&
       matchesTimeline(stop.plannedDate, timeline) &&
@@ -78,6 +81,7 @@ export function filterPublicStops(
 export function hasActiveStopFilters(filters: StopFilters): boolean {
   return Boolean(
     normalizeFilter(filters.mode) ||
+      normalizeFilter(filters.activator) ||
       normalizeFilter(filters.band) ||
       normalizeTimelineFilter(filters.timeline) ||
       normalizeFilter(filters.county),

@@ -54,9 +54,10 @@ describe("listing helpers", () => {
     expect(formatActivatorModes({ ...stops[0], modes: [] })).toBe("N1RWJ");
   });
 
-  it("filters stops by mode, band, timeline, and county", () => {
+  it("filters stops by activator, mode, band, timeline, and county", () => {
     expect(
       filterPublicStops(stops, parks, {
+        activator: "k1abc",
         mode: "SSB",
         band: "20m",
         timeline: "main",

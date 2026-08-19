@@ -29,6 +29,12 @@ const countyOptions = uniqueSortedValues(
     </select>
   </label>
   <label class="event-filter">
+    Activator
+    <select class="event-filter__control" data-filter="activator">
+      <option value="all">Any activator</option>
+    </select>
+  </label>
+  <label class="event-filter">
     Mode
     <select class="event-filter__control" data-filter="mode">
       <option value="all">Any mode</option>
@@ -90,7 +96,6 @@ const countyOptions = uniqueSortedValues(
     timeZoneOptionForValue,
   } from "../../lib/activate-ri/time";
 
-  document.querySelectorAll("[data-event-filters]").forEach(setupEventFilters);
   document.querySelectorAll<HTMLTableElement>("[data-live-schedule]").forEach(setupLiveSchedule);
 
   function setupEventFilters(root: Element): void {
@@ -103,6 +108,8 @@ const countyOptions = uniqueSortedValues(
     ) as unknown as HTMLSelectElement[];
     const timezone = filters.querySelector("[data-timezone]") as HTMLSelectElement | null;
 
+    restoreFiltersFromUrl(controls, timezone);
+
     const applyFilters = () => {
       const values = Object.fromEntries(
         controls.map((control) => [control.dataset.filter ?? "", control.value]),
@@ -112,6 +119,7 @@ const countyOptions = uniqueSortedValues(
       for (const row of rows) {
         const isVisible =
           matchesList(row.dataset.modes, values.mode) &&
+          matchesList(row.dataset.activator, values.activator) &&
           matchesList(row.dataset.bands, values.band) &&
           matchesTimeline(row.dataset.date, values.timeline) &&
           matchesList(row.dataset.counties, values.county);
@@ -126,9 +134,16 @@ const countyOptions = uniqueSortedValues(
     };
 
     controls.forEach((control) => control.addEventListener("change", applyFilters));
-    timezone?.addEventListener("change", () => applySelectedTime(table, timezone.value));
+    controls.forEach((control) => control.addEventListener("change", () => {
+      updateScheduleUrl(controls, timezone);
+    }));
+    timezone?.addEventListener("change", () => {
+      applySelectedTime(table, timezone.value);
+      updateScheduleUrl(controls, timezone);
+    });
     applySelectedTime(table, timezone?.value);
     applyFilters();
+    updateScheduleUrl(controls, timezone);
   }
 
   async function setupLiveSchedule(table: HTMLTableElement): Promise<void> {
@@ -153,6 +168,7 @@ const countyOptions = uniqueSortedValues(
       });
       const filters = document.querySelector("[data-event-filters]") as HTMLFormElement | null;
       if (filters) {
+        updateSelectOptions(filters, "activator", uniqueSortedValues(visibleStops.map((stop) => [stop.activatorCallsign])));
         updateSelectOptions(filters, "mode", uniqueSortedValues(visibleStops.map((stop) => stop.modes)));
         updateSelectOptions(filters, "band", uniqueSortedValues(visibleStops.map((stop) => stop.bands)));
       }
@@ -162,12 +178,16 @@ const countyOptions = uniqueSortedValues(
       }
     } catch {
       renderScheduleUnavailable(body);
+      const filters = document.querySelector("[data-event-filters]") as HTMLFormElement | null;
+      if (filters) {
+        setupEventFilters(filters);
+      }
     }
   }
 
   function updateSelectOptions(
     filters: HTMLFormElement,
-    filterName: "mode" | "band",
+    filterName: "activator" | "mode" | "band",
     values: string[],
   ): void {
     const control = filters.querySelector(`[data-filter="${filterName}"]`) as HTMLSelectElement | null;
@@ -176,7 +196,12 @@ const countyOptions = uniqueSortedValues(
     }
 
     const current = control.value;
-    control.replaceChildren(new Option(filterName === "mode" ? "Any mode" : "Any band", "all"));
+    const defaultLabels = {
+      activator: "Any activator",
+      mode: "Any mode",
+      band: "Any band",
+    };
+    control.replaceChildren(new Option(defaultLabels[filterName], "all"));
     for (const value of values) {
       control.appendChild(new Option(value, value));
     }
@@ -250,6 +275,7 @@ const countyOptions = uniqueSortedValues(
     const row = document.createElement("tr");
     row.dataset.filterRow = "";
     row.dataset.bands = stop.bands.join("|");
+    row.dataset.activator = stop.activatorCallsign;
     row.dataset.counties = (park?.counties?.length ? park.counties : ["Unknown county"]).join("|");
     row.dataset.date = stop.plannedDate;
     row.dataset.modes = stop.modes.join("|");
@@ -321,6 +347,57 @@ const countyOptions = uniqueSortedValues(
     };
 
     return labels[status] ?? status;
+  }
+
+  function restoreFiltersFromUrl(
+    controls: HTMLSelectElement[],
+    timezone: HTMLSelectElement | null,
+  ): void {
+    const params = new URL(window.location.href).searchParams;
+    for (const control of controls) {
+      const key = control.dataset.filter;
+      let requested = key ? params.get(key) : null;
+      if (key === "activator") {
+        requested = requested?.toUpperCase() ?? null;
+      }
+      control.value = requested && hasOption(control, requested) ? requested : "all";
+    }
+
+    const requestedTimezone = params.get("timezone");
+    if (timezone) {
+      timezone.value = requestedTimezone && hasOption(timezone, requestedTimezone)
+        ? requestedTimezone
+        : "eastern";
+    }
+  }
+
+  function updateScheduleUrl(
+    controls: HTMLSelectElement[],
+    timezone: HTMLSelectElement | null,
+  ): void {
+    const url = new URL(window.location.href);
+    for (const control of controls) {
+      const key = control.dataset.filter;
+      if (!key) {
+        continue;
+      }
+      if (control.value && control.value !== "all") {
+        url.searchParams.set(key, control.value);
+      } else {
+        url.searchParams.delete(key);
+      }
+    }
+
+    if (timezone?.value && timezone.value !== "eastern") {
+      url.searchParams.set("timezone", timezone.value);
+    } else {
+      url.searchParams.delete("timezone");
+    }
+    window.history.replaceState({}, "", url);
+  }
+
+  function hasOption(control: HTMLSelectElement, value: string): boolean {
+    return Array.from(control.options).some((option) => option.value === value);
   }
 
   function matchesList(value: string | undefined, filter: string | undefined): boolean {

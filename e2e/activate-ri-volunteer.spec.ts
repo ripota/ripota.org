@@ -123,6 +123,19 @@ test("volunteer can submit a plan that can be approved and shown publicly", asyn
     const scheduleRow = page.getByRole("row", { name: new RegExp(callsign) });
     await expect(scheduleRow).toContainText("US-2868");
     await expect(scheduleRow).toContainText("Scheduled");
+
+    await page.locator('[data-filter="activator"]').selectOption(callsign);
+    await page.locator('[data-filter="band"]').selectOption("20m");
+    await page.locator('[data-timezone]').selectOption("pacific");
+    await expect(page).toHaveURL(new RegExp(`activator=${callsign}`));
+    await expect(page).toHaveURL(/band=20m/);
+    await expect(page).toHaveURL(/timezone=pacific/);
+
+    await page.reload();
+    await expect(page.locator('[data-filter="activator"]')).toHaveValue(callsign);
+    await expect(page.locator('[data-filter="band"]')).toHaveValue("20m");
+    await expect(page.locator('[data-timezone]')).toHaveValue("pacific");
+    await expect(page.getByRole("row", { name: new RegExp(callsign) })).toBeVisible();
   } finally {
     await server.stop();
   }
