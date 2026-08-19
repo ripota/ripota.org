@@ -47,18 +47,6 @@ function storedSpot(overrides: Partial<LivePotaSpot> = {}): LivePotaSpot {
   };
 }
 
-function executionContext() {
-  const promises: Promise<unknown>[] = [];
-  return {
-    ctx: {
-      waitUntil(promise: Promise<unknown>) {
-        promises.push(promise);
-      },
-    } as unknown as ExecutionContext,
-    promises,
-  };
-}
-
 async function seedSnapshot(
   DB: D1Database,
   timestamp: number,
@@ -121,7 +109,7 @@ describe("handlePotaSpots", () => {
     expect(fetcher).toHaveBeenCalledOnce();
   });
 
-  it("serves safe stale data while one lease winner refreshes it", async () => {
+  it("coalesces stale requests and returns the shared refreshed snapshot", async () => {
     const database = createMigratedSqliteD1();
     cleanup = database.close;
     await seedSnapshot(database.DB, fetchedAt);
@@ -130,36 +118,129 @@ describe("handlePotaSpots", () => {
       resolveUpstream = resolve;
     });
     const fetcher = vi.fn(() => upstream);
-    const context = executionContext();
     const now = () => new Date(fetchedAt + 61_000);
+    let releaseWaiter: (() => void) | undefined;
+    const sleep = vi.fn((_milliseconds: number) => new Promise<void>((resolve) => {
+      releaseWaiter = resolve;
+    }));
 
-    const [firstResponse, secondResponse] = await Promise.all([
-      handlePotaSpots(request(), database, context.ctx, { fetcher, now }),
-      handlePotaSpots(request(), database, context.ctx, { fetcher, now }),
-    ]);
-
-    expect(firstResponse.status).toBe(200);
-    expect(secondResponse.status).toBe(200);
-    expect(firstResponse.headers.get("cache-control")).toBe("no-store");
-    await expect(firstResponse.json()).resolves.toMatchObject({ stale: true });
-    await expect(secondResponse.json()).resolves.toMatchObject({ stale: true });
-    expect(fetcher).toHaveBeenCalledOnce();
-    expect(context.promises).toHaveLength(1);
-
-    resolveUpstream?.(Response.json([upstreamSpot({ spotId: 3 })]));
-    await Promise.all(context.promises);
-
-    const refreshedResponse = await handlePotaSpots(
+    const firstResponsePromise = handlePotaSpots(
       request(),
       database,
       undefined,
-      { fetcher, now: () => new Date(fetchedAt + 62_000) },
+      { fetcher, now },
     );
-    await expect(refreshedResponse.json()).resolves.toMatchObject({
+    await vi.waitFor(() => expect(fetcher).toHaveBeenCalledOnce());
+    const secondResponsePromise = handlePotaSpots(
+      request(),
+      database,
+      undefined,
+      { fetcher, now, sleep },
+    );
+    await vi.waitFor(() => expect(sleep).toHaveBeenCalledWith(1_000));
+
+    resolveUpstream?.(Response.json([upstreamSpot({ spotId: 3 })]));
+    const firstResponse = await firstResponsePromise;
+    releaseWaiter?.();
+    const secondResponse = await secondResponsePromise;
+
+    expect(firstResponse.status).toBe(200);
+    expect(secondResponse.status).toBe(200);
+    await expect(firstResponse.json()).resolves.toMatchObject({
+      stale: false,
+      spots: [{ id: "3" }],
+    });
+    await expect(secondResponse.json()).resolves.toMatchObject({
       stale: false,
       spots: [{ id: "3" }],
     });
     expect(fetcher).toHaveBeenCalledOnce();
+    expect(sleep).toHaveBeenCalledOnce();
+  });
+
+  it("checks an active refresh after one, three, six, and ten seconds", async () => {
+    const database = createMigratedSqliteD1();
+    cleanup = database.close;
+    await seedSnapshot(database.DB, fetchedAt);
+    await database.DB.prepare(
+      `UPDATE pota_spots_cache
+      SET refresh_lease_token = 'another-request', refresh_lease_until = ?`,
+    ).bind(fetchedAt + 91_000).run();
+    const sleep = vi.fn(async (_milliseconds: number) => undefined);
+
+    const response = await handlePotaSpots(
+      request(),
+      database,
+      undefined,
+      {
+        fetcher: vi.fn(),
+        now: () => new Date(fetchedAt + 61_000),
+        sleep,
+      },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ stale: true });
+    expect(sleep.mock.calls.map(([milliseconds]) => milliseconds)).toEqual([
+      1_000,
+      2_000,
+      3_000,
+      4_000,
+    ]);
+  });
+
+  it("releases waiters at their next check when the POTA refresh fails", async () => {
+    const database = createMigratedSqliteD1();
+    cleanup = database.close;
+    await seedSnapshot(database.DB, fetchedAt);
+    let resolveUpstream: ((response: Response) => void) | undefined;
+    const upstream = new Promise<Response>((resolve) => {
+      resolveUpstream = resolve;
+    });
+    const fetcher = vi.fn(() => upstream);
+    const now = () => new Date(fetchedAt + 61_000);
+    let releaseWaiter: (() => void) | undefined;
+    const sleep = vi.fn((_milliseconds: number) => new Promise<void>((resolve) => {
+      releaseWaiter = resolve;
+    }));
+
+    const winnerResponsePromise = handlePotaSpots(
+      request(),
+      database,
+      undefined,
+      { fetcher, now },
+    );
+    await vi.waitFor(() => expect(fetcher).toHaveBeenCalledOnce());
+    const waiterResponsePromise = handlePotaSpots(
+      request(),
+      database,
+      undefined,
+      { fetcher, now, sleep },
+    );
+    await vi.waitFor(() => expect(sleep).toHaveBeenCalledWith(1_000));
+
+    resolveUpstream?.(new Response("bad gateway", { status: 503 }));
+    const winnerResponse = await winnerResponsePromise;
+    releaseWaiter?.();
+    const waiterResponse = await waiterResponsePromise;
+
+    await expect(winnerResponse.json()).resolves.toMatchObject({ stale: true });
+    await expect(waiterResponse.json()).resolves.toMatchObject({ stale: true });
+    expect(sleep).toHaveBeenCalledOnce();
+
+    const cacheRow = await database.DB.prepare(
+      `SELECT refresh_lease_token, refresh_lease_until, retry_after
+      FROM pota_spots_cache WHERE id = 'ri-live-spots'`,
+    ).first<{
+      refresh_lease_token: string | null;
+      refresh_lease_until: number;
+      retry_after: number;
+    }>();
+    expect(cacheRow).toMatchObject({
+      refresh_lease_token: null,
+      refresh_lease_until: 0,
+      retry_after: fetchedAt + 121_000,
+    });
   });
 
   it("never returns a snapshot older than fifteen minutes", async () => {
@@ -198,12 +279,10 @@ describe("handlePotaSpots", () => {
     cleanup = database.close;
     await seedSnapshot(database.DB, fetchedAt, [storedSpot({ expiresInSeconds: 30 })]);
     const fetcher = vi.fn(async () => new Response("bad gateway", { status: 503 }));
-    const context = executionContext();
-
     const response = await handlePotaSpots(
       request(),
       database,
-      context.ctx,
+      undefined,
       { fetcher, now: () => new Date(fetchedAt + 61_000) },
     );
 
@@ -211,7 +290,6 @@ describe("handlePotaSpots", () => {
       stale: true,
       spots: [],
     });
-    await Promise.all(context.promises);
   });
 
   it("does not let client cache headers bypass a fresh edge response", async () => {

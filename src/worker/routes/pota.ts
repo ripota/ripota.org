@@ -12,6 +12,7 @@ const freshnessMilliseconds = 60_000;
 const maximumStaleMilliseconds = 15 * 60_000;
 const refreshLeaseMilliseconds = 30_000;
 const upstreamTimeoutMilliseconds = 10_000;
+const refreshWaitCheckpointsMilliseconds = [1_000, 3_000, 6_000, 10_000];
 const initialRetryMilliseconds = 60_000;
 const maximumRetryMilliseconds = 10 * 60_000;
 const parkNames = new Map(
@@ -41,6 +42,7 @@ type RefreshLease = {
 export type PotaSpotsHandlerOptions = {
   fetcher?: typeof fetch;
   now?: () => Date;
+  sleep?: (milliseconds: number) => Promise<void>;
 };
 
 export async function handlePotaSpots(
@@ -75,54 +77,85 @@ export async function handlePotaSpots(
   const lease = await acquireRefreshLease(env, row, requestTime);
   const staleIsSafe = snapshot && snapshotIsSafeToDisplay(snapshot, requestTime);
 
-  if (staleIsSafe) {
-    if (lease) {
-      const refresh = refreshSnapshot(env, lease, options.fetcher ?? fetch, now);
-      if (ctx) {
-        ctx.waitUntil(refresh);
-      } else {
-        void refresh.catch(() => undefined);
-      }
-    }
-
-    return snapshotResponse(snapshot, requestTime, true);
-  }
-
-  if (!lease) {
-    const latestRow = await readCacheRow(env);
-    const latestSnapshot = storedSnapshot(latestRow);
-    if (latestSnapshot && snapshotIsFresh(latestSnapshot, requestTime)) {
+  if (lease) {
+    const refreshedSnapshot = await refreshSnapshot(
+      env,
+      lease,
+      options.fetcher ?? fetch,
+      now,
+    );
+    const responseTime = now().valueOf();
+    if (refreshedSnapshot) {
       return cacheResponse(
         cache,
         cacheKey,
-        snapshotResponse(latestSnapshot, requestTime, false),
+        snapshotResponse(refreshedSnapshot, responseTime, false),
         ctx,
       );
     }
-    if (latestSnapshot && snapshotIsSafeToDisplay(latestSnapshot, requestTime)) {
-      return snapshotResponse(latestSnapshot, requestTime, true);
+
+    if (snapshot && snapshotIsSafeToDisplay(snapshot, responseTime)) {
+      return snapshotResponse(snapshot, responseTime, true);
     }
 
-    return unavailableResponse(retryAfterSeconds(latestRow, requestTime));
-  }
-
-  const refreshedSnapshot = await refreshSnapshot(
-    env,
-    lease,
-    options.fetcher ?? fetch,
-    now,
-  );
-  if (!refreshedSnapshot) {
     return unavailableResponse();
   }
 
-  const responseTime = now().valueOf();
-  return cacheResponse(
-    cache,
-    cacheKey,
-    snapshotResponse(refreshedSnapshot, responseTime, false),
-    ctx,
+  const refreshMayBeInProgress = row.refresh_lease_until > requestTime ||
+    row.retry_after <= requestTime;
+  if (!refreshMayBeInProgress) {
+    return staleIsSafe
+      ? snapshotResponse(snapshot, requestTime, true)
+      : unavailableResponse(retryAfterSeconds(row, requestTime));
+  }
+
+  const latestRow = await waitForRefreshCompletion(
+    env,
+    row.fetched_at,
+    options.sleep ?? sleep,
   );
+  const latestSnapshot = storedSnapshot(latestRow);
+  const responseTime = now().valueOf();
+  if (latestSnapshot && snapshotIsFresh(latestSnapshot, responseTime)) {
+    return cacheResponse(
+      cache,
+      cacheKey,
+      snapshotResponse(latestSnapshot, responseTime, false),
+      ctx,
+    );
+  }
+  if (latestSnapshot && snapshotIsSafeToDisplay(latestSnapshot, responseTime)) {
+    return snapshotResponse(latestSnapshot, responseTime, true);
+  }
+
+  return unavailableResponse(retryAfterSeconds(latestRow, responseTime));
+}
+
+async function waitForRefreshCompletion(
+  env: Pick<Env, "DB">,
+  previousFetchedAt: number | null,
+  wait: (milliseconds: number) => Promise<void>,
+): Promise<PotaCacheRow> {
+  let previousCheckpoint = 0;
+  let latestRow: PotaCacheRow | undefined;
+
+  for (const checkpoint of refreshWaitCheckpointsMilliseconds) {
+    await wait(checkpoint - previousCheckpoint);
+    previousCheckpoint = checkpoint;
+    latestRow = await readCacheRow(env);
+    if (
+      latestRow.fetched_at !== previousFetchedAt ||
+      latestRow.refresh_lease_until === 0
+    ) {
+      return latestRow;
+    }
+  }
+
+  return latestRow as PotaCacheRow;
+}
+
+function sleep(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 async function readCacheRow(env: Pick<Env, "DB">): Promise<PotaCacheRow> {
