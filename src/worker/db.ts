@@ -295,6 +295,7 @@ export async function listPublicStopRows(env: Env): Promise<StopExportRow[]> {
        s.start_at,
        s.end_at,
        a.primary_callsign AS submitter_callsign,
+       a.name AS submitter_name,
        s.bands_json,
        s.modes_json,
        s.public_notes,

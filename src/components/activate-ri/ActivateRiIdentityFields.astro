@@ -36,9 +36,12 @@ const { clubDatalistId } = Astro.props;
       id="activate-ri-name"
       name="submitterName"
       autocomplete="name"
-      aria-describedby="activate-ri-name-error"
+      aria-describedby="activate-ri-name-help activate-ri-name-error"
       required
     />
+    <span id="activate-ri-name-help" class="form-help">
+      Shown publicly with your callsign on the event schedule.
+    </span>
     <span id="activate-ri-name-error" class="form-error" data-field-error></span>
   </label>
   <label>

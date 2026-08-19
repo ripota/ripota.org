@@ -42,6 +42,7 @@ export type PublicActivationStop = {
   startTime: string;
   endTime: string;
   activatorCallsign: string;
+  activatorName?: string;
   bands: string[];
   modes: string[];
   publicNotes: string;
@@ -123,6 +124,7 @@ export type StopExportRow = {
   start_at: string;
   end_at: string;
   submitter_callsign: string;
+  submitter_name: string;
   submitter_email?: string;
   submitter_phone?: string;
   bands_json: string;

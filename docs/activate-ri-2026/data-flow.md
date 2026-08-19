@@ -190,7 +190,8 @@ The public D1 export includes stops only when:
 
 The public shape deliberately excludes private fields such as email address,
 phone number, edit-token hash, organizer notes, audit data, and raw activity
-details.
+details. It includes the activator's callsign and name along with their approved
+public stop details.
 
 The transformation from D1 export rows to public stop objects lives in
 `src/lib/activate-ri/public-export.ts`.

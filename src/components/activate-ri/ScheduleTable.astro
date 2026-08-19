@@ -221,8 +221,10 @@ const countyOptions = uniqueSortedValues(
     startTime: string;
     endTime: string;
     activatorCallsign: string;
+    activatorName?: string;
     bands: string[];
     modes: string[];
+    publicNotes?: string;
     status: string;
   };
 
@@ -243,7 +245,12 @@ const countyOptions = uniqueSortedValues(
       row.appendChild(cell);
       body.appendChild(row);
     } else {
-      body.replaceChildren(...stops.map((stop) => createScheduleRow(stop, parkByReference)));
+      body.replaceChildren(
+        ...stops.map((stop, index) =>
+          createScheduleRow(stop, stops, parkByReference, index),
+        ),
+      );
+      setupActivatorPopovers(body);
     }
 
     const empty = document.createElement("tr");
@@ -269,7 +276,9 @@ const countyOptions = uniqueSortedValues(
 
   function createScheduleRow(
     stop: PublicStop,
+    stops: PublicStop[],
     parkByReference: Map<string, { reference: string; name: string; counties?: string[] }>,
+    index: number,
   ): HTMLTableRowElement {
     const park = parkByReference.get(stop.parkReference);
     const row = document.createElement("tr");
@@ -296,10 +305,12 @@ const countyOptions = uniqueSortedValues(
     parkHeader.appendChild(reference);
     row.appendChild(parkHeader);
 
-    appendCell(
+    appendActivatorCell(
       row,
-      "Activator",
-      `${stop.activatorCallsign}${stop.modes.length > 0 ? ` (${stop.modes.join(", ")})` : ""}`,
+      stop,
+      stops.filter((candidate) => candidate.activatorCallsign === stop.activatorCallsign),
+      parkByReference,
+      index,
     );
     appendCell(row, "Bands", stop.bands.length > 0 ? stop.bands.join(", ") : "TBD");
     appendCell(row, "Modes", stop.modes.length > 0 ? stop.modes.join(", ") : "TBD");
@@ -313,6 +324,114 @@ const countyOptions = uniqueSortedValues(
     cell.dataset.label = label;
     cell.textContent = text;
     row.appendChild(cell);
+  }
+
+  function appendActivatorCell(
+    row: HTMLTableRowElement,
+    stop: PublicStop,
+    activatorStops: PublicStop[],
+    parkByReference: Map<string, { reference: string; name: string; counties?: string[] }>,
+    index: number,
+  ): void {
+    const cell = document.createElement("td");
+    cell.dataset.label = "Activator";
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "activator-popover";
+    wrapper.dataset.activatorPopover = "";
+
+    const trigger = document.createElement("button");
+    trigger.className = "activator-popover__trigger";
+    trigger.type = "button";
+    trigger.textContent = `${stop.activatorCallsign}${stop.modes.length > 0 ? ` (${stop.modes.join(", ")})` : ""}`;
+    trigger.setAttribute("aria-expanded", "false");
+    trigger.setAttribute("aria-haspopup", "dialog");
+
+    const card = document.createElement("div");
+    const cardId = `activator-popover-${index + 1}`;
+    card.id = cardId;
+    card.className = "activator-popover__card";
+    card.dataset.activatorPopoverCard = "";
+    card.hidden = true;
+    card.setAttribute("role", "dialog");
+    card.setAttribute("aria-label", `Activation plan for ${stop.activatorCallsign}`);
+    trigger.setAttribute("aria-controls", cardId);
+
+    const identity = document.createElement("div");
+    identity.className = "activator-popover__identity";
+    const name = document.createElement("strong");
+    name.textContent = stop.activatorName?.trim() || stop.activatorCallsign;
+    identity.appendChild(name);
+    if (stop.activatorName?.trim()) {
+      const callsign = document.createElement("span");
+      callsign.textContent = stop.activatorCallsign;
+      identity.appendChild(callsign);
+    }
+    card.appendChild(identity);
+
+    const qrzLink = document.createElement("a");
+    qrzLink.href = `https://www.qrz.com/db/${encodeURIComponent(stop.activatorCallsign)}`;
+    qrzLink.target = "_blank";
+    qrzLink.rel = "noreferrer";
+    qrzLink.textContent = "View on QRZ ↗";
+    card.appendChild(qrzLink);
+
+    const schedule = document.createElement("ul");
+    schedule.className = "activator-popover__schedule";
+    for (const activation of activatorStops) {
+      schedule.appendChild(createActivatorScheduleItem(activation, parkByReference));
+    }
+    card.appendChild(schedule);
+
+    const scheduleLink = document.createElement("a");
+    scheduleLink.dataset.activatorScheduleLink = stop.activatorCallsign;
+    scheduleLink.textContent = `View full schedule for ${stop.activatorCallsign}`;
+    card.appendChild(scheduleLink);
+
+    wrapper.appendChild(trigger);
+    wrapper.appendChild(card);
+    cell.appendChild(wrapper);
+    row.appendChild(cell);
+  }
+
+  function createActivatorScheduleItem(
+    stop: PublicStop,
+    parkByReference: Map<string, { reference: string; name: string; counties?: string[] }>,
+  ): HTMLLIElement {
+    const item = document.createElement("li");
+    item.dataset.activatorScheduleStop = "";
+    item.dataset.date = stop.plannedDate;
+    item.dataset.startTime = stop.startTime;
+    item.dataset.endTime = stop.endTime;
+
+    const park = parkByReference.get(stop.parkReference);
+    const heading = document.createElement("strong");
+    heading.textContent = `${park?.name ?? stop.parkReference} (${stop.parkReference})`;
+    item.appendChild(heading);
+
+    const dateTime = document.createElement("span");
+    const date = document.createElement("span");
+    date.dataset.activatorScheduleDate = "";
+    date.textContent = formatActivationDate(stop);
+    const time = document.createElement("span");
+    time.dataset.activatorScheduleTime = "";
+    time.textContent = formatActivationTimeRange(stop);
+    dateTime.appendChild(date);
+    dateTime.appendChild(document.createTextNode(" · "));
+    dateTime.appendChild(time);
+    item.appendChild(dateTime);
+
+    const operatingPlan = document.createElement("span");
+    operatingPlan.textContent = `${stop.bands.length ? stop.bands.join(", ") : "TBD"} / ${stop.modes.length ? stop.modes.join(", ") : "TBD"} · ${statusLabel(stop.status)}`;
+    item.appendChild(operatingPlan);
+
+    if (stop.publicNotes?.trim()) {
+      const notes = document.createElement("span");
+      notes.textContent = stop.publicNotes;
+      item.appendChild(notes);
+    }
+
+    return item;
   }
 
   function applySelectedTime(table: Element | null | undefined, value?: string): void {
@@ -335,6 +454,136 @@ const countyOptions = uniqueSortedValues(
         timeCell.textContent = formatActivationTimeRange({ plannedDate, startTime, endTime }, option);
       }
     });
+
+    table?.querySelectorAll<HTMLElement>("[data-activator-schedule-stop]").forEach((item) => {
+      const plannedDate = item.dataset.date;
+      const startTime = item.dataset.startTime;
+      const endTime = item.dataset.endTime;
+      if (!plannedDate || !startTime || !endTime) {
+        return;
+      }
+      item.querySelector<HTMLElement>("[data-activator-schedule-date]")?.replaceChildren(
+        formatActivationDate({ plannedDate, startTime }, option),
+      );
+      item.querySelector<HTMLElement>("[data-activator-schedule-time]")?.replaceChildren(
+        formatActivationTimeRange({ plannedDate, startTime, endTime }, option),
+      );
+    });
+
+    table?.querySelectorAll<HTMLAnchorElement>("[data-activator-schedule-link]").forEach((link) => {
+      const callsign = link.dataset.activatorScheduleLink;
+      if (!callsign) {
+        return;
+      }
+      const params = new URLSearchParams({ activator: callsign });
+      if (option.value !== "eastern") {
+        params.set("timezone", option.value);
+      }
+      link.href = `/activate-ri-2026/schedule/?${params.toString()}`;
+    });
+  }
+
+  function setupActivatorPopovers(root: Element): void {
+    root.querySelectorAll<HTMLElement>("[data-activator-popover]").forEach((wrapper) => {
+      const trigger = wrapper.querySelector<HTMLButtonElement>(".activator-popover__trigger");
+      if (!trigger) {
+        return;
+      }
+
+      wrapper.addEventListener("mouseenter", () => setActivatorPopoverOpen(wrapper, true));
+      wrapper.addEventListener("mouseleave", () => {
+        if (wrapper.dataset.pinned !== "true" && !wrapper.contains(document.activeElement)) {
+          setActivatorPopoverOpen(wrapper, false);
+        }
+      });
+      trigger.addEventListener("focus", () => setActivatorPopoverOpen(wrapper, true));
+      trigger.addEventListener("click", () => {
+        const pinned = wrapper.dataset.pinned === "true";
+        wrapper.dataset.pinned = String(!pinned);
+        setActivatorPopoverOpen(wrapper, !pinned);
+      });
+      wrapper.addEventListener("focusout", (event) => {
+        const next = event.relatedTarget;
+        if (
+          wrapper.dataset.pinned !== "true" &&
+          (!(next instanceof Node) || !wrapper.contains(next))
+        ) {
+          setActivatorPopoverOpen(wrapper, false);
+        }
+      });
+      wrapper.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+          wrapper.dataset.pinned = "false";
+          trigger.focus();
+          setActivatorPopoverOpen(wrapper, false);
+        }
+      });
+    });
+
+    document.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+      root.querySelectorAll<HTMLElement>("[data-activator-popover]").forEach((wrapper) => {
+        if (!wrapper.contains(target)) {
+          wrapper.dataset.pinned = "false";
+          setActivatorPopoverOpen(wrapper, false);
+        }
+      });
+    });
+    window.addEventListener("resize", () => {
+      root.querySelectorAll<HTMLElement>("[data-activator-popover]").forEach((wrapper) => {
+        const card = wrapper.querySelector<HTMLElement>("[data-activator-popover-card]");
+        if (!card?.hidden) {
+          positionActivatorPopover(wrapper);
+        }
+      });
+    });
+  }
+
+  function setActivatorPopoverOpen(wrapper: HTMLElement, isOpen: boolean): void {
+    const trigger = wrapper.querySelector<HTMLButtonElement>(".activator-popover__trigger");
+    const card = wrapper.querySelector<HTMLElement>("[data-activator-popover-card]");
+    if (!trigger || !card) {
+      return;
+    }
+
+    if (isOpen) {
+      document.querySelectorAll<HTMLElement>("[data-activator-popover]").forEach((candidate) => {
+        if (candidate !== wrapper) {
+          candidate.dataset.pinned = "false";
+          setActivatorPopoverOpen(candidate, false);
+        }
+      });
+    }
+    card.hidden = !isOpen;
+    trigger.setAttribute("aria-expanded", String(isOpen));
+    if (isOpen) {
+      positionActivatorPopover(wrapper);
+    }
+  }
+
+  function positionActivatorPopover(wrapper: HTMLElement): void {
+    const trigger = wrapper.querySelector<HTMLElement>(".activator-popover__trigger");
+    const card = wrapper.querySelector<HTMLElement>("[data-activator-popover-card]");
+    if (!trigger || !card) {
+      return;
+    }
+
+    const margin = 12;
+    const triggerRect = trigger.getBoundingClientRect();
+    const cardRect = card.getBoundingClientRect();
+    const left = Math.min(
+      Math.max(margin, triggerRect.left),
+      Math.max(margin, window.innerWidth - cardRect.width - margin),
+    );
+    const below = triggerRect.bottom + 8;
+    const top = below + cardRect.height <= window.innerHeight - margin
+      ? below
+      : Math.max(margin, triggerRect.top - cardRect.height - 8);
+    card.style.left = `${left}px`;
+    card.style.top = `${top}px`;
   }
 
   function statusLabel(status: string): string {

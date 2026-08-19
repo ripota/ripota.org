@@ -1098,6 +1098,83 @@ p {
   font-weight: 500;
 }
 
+.activator-popover {
+  display: inline-block;
+}
+
+.activator-popover__trigger {
+  border: 0;
+  background: transparent;
+  color: var(--link);
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.16em;
+}
+
+.activator-popover__trigger:focus-visible {
+  border-radius: 3px;
+  outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 3px;
+}
+
+.activator-popover__card {
+  position: fixed;
+  z-index: 100;
+  display: grid;
+  gap: 0.7rem;
+  width: min(26rem, calc(100vw - 1.5rem));
+  max-height: min(30rem, calc(100vh - 1.5rem));
+  overflow-y: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-soft);
+  color: var(--text-primary);
+  padding: 1rem;
+}
+
+.activator-popover__card[hidden] {
+  display: none;
+}
+
+.activator-popover__identity {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.activator-popover__identity strong {
+  color: var(--surface-ink);
+  font-size: 1.05rem;
+}
+
+.activator-popover__identity span {
+  color: var(--text-muted);
+}
+
+.activator-popover__schedule {
+  display: grid;
+  gap: 0.7rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.activator-popover__schedule li {
+  display: grid;
+  gap: 0.12rem;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 0.7rem;
+}
+
+.activator-popover__schedule li > span {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
 .event-stop-list {
   display: grid;
   gap: 0.45rem;

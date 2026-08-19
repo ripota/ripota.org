@@ -9,6 +9,7 @@ type PublicExportRow = {
   start_at: string;
   end_at: string;
   submitter_callsign: string;
+  submitter_name: string;
   bands_json: string;
   modes_json: string;
   public_notes?: unknown;
@@ -34,6 +35,7 @@ export function routeRowsToPublicStops(rows: unknown): PublicActivationStop[] {
         startTime: instantToTime(exportRow.start_at),
         endTime: instantToTime(exportRow.end_at),
         activatorCallsign: exportRow.submitter_callsign,
+        activatorName: exportRow.submitter_name,
         bands: parseStringArray(exportRow.bands_json),
         modes: parseStringArray(exportRow.modes_json),
         publicNotes:
@@ -109,6 +111,7 @@ function validatePublicExportRow(
   const start_at = stringField(row, "start_at");
   const end_at = stringField(row, "end_at");
   const submitter_callsign = stringField(row, "submitter_callsign");
+  const submitter_name = stringField(row, "submitter_name");
   const bands_json = stringField(row, "bands_json");
   const modes_json = stringField(row, "modes_json");
   const status = stringField(row, "status");
@@ -119,6 +122,7 @@ function validatePublicExportRow(
       start_at,
       end_at,
       submitter_callsign,
+      submitter_name,
       bands_json,
       modes_json,
     }),
@@ -138,6 +142,7 @@ function validatePublicExportRow(
     start_at === null ||
     end_at === null ||
     submitter_callsign === null ||
+    submitter_name === null ||
     bands_json === null ||
     modes_json === null ||
     !isPublicStatus(status) ||
@@ -154,6 +159,7 @@ function validatePublicExportRow(
       start_at,
       end_at,
       submitter_callsign,
+      submitter_name,
       bands_json,
       modes_json,
       public_notes: row.public_notes,

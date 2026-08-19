@@ -89,6 +89,7 @@ test("volunteer can submit a plan that can be approved and shown publicly", asyn
       stops: Array<{
         parkReference: string;
         activatorCallsign: string;
+        activatorName: string;
         plannedDate: string;
         startTime: string;
         endTime: string;
@@ -102,6 +103,7 @@ test("volunteer can submit a plan that can be approved and shown publicly", asyn
         expect.objectContaining({
           parkReference: "US-2868",
           activatorCallsign: callsign,
+          activatorName: "Rob Jackson",
           plannedDate: "2026-09-11",
           startTime: "13:00",
           endTime: "16:00",
@@ -123,6 +125,24 @@ test("volunteer can submit a plan that can be approved and shown publicly", asyn
     const scheduleRow = page.getByRole("row", { name: new RegExp(callsign) });
     await expect(scheduleRow).toContainText("US-2868");
     await expect(scheduleRow).toContainText("Scheduled");
+
+    const activatorTrigger = scheduleRow.getByRole("button", { name: new RegExp(callsign) });
+    await activatorTrigger.hover();
+    const activatorCard = page.locator("[data-activator-popover-card]").filter({
+      hasText: callsign,
+    });
+    await expect(activatorCard).toBeVisible();
+    await expect(activatorCard).toContainText("Rob Jackson");
+    await expect(activatorCard).toContainText("US-2868");
+    await expect(activatorCard.getByRole("link", { name: /View on QRZ/ })).toHaveAttribute(
+      "href",
+      `https://www.qrz.com/db/${callsign}`,
+    );
+    await expect(
+      activatorCard.getByRole("link", { name: `View full schedule for ${callsign}` }),
+    ).toHaveAttribute("href", `/activate-ri-2026/schedule/?activator=${callsign}`);
+    await activatorTrigger.press("Escape");
+    await expect(activatorCard).toBeHidden();
 
     await page.locator('[data-filter="activator"]').selectOption(callsign);
     await page.locator('[data-filter="band"]').selectOption("20m");

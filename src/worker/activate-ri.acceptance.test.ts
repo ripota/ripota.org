@@ -65,6 +65,7 @@ describe("Activate RI API acceptance flow", () => {
       stops: Array<{
         parkReference: string;
         activatorCallsign: string;
+        activatorName: string;
         plannedDate: string;
         startTime: string;
         endTime: string;
@@ -77,6 +78,7 @@ describe("Activate RI API acceptance flow", () => {
       expect.objectContaining({
         parkReference: "US-2868",
         activatorCallsign: "N1RWJ",
+        activatorName: "Rob Jackson",
         plannedDate: "2026-09-11",
         startTime: "13:00",
         endTime: "16:00",

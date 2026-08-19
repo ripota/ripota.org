@@ -26,6 +26,12 @@ describe("VolunteerForm shared controls", () => {
     expect(organizerNotesSource).toContain('name="organizerNotes"');
     expect(frequencyNoteSource).toContain("Frequencies are not collected here.");
   });
+
+  it("explains that activator names appear publicly", () => {
+    expect(identityFieldsSource).toContain(
+      "Shown publicly with your callsign on the event schedule.",
+    );
+  });
 });
 
 describe("VolunteerForm existing activation hint", () => {

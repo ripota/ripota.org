@@ -28,4 +28,13 @@ describe("ScheduleTable markup", () => {
     expect(source).toContain('url.searchParams.set("timezone", timezone.value)');
     expect(source).toContain('window.history.replaceState({}, "", url)');
   });
+
+  it("offers public activator details and schedule links without private data", () => {
+    expect(source).toContain("stop.activatorName?.trim() || stop.activatorCallsign");
+    expect(source).toContain("https://www.qrz.com/db/");
+    expect(source).toContain("dataset.activatorScheduleLink");
+    expect(source).toContain("setupActivatorPopovers(body)");
+    expect(source).toContain('event.key === "Escape"');
+    expect(source).not.toMatch(/submitterEmail|submitterPhone|organizerNotes/);
+  });
 });

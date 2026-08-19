@@ -184,6 +184,7 @@ const publicStopRow = {
   start_at: "2026-09-11T09:00:00.000Z",
   end_at: "2026-09-11T11:00:00.000Z",
   submitter_callsign: "N1RWJ",
+  submitter_name: "Rob Jackson",
   bands_json: '["40m","20m"]',
   modes_json: '["SSB","CW"]',
   public_notes: "Meet near the trailhead.",
@@ -1224,6 +1225,7 @@ describe("handleActivateRiApi", () => {
       .map(([sql]) => sql)
       .join("\n");
     expect(preparedSql).toContain("INNER JOIN activate_ri_activators a");
+    expect(preparedSql).toContain("a.name AS submitter_name");
     expect(preparedSql).toContain("a.status = 'approved'");
     expect(preparedSql).toContain(
       "s.status IN ('scheduled', 'delayed', 'cancelled', 'completed')",
@@ -1262,6 +1264,7 @@ describe("handleActivateRiApi", () => {
           startTime: "09:00",
           endTime: "11:00",
           activatorCallsign: "N1RWJ",
+          activatorName: "Rob Jackson",
           bands: ["40m", "20m"],
           modes: ["SSB", "CW"],
           publicNotes: "Meet near the trailhead.",
@@ -1269,7 +1272,9 @@ describe("handleActivateRiApi", () => {
         },
       ],
     });
-    expect(JSON.stringify(body)).not.toMatch(/submitter_email|edit_token_hash|organizer_notes/i);
+    expect(JSON.stringify(body)).not.toMatch(
+      /submitter_email|submitter_phone|club|edit_token_hash|organizer_notes/i,
+    );
   });
 
   it("returns public club suggestions without private activator fields", async () => {
