@@ -127,11 +127,17 @@ export function renderActivateRiEmbed(
 function renderPanel(view: ActivateRiEmbedView, now: Date): string {
   if (view.kind === "pre-event") {
     return `<section class="panel panel--pre" aria-labelledby="widget-action">
-      <div>
-        <p class="panel__kicker">One small state. One big activation.</p>
-        <p id="widget-action" class="panel__message">See when every Rhode Island park is scheduled to be on the air.</p>
+      <div class="pre-state" aria-hidden="true">
+        <svg viewBox="550 140 380 570" focusable="false">
+          <path d="M803.8 383.8L808.0 371.7L813.7 386.1L808.5 388.5L826.9 401.6L816.7 426.5L811.6 416.5L816.9 398.3L803.8 383.8ZM799.6 498.8L811.9 486.3L812.1 493.9L821.1 489.0L815.8 463.4L823.5 461.1L841.8 398.4L865.6 378.8L869.6 389.0L877.1 366.7L906.1 376.0L902.4 408.6L911.8 476.7L877.8 502.1L879.6 484.8L865.3 437.4L870.5 438.8L873.3 415.6L866.1 397.4L856.2 401.3L862.1 457.6L852.8 481.1L856.3 489.9L835.5 481.9L824.0 505.4L817.7 499.8L803.9 506.2L799.6 498.8ZM782.2 499.3L796.2 429.3L803.6 488.2L794.0 491.3L788.8 482.7L791.0 494.9L782.6 506.9L782.1 503.0L782.2 499.3ZM683.8 685.4L698.8 658.7L700.2 641.5L711.1 652.8L705.4 670.5L714.4 689.5L689.9 693.6L684.5 689.3L683.8 685.4ZM568.2 592.2L583.6 572.6L577.5 530.9L598.3 526.7L603.3 378.6L597.6 160.6L791.1 154.0L790.9 231.7L810.8 228.5L809.9 290.5L815.8 301.5L846.6 318.9L863.6 344.8L853.8 353.1L857.2 372.6L845.8 386.6L835.4 362.2L828.1 382.3L832.8 349.7L825.4 337.9L810.5 335.9L796.5 311.4L798.6 303.3L786.8 299.5L791.2 334.4L802.2 341.0L792.7 372.0L786.8 361.2L759.2 359.7L762.3 374.2L778.4 374.1L781.3 403.6L774.6 410.2L780.7 419.8L761.0 423.6L775.3 456.6L773.9 492.0L756.6 516.6L757.9 531.0L745.0 561.6L734.8 553.0L712.3 552.8L636.1 579.7L568.2 592.2Z"/>
+        </svg>
       </div>
-      ${scheduleLink("View the schedule")}
+      <div class="pre-copy">
+        <p class="panel__kicker">A statewide POTA challenge</p>
+        <h2 id="widget-action">Put all ${activateRi2026Event.goalParkCount} Rhode Island references on the air.</h2>
+        <p class="pre-summary">Activators will coordinate routes across the state while hunters follow the action throughout the three-day weekend.</p>
+      </div>
+      <div class="pre-action">${scheduleLink("Explore the schedule")}</div>
     </section>`;
   }
 
@@ -288,7 +294,15 @@ const styles = `
   .headline { margin-top: 5px; color: #fffaf0; font-size: 14px; font-weight: 850; }
   .invitation { margin-top: 4px; color: rgba(255, 250, 240, 0.82); font-size: 12px; line-height: 1.3; }
   .panel { min-height: 0; padding: 16px 20px; background: linear-gradient(135deg, rgba(168, 115, 56, 0.09), transparent 52%), #fffdf7; }
-  .panel--pre { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+  .panel--pre { display: grid; grid-template-columns: minmax(100px, 0.55fr) minmax(0, 2.25fr) minmax(180px, 0.85fr); align-items: center; gap: clamp(18px, 3vw, 32px); }
+  .pre-state { align-self: stretch; display: grid; min-width: 0; place-items: center; border-right: 1px solid rgba(168, 115, 56, 0.4); padding-right: clamp(12px, 2.5vw, 24px); }
+  .pre-state svg { width: min(100%, 100px); max-height: 150px; overflow: visible; fill: rgba(168, 115, 56, 0.16); stroke: #765124; stroke-linecap: round; stroke-linejoin: round; stroke-width: 7; }
+  .pre-copy { min-width: 0; }
+  .pre-copy h2 { max-width: 22ch; font-size: clamp(25px, 3.35vw, 34px); line-height: 1.06; }
+  .pre-summary { max-width: 58ch; margin-top: 9px !important; color: #3f4e48; font-size: 14px; line-height: 1.38; }
+  .pre-action { display: flex; justify-content: flex-end; }
+  .pre-action .button { min-height: 52px; padding: 12px 16px; background: #18312f; font-size: 14px; white-space: nowrap; }
+  .pre-action .button:hover { background: #264643; }
   .panel--centered { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 8px; }
   .panel__kicker, .live-dot { color: #765124; font-size: 11px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; }
   .panel__message { max-width: 54ch; margin-top: 6px !important; color: #3f4e48; font-size: 13px; line-height: 1.38; }
@@ -311,13 +325,26 @@ const styles = `
   .spot__detail time { color: #5b6761; font-size: 10px; }
   footer { display: flex; justify-content: space-between; gap: 12px; padding: 8px 20px; border-top: 1px solid rgba(31, 55, 51, 0.14); background: #f1ede2; color: #5b6761; font-size: 9px; }
   footer a { color: #063f4c; font-weight: 750; }
+  @media (max-width: 700px) {
+    .panel--pre { grid-template-columns: 76px minmax(0, 1fr); gap: 10px 16px; }
+    .pre-state { grid-row: 1 / span 2; padding-right: 14px; }
+    .pre-state svg { width: 70px; max-height: 112px; }
+    .pre-copy h2 { max-width: 24ch; font-size: clamp(23px, 5vw, 29px); }
+    .pre-summary { margin-top: 6px !important; font-size: 12px; }
+    .pre-action { grid-column: 2; justify-content: flex-start; }
+    .pre-action .button { min-height: 42px; padding: 9px 13px; font-size: 12px; }
+  }
   @media (max-width: 460px) {
     .flyer { grid-template-columns: 64px 1fr; gap: 11px; padding: 14px 14px 12px; }
     .logo { width: 64px; height: 64px; }
     h1 { font-size: clamp(24px, 8vw, 32px); }
     .invitation { display: none; }
     .panel { padding: 12px 14px; }
-    .panel--pre { align-items: flex-start; flex-direction: column; justify-content: center; gap: 10px; }
+    .panel--pre { grid-template-columns: 1fr; align-content: center; gap: 9px; }
+    .pre-state { display: none; }
+    .pre-copy h2 { font-size: clamp(23px, 7.5vw, 27px); }
+    .pre-summary { font-size: 12px; }
+    .pre-action { grid-column: 1; }
     .panel__heading { align-items: flex-start; }
     .spots { grid-template-columns: 1fr; gap: 6px; }
     .spot { padding-block: 6px; }
