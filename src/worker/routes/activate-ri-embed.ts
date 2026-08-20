@@ -110,7 +110,7 @@ export function renderActivateRiEmbed(
       <div class="flyer__copy">
         <p class="eyebrow">${escapeHtml(dateRange)} · Rhode Island</p>
         <h1>${escapeHtml(event.name)}</h1>
-        <p class="headline">${event.goalParkCount} Rhode Island references <span aria-hidden="true">·</span> ${dayCount} days</p>
+        <p class="headline">${event.goalParkCount} Rhode Island parks <span aria-hidden="true">·</span> ${dayCount} days</p>
         <p class="invitation">Join activators and hunters for a community-wide weekend on the air.</p>
       </div>
     </header>
@@ -134,10 +134,10 @@ function renderPanel(view: ActivateRiEmbedView, now: Date): string {
       </div>
       <div class="pre-copy">
         <p class="panel__kicker">A statewide POTA challenge</p>
-        <h2 id="widget-action">Put all ${activateRi2026Event.goalParkCount} Rhode Island references on the air.</h2>
-        <p class="pre-summary">Activators will coordinate routes across the state while hunters follow the action throughout the three-day weekend.</p>
+        <h2 id="widget-action">Put all ${activateRi2026Event.goalParkCount} Rhode Island parks on the air.</h2>
+        <p class="pre-summary">Activate from the field or hunt from home. Celebrate Rhode Island’s parks, chase new ones, and get closer to your Worked All RI award.</p>
       </div>
-      <div class="pre-action">${scheduleLink("Explore the schedule")}</div>
+      <div class="pre-action">${scheduleLink("Plan your hunt")}</div>
     </section>`;
   }
 

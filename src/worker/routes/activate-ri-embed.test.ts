@@ -53,14 +53,14 @@ describe("Activate All RI embed renderer", () => {
 
     expect(html).toContain("Activate All RI 2026");
     expect(html).toContain("September 11–13, 2026");
-    expect(html).toContain("61 Rhode Island references");
+    expect(html).toContain("61 Rhode Island parks");
     expect(html).toContain("3 days");
     expect(html).toContain("/assets/logos/ri-pota-coastal-signal.svg");
     expect(html).toContain("A statewide POTA challenge");
-    expect(html).toContain("Put all 61 Rhode Island references on the air.");
-    expect(html).toContain("Activators will coordinate routes across the state");
+    expect(html).toContain("Put all 61 Rhode Island parks on the air.");
+    expect(html).toContain("get closer to your Worked All RI award");
     expect(html).toContain('class="pre-state" aria-hidden="true"');
-    expect(html).toContain("Explore the schedule");
+    expect(html).toContain("Plan your hunt");
     expect(html).toContain("Community-run and unofficial");
     expect(html).not.toContain('http-equiv="refresh"');
     expect(html).not.toContain("<script");
@@ -170,7 +170,7 @@ describe("Activate All RI embed route", () => {
 
     expect(response.status).toBe(200);
     expect(getSnapshot).not.toHaveBeenCalled();
-    await expect(response.text()).resolves.toContain("Explore the schedule");
+    await expect(response.text()).resolves.toContain("Plan your hunt");
   });
 
   it("forces real live presentation for preview=live", async () => {
