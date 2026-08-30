@@ -1,0 +1,47 @@
+<section class="form-card" aria-labelledby="account-identity-title" data-account-identity>
+  <h2 id="account-identity-title">Signed-in account</h2>
+  <p data-account-identity-status aria-live="polite">Loading account details…</p>
+  <p data-email-passkey-prompt hidden>
+    You signed in by email. Activator access is ready now; adding a passkey makes future sign-in faster.
+  </p>
+</section>
+
+<script>
+  const panel = document.querySelector<HTMLElement>("[data-account-identity]");
+  const status = panel?.querySelector<HTMLElement>("[data-account-identity-status]");
+  const prompt = panel?.querySelector<HTMLElement>("[data-email-passkey-prompt]");
+  void loadIdentity();
+
+  async function loadIdentity(): Promise<void> {
+    const response = await fetch("/api/auth/session", { headers: { accept: "application/json" } });
+    const body = await response.json().catch(() => null);
+    if (!response.ok || !isSession(body) || !body.signedIn) {
+      window.location.replace(`/account/sign-in/?returnTo=${encodeURIComponent(window.location.pathname)}`);
+      return;
+    }
+    const email = body.user.email ?? "No verified email";
+    const roles = body.roles.length > 0 ? body.roles.join(" and ") : "account holder";
+    status?.replaceChildren(`${email} · signed in with ${methodLabel(body.authenticationMethod)} · ${roles}`);
+    if (prompt) prompt.hidden = body.authenticationMethod !== "email";
+  }
+
+  function methodLabel(method: string): string {
+    return method === "passkey" ? "a passkey" : method === "email" ? "an email link" : method.replace(/-/g, " ");
+  }
+
+  type SessionBody = {
+    signedIn: boolean;
+    user: { email: string | null };
+    authenticationMethod: string;
+    roles: string[];
+  };
+  function isSession(value: unknown): value is SessionBody {
+    return isRecord(value) && typeof value.signedIn === "boolean" &&
+      isRecord(value.user) && (value.user.email === null || typeof value.user.email === "string") &&
+      typeof value.authenticationMethod === "string" && Array.isArray(value.roles) &&
+      value.roles.every((role) => typeof role === "string");
+  }
+  function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+  }
+</script>

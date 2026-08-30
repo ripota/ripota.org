@@ -45,6 +45,19 @@ export type StoredPasskey = WebAuthnCredential & {
   lastUsedAt: string | null;
 };
 
+export type PasskeyInput = {
+  userId: string;
+  credential: WebAuthnCredential;
+  deviceType: StoredPasskey["deviceType"];
+  backedUp: boolean;
+  label?: string;
+};
+
+export type PreparedPasskeyChange = {
+  id: string;
+  statements: D1PreparedStatement[];
+};
+
 type PasskeyRow = {
   id: string;
   credential_id: string;
@@ -81,6 +94,56 @@ export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+export type PreparedUser = {
+  user: AuthUser;
+  statements: D1PreparedStatement[];
+};
+
+export function prepareUserWithVerifiedEmail(
+  env: Env,
+  email: string,
+  displayName: string,
+  now = new Date().toISOString(),
+): PreparedUser {
+  const normalized = normalizeEmail(email);
+  const id = crypto.randomUUID();
+  const webauthnUserId = randomBase64Url(32);
+  const user = {
+    id,
+    webauthnUserId,
+    displayName: displayName.trim(),
+    primaryEmail: normalized,
+    disabledAt: null,
+  };
+  return {
+    user,
+    statements: [
+      env.DB.prepare(
+        `INSERT INTO auth_users (
+           id, webauthn_user_id, display_name, created_at, updated_at
+         ) VALUES (?, ?, ?, ?, ?)`,
+      ).bind(id, webauthnUserId, user.displayName, now, now),
+      env.DB.prepare(
+        `INSERT INTO auth_user_emails (
+           user_id, email_normalized, is_primary, verified_at, created_at, updated_at
+         ) VALUES (?, ?, 1, ?, ?, ?)`,
+      ).bind(id, normalized, now, now, now),
+      authAuditStatement(env, {
+        action: "user-created",
+        summary: "Created an authentication user from a verified credential.",
+        subjectUserId: id,
+        createdAt: now,
+      }),
+      authAuditStatement(env, {
+        action: "email-verified",
+        summary: "Verified the user's primary email address.",
+        subjectUserId: id,
+        createdAt: now,
+      }),
+    ],
+  };
+}
+
 export async function createUserWithVerifiedEmail(
   env: Env,
   email: string,
@@ -93,40 +156,9 @@ export async function createUserWithVerifiedEmail(
     return existing;
   }
 
-  const id = crypto.randomUUID();
-  const webauthnUserId = randomBase64Url(32);
-  await env.DB.batch([
-    env.DB.prepare(
-      `INSERT INTO auth_users (
-         id, webauthn_user_id, display_name, created_at, updated_at
-       ) VALUES (?, ?, ?, ?, ?)`,
-    ).bind(id, webauthnUserId, displayName.trim(), now, now),
-    env.DB.prepare(
-      `INSERT INTO auth_user_emails (
-         user_id, email_normalized, is_primary, verified_at, created_at, updated_at
-       ) VALUES (?, ?, 1, ?, ?, ?)`,
-    ).bind(id, normalized, now, now, now),
-    authAuditStatement(env, {
-      action: "user-created",
-      summary: "Created an authentication user from a verified credential.",
-      subjectUserId: id,
-      createdAt: now,
-    }),
-    authAuditStatement(env, {
-      action: "email-verified",
-      summary: "Verified the user's primary email address.",
-      subjectUserId: id,
-      createdAt: now,
-    }),
-  ]);
-
-  return {
-    id,
-    webauthnUserId,
-    displayName: displayName.trim(),
-    primaryEmail: normalized,
-    disabledAt: null,
-  };
+  const prepared = prepareUserWithVerifiedEmail(env, normalized, displayName, now);
+  await env.DB.batch(prepared.statements);
+  return prepared.user;
 }
 
 export async function findUserByVerifiedEmail(env: Env, email: string): Promise<AuthUser | null> {
@@ -160,7 +192,16 @@ export async function linkActivatorMembership(
     throw new Error("Activator not found.");
   }
 
-  await env.DB.batch([
+  await env.DB.batch(prepareActivatorMembershipLink(env, userId, activatorId, now));
+}
+
+export function prepareActivatorMembershipLink(
+  env: Env,
+  userId: string,
+  activatorId: string,
+  now = new Date().toISOString(),
+): D1PreparedStatement[] {
+  return [
     env.DB.prepare(
       `INSERT INTO auth_activator_memberships (
          id, user_id, event_id, activator_id, created_at
@@ -173,7 +214,7 @@ export async function linkActivatorMembership(
       subjectUserId: userId,
       createdAt: now,
     }),
-  ]);
+  ];
 }
 
 export async function grantAdminRole(
@@ -199,6 +240,48 @@ export async function grantAdminRole(
       createdAt: now,
     }),
   ]);
+}
+
+export async function revokeAdminRole(
+  env: Env,
+  userId: string,
+  revokedByUserId: string,
+  now = new Date().toISOString(),
+): Promise<boolean> {
+  const result = await env.DB.prepare(
+    `UPDATE auth_event_roles SET revoked_at = ?
+     WHERE user_id = ? AND event_id = ? AND role = 'admin' AND revoked_at IS NULL`,
+  ).bind(now, userId, env.ACTIVATE_RI_EVENT_ID).run();
+  if ((result.meta.changes ?? 0) !== 1) return false;
+  await authAuditStatement(env, {
+    action: "admin-role-revoked",
+    summary: "Revoked the Activate RI administrator role.",
+    actorUserId: revokedByUserId,
+    subjectUserId: userId,
+    createdAt: now,
+  }).run();
+  return true;
+}
+
+export async function revokeActivatorMembership(
+  env: Env,
+  userId: string,
+  revokedByUserId: string,
+  now = new Date().toISOString(),
+): Promise<boolean> {
+  const result = await env.DB.prepare(
+    `UPDATE auth_activator_memberships SET revoked_at = ?
+     WHERE user_id = ? AND event_id = ? AND revoked_at IS NULL`,
+  ).bind(now, userId, env.ACTIVATE_RI_EVENT_ID).run();
+  if ((result.meta.changes ?? 0) !== 1) return false;
+  await authAuditStatement(env, {
+    action: "activator-membership-revoked",
+    summary: "Revoked the Activate RI activator membership.",
+    actorUserId: revokedByUserId,
+    subjectUserId: userId,
+    createdAt: now,
+  }).run();
+  return true;
 }
 
 export async function lookupAuthContext(
@@ -297,91 +380,84 @@ export async function getPasskeyByCredentialId(
 
 export async function insertPasskey(
   env: Env,
-  input: {
-    userId: string;
-    credential: WebAuthnCredential;
-    deviceType: StoredPasskey["deviceType"];
-    backedUp: boolean;
-    label?: string;
-  },
+  input: PasskeyInput,
   now = new Date().toISOString(),
 ): Promise<string> {
+  const prepared = preparePasskeyInsert(env, input, now);
+  await env.DB.batch(prepared.statements);
+  return prepared.id;
+}
+
+export function preparePasskeyInsert(
+  env: Env,
+  input: PasskeyInput,
+  now = new Date().toISOString(),
+): PreparedPasskeyChange {
   const id = crypto.randomUUID();
-  await env.DB.batch([
-    env.DB.prepare(
-      `INSERT INTO auth_passkey_credentials (
-         id, credential_id, user_id, public_key, counter, device_type,
-         backed_up, transports_json, label, created_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(
-      id,
-      input.credential.id,
-      input.userId,
-      input.credential.publicKey,
-      input.credential.counter,
-      input.deviceType,
-      input.backedUp ? 1 : 0,
-      JSON.stringify(input.credential.transports ?? []),
-      (input.label ?? "").trim(),
-      now,
-    ),
-    authAuditStatement(env, {
-      action: "passkey-registered",
-      summary: "Registered a passkey.",
-      subjectUserId: input.userId,
-      createdAt: now,
-    }),
-  ]);
-  return id;
+  return {
+    id,
+    statements: [
+      passkeyInsertStatement(env, id, input, (input.label ?? "").trim(), now),
+      authAuditStatement(env, {
+        action: "passkey-registered",
+        summary: "Registered a passkey.",
+        subjectUserId: input.userId,
+        createdAt: now,
+      }),
+    ],
+  };
 }
 
 export async function replacePasskeysForRecovery(
   env: Env,
-  input: {
-    userId: string;
-    credential: WebAuthnCredential;
-    deviceType: StoredPasskey["deviceType"];
-    backedUp: boolean;
-    label?: string;
-  },
+  input: PasskeyInput,
   now = new Date().toISOString(),
 ): Promise<string> {
+  const prepared = preparePasskeyRecovery(env, input, now);
+  await env.DB.batch(prepared.statements);
+  return prepared.id;
+}
+
+export function preparePasskeyRecovery(
+  env: Env,
+  input: PasskeyInput,
+  now = new Date().toISOString(),
+): PreparedPasskeyChange {
   const id = crypto.randomUUID();
-  await env.DB.batch([
-    env.DB.prepare(
-      `INSERT INTO auth_passkey_credentials (
-         id, credential_id, user_id, public_key, counter, device_type,
-         backed_up, transports_json, label, created_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(
-      id,
-      input.credential.id,
-      input.userId,
-      input.credential.publicKey,
-      input.credential.counter,
-      input.deviceType,
-      input.backedUp ? 1 : 0,
-      JSON.stringify(input.credential.transports ?? []),
-      (input.label ?? "Replacement passkey").trim(),
-      now,
-    ),
-    env.DB.prepare(
-      `UPDATE auth_passkey_credentials SET revoked_at = ?
-       WHERE user_id = ? AND id <> ? AND revoked_at IS NULL`,
-    ).bind(now, input.userId, id),
-    env.DB.prepare(
-      `UPDATE auth_sessions SET revoked_at = ?
-       WHERE user_id = ? AND revoked_at IS NULL`,
-    ).bind(now, input.userId),
-    authAuditStatement(env, {
-      action: "passkey-reset-completed",
-      summary: "Installed a replacement passkey and revoked prior credentials and sessions.",
-      actorUserId: input.userId,
-      subjectUserId: input.userId,
-      createdAt: now,
-    }),
-  ]);
-  return id;
+  return {
+    id,
+    statements: [
+      passkeyInsertStatement(
+        env,
+        id,
+        input,
+        (input.label ?? "Replacement passkey").trim(),
+        now,
+      ),
+      env.DB.prepare(
+        `UPDATE auth_passkey_credentials SET revoked_at = ?
+         WHERE user_id = ? AND id <> ? AND revoked_at IS NULL`,
+      ).bind(now, input.userId, id),
+      env.DB.prepare(
+        `UPDATE auth_sessions SET revoked_at = ?
+         WHERE user_id = ? AND revoked_at IS NULL`,
+      ).bind(now, input.userId),
+      env.DB.prepare(
+        `UPDATE activate_ri_activator_sessions SET revoked_at = ?
+         WHERE revoked_at IS NULL AND activator_id IN (
+           SELECT activator_id FROM auth_activator_memberships
+           WHERE user_id = ? AND event_id = ? AND revoked_at IS NULL
+         )`,
+      ).bind(now, input.userId, env.ACTIVATE_RI_EVENT_ID),
+      authAuditStatement(env, {
+        action: "passkey-reset-completed",
+        summary: "Installed a replacement passkey and revoked prior credentials and sessions.",
+        actorUserId: input.userId,
+        subjectUserId: input.userId,
+        createdAt: now,
+      }),
+    ],
+  };
 }
 
 export async function updatePasskeyUse(
@@ -390,11 +466,46 @@ export async function updatePasskeyUse(
   counter: number,
   now = new Date().toISOString(),
 ): Promise<void> {
-  await env.DB.prepare(
+  await updatePasskeyUseStatement(env, managementId, counter, now).run();
+}
+
+export function updatePasskeyUseStatement(
+  env: Env,
+  managementId: string,
+  counter: number,
+  now = new Date().toISOString(),
+): D1PreparedStatement {
+  return env.DB.prepare(
     `UPDATE auth_passkey_credentials
      SET counter = ?, last_used_at = ?
      WHERE id = ? AND revoked_at IS NULL`,
-  ).bind(counter, now, managementId).run();
+  ).bind(counter, now, managementId);
+}
+
+function passkeyInsertStatement(
+  env: Env,
+  id: string,
+  input: PasskeyInput,
+  label: string,
+  now: string,
+): D1PreparedStatement {
+  return env.DB.prepare(
+    `INSERT INTO auth_passkey_credentials (
+       id, credential_id, user_id, public_key, counter, device_type,
+       backed_up, transports_json, label, created_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).bind(
+    id,
+    input.credential.id,
+    input.userId,
+    input.credential.publicKey,
+    input.credential.counter,
+    input.deviceType,
+    input.backedUp ? 1 : 0,
+    JSON.stringify(input.credential.transports ?? []),
+    label,
+    now,
+  );
 }
 
 export async function renamePasskey(
@@ -495,7 +606,17 @@ export async function revokeUserSession(
     `UPDATE auth_sessions SET revoked_at = ?
      WHERE id = ? AND user_id = ? AND revoked_at IS NULL`,
   ).bind(now, sessionId, userId).run();
-  return (result.meta.changes ?? 0) === 1;
+  const revoked = (result.meta.changes ?? 0) === 1;
+  if (revoked) {
+    await authAuditStatement(env, {
+      action: "session-revoked",
+      summary: "Revoked an account session.",
+      actorUserId: userId,
+      subjectUserId: userId,
+      createdAt: now,
+    }).run();
+  }
+  return revoked;
 }
 
 export async function revokeOtherUserSessions(
@@ -508,7 +629,18 @@ export async function revokeOtherUserSessions(
     `UPDATE auth_sessions SET revoked_at = ?
      WHERE user_id = ? AND id <> ? AND revoked_at IS NULL`,
   ).bind(now, userId, currentSessionId).run();
-  return result.meta.changes ?? 0;
+  const revoked = result.meta.changes ?? 0;
+  if (revoked > 0) {
+    await authAuditStatement(env, {
+      action: "all-other-sessions-revoked",
+      summary: "Revoked all other account sessions.",
+      actorUserId: userId,
+      subjectUserId: userId,
+      createdAt: now,
+      details: { revoked },
+    }).run();
+  }
+  return revoked;
 }
 
 export async function createChallenge(
@@ -588,12 +720,20 @@ export async function consumeChallenge(
   id: string,
   now = new Date().toISOString(),
 ): Promise<boolean> {
-  const result = await env.DB.prepare(
+  const result = await consumeChallengeStatement(env, id, now).run();
+  return (result.meta.changes ?? 0) === 1;
+}
+
+export function consumeChallengeStatement(
+  env: Env,
+  id: string,
+  now = new Date().toISOString(),
+): D1PreparedStatement {
+  return env.DB.prepare(
     `UPDATE auth_webauthn_challenges
      SET used_at = ?
      WHERE id = ? AND used_at IS NULL AND expires_at > ?`,
-  ).bind(now, id, now).run();
-  return (result.meta.changes ?? 0) === 1;
+  ).bind(now, id, now);
 }
 
 function userFromRow(row: UserRow): AuthUser {

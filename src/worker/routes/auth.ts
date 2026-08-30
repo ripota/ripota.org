@@ -25,7 +25,7 @@ import {
   revokeUserSession,
 } from "../auth/db";
 import { consumeEmailLogin, requestEmailLogin } from "../auth/email-login";
-import { upgradeLegacySession } from "../auth/legacy";
+import { consumeLegacyEditToken, legacySessionCookie, upgradeLegacySession } from "../auth/legacy";
 import { clearActivatorSessionCookie } from "../activator-session";
 import { accessBootstrap } from "../auth/bootstrap";
 import { consumePasskeyReset } from "../auth/admin-recovery";
@@ -50,6 +50,19 @@ export async function handleAuthApi(request: Request, env: Env): Promise<Respons
           callsign: context.activator.callsign,
           status: context.activator.status,
         } : null,
+        roles: [
+          ...(context.admin ? ["administrator"] : []),
+          ...(context.activator ? ["activator"] : []),
+        ],
+        nextRoutes: [
+          { label: "Account security", path: "/account/security/" },
+          ...(context.activator
+            ? [{ label: "Activator portal", path: "/activate-ri-2026/activator/" }]
+            : []),
+          ...(context.admin
+            ? [{ label: "Admin workspace", path: "/activate-ri-2026/admin/" }]
+            : []),
+        ],
       } : { ok: true, signedIn: false });
     }
 
@@ -88,6 +101,18 @@ export async function handleAuthApi(request: Request, env: Env): Promise<Respons
       const headers = new Headers();
       headers.append("set-cookie", result.unified.cookie);
       headers.append("set-cookie", result.clearLegacyCookie);
+      return privateJson({ ok: true, expiresAt: result.unified.expiresAt }, { headers });
+    }
+    if (request.method === "POST" && url.pathname === "/api/auth/legacy/consume-edit-token") {
+      const payload = await readJson(request);
+      const token = isRecord(payload) && typeof payload.token === "string" ? payload.token : "";
+      const result = await consumeLegacyEditToken(env, token);
+      if (!result) {
+        return privateJson({ ok: false, error: "Access link invalid" }, { status: 400 });
+      }
+      const headers = new Headers();
+      headers.append("set-cookie", legacySessionCookie(result.legacy.sessionToken));
+      headers.append("set-cookie", result.unified.cookie);
       return privateJson({ ok: true, expiresAt: result.unified.expiresAt }, { headers });
     }
     if (request.method === "POST" && url.pathname === "/api/auth/access-bootstrap/start") {

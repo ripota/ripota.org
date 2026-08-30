@@ -66,4 +66,23 @@ describe("unified auth migration", () => {
        VALUES ('m3', 'u2', 'activate-ri-2026', 'a1', ?)`,
     ).bind(now).run()).rejects.toThrow();
   });
+
+  it("rolls back every statement when a D1 batch fails", async () => {
+    const now = "2026-08-30T12:00:00.000Z";
+    await expect(database.DB.batch([
+      database.DB.prepare(
+        `INSERT INTO auth_users (id, webauthn_user_id, created_at, updated_at)
+         VALUES ('rollback-user', 'rollback-webauthn', ?, ?)`,
+      ).bind(now, now),
+      database.DB.prepare(
+        `INSERT INTO auth_user_emails (
+           user_id, email_normalized, is_primary, verified_at, created_at, updated_at
+         ) VALUES ('missing-user', 'rollback@example.com', 1, ?, ?, ?)`,
+      ).bind(now, now, now),
+    ])).rejects.toThrow();
+    const row = await database.DB.prepare(
+      `SELECT id FROM auth_users WHERE id = 'rollback-user'`,
+    ).first<{ id: string }>();
+    expect(row).toBeNull();
+  });
 });

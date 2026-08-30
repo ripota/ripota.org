@@ -1,5 +1,6 @@
 ---
 import PasskeyManager from "../../components/auth/PasskeyManager.astro";
+import AccountIdentity from "../../components/auth/AccountIdentity.astro";
 import SessionManager from "../../components/auth/SessionManager.astro";
 import Footer from "../../components/Footer.astro";
 import Notice from "../../components/Notice.astro";
@@ -17,6 +18,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
           <h1 id="security-title">Account security</h1>
           <p>Email sign-in can open activator tools, but administrator actions always require a passkey.</p>
         </div>
+        <AccountIdentity />
         <PasskeyManager />
         <SessionManager />
       </div>

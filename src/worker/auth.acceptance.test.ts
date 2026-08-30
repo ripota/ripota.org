@@ -3,8 +3,22 @@ import worker from "./index";
 import type { Env } from "./env";
 import { tokenHash } from "./edit-token";
 import { createMigratedSqliteD1 } from "./test-utils/sqlite-d1";
-import { createUserWithVerifiedEmail, grantAdminRole } from "./auth/db";
+import { createUserWithVerifiedEmail, grantAdminRole, linkActivatorMembership } from "./auth/db";
 import { createAuthSession } from "./auth/session";
+import type {
+  AuthenticationResponseJSON,
+  RegistrationResponseJSON,
+  VerifiedAuthenticationResponse,
+  VerifiedRegistrationResponse,
+  WebAuthnCredential,
+} from "@simplewebauthn/server";
+import {
+  authenticationOptions,
+  registrationOptions,
+  type PasskeyVerifier,
+  verifyAuthentication,
+  verifyRegistration,
+} from "./auth/passkeys";
 
 const origin = "https://ripota.org";
 const legacyToken = "acceptance-private-edit-token";
@@ -74,6 +88,31 @@ describe("unified authentication acceptance", () => {
       options: { rp: { id: "ripota.org" } },
     });
 
+    const registrationRequest = request("/api/auth/passkeys/registration/options", {
+      method: "POST",
+      headers: { cookie: sessionCookie, origin },
+    });
+    const registrationCeremony = await registrationOptions(env, registrationRequest);
+    const registered = await verifyRegistration(env, registrationRequest, {
+      challengeId: String(registrationCeremony.challengeId),
+      response: registrationResponse,
+      label: "Acceptance passkey",
+    }, verifier);
+    expect(registered.cookie).toContain("__Host-ripota-session=");
+
+    const authenticationCeremony = await authenticationOptions(env, request(
+      "/api/auth/passkey/authentication/options",
+      { method: "POST", headers: { origin } },
+    ));
+    const authenticated = await verifyAuthentication(env, request(
+      "/api/auth/passkey/authentication/verify",
+      { method: "POST", headers: { origin } },
+    ), {
+      challengeId: String(authenticationCeremony.challengeId),
+      response: authenticationResponse,
+    }, verifier);
+    expect(authenticated.cookie).toContain("__Host-ripota-session=");
+
     const reused = await worker.fetch(request(`/activate-ri-2026/edit/${legacyToken}/`), env);
     expect(reused.status).toBe(303);
     const row = await env.DB.prepare(
@@ -131,6 +170,30 @@ describe("unified authentication acceptance", () => {
       email: "admin@example.com",
       admin: true,
     }));
+
+    const subject = await createUserWithVerifiedEmail(env, "user@example.com", "User");
+    await linkActivatorMembership(env, subject.id, "activator");
+    const detail = await worker.fetch(request(
+      `/api/activate-ri-2026/admin/accounts/${encodeURIComponent(subject.id)}`,
+      { headers: { cookie: `__Host-ripota-session=${session.token}` } },
+    ), env);
+    expect(detail.status).toBe(200);
+    await expect(detail.json()).resolves.toMatchObject({
+      account: { userId: subject.id, callsign: "N1ABC", claimed: true },
+    });
+
+    const missingConfirmation = await worker.fetch(jsonRequest(
+      `/api/activate-ri-2026/admin/accounts/${encodeURIComponent(subject.id)}/passkey-reset`,
+      { confirmation: "" },
+      `__Host-ripota-session=${session.token}`,
+    ), env);
+    expect(missingConfirmation.status).toBe(409);
+    const reset = await worker.fetch(jsonRequest(
+      `/api/activate-ri-2026/admin/accounts/${encodeURIComponent(subject.id)}/passkey-reset`,
+      { confirmation: "N1ABC" },
+      `__Host-ripota-session=${session.token}`,
+    ), env);
+    expect(reset.status).toBe(200);
   });
 });
 
@@ -138,10 +201,10 @@ function request(path: string, init: RequestInit = {}): Request {
   return new Request(`${origin}${path}`, init);
 }
 
-function jsonRequest(path: string, body: unknown): Request {
+function jsonRequest(path: string, body: unknown, cookie?: string): Request {
   return request(path, {
     method: "POST",
-    headers: { "content-type": "application/json", origin },
+    headers: { "content-type": "application/json", origin, ...(cookie ? { cookie } : {}) },
     body: JSON.stringify(body),
   });
 }
@@ -151,3 +214,64 @@ function authCookie(setCookie: string): string {
   if (!token) throw new Error("Unified session cookie missing");
   return `__Host-ripota-session=${token}`;
 }
+
+const credential: WebAuthnCredential = {
+  id: "acceptance-credential",
+  publicKey: new Uint8Array([1, 2, 3]),
+  counter: 0,
+  transports: ["internal"],
+};
+
+const registrationResponse: RegistrationResponseJSON = {
+  id: credential.id,
+  rawId: credential.id,
+  type: "public-key",
+  clientExtensionResults: {},
+  response: { clientDataJSON: "client-data", attestationObject: "attestation" },
+};
+
+const authenticationResponse: AuthenticationResponseJSON = {
+  id: credential.id,
+  rawId: credential.id,
+  type: "public-key",
+  clientExtensionResults: {},
+  response: {
+    clientDataJSON: "client-data",
+    authenticatorData: "authenticator-data",
+    signature: "signature",
+  },
+};
+
+const verifier: PasskeyVerifier = {
+  async verifyRegistration(): Promise<VerifiedRegistrationResponse> {
+    return {
+      verified: true,
+      registrationInfo: {
+        fmt: "none",
+        aaguid: "00000000-0000-0000-0000-000000000000",
+        credential,
+        credentialType: "public-key",
+        attestationObject: new Uint8Array(),
+        userVerified: true,
+        credentialDeviceType: "multiDevice",
+        credentialBackedUp: true,
+        origin,
+        rpID: "ripota.org",
+      },
+    };
+  },
+  async verifyAuthentication(): Promise<VerifiedAuthenticationResponse> {
+    return {
+      verified: true,
+      authenticationInfo: {
+        credentialID: credential.id,
+        newCounter: 1,
+        userVerified: true,
+        credentialDeviceType: "multiDevice",
+        credentialBackedUp: true,
+        origin,
+        rpID: "ripota.org",
+      },
+    };
+  },
+};

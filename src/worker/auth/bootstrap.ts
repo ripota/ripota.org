@@ -23,7 +23,9 @@ export async function accessBootstrap(request: Request, env: Env) {
          LIMIT 1`,
       ).bind(existing.id, env.ACTIVATE_RI_EVENT_ID).first<{ allowed: number }>()
     : null;
-  const allowlisted = bootstrapEmails(env).includes(email);
+  const localDevelopmentIdentity = env.ALLOW_LOCAL_ADMIN_AUTH === "true" &&
+    email === normalizeEmail(env.LOCAL_ADMIN_EMAIL ?? "local-admin@ripota.org");
+  const allowlisted = localDevelopmentIdentity || bootstrapEmails(env).includes(email);
   if (!allowlisted && !existingRole) {
     return new Response(JSON.stringify({ ok: false, error: "Forbidden" }), {
       status: 403,

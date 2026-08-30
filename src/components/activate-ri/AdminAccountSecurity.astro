@@ -33,8 +33,11 @@
     const title = document.createElement("h3");
     title.textContent = account.callsign ?? account.email;
     const detail = document.createElement("p");
+    const lastUse = account.lastPasskeyUse
+      ? ` · last passkey use ${new Date(account.lastPasskeyUse).toLocaleString()}`
+      : " · no passkey use recorded";
     detail.textContent = account.claimed
-      ? `${account.admin ? "Administrator · " : ""}${account.passkeyCount} active passkey(s) · ${account.activeSessionCount} active session(s)${account.disabled ? " · DISABLED" : ""}`
+      ? `${account.admin ? "Administrator" : "Activator member"} · ${account.email} · ${account.passkeyCount} active passkey(s)${lastUse} · ${account.activeSessionCount} active session(s)${account.disabled ? " · DISABLED" : ""}`
       : "Activator account not yet claimed";
     card.appendChild(title);
     card.appendChild(detail);
@@ -57,12 +60,19 @@
     button.textContent = label;
     button.addEventListener("click", async () => {
       let confirmation = "";
+      const target = account.callsign ?? account.email;
       if (destructive) {
-        confirmation = window.prompt(`Type ${account.callsign ?? account.email} to immediately disable this account.`) ?? "";
+        confirmation = window.prompt(`Type ${target} to immediately disable this account and revoke its access.`) ?? "";
         if (!confirmation) return;
         if (account.admin && !window.confirm("This account also has the administrator role. Continue?")) return;
-      } else if (!window.confirm(`${label} for ${account.callsign ?? account.email}?`)) {
-        return;
+      } else {
+        const effect = action === "passkey-reset"
+          ? "Existing passkeys and sessions remain active until a replacement passkey is installed."
+          : action === "revoke-auth-sessions"
+            ? "This signs out unified and legacy sessions but leaves passkeys usable."
+            : "Re-enabling requires the user to complete account recovery.";
+        confirmation = window.prompt(`${effect}\n\nType ${target} to continue.`) ?? "";
+        if (!confirmation) return;
       }
       button.disabled = true;
       const response = await fetch(`/api/activate-ri-2026/admin/accounts/${encodeURIComponent(account.userId!)}/${action}`, {
@@ -79,13 +89,15 @@
 
   type Account = {
     userId: string | null; email: string; callsign: string | null; admin: boolean;
-    claimed: boolean; disabled: boolean; passkeyCount: number; activeSessionCount: number;
+    claimed: boolean; disabled: boolean; passkeyCount: number; lastPasskeyUse: string | null;
+    activeSessionCount: number;
   };
   function isAccount(value: unknown): value is Account {
     return isRecord(value) && (value.userId === null || typeof value.userId === "string") &&
       typeof value.email === "string" && (value.callsign === null || typeof value.callsign === "string") &&
       typeof value.admin === "boolean" && typeof value.claimed === "boolean" &&
       typeof value.disabled === "boolean" && typeof value.passkeyCount === "number" &&
+      (value.lastPasskeyUse === null || typeof value.lastPasskeyUse === "string") &&
       typeof value.activeSessionCount === "number";
   }
   function isRecord(value: unknown): value is Record<string, unknown> {

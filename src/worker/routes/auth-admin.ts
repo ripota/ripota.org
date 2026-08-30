@@ -1,6 +1,8 @@
 import {
+  confirmRelatedAccount,
   disableAccount,
   enableAccount,
+  getAdminAccount,
   listAdminAccounts,
   requestPasskeyReset,
   revokeAccountSessions,
@@ -21,6 +23,13 @@ export async function handleAuthAdminApi(request: Request, env: Env): Promise<Re
   if (request.method === "GET" && url.pathname === "/api/activate-ri-2026/admin/accounts") {
     return privateJson({ ok: true, accounts: await listAdminAccounts(env) });
   }
+  const detailMatch = url.pathname.match(/^\/api\/activate-ri-2026\/admin\/accounts\/([^/]+)$/);
+  if (request.method === "GET" && detailMatch) {
+    const account = await getAdminAccount(env, decodeURIComponent(detailMatch[1]));
+    return account
+      ? privateJson({ ok: true, account })
+      : privateJson({ ok: false, error: "Account not found" }, { status: 404 });
+  }
   if (request.method !== "GET" && !hasTrustedOrigin(request, env)) {
     return privateJson({ ok: false, error: "Forbidden" }, { status: 403 });
   }
@@ -32,6 +41,13 @@ export async function handleAuthAdminApi(request: Request, env: Env): Promise<Re
   }
   const subjectUserId = decodeURIComponent(match[1]);
   const action = match[2];
+  const payload = await safePayload(request);
+  const confirmation = isRecord(payload) && typeof payload.confirmation === "string"
+    ? payload.confirmation
+    : "";
+  if (!await confirmRelatedAccount(env, subjectUserId, confirmation)) {
+    return privateJson({ ok: false, error: "Confirmation did not match" }, { status: 409 });
+  }
   if (action === "passkey-reset") {
     const result = await requestPasskeyReset(request, env, identity.userId, subjectUserId);
     return result === "not-found"
@@ -48,10 +64,6 @@ export async function handleAuthAdminApi(request: Request, env: Env): Promise<Re
       ? privateJson({ ok: true, recoveryRequired: true })
       : privateJson({ ok: false, error: "Account not found" }, { status: 404 });
   }
-  const payload = await safePayload(request);
-  const confirmation = isRecord(payload) && typeof payload.confirmation === "string"
-    ? payload.confirmation
-    : "";
   const result = await disableAccount(env, identity.userId, subjectUserId, confirmation);
   return result === "disabled"
     ? privateJson({ ok: true })

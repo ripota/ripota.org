@@ -3,13 +3,16 @@ import {
   spawn,
 } from "node:child_process";
 import { once } from "node:events";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 export type ActivateRiServer = {
   origin: string;
+  output(): string;
+  waitForOutput(pattern: RegExp, timeoutMs?: number): Promise<RegExpMatchArray>;
+  waitForEmailText(subject: string, timeoutMs?: number): Promise<string>;
   stop(): Promise<void>;
 };
 
@@ -38,10 +41,17 @@ export async function startActivateRiServer(): Promise<ActivateRiServer> {
       stdio: ["ignore", "pipe", "pipe"],
     },
   );
+  const logs = { value: "" };
+  child.stdout?.on("data", (chunk) => {
+    logs.value += chunk.toString();
+  });
+  child.stderr?.on("data", (chunk) => {
+    logs.value += chunk.toString();
+  });
 
   const origin = `http://localhost:${port}`;
   try {
-    await waitForServerReady(child, origin);
+    await waitForServerReady(child, origin, logs);
   } catch (error) {
     child.kill("SIGTERM");
     rmSync(persistTo, { recursive: true, force: true });
@@ -50,6 +60,29 @@ export async function startActivateRiServer(): Promise<ActivateRiServer> {
 
   return {
     origin,
+    output() {
+      return logs.value;
+    },
+    async waitForOutput(pattern, timeoutMs = 10_000) {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const match = logs.value.match(pattern);
+        if (match) return match;
+        await delay(50);
+      }
+      throw new Error(`Timed out waiting for local server output matching ${pattern}.`);
+    },
+    async waitForEmailText(subject, timeoutMs = 10_000) {
+      const escaped = subject.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const pattern = new RegExp(`Subject: ${escaped}\\s+Text: ([^\\r\\n]+)`);
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const match = logs.value.match(pattern);
+        if (match) return readFileSync(match[1].trim(), "utf8");
+        await delay(50);
+      }
+      throw new Error(`Timed out waiting for local email with subject ${subject}.`);
+    },
     async stop() {
       await stopProcess(child);
       rmSync(persistTo, { recursive: true, force: true });
@@ -105,20 +138,13 @@ function applyLocalMigrations(persistTo: string): void {
 async function waitForServerReady(
   child: ReturnType<typeof spawn>,
   origin: string,
+  logs: { value: string },
 ): Promise<void> {
   const deadline = Date.now() + 30_000;
-  let logs = "";
-
-  child.stdout?.on("data", (chunk) => {
-    logs += chunk.toString();
-  });
-  child.stderr?.on("data", (chunk) => {
-    logs += chunk.toString();
-  });
 
   while (Date.now() < deadline) {
     if (child.exitCode !== null) {
-      throw new Error(`wrangler dev exited early:\n${logs}`);
+      throw new Error(`wrangler dev exited early:\n${logs.value}`);
     }
 
     try {
@@ -134,7 +160,7 @@ async function waitForServerReady(
   }
 
   child.kill("SIGTERM");
-  throw new Error(`Timed out waiting for wrangler dev:\n${logs}`);
+  throw new Error(`Timed out waiting for wrangler dev:\n${logs.value}`);
 }
 
 async function freePort(): Promise<number> {

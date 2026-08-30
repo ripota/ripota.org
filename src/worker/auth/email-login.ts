@@ -6,13 +6,13 @@ import { verifyTurnstile } from "../turnstile";
 import { authAuditStatement } from "./audit";
 import { getAuthConfig } from "./config";
 import {
-  createUserWithVerifiedEmail,
   findUserByVerifiedEmail,
   getUserById,
-  linkActivatorMembership,
   normalizeEmail,
+  prepareActivatorMembershipLink,
+  prepareUserWithVerifiedEmail,
 } from "./db";
-import { authSessionCookie, createAuthSession } from "./session";
+import { authSessionCookie, prepareAuthSession } from "./session";
 
 export const genericEmailLoginMessage = "If we found an account that can use email sign-in, we sent a link.";
 
@@ -120,34 +120,44 @@ export async function consumeEmailLogin(
   if (!row) {
     return null;
   }
-  const consumed = await env.DB.prepare(
-    `UPDATE auth_email_tokens SET used_at = ?
-     WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?`,
-  ).bind(now.toISOString(), hash, now.toISOString()).run();
-  if ((consumed.meta.changes ?? 0) !== 1) {
-    return null;
-  }
-
-  const user = row.user_id
+  const existingUser = row.user_id
     ? await getUserById(env, row.user_id)
-    : await createUserWithVerifiedEmail(env, row.email_normalized, "");
+    : await findUserByVerifiedEmail(env, row.email_normalized);
+  const preparedUser = existingUser
+    ? null
+    : prepareUserWithVerifiedEmail(env, row.email_normalized, "", now.toISOString());
+  const user = existingUser ?? preparedUser!.user;
   if (!user || user.disabledAt) {
     return null;
   }
-  if (row.activator_id) {
-    await linkActivatorMembership(env, user.id, row.activator_id, now.toISOString());
-  }
-  const session = await createAuthSession(env, {
+  const session = await prepareAuthSession(env, {
     userId: user.id,
     authenticationMethod: "email",
+    sourceEmailTokenHash: hash,
   }, now);
-  await authAuditStatement(env, {
-    action: "email-login-consumed",
-    summary: "Consumed a single-use email login link.",
-    actorUserId: user.id,
-    subjectUserId: user.id,
-    createdAt: now.toISOString(),
-  }).run();
+  const statements = [
+    env.DB.prepare(
+      `UPDATE auth_email_tokens SET used_at = ?
+       WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?`,
+    ).bind(now.toISOString(), hash, now.toISOString()),
+    ...(preparedUser?.statements ?? []),
+    ...(row.activator_id
+      ? prepareActivatorMembershipLink(env, user.id, row.activator_id, now.toISOString())
+      : []),
+    session.statement,
+    authAuditStatement(env, {
+      action: "email-login-consumed",
+      summary: "Consumed a single-use email login link.",
+      actorUserId: user.id,
+      subjectUserId: user.id,
+      createdAt: now.toISOString(),
+    }),
+  ];
+  try {
+    await env.DB.batch(statements);
+  } catch {
+    return null;
+  }
   return { cookie: authSessionCookie(session.token), expiresAt: session.expiresAt };
 }
 

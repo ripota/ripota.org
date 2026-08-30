@@ -103,6 +103,31 @@ describe("administrator account recovery", () => {
     expect(await activeCount("auth_passkey_credentials", "user_id", subjectId)).toBe(0);
   });
 
+  it("leaves access intact after reset delivery failure and allows retry", async () => {
+    send.mockRejectedValueOnce(new Error("synthetic reset delivery failure"));
+    expect(await requestPasskeyReset(request(), env, actorId, subjectId)).toBe("failed");
+    expect(await activeCount("auth_passkey_credentials", "user_id", subjectId)).toBe(1);
+    expect(await activeCount("auth_sessions", "user_id", subjectId)).toBe(1);
+    expect(await requestPasskeyReset(request(), env, actorId, subjectId)).toBe("sent");
+  });
+
+  it("issues only one recovery session for concurrent reset-token consumption", async () => {
+    expect(await requestPasskeyReset(request(), env, actorId, subjectId)).toBe("sent");
+    const sent = send.mock.calls[0][0] as { text: string };
+    const accessUrl = sent.text.split("\n").find((line) => line.includes("/account/access/?purpose=passkey-reset#"));
+    const token = new URL(accessUrl!).hash.slice(1);
+    const attempts = await Promise.all([
+      consumePasskeyReset(env, token),
+      consumePasskeyReset(env, token),
+    ]);
+    expect(attempts.filter(Boolean)).toHaveLength(1);
+    const recoverySessions = await env.DB.prepare(
+      `SELECT COUNT(*) AS count FROM auth_sessions
+       WHERE user_id = ? AND purpose = 'recovery' AND revoked_at IS NULL`,
+    ).bind(subjectId).first<{ count: number }>();
+    expect(recoverySessions?.count).toBe(1);
+  });
+
   it("refuses to target an unrelated site-wide user", async () => {
     const unrelated = await createUserWithVerifiedEmail(env, "unrelated@example.com", "Unrelated");
     expect(await requestPasskeyReset(request(), env, actorId, unrelated.id)).toBe("not-found");

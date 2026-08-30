@@ -1,16 +1,18 @@
 import {
+  activatorSessionCookie,
   clearActivatorSessionCookie,
   createActivatorSession,
   getActivatorSession,
   type ActivatorSessionIdentity,
 } from "../activator-session";
 import type { Env } from "../env";
+import { authAuditStatement } from "./audit";
 import {
   createUserWithVerifiedEmail,
   findUserByVerifiedEmail,
   linkActivatorMembership,
 } from "./db";
-import { authSessionCookie, createAuthSession } from "./session";
+import { authSessionCookie, prepareAuthSession } from "./session";
 import type { AuthMethod } from "./types";
 
 type ActivatorClaimRow = {
@@ -51,10 +53,23 @@ export async function createUnifiedActivatorSession(
   method: Extract<AuthMethod, "legacy-link" | "legacy-session">,
 ): Promise<{ cookie: string; expiresAt: string }> {
   const claim = await claimActivator(env, identity.activatorId);
-  const session = await createAuthSession(env, {
+  const now = new Date().toISOString();
+  const session = await prepareAuthSession(env, {
     userId: claim.userId,
     authenticationMethod: method,
   });
+  await env.DB.batch([
+    session.statement,
+    authAuditStatement(env, {
+      action: method === "legacy-link" ? "legacy-link-consumed" : "legacy-session-upgraded",
+      summary: method === "legacy-link"
+        ? "Consumed a compatible activator edit link."
+        : "Upgraded a compatible activator session.",
+      actorUserId: claim.userId,
+      subjectUserId: claim.userId,
+      createdAt: now,
+    }),
+  ]);
   return { cookie: authSessionCookie(session.token), expiresAt: session.expiresAt };
 }
 
@@ -65,6 +80,10 @@ export async function consumeLegacyEditToken(env: Env, token: string) {
   }
   const unified = await createUnifiedActivatorSession(env, legacy.identity, "legacy-link");
   return { legacy, unified };
+}
+
+export function legacySessionCookie(sessionToken: string): string {
+  return activatorSessionCookie(sessionToken);
 }
 
 export async function upgradeLegacySession(request: Request, env: Env) {

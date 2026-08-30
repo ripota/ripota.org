@@ -1,5 +1,6 @@
 import { generateEditToken, tokenHash } from "../edit-token";
 import type { Env } from "../env";
+import { authAuditStatement } from "./audit";
 import { lookupAuthContext } from "./db";
 import type { AuthContext, AuthMethod, AuthSessionPurpose } from "./types";
 
@@ -7,16 +8,27 @@ export const authSessionCookieName = "__Host-ripota-session";
 export const authSessionLifetimeSeconds = 14 * 24 * 60 * 60;
 export const privilegedSessionLifetimeSeconds = 30 * 60;
 
-export async function createAuthSession(
+type CreateAuthSessionInput = {
+  userId: string;
+  purpose?: AuthSessionPurpose;
+  authenticationMethod: AuthMethod;
+  passkeyVerified?: boolean;
+  ceremonyChallengeId?: string | null;
+  sourceEmailTokenHash?: string | null;
+};
+
+export type PreparedAuthSession = {
+  id: string;
+  token: string;
+  expiresAt: string;
+  statement: D1PreparedStatement;
+};
+
+export async function prepareAuthSession(
   env: Env,
-  input: {
-    userId: string;
-    purpose?: AuthSessionPurpose;
-    authenticationMethod: AuthMethod;
-    passkeyVerified?: boolean;
-  },
+  input: CreateAuthSessionInput,
   now = new Date(),
-): Promise<{ id: string; token: string; expiresAt: string }> {
+): Promise<PreparedAuthSession> {
   const id = crypto.randomUUID();
   const token = generateEditToken();
   const createdAt = now.toISOString();
@@ -25,11 +37,12 @@ export async function createAuthSession(
     ? authSessionLifetimeSeconds
     : privilegedSessionLifetimeSeconds;
   const expiresAt = new Date(now.getTime() + lifetimeSeconds * 1000).toISOString();
-  await env.DB.prepare(
+  const statement = env.DB.prepare(
     `INSERT INTO auth_sessions (
        id, token_hash, user_id, purpose, authentication_method,
-       authenticated_at, passkey_verified_at, created_at, expires_at, last_used_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       authenticated_at, passkey_verified_at, created_at, expires_at, last_used_at,
+       ceremony_challenge_id, source_email_token_hash
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).bind(
     id,
     await tokenHash(token),
@@ -41,8 +54,20 @@ export async function createAuthSession(
     createdAt,
     expiresAt,
     createdAt,
-  ).run();
-  return { id, token, expiresAt };
+    input.ceremonyChallengeId ?? null,
+    input.sourceEmailTokenHash ?? null,
+  );
+  return { id, token, expiresAt, statement };
+}
+
+export async function createAuthSession(
+  env: Env,
+  input: CreateAuthSessionInput,
+  now = new Date(),
+): Promise<{ id: string; token: string; expiresAt: string }> {
+  const session = await prepareAuthSession(env, input, now);
+  await session.statement.run();
+  return { id: session.id, token: session.token, expiresAt: session.expiresAt };
 }
 
 export async function getAuthContext(
@@ -79,10 +104,24 @@ export async function revokeCurrentAuthSession(
   if (!token) {
     return;
   }
-  await env.DB.prepare(
-    `UPDATE auth_sessions SET revoked_at = ?
-     WHERE token_hash = ? AND revoked_at IS NULL`,
-  ).bind(now, await tokenHash(token)).run();
+  const hash = await tokenHash(token);
+  const session = await env.DB.prepare(
+    `SELECT user_id FROM auth_sessions WHERE token_hash = ? AND revoked_at IS NULL LIMIT 1`,
+  ).bind(hash).first<{ user_id: string }>();
+  if (!session) return;
+  await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE auth_sessions SET revoked_at = ?
+       WHERE token_hash = ? AND revoked_at IS NULL`,
+    ).bind(now, hash),
+    authAuditStatement(env, {
+      action: "session-revoked",
+      summary: "Signed out the current account session.",
+      actorUserId: session.user_id,
+      subjectUserId: session.user_id,
+      createdAt: now,
+    }),
+  ]);
 }
 
 export function authSessionCookie(

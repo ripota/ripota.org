@@ -80,6 +80,63 @@ describe("activator email login", () => {
     expect(result).toEqual({ ok: true, message: genericEmailLoginMessage });
     expect(send).not.toHaveBeenCalled();
   });
+
+  it("uses the generic response for malformed and disabled eligible accounts", async () => {
+    const malformed = await requestEmailLogin(request(), env, {
+      email: "not-an-email",
+      turnstileToken: "",
+    });
+    const user = await createUserWithVerifiedEmail(env, "user@example.com", "User");
+    await env.DB.prepare(
+      `UPDATE auth_users SET disabled_at = '2026-08-30T12:00:00.000Z' WHERE id = ?`,
+    ).bind(user.id).run();
+    const disabled = await requestEmailLogin(request(), env, {
+      email: "user@example.com",
+      turnstileToken: "",
+    });
+    expect(malformed).toEqual({ ok: true, message: genericEmailLoginMessage });
+    expect(disabled).toEqual(malformed);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed, expired, and concurrently replayed access tokens", async () => {
+    await expect(consumeEmailLogin(env, "not-a-token")).resolves.toBeNull();
+    await requestEmailLogin(request(), env, { email: "user@example.com", turnstileToken: "" });
+    const sent = send.mock.calls[0][0] as { text: string };
+    const accessUrl = sent.text.split("\n").find((line) => line.startsWith("https://ripota.org/account/access/#"));
+    const rawToken = new URL(accessUrl!).hash.slice(1);
+    const stored = await env.DB.prepare(
+      `SELECT expires_at FROM auth_email_tokens WHERE purpose = 'login'`,
+    ).first<{ expires_at: string }>();
+    await expect(consumeEmailLogin(
+      env,
+      rawToken,
+      new Date(new Date(stored!.expires_at).getTime() + 1),
+    )).resolves.toBeNull();
+
+    const attempts = await Promise.all([
+      consumeEmailLogin(env, rawToken),
+      consumeEmailLogin(env, rawToken),
+    ]);
+    expect(attempts.filter(Boolean)).toHaveLength(1);
+  });
+
+  it("invalidates a token when delivery fails without changing existing access", async () => {
+    send.mockRejectedValueOnce(new Error("synthetic delivery failure"));
+    const result = await requestEmailLogin(request(), env, {
+      email: "user@example.com",
+      turnstileToken: "",
+    });
+    expect(result).toEqual({ ok: true, message: genericEmailLoginMessage });
+    const stored = await env.DB.prepare(
+      `SELECT used_at FROM auth_email_tokens WHERE purpose = 'login'`,
+    ).first<{ used_at: string | null }>();
+    expect(stored?.used_at).not.toBeNull();
+    const memberships = await env.DB.prepare(
+      `SELECT COUNT(*) AS count FROM auth_activator_memberships`,
+    ).first<{ count: number }>();
+    expect(memberships?.count).toBe(0);
+  });
 });
 
 function request(): Request {

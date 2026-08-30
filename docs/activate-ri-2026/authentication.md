@@ -63,9 +63,9 @@ have enrolled and tested passkeys.
 
 From the admin **Account security** tab, a passkey-authenticated administrator
 can inspect event accounts, send a 30-minute passkey replacement link, revoke
-unified sessions, disable an account after typing its callsign/email, or
+unified and related legacy sessions, disable an account after typing its callsign/email, or
 re-enable it for a subsequent recovery. Passkey replacement revokes old
-passkeys and sessions. These controls do not revoke legacy private links;
+passkeys and unified/legacy sessions in one transaction. These controls do not revoke legacy private links;
 existing operational secure-link replacement remains a separate control.
 
 ## Feature Flags
@@ -91,7 +91,8 @@ reviewed commit and deploy the whole configuration; do not use ad-hoc CLI
 
 Do not skip gates.
 
-1. **Dormant deploy:** deploy migration `0012_unified_auth.sql` and code with
+1. **Dormant deploy:** deploy additive migrations `0012_unified_auth.sql` and
+   `0013_auth_ceremony_sessions.sql` plus code with
    `access` / `legacy` / email `false`. Confirm old Access admin, private links,
    browser sessions, submissions, and email still work.
 2. **Admin enrollment:** configure `AUTH_BOOTSTRAP_ADMIN_EMAILS` outside git,
@@ -129,7 +130,7 @@ Inspect safe aggregate state without selecting tokens or credential material:
 npx wrangler d1 execute ripota-org --remote --env "" --command="
 SELECT
   (SELECT COUNT(*) FROM auth_users WHERE disabled_at IS NULL) AS enabled_users,
-  (SELECT COUNT(*) FROM auth_passkeys WHERE revoked_at IS NULL) AS active_passkeys,
+  (SELECT COUNT(*) FROM auth_passkey_credentials WHERE revoked_at IS NULL) AS active_passkeys,
   (SELECT COUNT(*) FROM auth_sessions
    WHERE revoked_at IS NULL AND expires_at > strftime('%Y-%m-%dT%H:%M:%fZ','now')) AS active_sessions,
   (SELECT COUNT(*) FROM auth_event_roles
@@ -159,7 +160,7 @@ Roll flags back before rolling code back:
    sessions.
 
 These changes do not delete users, passkeys, unified sessions, roles, links, or
-event data. Migration `0012` is additive and should remain applied. If needed,
+event data. Migrations `0012` and `0013` are additive and should remain applied. If needed,
 roll back the Worker version only after restoring the safe flags. Never delete
 authentication tables as a rollback mechanism.
 

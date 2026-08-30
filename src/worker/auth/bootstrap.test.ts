@@ -48,6 +48,19 @@ describe("Access administrator bootstrap", () => {
     expect(result).toBeInstanceOf(Response);
     expect((result as Response).status).toBe(401);
   });
+
+  it("allows the synthetic local identity without storing it in the bootstrap allowlist", async () => {
+    env.ALLOW_ADMIN_HEADER_AUTH = "false";
+    env.ALLOW_LOCAL_ADMIN_AUTH = "true";
+    env.LOCAL_ADMIN_EMAIL = "local-admin@ripota.org";
+    env.AUTH_BOOTSTRAP_ADMIN_EMAILS = undefined;
+    const result = await accessBootstrap(new Request(
+      "http://localhost/api/auth/access-bootstrap/start",
+      { method: "POST" },
+    ), env);
+    expect(result).not.toBeInstanceOf(Response);
+    expect((result as { cookie: string }).cookie).toMatch(/^__Host-ripota-session=/);
+  });
 });
 
 function request(email?: string): Request {

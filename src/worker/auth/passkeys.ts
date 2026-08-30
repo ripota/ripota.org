@@ -12,17 +12,17 @@ import type { Env } from "../env";
 import { authAuditStatement } from "./audit";
 import { getAuthConfig } from "./config";
 import {
-  consumeChallenge,
+  consumeChallengeStatement,
   createChallenge,
   getActiveChallengeById,
   getPasskeyByCredentialId,
   getUserById,
-  insertPasskey,
   listPasskeys,
-  replacePasskeysForRecovery,
-  updatePasskeyUse,
+  preparePasskeyInsert,
+  preparePasskeyRecovery,
+  updatePasskeyUseStatement,
 } from "./db";
-import { authSessionCookie, createAuthSession, getAuthContext } from "./session";
+import { authSessionCookie, getAuthContext, prepareAuthSession } from "./session";
 
 export type PasskeyVerifier = {
   verifyAuthentication(options: Parameters<typeof verifyAuthenticationResponse>[0]): Promise<VerifiedAuthenticationResponse>;
@@ -91,21 +91,35 @@ export async function verifyAuthentication(
   if (!verification.verified || !verification.authenticationInfo.userVerified) {
     throw new PasskeyError("Authentication failed.");
   }
-  if (!await consumeChallenge(env, challenge.id)) {
-    throw new PasskeyError("Authentication failed.");
-  }
-  await updatePasskeyUse(env, credential.managementId, verification.authenticationInfo.newCounter);
-  const session = await createAuthSession(env, {
+  const now = new Date();
+  const createdAt = now.toISOString();
+  const session = await prepareAuthSession(env, {
     userId: user.id,
     authenticationMethod: "passkey",
     passkeyVerified: true,
-  });
-  await authAuditStatement(env, {
-    action: "passkey-authenticated",
-    summary: "Authenticated with a passkey.",
-    actorUserId: user.id,
-    subjectUserId: user.id,
-  }).run();
+    ceremonyChallengeId: challenge.id,
+  }, now);
+  try {
+    await env.DB.batch([
+      consumeChallengeStatement(env, challenge.id, createdAt),
+      updatePasskeyUseStatement(
+        env,
+        credential.managementId,
+        verification.authenticationInfo.newCounter,
+        createdAt,
+      ),
+      session.statement,
+      authAuditStatement(env, {
+        action: "passkey-authenticated",
+        summary: "Authenticated with a passkey.",
+        actorUserId: user.id,
+        subjectUserId: user.id,
+        createdAt,
+      }),
+    ]);
+  } catch {
+    throw new PasskeyError("Authentication failed.");
+  }
   return { cookie: authSessionCookie(session.token), expiresAt: session.expiresAt };
 }
 
@@ -171,9 +185,8 @@ export async function verifyRegistration(
   if (!verification.verified || !verification.registrationInfo.userVerified) {
     throw new PasskeyError("Registration failed.");
   }
-  if (!await consumeChallenge(env, challenge.id)) {
-    throw new PasskeyError("Registration failed.");
-  }
+  const now = new Date();
+  const createdAt = now.toISOString();
   const credentialInput = {
     userId: context.user.id,
     credential: verification.registrationInfo.credential,
@@ -181,19 +194,30 @@ export async function verifyRegistration(
     backedUp: verification.registrationInfo.credentialBackedUp,
     label: input.label,
   };
-  if (context.session.purpose === "recovery") {
-    await replacePasskeysForRecovery(env, credentialInput);
-  } else {
-    await insertPasskey(env, credentialInput);
-    await env.DB.prepare(
-      `UPDATE auth_sessions SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL`,
-    ).bind(new Date().toISOString(), context.session.id).run();
-  }
-  const session = await createAuthSession(env, {
+  const passkey = context.session.purpose === "recovery"
+    ? preparePasskeyRecovery(env, credentialInput, createdAt)
+    : preparePasskeyInsert(env, credentialInput, createdAt);
+  const session = await prepareAuthSession(env, {
     userId: context.user.id,
     authenticationMethod: "passkey",
     passkeyVerified: true,
-  });
+    ceremonyChallengeId: challenge.id,
+  }, now);
+  const statements = [
+    consumeChallengeStatement(env, challenge.id, createdAt),
+    ...passkey.statements,
+  ];
+  if (context.session.purpose !== "recovery") {
+    statements.push(env.DB.prepare(
+      `UPDATE auth_sessions SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL`,
+    ).bind(createdAt, context.session.id));
+  }
+  statements.push(session.statement);
+  try {
+    await env.DB.batch(statements);
+  } catch {
+    throw new PasskeyError("Registration failed.");
+  }
   return { cookie: authSessionCookie(session.token), expiresAt: session.expiresAt };
 }
 

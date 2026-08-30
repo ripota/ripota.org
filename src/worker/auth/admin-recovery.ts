@@ -2,9 +2,10 @@ import { generateEditToken, tokenHash } from "../edit-token";
 import { sendAuthAccessEmail } from "../email";
 import type { Env } from "../env";
 import { trustedSiteUrl } from "../origin";
+import { logActivityEvent } from "../db";
 import { authAuditStatement } from "./audit";
 import { getUserById } from "./db";
-import { authSessionCookie, createAuthSession, privilegedSessionLifetimeSeconds } from "./session";
+import { authSessionCookie, prepareAuthSession, privilegedSessionLifetimeSeconds } from "./session";
 
 export type AdminAccountSummary = {
   userId: string | null;
@@ -105,6 +106,25 @@ export async function listAdminAccounts(env: Env): Promise<AdminAccountSummary[]
   ];
 }
 
+export async function getAdminAccount(
+  env: Env,
+  userId: string,
+): Promise<AdminAccountSummary | null> {
+  const accounts = await listAdminAccounts(env);
+  return accounts.find((account) => account.userId === userId) ?? null;
+}
+
+export async function confirmRelatedAccount(
+  env: Env,
+  userId: string,
+  confirmation: string,
+): Promise<boolean> {
+  const related = await relatedUser(env, userId);
+  if (!related) return false;
+  const expected = related.primary_callsign ?? related.email_normalized;
+  return confirmation.trim().toUpperCase() === expected.trim().toUpperCase();
+}
+
 export async function requestPasskeyReset(
   request: Request,
   env: Env,
@@ -149,6 +169,14 @@ export async function requestPasskeyReset(
     subjectUserId,
     details: { deliveryStatus: delivery.status },
   }).run();
+  await logActivatorSecurityEvent(
+    env,
+    related,
+    "auth-passkey-reset-requested",
+    delivery.status === "sent"
+      ? "An administrator sent an account passkey reset link."
+      : "An administrator attempted an account passkey reset; email delivery failed.",
+  );
   return delivery.status === "sent" ? "sent" : "failed";
 }
 
@@ -173,18 +201,23 @@ export async function consumePasskeyReset(
   if (!user || user.disabledAt) {
     return null;
   }
-  const consumed = await env.DB.prepare(
-    `UPDATE auth_email_tokens SET used_at = ?
-     WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?`,
-  ).bind(now.toISOString(), hash, now.toISOString()).run();
-  if ((consumed.meta.changes ?? 0) !== 1) {
-    return null;
-  }
-  const session = await createAuthSession(env, {
+  const session = await prepareAuthSession(env, {
     userId: user.id,
     purpose: "recovery",
     authenticationMethod: "email",
+    sourceEmailTokenHash: hash,
   }, now);
+  try {
+    await env.DB.batch([
+      env.DB.prepare(
+        `UPDATE auth_email_tokens SET used_at = ?
+         WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?`,
+      ).bind(now.toISOString(), hash, now.toISOString()),
+      session.statement,
+    ]);
+  } catch {
+    return null;
+  }
   return {
     cookie: authSessionCookie(session.token, privilegedSessionLifetimeSeconds),
     expiresAt: session.expiresAt,
@@ -197,7 +230,8 @@ export async function revokeAccountSessions(
   subjectUserId: string,
   now = new Date().toISOString(),
 ): Promise<boolean> {
-  if (!await relatedUser(env, subjectUserId)) return false;
+  const related = await relatedUser(env, subjectUserId);
+  if (!related) return false;
   await env.DB.batch([
     env.DB.prepare(`UPDATE auth_sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL`).bind(now, subjectUserId),
     env.DB.prepare(
@@ -215,6 +249,13 @@ export async function revokeAccountSessions(
       createdAt: now,
     }),
   ]);
+  await logActivatorSecurityEvent(
+    env,
+    related,
+    "auth-sessions-revoked",
+    "An administrator revoked the account's browser sessions.",
+    now,
+  );
   return true;
 }
 
@@ -250,6 +291,13 @@ export async function disableAccount(
       createdAt: now,
     }),
   ]);
+  await logActivatorSecurityEvent(
+    env,
+    related,
+    "auth-user-disabled",
+    "An administrator emergency-disabled account authentication.",
+    now,
+  );
   return "disabled";
 }
 
@@ -259,7 +307,8 @@ export async function enableAccount(
   subjectUserId: string,
   now = new Date().toISOString(),
 ): Promise<boolean> {
-  if (!await relatedUser(env, subjectUserId)) return false;
+  const related = await relatedUser(env, subjectUserId);
+  if (!related) return false;
   await env.DB.batch([
     env.DB.prepare(`UPDATE auth_users SET disabled_at = NULL, updated_at = ? WHERE id = ?`).bind(now, subjectUserId),
     authAuditStatement(env, {
@@ -270,7 +319,30 @@ export async function enableAccount(
       createdAt: now,
     }),
   ]);
+  await logActivatorSecurityEvent(
+    env,
+    related,
+    "auth-user-enabled",
+    "An administrator re-enabled account authentication for recovery.",
+    now,
+  );
   return true;
+}
+
+async function logActivatorSecurityEvent(
+  env: Env,
+  related: RelatedUserRow,
+  action: string,
+  summary: string,
+  now = new Date().toISOString(),
+): Promise<void> {
+  if (!related.activator_id) return;
+  await logActivityEvent(env, {
+    planId: related.activator_id,
+    actorType: "admin",
+    action,
+    summary,
+  }, now);
 }
 
 async function relatedUser(env: Env, userId: string): Promise<RelatedUserRow | null> {
