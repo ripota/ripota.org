@@ -1,7 +1,6 @@
 ---
 import ActivatorPortalNav from "../../../components/activate-ri/ActivatorPortalNav.astro";
 import ActivatorOpsRoom from "../../../components/activate-ri/ActivatorOpsRoom.astro";
-import Footer from "../../../components/Footer.astro";
 import Notice from "../../../components/Notice.astro";
 import SiteHeader from "../../../components/SiteHeader.astro";
 import BaseLayout from "../../../layouts/BaseLayout.astro";
@@ -11,18 +10,20 @@ import BaseLayout from "../../../layouts/BaseLayout.astro";
   title="Activate All RI 2026 Activator Portal"
   description="Private Activate All RI 2026 activator portal."
   privatePage
+  bodyClass="ops-app-page"
 >
-  <SiteHeader variant="solid" showEventLink />
-  <main id="main">
-    <section class="section event-page" aria-labelledby="portal-title">
-      <div class="container">
+  <SiteHeader variant="solid" showEventLink compact />
+  <main id="main" class="ops-app-main">
+    <section class="ops-app" aria-labelledby="portal-title">
+      <div class="container ops-app__container">
         <ActivatorPortalNav />
-        <div class="section-header">
-          <p class="eyebrow">Private activator portal</p>
-          <h1 id="portal-title">Activator Ops Room</h1>
-          <p class="lead">
-            Coordinate park access, delays, and backup coverage with approved
-            activators and organizers. This room is not for emergencies.
+        <div class="ops-app__intro">
+          <div>
+            <p class="eyebrow">Activate All RI · private coordination</p>
+            <h1 id="portal-title">Ops Room</h1>
+          </div>
+          <p>
+            Quick updates from the field. Not continuously monitored or for emergencies.
           </p>
         </div>
         <ActivatorOpsRoom />
@@ -30,5 +31,4 @@ import BaseLayout from "../../../layouts/BaseLayout.astro";
     </section>
     <Notice />
   </main>
-  <Footer />
 </BaseLayout>

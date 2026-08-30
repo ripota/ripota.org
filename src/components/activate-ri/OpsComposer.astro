@@ -1,33 +1,40 @@
 <section class="ops-card ops-composer-card" aria-labelledby="ops-composer-title">
-  <p class="eyebrow">Send an update</p>
-  <h2 id="ops-composer-title">Message the room</h2>
+  <div class="ops-composer-card__heading">
+    <div>
+      <p class="eyebrow">Your update</p>
+      <h2 id="ops-composer-title">Message the room</h2>
+    </div>
+    <span class="ops-compose-privacy">No private contact info</span>
+  </div>
   <form class="ops-composer" data-ops-composer>
-    <label>
-      Message type
-      <select name="kind" data-ops-kind>
-        <option value="chat">General coordination</option>
-        <option value="access-note">Park access note</option>
-        <option value="running-late">Running late</option>
-        <option value="need-backup">Need backup</option>
-      </select>
-    </label>
-    <label>
-      Park or stop context
-      <select name="context" data-ops-context>
-        <option value="">No park context</option>
-      </select>
-    </label>
-    <label>
-      Message
-      <textarea name="body" rows="4" maxlength="1000" required data-ops-body></textarea>
-    </label>
-    <p class="ops-compose-note">
-      Plain text only. Do not share private contact information. This room is
-      not continuously monitored and is not for emergencies.
-    </p>
-    <div class="form-actions">
+    <label class="sr-only" for="ops-message-body">Message</label>
+    <div class="ops-composer__message">
+      <textarea id="ops-message-body" name="body" rows="2" maxlength="1000" required data-ops-body placeholder="Share an update with the room…"></textarea>
       <button class="button" data-variant="primary" type="submit" data-ops-send>Send</button>
+    </div>
+    <details class="ops-compose-options" data-ops-options>
+      <summary data-ops-options-summary>General update · No park context</summary>
+      <div class="ops-compose-options__fields">
+        <label>
+          Update type
+          <select name="kind" data-ops-kind>
+            <option value="chat">General update</option>
+            <option value="access-note">Park access</option>
+            <option value="running-late">Running late</option>
+            <option value="need-backup">Need backup</option>
+          </select>
+        </label>
+        <label>
+          Park context <span>(optional)</span>
+          <select name="context" data-ops-context>
+            <option value="">No park context</option>
+          </select>
+        </label>
+      </div>
+    </details>
+    <div class="ops-composer__footer">
       <span class="ops-send-state" data-ops-send-state aria-live="polite"></span>
+      <span>Plain text · 1,000 characters</span>
     </div>
   </form>
   <div class="ops-unsent" data-ops-unsent hidden>

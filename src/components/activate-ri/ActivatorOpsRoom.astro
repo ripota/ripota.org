@@ -12,37 +12,38 @@ const parkNames = Object.fromEntries(
 ---
 
 <div class="ops-room" data-ops-room data-park-names={JSON.stringify(parkNames)}>
-  <OpsConnectionStatus />
+  <div class="ops-room__statusbar">
+    <OpsConnectionStatus />
+    <p data-ops-sync-copy>Updates appear here as they happen.</p>
+  </div>
   <div class="ops-room__layout">
     <div class="ops-room__main">
       <OpsPinnedAnnouncement />
       <OpsFeed />
+      <OpsComposer />
     </div>
     <aside class="ops-room__sidebar">
       <OpsUpcomingStops />
-      <OpsComposer />
     </aside>
   </div>
 
   <dialog class="ops-rules" data-ops-rules aria-labelledby="ops-rules-title">
     <form method="dialog" data-ops-rules-form>
-      <p class="eyebrow">Before entering</p>
-      <h2 id="ops-rules-title">Activator Ops Room rules</h2>
-      <ul>
-        <li>The room is visible to approved activators and organizers.</li>
-        <li>Messages are stored and may be moderated.</li>
-        <li>Do not publish private contact information.</li>
-        <li>The room is not continuously monitored and is not for emergencies.</li>
-        <li>Never interact with the room while driving.</li>
-        <li>Official POTA resources remain authoritative for rules, references, spots, and logs.</li>
-      </ul>
+      <p class="eyebrow">Welcome to the room</p>
+      <h2 id="ops-rules-title">Coordinate clearly. Operate safely.</h2>
+      <div class="ops-rules__points">
+        <p><strong>Keep it operational.</strong> Share access, timing, and coverage updates—not private contact information.</p>
+        <p><strong>Stay safe.</strong> Never use the room while driving. For emergencies, contact 911 or the appropriate local authority.</p>
+        <p><strong>Expect moderation.</strong> Approved activators and organizers can see stored messages; organizers may remove them.</p>
+        <p><strong>Use official sources.</strong> POTA resources remain authoritative for rules, references, spots, accounts, and logs.</p>
+      </div>
       <p class="form-status" data-ops-rules-status aria-live="polite"></p>
       <div class="form-actions">
         <button class="button" data-variant="primary" value="accept" type="submit">
-          I understand and agree
+          Enter the Ops Room
         </button>
         <a class="button" data-variant="light" href="/activate-ri-2026/activators/plan/">
-          Leave the room
+          Back to my plan
         </a>
       </div>
     </form>
@@ -100,6 +101,8 @@ const parkNames = Object.fromEntries(
   const bodyInput = room?.querySelector<HTMLTextAreaElement>("[data-ops-body]");
   const sendButton = room?.querySelector<HTMLButtonElement>("[data-ops-send]");
   const sendState = room?.querySelector<HTMLElement>("[data-ops-send-state]");
+  const composeOptions = room?.querySelector<HTMLDetailsElement>("[data-ops-options]");
+  const composeOptionsSummary = room?.querySelector<HTMLElement>("[data-ops-options-summary]");
   const unsent = room?.querySelector<HTMLElement>("[data-ops-unsent]");
   const pin = room?.querySelector<HTMLElement>("[data-ops-pin]");
   const pinBody = room?.querySelector<HTMLElement>("[data-ops-pin-body]");
@@ -155,7 +158,10 @@ const parkNames = Object.fromEntries(
           ? "Room unavailable"
           : "You do not currently have Ops Room access");
         disableComposer(true);
-        feed?.replaceChildren(emptyItem("The room is not available. Your plan editor still works."));
+        feed?.replaceChildren(emptyItem(
+          "The room is closed right now.",
+          "Your private plan editor is still available.",
+        ));
         return;
       }
       const sessionBody = await sessionResponse.json() as { activator?: { id?: string } };
@@ -343,13 +349,17 @@ const parkNames = Object.fromEntries(
       card.className = "ops-stop";
       if (index === 0) card.dataset.next = "true";
       const heading = document.createElement("h3");
-      heading.textContent = stopLabel(stop);
+      heading.textContent = `${stop.parkReference} — ${parkNames[stop.parkReference] ?? "RI park"}`;
+      const timing = document.createElement("p");
+      timing.className = "ops-stop__time";
+      timing.textContent = stopTimeLabel(stop);
       const actions = document.createElement("div");
       actions.className = "ops-quick-actions";
       actions.appendChild(quickAction("Running late", "running-late", stop.id));
       actions.appendChild(quickAction("Need backup", "need-backup", stop.id));
       actions.appendChild(quickAction("Access problem", "access-note", stop.id));
       card.appendChild(heading);
+      card.appendChild(timing);
       card.appendChild(actions);
       stopsElement.appendChild(card);
     });
@@ -373,6 +383,7 @@ const parkNames = Object.fromEntries(
     if ([...contextSelect.options].some((option) => option.value === selected)) {
       contextSelect.value = selected;
     }
+    updateComposeSummary();
   }
 
   function renderFeed(): void {
@@ -388,7 +399,13 @@ const parkNames = Object.fromEntries(
     });
     feed.replaceChildren();
     if (visible.length === 0) {
-      feed.appendChild(emptyItem("No messages match this filter."));
+      const hasMessages = messages.size > 0;
+      feed.appendChild(emptyItem(
+        hasMessages ? "Nothing in this view." : "You're all caught up.",
+        hasMessages
+          ? "Choose another filter to see the rest of the room."
+          : "Announcements and field updates will appear here as they happen.",
+      ));
       return;
     }
     visible.forEach((message) => feed.appendChild(messageItem(message)));
@@ -402,12 +419,20 @@ const parkNames = Object.fromEntries(
   function messageItem(message: Message): HTMLLIElement {
     const item = document.createElement("li");
     item.className = `ops-message ops-message--${message.kind}`;
+    if (message.authorActivatorId === activatorId) item.dataset.own = "true";
     const header = document.createElement("div");
     header.className = "ops-message__header";
     const author = document.createElement("strong");
     author.textContent = message.authorType === "admin" ? "Organizer" : message.authorLabel;
     const meta = document.createElement("span");
-    meta.textContent = `${kindLabel(message.kind)} · ${formatTimestamp(message.createdAt)}`;
+    const kind = document.createElement("b");
+    kind.textContent = kindLabel(message.kind);
+    const time = document.createElement("time");
+    time.dateTime = message.createdAt;
+    time.textContent = formatTimestamp(message.createdAt);
+    meta.appendChild(kind);
+    meta.appendChild(document.createTextNode(" · "));
+    meta.appendChild(time);
     header.appendChild(author);
     header.appendChild(meta);
     const body = document.createElement("p");
@@ -532,6 +557,9 @@ const parkNames = Object.fromEntries(
     renderFeed();
   });
 
+  kindSelect?.addEventListener("change", updateComposeSummary);
+  contextSelect?.addEventListener("change", updateComposeSummary);
+
   room?.querySelector("[data-ops-refresh]")?.addEventListener("click", () => void loadRoom());
 
   document.addEventListener("visibilitychange", () => {
@@ -565,6 +593,8 @@ const parkNames = Object.fromEntries(
     button.addEventListener("click", () => {
       if (kindSelect) kindSelect.value = kind;
       if (contextSelect) contextSelect.value = `stop:${stopId}`;
+      if (composeOptions) composeOptions.open = true;
+      updateComposeSummary();
       bodyInput?.focus();
     });
     return button;
@@ -600,6 +630,10 @@ const parkNames = Object.fromEntries(
   }
 
   function stopLabel(stop: Stop): string {
+    return `${stop.parkReference} — ${parkNames[stop.parkReference] ?? "RI park"} — ${stopTimeLabel(stop)}`;
+  }
+
+  function stopTimeLabel(stop: Stop): string {
     const start = new Date(stop.startAt);
     const end = new Date(stop.endAt);
     const date = new Intl.DateTimeFormat("en-US", {
@@ -613,7 +647,7 @@ const parkNames = Object.fromEntries(
       hour: "numeric",
       minute: "2-digit",
     }).format(end);
-    return `${stop.parkReference} — ${parkNames[stop.parkReference] ?? "RI park"} — ${date}–${endTime}`;
+    return `${date}–${endTime}`;
   }
 
   function formatTimestamp(value: string): string {
@@ -704,11 +738,25 @@ const parkNames = Object.fromEntries(
     socket = null;
   }
 
-  function emptyItem(text: string): HTMLLIElement {
+  function emptyItem(title: string, detail?: string): HTMLLIElement {
     const item = document.createElement("li");
-    item.className = "ops-empty";
-    item.textContent = text;
+    item.className = "ops-empty ops-empty--room";
+    const strong = document.createElement("strong");
+    strong.textContent = title;
+    item.appendChild(strong);
+    if (detail) {
+      const span = document.createElement("span");
+      span.textContent = detail;
+      item.appendChild(span);
+    }
     return item;
+  }
+
+  function updateComposeSummary(): void {
+    if (!composeOptionsSummary) return;
+    const kind = kindSelect?.selectedOptions[0]?.textContent?.trim() || "General update";
+    const context = contextSelect?.selectedOptions[0]?.textContent?.trim() || "No park context";
+    composeOptionsSummary.textContent = `${kind} · ${context}`;
   }
 
   function emptyParagraph(text: string): HTMLParagraphElement {
@@ -747,6 +795,8 @@ const parkNames = Object.fromEntries(
     contextSelect.value = draft.context;
     bodyInput.value = draft.body;
     composer.dataset.clientNonce = draft.clientNonce;
+    composeOptions && (composeOptions.open = true);
+    updateComposeSummary();
     showUnsent("Not sent — review this saved draft before sending.");
   }
 

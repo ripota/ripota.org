@@ -4,22 +4,32 @@ import { siteIdentity } from "../data/site";
 type Props = {
   variant?: "overlay" | "solid";
   showEventLink?: boolean;
+  compact?: boolean;
 };
 
-const { variant = "overlay", showEventLink = false } = Astro.props;
+const { variant = "overlay", showEventLink = false, compact = false } = Astro.props;
 ---
 
-<header class="site-header" data-variant={variant} aria-label="Site header">
+<header class="site-header" data-variant={variant} data-compact={compact ? "true" : undefined} aria-label="Site header">
   <div class="site-header__inner container">
     <a class="site-header__brand" href="/" aria-label={`${siteIdentity.name} home`}>
       {siteIdentity.name}
     </a>
     <nav class="site-header__nav" aria-label="Primary navigation">
-      <a href="/#paths">Get started</a>
-      <a href="/on-air/">On air now</a>
-      {showEventLink && <a href="/activate-ri-2026/">Activate All RI</a>}
-      <a href="/#resources">RI resources</a>
-      <a href="/#official">Official links</a>
+      {compact ? (
+        <>
+          <a href="/activate-ri-2026/">Event home</a>
+          <a href="https://pota.app/" target="_blank" rel="noreferrer">Official POTA ↗</a>
+        </>
+      ) : (
+        <>
+          <a href="/#paths">Get started</a>
+          <a href="/on-air/">On air now</a>
+          {showEventLink && <a href="/activate-ri-2026/">Activate All RI</a>}
+          <a href="/#resources">RI resources</a>
+          <a href="/#official">Official links</a>
+        </>
+      )}
     </nav>
   </div>
 </header>

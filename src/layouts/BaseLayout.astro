@@ -7,6 +7,7 @@ type Props = {
   description?: string;
   canonicalPath?: string;
   privatePage?: boolean;
+  bodyClass?: string;
   image?: {
     src: string;
     alt: string;
@@ -21,6 +22,7 @@ const {
   description = siteIdentity.tagline,
   canonicalPath = "/",
   privatePage = false,
+  bodyClass,
   image = defaultShareImage,
 } = Astro.props;
 const pageTitle = title === siteIdentity.name ? title : `${title} | ${siteIdentity.name}`;
@@ -57,7 +59,7 @@ const imageUrl = new URL(image.src, socialImageBaseUrl).toString();
     <meta name="theme-color" content="#0f766e" />
     <title>{pageTitle}</title>
   </head>
-  <body>
+  <body class={bodyClass}>
     <a class="skip-link" href="#main">Skip to content</a>
     <slot />
   </body>
