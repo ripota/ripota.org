@@ -5,6 +5,8 @@ import {
 } from "../../lib/pota/spots";
 import type { Env } from "../env";
 import { json } from "../http";
+import { isSpotCaptureTime } from "../../lib/activate-ri/pota-event";
+import { persistEventSpotObservations } from "../pota-event";
 
 const upstreamSpotsUrl = "https://api.pota.app/spot/activator";
 const cacheId = "ri-live-spots";
@@ -17,6 +19,9 @@ const initialRetryMilliseconds = 60_000;
 const maximumRetryMilliseconds = 10 * 60_000;
 const parkNames = new Map(
   references.map((reference) => [reference.reference, reference.name]),
+);
+const parkLocations = new Map(
+  references.map((reference) => [reference.reference, reference.locationDesc]),
 );
 
 type WorkerCacheStorage = CacheStorage & { default?: Cache };
@@ -65,7 +70,7 @@ export type RiPotaSpotsSnapshotResult =
 
 export async function handlePotaSpots(
   request: Request,
-  env: Pick<Env, "DB">,
+  env: Pick<Env, "DB"> & Partial<Pick<Env, "ACTIVATE_RI_EVENT_ID">>,
   ctx?: ExecutionContext,
   options: PotaSpotsHandlerOptions = {},
 ): Promise<Response> {
@@ -84,6 +89,16 @@ export async function handlePotaSpots(
   const result = await getRiPotaSpotsSnapshot(env, options);
   if (!result.ok) {
     return unavailableResponse(result.retryAfterSeconds);
+  }
+
+  if (env.ACTIVATE_RI_EVENT_ID && isSpotCaptureTime(new Date(result.observedAt))) {
+    const persistence = persistEventSpotObservations(
+      env as Pick<Env, "DB" | "ACTIVATE_RI_EVENT_ID">,
+      result.snapshot.spots,
+      new Date(result.observedAt),
+    );
+    if (ctx) ctx.waitUntil(persistence);
+    else await persistence;
   }
 
   return cacheResponse(
@@ -283,7 +298,7 @@ async function refreshSnapshot(
     }
 
     const snapshot = {
-      spots: normalizeRiPotaSpots(upstreamData, { parkNames }),
+      spots: normalizeRiPotaSpots(upstreamData, { parkNames, parkLocations }),
       fetchedAt: now().valueOf(),
     };
     const stored = await env.DB.prepare(

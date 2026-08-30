@@ -15,6 +15,15 @@ import {
 } from "./routes/activate-ri-embed";
 import { handlePotaSpots } from "./routes/pota";
 import { ActivateRiOpsRoom } from "./durable-objects/activate-ri-ops-room";
+import {
+  isHistoryReconciliationTime,
+  isSpotCaptureTime,
+} from "../lib/activate-ri/pota-event";
+import {
+  persistEventSpotObservations,
+  runPotaHistoryReconciliation,
+} from "./pota-event";
+import { getRiPotaSpotsSnapshot } from "./routes/pota";
 
 export { ActivateRiOpsRoom };
 
@@ -133,7 +142,41 @@ export default {
 
     return env.ASSETS.fetch(request);
   },
+
+  scheduled(
+    controller: ScheduledController,
+    env: Env,
+    ctx: ExecutionContext,
+  ): void {
+    ctx.waitUntil(runActivateRiPotaSchedule(controller, env));
+  },
 };
+
+export async function runActivateRiPotaSchedule(
+  controller: ScheduledController,
+  env: Env,
+): Promise<void> {
+  const now = new Date(controller.scheduledTime);
+  const outcome: Record<string, unknown> = {
+    event: "activate-ri-pota-scheduled",
+    scheduledAt: now.toISOString(),
+  };
+  if (isSpotCaptureTime(now)) {
+    const spots = await getRiPotaSpotsSnapshot(env, { now: () => now });
+    outcome.spotsAvailable = spots.ok;
+    if (spots.ok) {
+      outcome.observations = await persistEventSpotObservations(
+        env,
+        spots.snapshot.spots,
+        now,
+      );
+    }
+  }
+  if (isHistoryReconciliationTime(now)) {
+    outcome.history = await runPotaHistoryReconciliation(env, { now: () => now });
+  }
+  console.log(JSON.stringify(outcome));
+}
 
 async function fetchAssetWithoutRedirect(
   env: Env,

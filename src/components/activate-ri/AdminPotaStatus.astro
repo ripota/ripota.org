@@ -1,0 +1,138 @@
+<section
+  class="admin-panel admin-view"
+  id="admin-pota"
+  aria-labelledby="admin-pota-title"
+  data-admin-view="pota"
+  data-admin-pota
+  hidden
+>
+  <div class="admin-panel__header">
+    <div>
+      <p class="eyebrow">POTA evidence</p>
+      <h2 id="admin-pota-title">Reconciliation status</h2>
+      <p class="lead">Persisted public evidence and bounded upstream synchronization health.</p>
+    </div>
+    <div class="button-row">
+      <button class="button" data-variant="light" type="button" data-pota-admin-refresh>Refresh status</button>
+      <button class="button" data-variant="primary" type="button" data-pota-admin-reconcile>
+        Start final deep reconciliation
+      </button>
+    </div>
+  </div>
+  <p class="admin-status" data-pota-admin-message role="status" aria-live="polite">Loading POTA sync status…</p>
+  <dl class="coverage-summary" data-pota-admin-summary hidden>
+    <div><dt>Confirmed parks</dt><dd data-admin-pota-confirmed>—</dd></div>
+    <div><dt>Observed parks</dt><dd data-admin-pota-observed>—</dd></div>
+    <div><dt>Attempt rows</dt><dd data-admin-pota-attempts>—</dd></div>
+    <div><dt>Failures</dt><dd data-admin-pota-failures>—</dd></div>
+  </dl>
+  <dl class="admin-meta admin-pota-meta" data-pota-admin-details hidden>
+    <dt>Last live-spot ingest</dt><dd data-admin-pota-spot-ingest>—</dd>
+    <dt>Last history batch</dt><dd data-admin-pota-history-batch>—</dd>
+    <dt>Last successful history sync</dt><dd data-admin-pota-history-success>—</dd>
+    <dt>Next park cursor</dt><dd data-admin-pota-cursor>—</dd>
+    <dt>Retry after</dt><dd data-admin-pota-retry>—</dd>
+    <dt>Last error category</dt><dd data-admin-pota-error>—</dd>
+    <dt>Deep reconciliation</dt><dd data-admin-pota-deep>—</dd>
+  </dl>
+</section>
+
+<script>
+  type PotaAdminStatus = {
+    lastSpotIngestAt?: string | null;
+    lastHistoryBatchAt?: string | null;
+    lastHistorySuccessAt?: string | null;
+    confirmed?: number;
+    observed?: number;
+    attempts?: number;
+    nextParkReference?: string | null;
+    consecutiveFailures?: number;
+    retryAfter?: string | null;
+    lastErrorCategory?: string | null;
+    deepReconciliationPending?: boolean;
+    deepRequestedAt?: string | null;
+    deepCompletedAt?: string | null;
+  };
+
+  const root = document.querySelector<HTMLElement>("[data-admin-pota]");
+  const refresh = root?.querySelector<HTMLButtonElement>("[data-pota-admin-refresh]");
+  const reconcile = root?.querySelector<HTMLButtonElement>("[data-pota-admin-reconcile]");
+  const message = root?.querySelector<HTMLElement>("[data-pota-admin-message]");
+  refresh?.addEventListener("click", () => void loadStatus());
+  reconcile?.addEventListener("click", () => void startReconciliation());
+  void loadStatus();
+
+  async function loadStatus(): Promise<void> {
+    if (!root || !message) return;
+    if (refresh) refresh.disabled = true;
+    try {
+      const response = await fetch("/api/activate-ri-2026/admin/pota-status", {
+        headers: { accept: "application/json" },
+      });
+      const data = await response.json() as { ok?: boolean; status?: PotaAdminStatus; error?: string };
+      if (!response.ok || !data.ok || !data.status) throw new Error(data.error ?? "Unable to load POTA status.");
+      render(data.status);
+      message.textContent = "POTA reconciliation status loaded.";
+    } catch (error) {
+      message.textContent = error instanceof Error ? error.message : "Unable to load POTA status.";
+    } finally {
+      if (refresh) refresh.disabled = false;
+    }
+  }
+
+  async function startReconciliation(): Promise<void> {
+    if (!reconcile || !message) return;
+    reconcile.disabled = true;
+    message.textContent = "Starting deep reconciliation…";
+    try {
+      const response = await fetch("/api/activate-ri-2026/admin/pota-reconcile", {
+        method: "POST",
+        headers: { accept: "application/json", "content-type": "application/json" },
+        body: JSON.stringify({ deep: true }),
+      });
+      const data = await response.json() as { ok?: boolean; message?: string; error?: string };
+      if (!response.ok || !data.ok) throw new Error(data.error ?? "Unable to start reconciliation.");
+      message.textContent = data.message ?? "Deep reconciliation started.";
+      window.setTimeout(() => void loadStatus(), 1_000);
+    } catch (error) {
+      message.textContent = error instanceof Error ? error.message : "Unable to start reconciliation.";
+    } finally {
+      reconcile.disabled = false;
+    }
+  }
+
+  function render(status: PotaAdminStatus): void {
+    setText("[data-admin-pota-confirmed]", status.confirmed);
+    setText("[data-admin-pota-observed]", status.observed);
+    setText("[data-admin-pota-attempts]", status.attempts);
+    setText("[data-admin-pota-failures]", status.consecutiveFailures);
+    setText("[data-admin-pota-spot-ingest]", timestamp(status.lastSpotIngestAt));
+    setText("[data-admin-pota-history-batch]", timestamp(status.lastHistoryBatchAt));
+    setText("[data-admin-pota-history-success]", timestamp(status.lastHistorySuccessAt));
+    setText("[data-admin-pota-cursor]", status.nextParkReference || "None");
+    setText("[data-admin-pota-retry]", timestamp(status.retryAfter));
+    setText("[data-admin-pota-error]", status.lastErrorCategory || "None");
+    setText(
+      "[data-admin-pota-deep]",
+      status.deepReconciliationPending
+        ? `In progress since ${timestamp(status.deepRequestedAt)}`
+        : status.deepCompletedAt
+          ? `Completed ${timestamp(status.deepCompletedAt)}`
+          : "Not requested",
+    );
+    const summary = root?.querySelector<HTMLElement>("[data-pota-admin-summary]");
+    const details = root?.querySelector<HTMLElement>("[data-pota-admin-details]");
+    if (summary) summary.hidden = false;
+    if (details) details.hidden = false;
+  }
+
+  function setText(selector: string, value: string | number | undefined): void {
+    root?.querySelector(selector)?.replaceChildren(value === undefined ? "—" : String(value));
+  }
+
+  function timestamp(value: string | null | undefined): string {
+    if (!value) return "Never";
+    const date = new Date(value);
+    return Number.isFinite(date.valueOf()) ? date.toLocaleString() : value;
+  }
+</script>

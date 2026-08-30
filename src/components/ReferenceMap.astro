@@ -24,6 +24,7 @@ type Props = {
   legendPlacement?: "overlay" | "below" | "none";
   legendTitle?: string;
   showBoundaries?: boolean;
+  resultsMode?: boolean;
 };
 
 const {
@@ -35,6 +36,7 @@ const {
   legendPlacement = variant === "home" ? "none" : "overlay",
   legendTitle,
   showBoundaries = true,
+  resultsMode = false,
 } = Astro.props;
 const rawGeojsonByPath = import.meta.glob("../data/boundaries/*.geojson", {
   eager: true,
@@ -56,16 +58,21 @@ const mapItems = buildReferenceMapItems({
   parks: isEventMap ? eventParks : undefined,
   stops: isEventMap ? [] : undefined,
 });
-const legendItems = isEventMap
-  ? referenceMapLegendItems
-  : [];
-const visibleLegendLabels = new Set(
-  displayedReferenceMapLegendItems(
+const potaLegendItems = [
+  { label: "POTA confirmed", color: "#2d7a4b", statuses: ["confirmed"] },
+  { label: "Activity observed / attempt", color: "#b56b00", statuses: ["observed"] },
+  { label: "Scheduled", color: "#0b7180", statuses: ["scheduled"] },
+  { label: "Still needed", color: "#707b78", statuses: ["needed"] },
+  { label: "On air now", color: "#f6bd46", statuses: ["live"] },
+];
+const legendItems = isEventMap ? (resultsMode ? potaLegendItems : referenceMapLegendItems) : [];
+const visibleLegendLabels = new Set(resultsMode
+  ? potaLegendItems.map((item) => item.label)
+  : displayedReferenceMapLegendItems(
     mapItems
       .map((item) => item.coverage?.status)
       .filter((status) => status !== undefined),
-  ).map((item) => item.label),
-);
+  ).map((item) => item.label));
 const showLegend = legendPlacement !== "none" && legendItems.length > 0;
 const showCaption = caption.trim().length > 0;
 const dataId = `${id}-data`;
@@ -79,6 +86,13 @@ const payload = JSON.stringify({
   parks: isEventMap ? eventParks : [],
   coverageStatusLabels,
   referenceMapStatusColors,
+  resultsMode,
+  potaStatusColors: {
+    confirmed: "#2d7a4b",
+    observed: "#b56b00",
+    scheduled: "#0b7180",
+    needed: "#707b78",
+  },
 });
 ---
 
@@ -150,6 +164,8 @@ const payload = JSON.stringify({
   import L from "leaflet";
   import { fetchPublicActivationStops } from "../lib/activate-ri/public-stops-client";
   import { livePotaSpotsStore } from "../lib/pota/live-spots-store";
+  import { potaParkStatusStore } from "../lib/activate-ri/pota-status-store";
+  import type { PublicParkPotaStatus } from "../lib/activate-ri/pota-status-client";
   import type { LivePotaSpot } from "../lib/pota/spots";
   import {
     formatActivationDate,
@@ -208,6 +224,7 @@ const payload = JSON.stringify({
     } | null;
     coverage: MapCoverage | null;
     liveSpots?: LivePotaSpot[];
+    potaStatus?: PublicParkPotaStatus;
   };
 
   type MapPayload = {
@@ -217,11 +234,14 @@ const payload = JSON.stringify({
     parks: PublicPark[];
     coverageStatusLabels: Record<string, string>;
     referenceMapStatusColors: Record<string, string>;
+    resultsMode: boolean;
+    potaStatusColors: Record<string, string>;
   };
 
   type MapItemLayers = {
     boundaries: L.Path[];
     markers: L.CircleMarker[];
+    symbols: L.Marker[];
     displayLayers: L.Layer[];
   };
 
@@ -277,6 +297,13 @@ const payload = JSON.stringify({
         }
       });
       livePotaSpotsStore.start();
+    } else if (payload.resultsMode) {
+      potaParkStatusStore.subscribe((state) => {
+        if (state.status === "ready") {
+          updatePotaStatuses(mapElement, payload, layersByReference, state.snapshot.parks);
+        }
+      });
+      potaParkStatusStore.start();
     } else {
       refreshLiveCoverage(mapElement, payload, layersByReference, applyCoverageFilter);
     }
@@ -290,6 +317,7 @@ const payload = JSON.stringify({
   ): MapItemLayers {
     const boundaries: L.Path[] = [];
     const markers: L.CircleMarker[] = [];
+    const symbols: L.Marker[] = [];
     const displayLayers: L.Layer[] = [];
     const style = itemStyle(payload, item);
 
@@ -331,18 +359,36 @@ const payload = JSON.stringify({
         .bindPopup(() => popupHtml(payload, item));
       markers.push(marker);
       displayLayers.push(marker);
+      if (payload.resultsMode) {
+        const symbol = L.marker([item.marker.latitude, item.marker.longitude], {
+          icon: resultStatusIcon(item.potaStatus?.status),
+          interactive: false,
+          keyboard: false,
+        }).addTo(map);
+        symbols.push(symbol);
+        displayLayers.push(symbol);
+      }
       bounds.extend([item.marker.latitude, item.marker.longitude]);
     }
 
-    return { boundaries, markers, displayLayers };
+    return { boundaries, markers, symbols, displayLayers };
   }
 
   function itemStyle(payload: MapPayload, item: MapItem) {
-    const isLive = payload.variant === "home" && (item.liveSpots?.length ?? 0) > 0;
-    const color = isLive ? "#6f4300" : item.coverage?.color ?? "#172026";
-    const fillColor = isLive
+    const isLive = payload.resultsMode
+      ? item.potaStatus?.live === true
+      : payload.variant === "home" && (item.liveSpots?.length ?? 0) > 0;
+    const resultColor = item.potaStatus
+      ? payload.potaStatusColors[item.potaStatus.status]
+      : undefined;
+    const color = isLive && !payload.resultsMode
+      ? "#6f4300"
+      : resultColor ?? item.coverage?.color ?? "#172026";
+    const fillColor = isLive && !payload.resultsMode
       ? "#f6bd46"
-      : payload.variant === "home"
+      : payload.resultsMode
+        ? resultColor ?? "#707b78"
+        : payload.variant === "home"
         ? "#d7913a"
         : color;
 
@@ -387,6 +433,19 @@ const payload = JSON.stringify({
       );
       marker.bindPopup(() => popupHtml(payload, item));
     });
+    layers.symbols.forEach((symbol) => {
+      symbol.setIcon(resultStatusIcon(item.potaStatus?.status));
+    });
+  }
+
+  function resultStatusIcon(status: PublicParkPotaStatus["status"] | undefined): L.DivIcon {
+    const symbol = { confirmed: "✓", observed: "•", scheduled: "S", needed: "—" }[status ?? "needed"];
+    return L.divIcon({
+      className: `reference-map-status-symbol reference-map-status-symbol--${status ?? "needed"}`,
+      html: `<span aria-hidden="true">${symbol}</span>`,
+      iconSize: [18, 18],
+      iconAnchor: [9, 9],
+    });
   }
 
   function updateLiveSpots(
@@ -405,6 +464,20 @@ const payload = JSON.stringify({
       item.liveSpots = spotsByReference.get(item.reference) ?? [];
       updateMapItemLayers(payload, item, layersByReference.get(item.reference));
     }
+  }
+
+  function updatePotaStatuses(
+    mapElement: HTMLElement,
+    payload: MapPayload,
+    layersByReference: Map<string, MapItemLayers>,
+    statuses: PublicParkPotaStatus[],
+  ): void {
+    const byReference = new Map(statuses.map((status) => [status.reference, status]));
+    for (const item of payload.items) {
+      item.potaStatus = byReference.get(item.reference);
+      updateMapItemLayers(payload, item, layersByReference.get(item.reference));
+    }
+    updateMapLegend(mapElement, payload);
   }
 
   function fitReferenceBounds(map: L.Map, bounds: L.LatLngBounds): void {
@@ -525,9 +598,9 @@ const payload = JSON.stringify({
       return;
     }
 
-    const visibleStatuses = new Set(
-      payload.items.map((item) => item.coverage?.status).filter(Boolean),
-    );
+    const visibleStatuses = new Set(payload.resultsMode
+      ? payload.items.flatMap((item) => [item.potaStatus?.status, item.potaStatus?.live ? "live" : undefined]).filter(Boolean)
+      : payload.items.map((item) => item.coverage?.status).filter(Boolean));
 
     mapPreview.querySelectorAll<HTMLElement>("[data-map-legend-item]").forEach((item) => {
       if (item.dataset.mapLegendOptional !== "true") {
@@ -596,6 +669,22 @@ const payload = JSON.stringify({
       `;
     }
 
+    if (payload.resultsMode) {
+      const status = item.potaStatus;
+      return `
+        <strong>${escapeHtml(item.reference)}</strong>
+        <span>${escapeHtml(item.name)}</span>
+        <em>${escapeHtml(detailLine(item))}</em>
+        <span><b>${escapeHtml(potaStatusLabel(status?.status))}</b>${status?.live ? " · On air now" : ""}</span>
+        ${potaEvidenceHtml(status)}
+        ${status?.scheduled ? "<span>Planned event coverage is also scheduled; that plan is not POTA confirmation.</span>" : ""}
+        <span class="map-popup__links">
+          <a href="/activate-ri-2026/parks/">Open full evidence list</a>
+          ${officialLink(item)}
+        </span>
+      `;
+    }
+
     const volunteerAction =
       payload.variant === "volunteer"
         ? `<button class="map-popup__action" type="button" data-map-add-activation data-reference="${escapeHtml(item.reference)}">Add activation</button>`
@@ -612,6 +701,31 @@ const payload = JSON.stringify({
         ${volunteerAction}
       </span>
     `;
+  }
+
+  function potaStatusLabel(status: string | undefined): string {
+    return {
+      confirmed: "POTA confirmed",
+      observed: "Activity observed; not confirmed",
+      scheduled: "Scheduled; not confirmed",
+      needed: "Still needed",
+    }[status ?? "needed"] ?? "Still needed";
+  }
+
+  function potaEvidenceHtml(status: PublicParkPotaStatus | undefined): string {
+    if (status?.confirmation) {
+      return `<span>${escapeHtml(status.confirmation.activeCallsign)} · ${escapeHtml(status.confirmation.qsoDate)} UTC · ${status.confirmation.totalQsos} QSOs</span>`;
+    }
+    if (status?.lastObservation) {
+      return `<span>Last spotted ${escapeHtml(formatLiveSpotTime(status.lastObservation.lastObservedAt))} · ${escapeHtml(status.lastObservation.activeCallsign)}</span>`;
+    }
+    if ((status?.attempts.length ?? 0) > 0) {
+      const attempt = status?.attempts[0];
+      return attempt
+        ? `<span>Attempt recorded: ${escapeHtml(attempt.activeCallsign)} · ${attempt.totalQsos} QSOs</span>`
+        : "";
+    }
+    return "<span>No event POTA evidence yet.</span>";
   }
 
   function liveSpotsHtml(item: MapItem): string {

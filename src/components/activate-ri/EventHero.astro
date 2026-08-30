@@ -11,6 +11,8 @@ const dateRangeLabel = formatDateRange(
 );
 const softStartLabel = formatMonthDay(activateRi2026Event.softStartDate);
 const publicParks = parks as PublicParkSummary[];
+const showPotaResults = new Set<string>(["event-live", "post-event"])
+  .has(activateRi2026Event.phase);
 
 function parseEventDate(date: string) {
   const [year, month, day] = date.split("-").map(Number);
@@ -57,17 +59,33 @@ function formatDateRange(startDate: string, endDate: string) {
         class="event-hero__stats"
         aria-label="Activate All RI coverage progress"
         data-live-hero-coverage
+        data-phase={activateRi2026Event.phase}
         data-parks={JSON.stringify(publicParks)}
       >
         <div>
-          <dt>Parks scheduled</dt>
+          <dt data-hero-primary-label>{showPotaResults ? "Confirmed by POTA" : "Parks scheduled"}</dt>
           <dd data-hero-scheduled>Loading...</dd>
         </div>
         <div>
-          <dt>Coverage gaps</dt>
+          <dt data-hero-secondary-label>{showPotaResults ? "Activity observed" : "Coverage gaps"}</dt>
           <dd data-hero-gaps>Loading...</dd>
         </div>
+        {showPotaResults && (
+          <div>
+            <dt>Without confirmation</dt>
+            <dd data-hero-without-confirmation>Loading...</dd>
+          </div>
+        )}
       </dl>
+      {showPotaResults && (
+        <div class="event-hero__progress">
+          <progress max={activateRi2026Event.goalParkCount} value="0" data-hero-pota-progress>
+            0 of {activateRi2026Event.goalParkCount}
+          </progress>
+          <p data-hero-pota-updated aria-live="polite">Loading the unofficial RI POTA evidence summary…</p>
+          <a href="/activate-ri-2026/parks/">See all 61 parks and evidence <span aria-hidden="true">→</span></a>
+        </div>
+      )}
       <div class="button-row" aria-label="Event actions">
         <a class="button" data-variant="primary" href={ctas.primary.href}>
           {ctas.primary.label}
@@ -86,6 +104,7 @@ function formatDateRange(startDate: string, endDate: string) {
         phaseFocus="volunteer"
         legendPlacement="overlay"
         showBoundaries={false}
+        resultsMode={showPotaResults}
       />
     </div>
   </div>
@@ -94,6 +113,7 @@ function formatDateRange(startDate: string, endDate: string) {
 <script>
   import { summarizeParkCoverage } from "../../lib/activate-ri/coverage";
   import { fetchPublicActivationStops } from "../../lib/activate-ri/public-stops-client";
+  import { potaParkStatusStore } from "../../lib/activate-ri/pota-status-store";
   import type { PublicParkSummary } from "../../lib/activate-ri/types";
 
   function setHeroCoverageText(
@@ -114,6 +134,43 @@ function formatDateRange(startDate: string, endDate: string) {
   }
 
   async function setupLiveHeroCoverage(summary: HTMLElement): Promise<void> {
+    const phase = summary.dataset.phase;
+    if (phase === "event-live" || phase === "post-event") {
+      potaParkStatusStore.subscribe((state) => {
+        if (state.status === "ready") {
+          const { snapshot } = state;
+          setHeroCoverageText(
+            summary,
+            `${snapshot.summary.confirmed} / ${snapshot.summary.total}`,
+            String(snapshot.summary.observedNotConfirmed),
+          );
+          summary.querySelector("[data-hero-without-confirmation]")?.replaceChildren(
+            String(snapshot.summary.withoutConfirmation),
+          );
+          const progress = document.querySelector("[data-hero-pota-progress]") as HTMLProgressElement | null;
+          if (progress) {
+            progress.max = snapshot.summary.total;
+            progress.value = snapshot.summary.confirmed;
+            progress.textContent = `${snapshot.summary.confirmed} of ${snapshot.summary.total}`;
+          }
+          const updated = document.querySelector("[data-hero-pota-updated]");
+          const asOf = snapshot.lastPotaSyncAt
+            ? new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC", timeZoneName: "short" }).format(new Date(snapshot.lastPotaSyncAt))
+            : "not yet reconciled";
+          updated?.replaceChildren(
+            snapshot.warning ?? `${phase === "post-event" ? "Provisional results" : "Evidence"} as of ${asOf}.`,
+          );
+        } else if (state.status === "unavailable") {
+          setHeroCoverageText(summary, "Unavailable", "Unavailable");
+          document.querySelector("[data-hero-pota-updated]")?.replaceChildren(
+            "Persisted POTA evidence is temporarily unavailable. Try again shortly.",
+          );
+        }
+      });
+      if (phase === "event-live") potaParkStatusStore.start();
+      else void potaParkStatusStore.refresh();
+      return;
+    }
     try {
       const parks = JSON.parse(summary.dataset.parks ?? "[]") as PublicParkSummary[];
       const stops = await fetchPublicActivationStops();

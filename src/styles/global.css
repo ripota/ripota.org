@@ -587,6 +587,27 @@ p {
   animation: live-map-marker-pulse 1.8s ease-in-out infinite;
 }
 
+.reference-map-status-symbol {
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 950;
+  line-height: 1;
+  pointer-events: none;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.reference-map-status-symbol--observed {
+  font-size: 1.25rem;
+}
+
+.reference-map-status-symbol--needed {
+  color: #fff;
+}
+
 @keyframes live-map-marker-pulse {
   0%,
   100% {
@@ -967,6 +988,25 @@ p {
   line-height: 1;
 }
 
+.event-hero__progress {
+  display: grid;
+  gap: 0.45rem;
+  max-width: 620px;
+  color: color-mix(in srgb, var(--text-on-hero) 86%, transparent);
+}
+
+.event-hero__progress progress {
+  width: 100%;
+  height: 1.1rem;
+  accent-color: #65b87e;
+}
+
+.event-hero__progress a {
+  width: fit-content;
+  color: var(--text-on-hero);
+  font-weight: 850;
+}
+
 .event-hero__map {
   min-width: 0;
 }
@@ -1341,6 +1381,175 @@ p {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
+}
+
+.pota-progress {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.pota-progress__summary,
+.pota-progress__notice,
+.pota-park-card {
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  padding: clamp(1rem, 3vw, 1.5rem);
+}
+
+.pota-progress__summary {
+  display: grid;
+  gap: 1rem;
+}
+
+.pota-progress__summary h2 {
+  max-width: 18ch;
+  font-size: clamp(2rem, 5vw, 3.4rem);
+}
+
+.pota-progress__summary > progress {
+  width: 100%;
+  height: 1.25rem;
+  accent-color: #2d7a4b;
+}
+
+.pota-progress__summary .coverage-summary {
+  margin: 0;
+}
+
+.pota-progress__notice {
+  border-left: 5px solid var(--accent);
+  color: var(--text-muted);
+}
+
+.pota-status-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.pota-status-filters legend {
+  width: 100%;
+  margin-bottom: 0.25rem;
+  color: var(--surface-ink);
+  font-weight: 850;
+}
+
+.pota-status-filters label {
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  padding: 0.55rem 0.75rem;
+  cursor: pointer;
+}
+
+.pota-status-filters label:has(input:checked) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, var(--surface-raised));
+  font-weight: 850;
+}
+
+.pota-status-filters input {
+  margin-right: 0.35rem;
+  accent-color: var(--accent-strong);
+}
+
+.pota-progress__search {
+  max-width: 520px;
+}
+
+.pota-park-results {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  gap: 0.9rem;
+}
+
+.pota-park-card {
+  display: grid;
+  align-content: start;
+  gap: 0.75rem;
+  min-width: 0;
+  border-left: 6px solid #707b78;
+}
+
+.pota-park-card[data-status="confirmed"] {
+  border-left-color: #2d7a4b;
+}
+
+.pota-park-card[data-status="observed"] {
+  border-left-color: #b56b00;
+}
+
+.pota-park-card[data-status="scheduled"] {
+  border-left-color: #0b7180;
+}
+
+.pota-park-card__header {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.pota-park-card h3 {
+  font-size: 1.25rem;
+}
+
+.pota-status-badge {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: color-mix(in srgb, #707b78 16%, var(--surface-raised));
+  padding: 0.3rem 0.55rem;
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.pota-status-badge[data-status="confirmed"] {
+  background: color-mix(in srgb, #2d7a4b 18%, var(--surface-raised));
+}
+
+.pota-status-badge[data-status="observed"] {
+  background: color-mix(in srgb, #b56b00 20%, var(--surface-raised));
+}
+
+.pota-status-badge[data-status="scheduled"] {
+  background: color-mix(in srgb, #0b7180 18%, var(--surface-raised));
+}
+
+.pota-park-card__live {
+  color: #7d4d00;
+  font-weight: 900;
+}
+
+.pota-park-card details {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 0.65rem;
+}
+
+.pota-park-card summary {
+  color: var(--link-strong);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.pota-park-card ul {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 0;
+  padding-left: 1.2rem;
+}
+
+.pota-park-card > a {
+  color: var(--link);
+  font-weight: 800;
+}
+
+.pota-progress__empty {
+  color: var(--text-muted);
+  font-style: italic;
 }
 
 .coverage-summary {
@@ -2782,6 +2991,14 @@ p {
   .hunter-results__header,
   .hunter-lists {
     grid-template-columns: 1fr;
+  }
+
+  .pota-park-card__header {
+    display: grid;
+  }
+
+  .pota-status-badge {
+    width: fit-content;
   }
 }
 

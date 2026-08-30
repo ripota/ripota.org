@@ -1,10 +1,15 @@
 ---
 import EventNav from "../../components/activate-ri/EventNav.astro";
 import ParkCoverageTable from "../../components/activate-ri/ParkCoverageTable.astro";
+import PotaParkProgress from "../../components/activate-ri/PotaParkProgress.astro";
 import Footer from "../../components/Footer.astro";
 import Notice from "../../components/Notice.astro";
 import SiteHeader from "../../components/SiteHeader.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
+import { activateRi2026Event } from "../../data/activate-ri-2026/event";
+
+const showPotaResults = new Set<string>(["event-live", "post-event"])
+  .has(activateRi2026Event.phase);
 ---
 
 <BaseLayout
@@ -19,13 +24,14 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         <EventNav />
         <div class="section-header">
           <p class="eyebrow">Park coverage</p>
-          <h1 id="parks-title">Coverage by park</h1>
+          <h1 id="parks-title">{showPotaResults ? "Event progress by park" : "Coverage by park"}</h1>
           <p class="lead">
-            A reference-by-reference view of planned coverage and gaps for the
-            2026 Rhode Island POTA weekend.
+            {showPotaResults
+              ? "A reference-by-reference view of persistent POTA evidence, current spots, and planned event coverage."
+              : "A reference-by-reference view of planned coverage and gaps for the 2026 Rhode Island POTA weekend."}
           </p>
         </div>
-        <ParkCoverageTable />
+        {showPotaResults ? <PotaParkProgress /> : <ParkCoverageTable />}
       </div>
     </section>
     <Notice />

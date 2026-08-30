@@ -4,7 +4,14 @@ import { normalizeRiPotaSpots } from "./spots";
 const parkNames = new Map([
   ["US-10545", "Hillsdale Preserve Management Area"],
   ["US-2868", "Beavertail State Park"],
+  ["US-7971", "Blackstone River Valley National Historical Park"],
 ]);
+const parkLocations = new Map([
+  ["US-10545", "US-RI"],
+  ["US-2868", "US-RI"],
+  ["US-7971", "US-MA, US-RI"],
+]);
+const options = { parkNames, parkLocations };
 
 function spot(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -26,7 +33,7 @@ function spot(overrides: Record<string, unknown> = {}): Record<string, unknown> 
 
 describe("normalizeRiPotaSpots", () => {
   it("projects verified upstream fields into the public RI live shape", () => {
-    expect(normalizeRiPotaSpots([spot()], { parkNames })).toEqual([
+    expect(normalizeRiPotaSpots([spot()], options)).toEqual([
       {
         id: "55398684",
         parkReference: "US-10545",
@@ -38,6 +45,7 @@ describe("normalizeRiPotaSpots", () => {
         spotterCallsign: "KW7MM-#",
         comments: "RBN 5 dB 24 WPM",
         sourceLabel: "RBN",
+        locationDesc: "US-RI",
         expiresInSeconds: 561,
         parkUrl: "https://pota.app/#/park/US-10545",
         spotsUrl: "https://pota.app/",
@@ -54,7 +62,7 @@ describe("normalizeRiPotaSpots", () => {
         spot({ spotId: 4, invalid: "invalid reference" }),
         spot({ spotId: 5, reference: "US-2868", name: "" }),
       ],
-      { parkNames },
+      options,
     );
 
     expect(result).toHaveLength(1);
@@ -74,13 +82,22 @@ describe("normalizeRiPotaSpots", () => {
         spot({ spotId: 2, spotTime: "2026-08-19T13:20:00" }),
         spot({ spotId: 3, spotTime: "2026-08-19T13:30:00" }),
       ],
-      { parkNames },
+      options,
     );
 
     expect(result.map((item) => item.id)).toEqual(["3", "2"]);
   });
 
   it("returns an empty list for a non-array upstream payload", () => {
-    expect(normalizeRiPotaSpots({ error: "changed schema" }, { parkNames })).toEqual([]);
+    expect(normalizeRiPotaSpots({ error: "changed schema" }, options)).toEqual([]);
+  });
+
+  it("requires an explicit RI selection for multi-location references", () => {
+    expect(normalizeRiPotaSpots([
+      spot({ spotId: 1, reference: "US-7971", locationDesc: undefined }),
+      spot({ spotId: 2, reference: "US-7971", locationDesc: "US-MA" }),
+      spot({ spotId: 3, reference: "US-7971", locationDesc: "US-RI" }),
+      spot({ spotId: 4, reference: "US-2868", locationDesc: 42 }),
+    ], options).map((item) => item.id)).toEqual(["3"]);
   });
 });

@@ -58,6 +58,12 @@ import { verifyTurnstile } from "../turnstile";
 import { handleActivateRiAdminOpsApi } from "./activate-ri-admin-ops";
 import { handleActivateRiOpsApi } from "./activate-ri-ops";
 import { handleActivateRiOpsSocket } from "./activate-ri-ops-socket";
+import {
+  getPotaAdminStatus,
+  getPublicPotaParkStatus,
+  requestDeepPotaReconciliation,
+  runPotaHistoryReconciliation,
+} from "../pota-event";
 
 const submissionReceivedMessage =
   "Submission received for organizer review.";
@@ -150,6 +156,54 @@ export async function handleActivateRiApi(
     url.pathname === "/api/activate-ri-2026/public/stops"
   ) {
     return handlePublicStops(request, env, ctx);
+  }
+
+  if (
+    request.method === "GET" &&
+    url.pathname === "/api/activate-ri-2026/public/park-status"
+  ) {
+    return json(
+      await getPublicPotaParkStatus(env),
+      { headers: publicJsonCacheHeaders },
+    );
+  }
+
+  if (
+    request.method === "GET" &&
+    url.pathname === "/api/activate-ri-2026/admin/pota-status"
+  ) {
+    const identity = await requireAccessIdentity(request, env);
+    if (identity instanceof Response) return identity;
+    return privateJson({ ok: true, status: await getPotaAdminStatus(env) });
+  }
+
+  if (
+    request.method === "POST" &&
+    url.pathname === "/api/activate-ri-2026/admin/pota-reconcile"
+  ) {
+    const identity = await requireAccessIdentity(request, env);
+    if (identity instanceof Response) return identity;
+    if (!hasTrustedOrigin(request, env)) {
+      return privateJson({ ok: false, error: "Forbidden" }, { status: 403 });
+    }
+    const deep = await requestedDeepReconciliation(request);
+    if (deep) await requestDeepPotaReconciliation(env);
+    const work = runPotaHistoryReconciliation(env, { force: true });
+    if (ctx) {
+      ctx.waitUntil(work.then((result) => {
+        console.log(JSON.stringify({ event: "activate-ri-pota-manual-reconciliation", requestedBy: identity.email, ...result }));
+      }));
+    } else {
+      await work;
+    }
+    return privateJson({
+      ok: true,
+      accepted: true,
+      deep,
+      message: deep
+        ? "Deep POTA reconciliation started and will continue in scheduled batches."
+        : "POTA reconciliation batch started.",
+    }, { status: 202 });
   }
 
   if (
@@ -317,6 +371,15 @@ export async function handleActivateRiApi(
   }
 
   return json({ ok: false, error: "Not found" }, { status: 404 });
+}
+
+async function requestedDeepReconciliation(request: Request): Promise<boolean> {
+  try {
+    const value: unknown = await request.json();
+    return !isObject(value) || value.deep !== false;
+  } catch {
+    return true;
+  }
 }
 
 async function handlePublicStops(

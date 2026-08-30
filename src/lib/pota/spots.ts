@@ -13,6 +13,7 @@ export type LivePotaSpot = {
   spotterCallsign: string;
   comments: string;
   sourceLabel: string;
+  locationDesc: "US-RI";
   expiresInSeconds: number | null;
   parkUrl: string;
   spotsUrl: string;
@@ -20,11 +21,12 @@ export type LivePotaSpot = {
 
 export type NormalizePotaSpotsOptions = {
   parkNames: ReadonlyMap<string, string>;
+  parkLocations: ReadonlyMap<string, string>;
 };
 
 export function normalizeRiPotaSpots(
   value: unknown,
-  { parkNames }: NormalizePotaSpotsOptions,
+  { parkNames, parkLocations }: NormalizePotaSpotsOptions,
 ): LivePotaSpot[] {
   if (!Array.isArray(value)) {
     return [];
@@ -32,7 +34,7 @@ export function normalizeRiPotaSpots(
 
   return value
     .flatMap((candidate, index) => {
-      const spot = normalizeRiPotaSpot(candidate, index, parkNames);
+      const spot = normalizeRiPotaSpot(candidate, index, parkNames, parkLocations);
       return spot ? [spot] : [];
     })
     .sort((left, right) => right.spotTime.localeCompare(left.spotTime));
@@ -42,6 +44,7 @@ function normalizeRiPotaSpot(
   value: unknown,
   index: number,
   parkNames: ReadonlyMap<string, string>,
+  parkLocations: ReadonlyMap<string, string>,
 ): LivePotaSpot | null {
   if (!isRecord(value)) {
     return null;
@@ -54,6 +57,7 @@ function normalizeRiPotaSpot(
   const spotTime = stringValue(value.spotTime).trim();
   const comments = stringValue(value.comments).trim();
   const expiresInSeconds = numberOrNull(value.expire);
+  const locationDesc = riSpotLocation(value.locationDesc, parkLocations.get(parkReference));
 
   if (
     !parkNames.has(parkReference) ||
@@ -61,6 +65,7 @@ function normalizeRiPotaSpot(
     !frequency ||
     !mode ||
     !spotTime ||
+    !locationDesc ||
     isInvalidSpot(value.invalid) ||
     (expiresInSeconds !== null && expiresInSeconds <= 0) ||
     /\bQRT\b/i.test(comments)
@@ -81,10 +86,29 @@ function normalizeRiPotaSpot(
     spotterCallsign: stringValue(value.spotter).trim().toUpperCase(),
     comments,
     sourceLabel: stringValue(value.source).trim(),
+    locationDesc,
     expiresInSeconds,
     parkUrl: officialPotaParkUrl(parkReference),
     spotsUrl: officialPotaSpotsUrl,
   };
+}
+
+function riSpotLocation(value: unknown, catalogLocation: string | undefined): "US-RI" | null {
+  if (value !== undefined && value !== null && value !== "") {
+    if (typeof value !== "string") return null;
+    const selected = locationCodes(value);
+    return selected.length === 1 && selected[0] === "US-RI" ? "US-RI" : null;
+  }
+
+  const catalog = locationCodes(catalogLocation ?? "");
+  return catalog.length === 1 && catalog[0] === "US-RI" ? "US-RI" : null;
+}
+
+function locationCodes(value: string): string[] {
+  return [...new Set(value
+    .split(",")
+    .map((code) => code.trim().toUpperCase().replaceAll("_", "-"))
+    .filter((code) => /^US-[A-Z]{2}$/.test(code)))];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
