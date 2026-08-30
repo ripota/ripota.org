@@ -88,6 +88,10 @@ const references = riReferences.map(({ reference, name, potaUrl }) => ({
       </section>
     </div>
 
+    <p class="hunter-schedule-note" data-hunter-schedule-status aria-live="polite">
+      Loading planned park schedules…
+    </p>
+
     <div class="hunter-local-actions">
       <button class="button" data-variant="light" type="button" data-hunter-reset-overrides>
         Reset manual changes
@@ -114,6 +118,9 @@ const references = riReferences.map(({ reference, name, potaUrl }) => ({
     type HunterChecklistState,
     type HunterReference,
   } from "../../lib/activate-ri/hunter-checklist";
+  import { fetchPublicActivationStops } from "../../lib/activate-ri/public-stops-client";
+  import { formatActivationDate, formatActivationTimeRange } from "../../lib/activate-ri/time";
+  import type { PublicActivationStop } from "../../lib/activate-ri/types";
 
   document.querySelectorAll<HTMLElement>("[data-hunter-checklist]").forEach(setupHunterChecklist);
 
@@ -127,9 +134,12 @@ const references = riReferences.map(({ reference, name, potaUrl }) => ({
     const search = root.querySelector("[data-hunter-search]") as HTMLInputElement | null;
     const filter = root.querySelector("[data-hunter-filter]") as HTMLSelectElement | null;
     let storageAvailable = true;
+    let scheduleState: "loading" | "ready" | "unavailable" = "loading";
+    let publicStops: PublicActivationStop[] = [];
     let state = loadState();
 
     render();
+    void loadSchedules();
 
     fileInput?.addEventListener("change", () => {
       const file = fileInput.files?.[0];
@@ -192,6 +202,24 @@ const references = riReferences.map(({ reference, name, potaUrl }) => ({
       } finally {
         if (fileInput) fileInput.value = "";
       }
+    }
+
+    async function loadSchedules(): Promise<void> {
+      try {
+        publicStops = await fetchPublicActivationStops();
+        scheduleState = "ready";
+        setText(
+          "[data-hunter-schedule-status]",
+          "Schedule times are planned estimates in Eastern time. Confirm live activity with official POTA spots.",
+        );
+      } catch {
+        scheduleState = "unavailable";
+        setText(
+          "[data-hunter-schedule-status]",
+          "Planned schedules are temporarily unavailable here. Use the event Schedule page for the latest information.",
+        );
+      }
+      renderLists();
     }
 
     function loadState(): HunterChecklistState {
@@ -286,7 +314,55 @@ const references = riReferences.map(({ reference, name, potaUrl }) => ({
       label.appendChild(copy);
       item.appendChild(label);
       item.appendChild(official);
+      item.appendChild(parkSchedule(park));
       return item;
+    }
+
+    function parkSchedule(park: HunterReference): HTMLElement {
+      const container = document.createElement("div");
+      container.className = "hunter-park-schedule";
+
+      if (scheduleState === "loading") {
+        container.textContent = "Loading event schedule…";
+        return container;
+      }
+
+      if (scheduleState === "unavailable") {
+        const link = document.createElement("a");
+        link.href = "/activate-ri-2026/schedule/";
+        link.textContent = "View the event schedule";
+        container.appendChild(link);
+        return container;
+      }
+
+      const stops = publicStops
+        .filter((stop) => stop.parkReference === park.reference)
+        .sort((left, right) =>
+          `${left.plannedDate}T${left.startTime}`.localeCompare(`${right.plannedDate}T${right.startTime}`),
+        );
+      if (stops.length === 0) {
+        container.textContent = "No event stop currently scheduled";
+        return container;
+      }
+
+      const details = document.createElement("details");
+      const summary = document.createElement("summary");
+      summary.textContent = `Show event schedule (${stops.length})`;
+      details.appendChild(summary);
+      const list = document.createElement("ul");
+      for (const stop of stops) {
+        const item = document.createElement("li");
+        const timing = document.createElement("strong");
+        timing.textContent = `${formatActivationDate(stop)} · ${formatActivationTimeRange(stop)}`;
+        const context = document.createElement("span");
+        context.textContent = `${stop.activatorCallsign} · ${stopStatusLabel(stop.status)}`;
+        item.appendChild(timing);
+        item.appendChild(context);
+        list.appendChild(item);
+      }
+      details.appendChild(list);
+      container.appendChild(details);
+      return container;
     }
 
     function setText(selector: string, value: string): void {
@@ -309,6 +385,16 @@ const references = riReferences.map(({ reference, name, potaUrl }) => ({
       error.textContent = "";
       error.hidden = true;
     }
+  }
+
+  function stopStatusLabel(status: PublicActivationStop["status"]): string {
+    return {
+      "pending-review": "Pending review",
+      scheduled: "Scheduled",
+      delayed: "Delayed",
+      cancelled: "Cancelled",
+      completed: "Completed",
+    }[status];
   }
 
   function parseReferences(value: string | undefined): HunterReference[] {

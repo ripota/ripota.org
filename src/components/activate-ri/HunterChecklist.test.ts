@@ -27,4 +27,13 @@ describe("hunter checklist surface", () => {
     expect(component).toContain("Reset manual changes");
     expect(component).toContain("Clear my checklist data");
   });
+
+  it("loads and discloses the public event schedule for each park", () => {
+    expect(component).toContain("fetchPublicActivationStops");
+    expect(component).toContain("Show event schedule");
+    expect(component).toContain("formatActivationDate(stop)");
+    expect(component).toContain("formatActivationTimeRange(stop)");
+    expect(component).toContain("No event stop currently scheduled");
+    expect(component).toContain("planned estimates in Eastern time");
+  });
 });

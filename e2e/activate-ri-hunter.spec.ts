@@ -12,6 +12,26 @@ const csv = [
 test("hunter imports, overrides, filters, persists, resets, and clears a local checklist", async ({ page }) => {
   const server = await startActivateRiServer();
   try {
+    await page.route("**/api/activate-ri-2026/public/stops", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          stops: [{
+            id: "hunter-schedule-stop",
+            parkReference: "US-0513",
+            plannedDate: "2026-09-12",
+            startTime: "13:00",
+            endTime: "15:00",
+            activatorCallsign: "W1AW",
+            bands: ["20m"],
+            modes: ["SSB"],
+            publicNotes: "",
+            status: "scheduled",
+          }],
+        }),
+      });
+    });
     await page.goto(`${server.origin}/activate-ri-2026/hunter/`);
     await expect(page.getByRole("link", { name: "Hunter", exact: true })).toHaveAttribute("aria-current", "page");
     await expect(page.getByRole("link", { name: /Open POTA My Stats/ })).toHaveAttribute("href", "https://pota.app/#/user/stats");
@@ -20,6 +40,9 @@ test("hunter imports, overrides, filters, persists, resets, and clears a local c
     await page.getByLabel("Choose CSV file").setInputFiles({ name: "hunter_parks.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
     await expect(page.getByRole("status")).toContainText("Import complete");
     await expect(page.getByRole("heading", { name: /1 of 61 Rhode Island parks hunted/ })).toBeVisible();
+    await page.getByText("Show event schedule (1)").click();
+    await expect(page.getByText(/Sep 12, 2026.*09:00-11:00 EDT/)).toBeVisible();
+    await expect(page.getByText("W1AW · Scheduled")).toBeVisible();
 
     await page.getByLabel(/US-0514 .* hunted/).check();
     await expect(page.getByRole("heading", { name: /2 of 61 Rhode Island parks hunted/ })).toBeVisible();
