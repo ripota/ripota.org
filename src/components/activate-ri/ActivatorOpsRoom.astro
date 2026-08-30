@@ -222,6 +222,15 @@ const parkNames = Object.fromEntries(
       updateRoomMode(payload.roomMode);
       return;
     }
+    if (isMembershipControl(payload)) {
+      membershipStatus = payload.status;
+      disableComposer(roomMode !== "full" || membershipStatus !== "active");
+      if (payload.status === "banned") {
+        setConnection("unavailable", "Room access unavailable");
+        closeSocket(true);
+      }
+      return;
+    }
     if (!isRoomEvent(payload)) {
       socket?.close(1002, "Invalid event");
       return;
@@ -714,6 +723,15 @@ const parkNames = Object.fromEntries(
     return typeof value === "object" && value !== null &&
       Number.isSafeInteger((value as { sequence?: unknown }).sequence) &&
       typeof (value as { type?: unknown }).type === "string";
+  }
+
+  function isMembershipControl(value: unknown): value is {
+    type: "membership-changed";
+    status: MembershipStatus;
+  } {
+    return typeof value === "object" && value !== null &&
+      (value as { type?: unknown }).type === "membership-changed" &&
+      ["active", "muted", "banned"].includes(String((value as { status?: unknown }).status));
   }
 
   async function restoreDraft(): Promise<void> {

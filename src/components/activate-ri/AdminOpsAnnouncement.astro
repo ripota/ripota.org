@@ -1,0 +1,13 @@
+<section class="admin-activity" aria-labelledby="admin-ops-announcement-title">
+  <h3 id="admin-ops-announcement-title">Organizer announcement</h3>
+  <form class="event-form admin-ops-form" data-admin-ops-announcement>
+    <label>
+      Announcement text
+      <textarea name="body" rows="4" maxlength="1000" required></textarea>
+    </label>
+    <label class="admin-ops-check"><input type="checkbox" name="pin" /> Pin this announcement</label>
+    <label class="admin-ops-check"><input type="checkbox" name="email" /> Also email eligible activators</label>
+    <p class="ops-meta" data-admin-ops-recipient-preview></p>
+    <button class="button" data-variant="primary" type="submit">Post announcement</button>
+  </form>
+</section>

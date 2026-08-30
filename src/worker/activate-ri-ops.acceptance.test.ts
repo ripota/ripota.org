@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "./env";
 import { ActivateRiOpsRoom } from "./durable-objects/activate-ri-ops-room";
 import { handleActivateRiApi } from "./routes/activate-ri";
@@ -231,9 +231,155 @@ describe("Activate RI Ops Room D1 flow", () => {
     );
     expect(bootstrap.status).toBe(503);
   });
+
+  it("keeps announcement email explicit and enforces moderation separately from plan access", async () => {
+    const database = createMigratedSqliteD1();
+    closeDatabase = database.close;
+    const env = testEnv(database.DB);
+    const send = vi.fn(async () => ({ messageId: "announcement-email" }));
+    const { cookie, activatorId } = await approvedActivator(env);
+    env.EMAIL = { send } as unknown as SendEmail;
+    env.ACTIVATE_RI_EMAIL_FROM = "activate-ri-2026@ripota.org";
+    const background: Promise<unknown>[] = [];
+    const ctx = {
+      waitUntil(promise: Promise<unknown>) {
+        background.push(promise);
+      },
+    } as unknown as ExecutionContext;
+
+    const announcement = await handleActivateRiApi(
+      adminRequest("/api/activate-ri-2026/admin/ops/announcements", {
+        method: "POST",
+        headers: jsonHeaders(),
+        body: JSON.stringify({
+          clientNonce: "2ce0cb69-587e-4e87-8d86-66c28cfbec27",
+          body: "Coastal winds are increasing after 6 PM.",
+          context: null,
+          pin: true,
+          emailEligibleActivators: true,
+        }),
+      }),
+      env,
+      ctx,
+    );
+    expect(announcement.status).toBe(200);
+    const announcementBody = await announcement.json() as {
+      event: { message: { id: string } };
+      broadcast: { id: string; recipientCount: number };
+    };
+    expect(announcementBody.broadcast.recipientCount).toBe(1);
+    await Promise.all(background);
+    expect(send).toHaveBeenCalledOnce();
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({
+      to: "activate-ri-2026@ripota.org",
+      bcc: ["rob@example.com"],
+    }));
+
+    const remove = await handleActivateRiApi(
+      adminRequest(
+        `/api/activate-ri-2026/admin/ops/messages/${announcementBody.event.message.id}/remove`,
+        {
+          method: "POST",
+          headers: jsonHeaders(),
+          body: JSON.stringify({ reason: "Superseded by a newer wind update." }),
+        },
+      ),
+      env,
+    );
+    expect(remove.status).toBe(200);
+    const stored = await env.DB.prepare(
+      `SELECT body, removal_reason FROM activate_ri_ops_messages WHERE id = ?`,
+    ).bind(announcementBody.event.message.id).first<{
+      body: string;
+      removal_reason: string;
+    }>();
+    expect(stored).toEqual({
+      body: "",
+      removal_reason: "Superseded by a newer wind update.",
+    });
+    const audits = await env.DB.prepare(
+      `SELECT details_json FROM activate_ri_activity_events
+       WHERE action = 'ops-message-removed'`,
+    ).all<{ details_json: string }>();
+    expect(JSON.stringify(audits.results)).not.toContain("Coastal winds");
+
+    const ban = await handleActivateRiApi(
+      adminRequest(`/api/activate-ri-2026/admin/ops/members/${encodeURIComponent(activatorId)}`, {
+        method: "PATCH",
+        headers: jsonHeaders(),
+        body: JSON.stringify({ status: "banned", reason: "Test moderation." }),
+      }),
+      env,
+    );
+    expect(ban.status).toBe(200);
+    const room = await handleActivateRiApi(
+      sessionRequest("/api/activate-ri-2026/ops/bootstrap", cookie),
+      env,
+    );
+    expect(room.status).toBe(403);
+    const plans = await handleActivateRiApi(
+      sessionRequest("/api/activate-ri-2026/activator/plans", cookie),
+      env,
+    );
+    expect(plans.status).toBe(200);
+  });
+
+  it("revokes sessions separately and replaces all old secure links", async () => {
+    const database = createMigratedSqliteD1();
+    closeDatabase = database.close;
+    const env = testEnv(database.DB);
+    const send = vi.fn(async () => ({ messageId: "security-email" }));
+    const { cookie, activatorId, editToken } = await approvedActivator(env);
+    env.EMAIL = { send } as unknown as SendEmail;
+    env.ACTIVATE_RI_EMAIL_FROM = "activate-ri-2026@ripota.org";
+
+    const revoke = await handleActivateRiApi(
+      adminRequest(`/api/activate-ri-2026/admin/activators/${encodeURIComponent(activatorId)}/revoke-sessions`, {
+        method: "POST",
+        headers: jsonHeaders(),
+        body: "{}",
+      }),
+      env,
+    );
+    expect(revoke.status).toBe(200);
+    const expiredSession = await handleActivateRiApi(
+      sessionRequest("/api/activate-ri-2026/activator/session", cookie),
+      env,
+    );
+    expect(expiredSession.status).toBe(401);
+    const legacyBeforeReplace = await handleActivateRiApi(
+      new Request(`https://ripota.org/api/activate-ri-2026/edit/${editToken}/plans`),
+      env,
+    );
+    expect(legacyBeforeReplace.status).toBe(200);
+
+    const replace = await handleActivateRiApi(
+      adminRequest(`/api/activate-ri-2026/admin/activators/${encodeURIComponent(activatorId)}/replace-secure-links`, {
+        method: "POST",
+        headers: jsonHeaders(),
+        body: "{}",
+      }),
+      env,
+    );
+    expect(replace.status).toBe(200);
+    await expect(replace.json()).resolves.toEqual({ ok: true, emailStatus: "sent" });
+    const legacyAfterReplace = await handleActivateRiApi(
+      new Request(`https://ripota.org/api/activate-ri-2026/edit/${editToken}/plans`),
+      env,
+    );
+    expect(legacyAfterReplace.status).toBe(404);
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({
+      subject: "Your Activate All RI 2026 private links were replaced",
+      text: expect.stringContaining("/activate-ri-2026/access/#"),
+    }));
+  });
 });
 
-async function approvedActivator(env: Env): Promise<{ cookie: string; activatorId: string }> {
+async function approvedActivator(env: Env): Promise<{
+  cookie: string;
+  activatorId: string;
+  editToken: string;
+}> {
   const submit = await handleActivateRiApi(jsonRequest(
     "/api/activate-ri-2026/plans",
     volunteerPayload(),
@@ -261,7 +407,7 @@ async function approvedActivator(env: Env): Promise<{ cookie: string; activatorI
   );
   const cookie = session.headers.get("set-cookie")?.split(";", 1)[0] ?? "";
   expect(cookie).toContain("__Host-activate-ri-session=");
-  return { cookie, activatorId };
+  return { cookie, activatorId, editToken: token };
 }
 
 function testEnv(DB: D1Database): Env {

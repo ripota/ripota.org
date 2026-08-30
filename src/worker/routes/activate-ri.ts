@@ -92,9 +92,9 @@ export async function handleActivateRiApi(
     );
   }
 
-  if (url.pathname === "/api/activate-ri-2026/admin/ops" ||
-    url.pathname === "/api/activate-ri-2026/admin/ops/settings") {
-    return handleActivateRiAdminOpsApi(request, env);
+  if (url.pathname.startsWith("/api/activate-ri-2026/admin/ops") ||
+    /^\/api\/activate-ri-2026\/admin\/activators\/[^/]+\/(?:revoke-sessions|replace-secure-links)$/.test(url.pathname)) {
+    return handleActivateRiAdminOpsApi(request, env, ctx);
   }
 
   if (url.pathname === "/api/activate-ri-2026/ops/socket") {

@@ -2154,6 +2154,22 @@ p {
   padding-left: 1.25rem;
 }
 
+.admin-ops {
+  margin-top: 1.5rem;
+}
+
+.admin-ops-form {
+  padding: 0;
+  background: transparent;
+}
+
+.admin-ops-check {
+  display: flex !important;
+  grid-template-columns: none !important;
+  align-items: center;
+  gap: 0.55rem !important;
+}
+
 @media (max-width: 820px) {
   .ops-room__layout {
     grid-template-columns: 1fr;

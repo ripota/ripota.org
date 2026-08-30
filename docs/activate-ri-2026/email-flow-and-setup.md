@@ -1,7 +1,7 @@
 # Activate RI 2026 Email Flow and Operational Setup
 
-This document covers the activator magic-link email flow and the operational
-setup required in Cloudflare.
+This document covers private activator-link email, explicit Ops Room
+announcement broadcasts, and the operational setup required in Cloudflare.
 
 ## Runtime Flow
 
@@ -11,15 +11,15 @@ setup required in Cloudflare.
 2. `POST /api/activate-ri-2026/plans` validates the submission and Turnstile.
 3. The Worker generates a random edit token.
 4. The activator row is upserted by normalized email.
-5. Only the SHA-256 token hash is stored in
-   `activate_ri_activators.magic_token_hash`.
-6. The plan is stored as `pending` under that activator.
+5. Only the SHA-256 token hash is stored in `activate_ri_edit_tokens`. The
+   legacy activator token column is cleared and is not an authentication source.
+6. The signup remains `pending` under that activator.
 7. A `plan-created` activity event is written.
 8. The Worker sends the activator an email containing:
    - the current saved status (`Pending organizer approval` or
      `Live on the public schedule`)
    - the current saved stop list
-   - the private edit URL
+   - a fragment-based private access URL
    - the activator help URL
 9. Email success or failure is written as `edit-link-sent` or
    `edit-link-send-failed`.
@@ -48,18 +48,19 @@ visible in the admin activity log.
 
 ### Activator edits
 
-1. The activator opens `/activate-ri-2026/edit/<token>/`.
-2. The browser loads all plans for that activator from
-   `GET /api/activate-ri-2026/edit/<token>/plans`.
-3. Saving submits the selected plan to
-   `PATCH /api/activate-ri-2026/edit/<token>/plans/<plan-id>`.
+1. The activator opens `/activate-ri-2026/access/#<token>` (or an existing
+   legacy `/edit/<token>/` link).
+2. The link is exchanged for a hashed, HttpOnly 14-day browser session and the
+   browser enters the tokenless activator portal.
+3. The editor uses session-authenticated `/api/activate-ri-2026/activator/*`
+   routes. Legacy token APIs remain compatibility adapters.
 4. Pending plans update immediately but are still not public.
 5. Approved plans update immediately and the live public schedule/coverage API
    reflects the new D1 data.
 6. Every meaningful edit writes activity events.
 7. Saved plan edits trigger an activator receipt email with the current saved
-   status, current saved stop list, and private edit link. The route currently
-   sends the same receipt for logistical edits and band/mode-only edits.
+   status, current saved stop list, and tokenless portal link. Legacy-token API
+   edits include a fragment access link so the recipient can establish a session.
 8. High-impact approved-plan changes trigger an admin notification attempt.
    The activity log records `admin-notification-sent`,
    `admin-notification-failed`, or `admin-notification-skipped`.
@@ -83,8 +84,36 @@ reference, and park name:
    activator by callsign and normalized email.
 3. The response is always privacy-safe:
    `If we found a matching signup, we sent the private edit link.`
-4. If a match exists, the Worker rotates the activator magic token, stores the
-   new hash, sends a fresh link, and logs the resend event.
+4. If a match exists, the Worker adds another secure token, sends a fresh link,
+   and logs the resend event. Public recovery does not revoke older links or
+   sessions, which prevents unauthenticated denial of access.
+
+### Organizer security replacement
+
+The admin panel exposes two distinct operations:
+
+- **Revoke portal sessions** invalidates browser sessions but keeps secure
+  email links usable.
+- **Replace all secure links** revokes every edit token and browser session,
+  creates one replacement link, sends a security-notification email, and writes
+  an audit event.
+
+These are separate from Ops Room mute/ban controls. A room ban does not remove
+plan-edit access.
+
+### Ops Room announcement email
+
+Ordinary room messages never send email. An organizer must explicitly select
+**Also email eligible activators** and confirm the recipient count when posting
+an announcement. The room announcement commits independently before delivery.
+
+Eligible recipients are active and muted Ops Room members; banned or unapproved
+activators are excluded. Recipient IDs are snapshotted in D1. The Worker sends
+BCC batches of at most 49 activator addresses, using the event sender address as
+the single `To` recipient so the provider's combined count stays at most 50.
+Addresses are never exposed to other recipients. Delivery status is recorded as
+`pending`, `sending`, `sent`, `partial`, or `failed`, and the admin panel can
+retry failed recipients only.
 
 ## Cloudflare Email Service Setup
 
@@ -162,11 +191,12 @@ Important: D1 migration commands default to local Wrangler storage unless
 npx wrangler d1 migrations apply ripota-org --remote
 ```
 
-Wrangler will show the unapplied migration and prompt for confirmation. The
-new migration is:
+Wrangler will show the unapplied migrations and prompt for confirmation. The
+current private-session and Ops Room migrations are:
 
 ```text
-migrations/0003_magic_links_and_audit.sql
+migrations/0009_activator_sessions.sql
+migrations/0010_activator_ops_room.sql
 ```
 
 ### 4. Enable Email Sending for `ripota.org`
@@ -245,11 +275,11 @@ curl -I https://ripota.org/assets/logos/ri-pota-bimi.svg
 ### 7. Deploy
 
 ```bash
-npx wrangler deploy
+mise run deploy
 ```
 
-Do not add `--env production` unless you intentionally want Wrangler to target
-or create an environment-specific Worker named `ripota-org-production`.
+The task backs up D1, applies remote migrations, and deploys the top-level
+Worker. Do not deploy with `wrangler deploy --env production`.
 
 If you accidentally ran:
 

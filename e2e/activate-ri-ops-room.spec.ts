@@ -12,8 +12,10 @@ test("approved activators acknowledge rules and exchange a live room message", a
   const email = `${callsign.toLowerCase()}@example.com`;
   const firstContext = await browser.newContext();
   const secondContext = await browser.newContext();
+  const adminContext = await browser.newContext();
   const first = await firstContext.newPage();
   const second = await secondContext.newPage();
+  const admin = await adminContext.newPage();
 
   try {
     const submit = await request.post(`${server.origin}/api/activate-ri-2026/plans`, {
@@ -81,9 +83,38 @@ test("approved activators acknowledge rules and exchange a live room message", a
       "Checking in from Beavertail.",
     );
     await expect(second.locator("[data-ops-feed]")).toContainText("US-2868");
+
+    await admin.goto(`${server.origin}/activate-ri-2026/admin/`);
+    await expect(admin.locator("[data-admin-ops-status]")).toHaveText(
+      "Ops Room state is current.",
+    );
+    await admin.locator("[data-admin-ops-announcement] textarea").fill(
+      "Organizer test announcement.",
+    );
+    await admin.locator("[data-admin-ops-announcement] input[name=pin]").check();
+    admin.once("dialog", (dialog) => dialog.accept());
+    await admin.getByRole("button", { name: "Post announcement" }).click();
+    await expect(second.locator("[data-ops-pin]")).toContainText(
+      "Organizer test announcement.",
+    );
+
+    const messageCard = admin.locator("[data-admin-ops-messages] .admin-card").filter({
+      hasText: "Checking in from Beavertail.",
+    });
+    admin.once("dialog", (dialog) => dialog.accept("Superseded during E2E."));
+    await messageCard.getByRole("button", { name: "Remove" }).click();
+    await expect(second.locator("[data-ops-feed]")).toContainText("Message removed.");
+
+    const memberCard = admin.locator("[data-admin-ops-members] .admin-card").filter({
+      hasText: callsign,
+    });
+    admin.once("dialog", (dialog) => dialog.accept("E2E mute check."));
+    await memberCard.getByRole("button", { name: "Mute", exact: true }).click();
+    await expect(second.locator("[data-ops-send]")).toBeDisabled();
   } finally {
     await firstContext.close();
     await secondContext.close();
+    await adminContext.close();
     await server.stop();
   }
 });

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { validateOpsMessage, validateOpsRoomMode } from "./ops-validation";
+import {
+  validateModerationReason,
+  validateOpsAnnouncement,
+  validateOpsMembershipPatch,
+  validateOpsMessage,
+  validateOpsRoomMode,
+} from "./ops-validation";
 
 describe("Ops Room validation", () => {
   it("normalizes plain text and accepts a valid owned-stop update shape", () => {
@@ -55,5 +61,21 @@ describe("Ops Room validation", () => {
       value: "announcements",
     });
     expect(validateOpsRoomMode({ roomMode: "public" })).toMatchObject({ ok: false });
+  });
+
+  it("keeps announcements organizer-only and validates explicit moderation reasons", () => {
+    expect(validateOpsAnnouncement({
+      clientNonce: "2ce0cb69-587e-4e87-8d86-66c28cfbec27",
+      body: "Coastal winds are increasing.",
+      context: { type: "park", parkReference: "US-2868" },
+      pin: true,
+      emailEligibleActivators: true,
+    })).toMatchObject({ ok: true });
+    expect(validateOpsMembershipPatch({ status: "banned", reason: "" })).toMatchObject({ ok: false });
+    expect(validateOpsMembershipPatch({ status: "muted", reason: "Repeated abuse." })).toEqual({
+      ok: true,
+      value: { status: "muted", reason: "Repeated abuse." },
+    });
+    expect(validateModerationReason({ reason: "" })).toMatchObject({ ok: false });
   });
 });

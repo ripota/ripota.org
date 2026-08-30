@@ -60,6 +60,79 @@ export async function getOpsRoomStats(env: Env): Promise<{ connectedClients: num
   return { connectedClients: body.connectedClients ?? 0 };
 }
 
+export async function postOpsAnnouncementThroughRoom(
+  env: Env,
+  actorKey: string,
+  actorEmail: string,
+  input: unknown,
+): Promise<Response> {
+  return opsRoomStub(env).fetch("https://ops.internal/announcements", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-ops-actor-type": "admin",
+      "x-ops-admin-key": actorKey,
+      "x-ops-admin-email": actorEmail,
+      "x-ops-label": "Organizer",
+    },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function moderateOpsMessageThroughRoom(
+  env: Env,
+  actorEmail: string,
+  messageId: string,
+  action: "remove" | "resolve" | "reopen",
+  reason: string,
+): Promise<Response> {
+  return opsRoomStub(env).fetch(
+    `https://ops.internal/moderation/messages/${encodeURIComponent(messageId)}/${action}`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-ops-actor-type": "admin",
+        "x-ops-admin-email": actorEmail,
+        "x-ops-label": "Organizer",
+      },
+      body: JSON.stringify({ reason }),
+    },
+  );
+}
+
+export async function updateOpsMemberThroughRoom(
+  env: Env,
+  actorEmail: string,
+  activatorId: string,
+  status: "active" | "muted" | "banned",
+  reason: string,
+): Promise<Response> {
+  return opsRoomStub(env).fetch(
+    `https://ops.internal/members/${encodeURIComponent(activatorId)}`,
+    {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+        "x-ops-actor-type": "admin",
+        "x-ops-admin-email": actorEmail,
+        "x-ops-label": "Organizer",
+      },
+      body: JSON.stringify({ status, reason }),
+    },
+  );
+}
+
+export async function disconnectOpsMember(
+  env: Env,
+  activatorId: string,
+): Promise<Response> {
+  return opsRoomStub(env).fetch("https://ops.internal/disconnect", {
+    method: "POST",
+    headers: { "x-ops-activator-id": activatorId },
+  });
+}
+
 export function actorHeaders(actor: OpsActor): Headers {
   const headers = new Headers({
     "content-type": "application/json",

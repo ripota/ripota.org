@@ -1147,6 +1147,66 @@ export async function markEditLinkSent(
   ).bind(now, now, now, activatorId, env.ACTIVATE_RI_EVENT_ID).run();
 }
 
+export async function revokeActivatorSessions(
+  env: Env,
+  activatorId: string,
+  actorEmail: string,
+  now = new Date().toISOString(),
+): Promise<boolean> {
+  const activator = await getActivatorById(env, activatorId);
+  if (!activator) return false;
+  await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE activate_ri_activator_sessions
+       SET revoked_at = ?
+       WHERE event_id = ? AND activator_id = ? AND revoked_at IS NULL`,
+    ).bind(now, env.ACTIVATE_RI_EVENT_ID, activatorId),
+    activityInsert(env, {
+      planId: activatorId,
+      actorType: "admin",
+      actorEmail,
+      action: "activator-sessions-revoked",
+      summary: `Organizer revoked portal sessions for ${activator.primary_callsign}.`,
+      details: { activatorId, callsign: activator.primary_callsign },
+    }, now),
+  ]);
+  return true;
+}
+
+export async function replaceActivatorSecureLinks(
+  env: Env,
+  activatorId: string,
+  actorEmail: string,
+  now = new Date().toISOString(),
+): Promise<{ editToken: string; plan: EditablePlanDto } | null> {
+  const activator = await getActivatorById(env, activatorId);
+  if (!activator) return null;
+  const editToken = generateEditToken();
+  await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE activate_ri_edit_tokens
+       SET revoked_at = ?
+       WHERE event_id = ? AND activator_id = ? AND revoked_at IS NULL`,
+    ).bind(now, env.ACTIVATE_RI_EVENT_ID, activatorId),
+    env.DB.prepare(
+      `UPDATE activate_ri_activator_sessions
+       SET revoked_at = ?
+       WHERE event_id = ? AND activator_id = ? AND revoked_at IS NULL`,
+    ).bind(now, env.ACTIVATE_RI_EVENT_ID, activatorId),
+    editTokenInsert(env, activatorId, await tokenHash(editToken), now),
+    activityInsert(env, {
+      planId: activatorId,
+      actorType: "admin",
+      actorEmail,
+      action: "activator-secure-links-replaced",
+      summary: `Organizer replaced all secure links for ${activator.primary_callsign}.`,
+      details: { activatorId, callsign: activator.primary_callsign },
+    }, now),
+  ]);
+  const plan = await getPlanById(env, activatorId);
+  return plan ? { editToken, plan } : null;
+}
+
 export async function markEditLinkEmailEvent(
   env: Env,
   planId: string | undefined,

@@ -128,6 +128,36 @@ describe("ActivateRiOpsRoom", () => {
     );
   });
 
+  it("targets a banned member without disconnecting other room clients", async () => {
+    const target = fakeSocket(["role:activator", "member:activator-1"]);
+    const other = fakeSocket(["role:activator", "member:activator-2"]);
+    const organizer = fakeSocket(["role:admin"]);
+    sockets.push(target, other, organizer);
+
+    const response = await room.fetch(internalRequest(
+      "https://ops.internal/members/activator-1",
+      {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          "x-ops-actor-type": "admin",
+          "x-ops-admin-email": "organizer@example.com",
+          "x-ops-label": "Organizer",
+        },
+        body: JSON.stringify({ status: "banned", reason: "Test moderation." }),
+      },
+    ));
+
+    expect(response.status).toBe(200);
+    expect(target.send).toHaveBeenCalledWith(JSON.stringify({
+      type: "membership-changed",
+      status: "banned",
+    }));
+    expect(target.close).toHaveBeenCalledWith(1008, "Ops Room access revoked");
+    expect(other.close).not.toHaveBeenCalled();
+    expect(organizer.close).not.toHaveBeenCalled();
+  });
+
   it("derives admin actor keys without exposing the email", async () => {
     expect(await tokenHash("organizer@example.com")).toMatch(/^[a-f0-9]{64}$/);
   });

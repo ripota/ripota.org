@@ -147,6 +147,29 @@ export async function sendActivatorPlanCancelledEmail(
   });
 }
 
+export async function sendActivatorSecureLinksReplacedEmail(
+  env: Env,
+  plan: EditablePlanDto,
+  editUrl: string,
+  helpUrl: string,
+): Promise<SendEmailResult> {
+  return sendActivatorReceiptEmail(env, {
+    kind: "activator-secure-links-replaced",
+    plan,
+    subject: "Your Activate All RI 2026 private links were replaced",
+    introLines: [
+      "An organizer replaced all private access links for your activation signup.",
+      "Older private links and existing browser sessions no longer work.",
+    ],
+    statusLabel: planStatusLabel(plan.status),
+    stopLines: planStopSummaryLines(plan, { includeCancelled: true }),
+    stopsHeading: "Current stops",
+    editUrl,
+    privateLinkNote: "Use this new private link from now on and keep it private.",
+    helpUrl,
+  });
+}
+
 function sendActivatorReceiptEmail(
   env: Env,
   receipt: {
@@ -154,7 +177,8 @@ function sendActivatorReceiptEmail(
       | "activator-edit-link"
       | "activator-approval"
       | "activator-plan-updated"
-      | "activator-plan-cancelled";
+      | "activator-plan-cancelled"
+      | "activator-secure-links-replaced";
     plan: ActivatorEmailPlan;
     subject: string;
     introLines: string[];
@@ -289,6 +313,7 @@ type EmailKind =
   | "activator-approval"
   | "activator-plan-updated"
   | "activator-plan-cancelled"
+  | "activator-secure-links-replaced"
   | "admin-activity"
   | "admin-pending-plan";
 

@@ -1,5 +1,6 @@
 ---
 import AdminDashboard from "../../components/activate-ri/AdminDashboard.astro";
+import AdminOpsRoom from "../../components/activate-ri/AdminOpsRoom.astro";
 import EventNav from "../../components/activate-ri/EventNav.astro";
 import Footer from "../../components/Footer.astro";
 import Notice from "../../components/Notice.astro";
@@ -10,7 +11,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 <BaseLayout
   title="Activate All RI 2026 Admin"
   description="Review pending Activate All RI 2026 activation submissions."
-  canonicalPath="/activate-ri-2026/admin/"
+  privatePage
 >
   <SiteHeader variant="solid" showEventLink />
   <main id="main">
@@ -26,6 +27,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
           </p>
         </div>
         <AdminDashboard />
+        <AdminOpsRoom />
       </div>
     </section>
     <Notice />

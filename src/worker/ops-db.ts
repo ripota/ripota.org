@@ -258,6 +258,227 @@ export async function createOpsMessage(
   return getMessageCreatedEvent(env, authorKey, input.clientNonce);
 }
 
+export async function createAdminOpsAnnouncement(
+  env: Env,
+  actorKey: string,
+  actorEmail: string,
+  input: {
+    clientNonce: string;
+    body: string;
+    context: { type: "park"; parkReference: string } | null;
+    pin: boolean;
+  },
+  now = new Date().toISOString(),
+): Promise<OpsEvent[] | null> {
+  const messageId = crypto.randomUUID();
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT OR IGNORE INTO activate_ri_ops_messages (
+         id, event_id, author_type, author_key, author_label, kind, body,
+         park_reference, client_nonce, created_at
+       ) VALUES (?, ?, 'admin', ?, 'Organizer', 'announcement', ?, ?, ?, ?)`,
+    ).bind(
+      messageId,
+      env.ACTIVATE_RI_EVENT_ID,
+      actorKey,
+      input.body,
+      input.context?.parkReference ?? null,
+      input.clientNonce,
+      now,
+    ),
+    env.DB.prepare(
+      `INSERT OR IGNORE INTO activate_ri_ops_events (
+         event_id, event_type, message_id, metadata_json, created_at
+       )
+       SELECT event_id, 'message-created', id, '{}', created_at
+       FROM activate_ri_ops_messages
+       WHERE event_id = ? AND author_key = ? AND client_nonce = ?`,
+    ).bind(env.ACTIVATE_RI_EVENT_ID, actorKey, input.clientNonce),
+    ...(input.pin
+      ? [
+          env.DB.prepare(
+            `UPDATE activate_ri_ops_settings
+             SET pinned_message_id = (
+               SELECT id FROM activate_ri_ops_messages
+               WHERE event_id = ? AND author_key = ? AND client_nonce = ?
+             ), updated_at = ?, updated_by = ?
+             WHERE event_id = ?`,
+          ).bind(
+            env.ACTIVATE_RI_EVENT_ID,
+            actorKey,
+            input.clientNonce,
+            now,
+            actorEmail,
+            env.ACTIVATE_RI_EVENT_ID,
+          ),
+          env.DB.prepare(
+            `INSERT INTO activate_ri_ops_events (
+               event_id, event_type, message_id, metadata_json, created_at
+             )
+             SELECT event_id, 'pin-changed', id, '{}', ?
+             FROM activate_ri_ops_messages m
+             WHERE event_id = ? AND author_key = ? AND client_nonce = ?
+               AND NOT EXISTS (
+                 SELECT 1 FROM activate_ri_ops_events e
+                 WHERE e.event_id = m.event_id AND e.event_type = 'pin-changed'
+                   AND e.message_id = m.id
+               )`,
+          ).bind(now, env.ACTIVATE_RI_EVENT_ID, actorKey, input.clientNonce),
+        ]
+      : []),
+    env.DB.prepare(
+      `INSERT INTO activate_ri_activity_events (
+         id, event_id, actor_type, actor_email, action, summary, details_json, created_at
+       )
+       SELECT ?, ?, 'admin', ?, 'ops-announcement-created',
+         'Organizer posted an Ops Room announcement.', ?, ?
+       FROM activate_ri_ops_messages
+       WHERE event_id = ? AND author_key = ? AND client_nonce = ? AND created_at = ?`,
+    ).bind(
+      crypto.randomUUID(),
+      env.ACTIVATE_RI_EVENT_ID,
+      actorEmail,
+      JSON.stringify({ clientNonce: input.clientNonce, pinned: input.pin }),
+      now,
+      env.ACTIVATE_RI_EVENT_ID,
+      actorKey,
+      input.clientNonce,
+      now,
+    ),
+  ]);
+  const created = await getMessageCreatedEvent(env, actorKey, input.clientNonce);
+  if (!created || created.type !== "message-created") return null;
+  if (!input.pin) return [created];
+  const pinRow = await env.DB.prepare(
+    `${eventSelectSql}
+     WHERE e.event_id = ? AND e.event_type = 'pin-changed'
+       AND e.message_id = ? ORDER BY e.sequence DESC LIMIT 1`,
+  ).bind(env.ACTIVATE_RI_EVENT_ID, created.message.id).first<EventRow>();
+  const pinEvent = pinRow ? toOpsEvent(pinRow) : null;
+  return pinEvent ? [created, pinEvent] : [created];
+}
+
+export async function moderateOpsMessage(
+  env: Env,
+  messageId: string,
+  action: "remove" | "resolve" | "reopen",
+  actorEmail: string,
+  reason: string,
+  now = new Date().toISOString(),
+): Promise<OpsEvent | null> {
+  const message = await env.DB.prepare(
+    `SELECT id, kind, removed_at, resolved_at FROM activate_ri_ops_messages
+     WHERE event_id = ? AND id = ?`,
+  ).bind(env.ACTIVATE_RI_EVENT_ID, messageId).first<{
+    id: string;
+    kind: OpsMessageKind;
+    removed_at: string | null;
+    resolved_at: string | null;
+  }>();
+  if (!message || (action !== "remove" && !["need-backup", "access-note"].includes(message.kind))) {
+    return null;
+  }
+
+  const eventType = action === "remove"
+    ? "message-removed"
+    : action === "resolve"
+    ? "message-resolved"
+    : "message-reopened";
+  if ((action === "remove" && message.removed_at) ||
+    (action === "resolve" && message.resolved_at) ||
+    (action === "reopen" && !message.resolved_at)) {
+    return latestMessageEvent(env, messageId, eventType);
+  }
+  const metadata = action === "remove"
+    ? { removedAt: now, removedBy: "organizer" }
+    : action === "resolve"
+    ? { resolvedAt: now }
+    : {};
+  const update = action === "remove"
+    ? env.DB.prepare(
+        `UPDATE activate_ri_ops_messages
+         SET body = '', removed_at = ?, removed_by = 'organizer', removal_reason = ?
+         WHERE event_id = ? AND id = ? AND removed_at IS NULL`,
+      ).bind(now, reason, env.ACTIVATE_RI_EVENT_ID, messageId)
+    : action === "resolve"
+    ? env.DB.prepare(
+        `UPDATE activate_ri_ops_messages
+         SET resolved_at = ?, resolved_by = ?, resolution_note = ?
+         WHERE event_id = ? AND id = ? AND resolved_at IS NULL AND removed_at IS NULL`,
+      ).bind(now, `admin:${actorEmail}`, reason, env.ACTIVATE_RI_EVENT_ID, messageId)
+    : env.DB.prepare(
+        `UPDATE activate_ri_ops_messages
+         SET resolved_at = NULL, resolved_by = '', resolution_note = ?
+         WHERE event_id = ? AND id = ? AND resolved_at IS NOT NULL AND removed_at IS NULL`,
+      ).bind(reason, env.ACTIVATE_RI_EVENT_ID, messageId);
+  await env.DB.batch([
+    update,
+    env.DB.prepare(
+      `INSERT INTO activate_ri_ops_events (
+         event_id, event_type, message_id, metadata_json, created_at
+       ) VALUES (?, ?, ?, ?, ?)`,
+    ).bind(env.ACTIVATE_RI_EVENT_ID, eventType, messageId, JSON.stringify(metadata), now),
+    env.DB.prepare(
+      `INSERT INTO activate_ri_activity_events (
+         id, event_id, actor_type, actor_email, action, summary, details_json, created_at
+       ) VALUES (?, ?, 'admin', ?, ?, ?, ?, ?)`,
+    ).bind(
+      crypto.randomUUID(),
+      env.ACTIVATE_RI_EVENT_ID,
+      actorEmail,
+      `ops-message-${action === "remove" ? "removed" : action === "resolve" ? "resolved" : "reopened"}`,
+      `Organizer ${action === "remove" ? "removed" : action === "resolve" ? "resolved" : "reopened"} an Ops Room message.`,
+      JSON.stringify({ messageId, reason }),
+      now,
+    ),
+  ]);
+  return latestMessageEvent(env, messageId, eventType);
+}
+
+export async function updateOpsMembership(
+  env: Env,
+  activatorId: string,
+  status: OpsMembershipStatus,
+  reason: string,
+  actorEmail: string,
+  now = new Date().toISOString(),
+): Promise<boolean> {
+  const existing = await env.DB.prepare(
+    `SELECT status FROM activate_ri_ops_memberships
+     WHERE event_id = ? AND activator_id = ?`,
+  ).bind(env.ACTIVATE_RI_EVENT_ID, activatorId).first<{ status: OpsMembershipStatus }>();
+  if (!existing) return false;
+  const action = status === "muted"
+    ? "ops-member-muted"
+    : status === "banned"
+    ? "ops-member-banned"
+    : existing.status === "muted"
+    ? "ops-member-unmuted"
+    : "ops-member-unbanned";
+  await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE activate_ri_ops_memberships
+       SET status = ?, moderation_reason = ?, moderated_at = ?, moderated_by = ?, updated_at = ?
+       WHERE event_id = ? AND activator_id = ?`,
+    ).bind(status, reason, now, actorEmail, now, env.ACTIVATE_RI_EVENT_ID, activatorId),
+    env.DB.prepare(
+      `INSERT INTO activate_ri_activity_events (
+         id, event_id, plan_id, actor_type, actor_email, action, summary, details_json, created_at
+       ) VALUES (?, ?, ?, 'admin', ?, ?, ?, ?, ?)`,
+    ).bind(
+      crypto.randomUUID(),
+      env.ACTIVATE_RI_EVENT_ID,
+      activatorId,
+      actorEmail,
+      action,
+      `Ops Room membership changed from ${existing.status} to ${status}.`,
+      JSON.stringify({ activatorId, priorStatus: existing.status, status, reason }),
+      now,
+    ),
+  ]);
+  return true;
+}
+
 export async function listOpsEvents(
   env: Env,
   after: number,
@@ -419,10 +640,20 @@ export async function setOwnOpsMessageResolved(
 }
 
 export async function getOpsAdminState(env: Env) {
-  const [settings, members, cursor] = await env.DB.batch([
+  const [settings, messages, broadcasts, members, cursor] = await env.DB.batch([
     env.DB.prepare(
       `SELECT room_mode, pinned_message_id, rules_version, updated_at, updated_by
        FROM activate_ri_ops_settings WHERE event_id = ?`,
+    ).bind(env.ACTIVATE_RI_EVENT_ID),
+    env.DB.prepare(
+      `${messageSelectSql}
+       WHERE event_id = ? ORDER BY created_at DESC, id DESC LIMIT 100`,
+    ).bind(env.ACTIVATE_RI_EVENT_ID),
+    env.DB.prepare(
+      `SELECT id, message_id, status, recipient_count, sent_count, failed_count,
+              created_at, completed_at, last_error
+       FROM activate_ri_ops_email_broadcasts
+       WHERE event_id = ? ORDER BY created_at DESC LIMIT 25`,
     ).bind(env.ACTIVATE_RI_EVENT_ID),
     env.DB.prepare(
       `SELECT m.activator_id, m.status, m.accepted_rules_version,
@@ -441,6 +672,8 @@ export async function getOpsAdminState(env: Env) {
     settings: settings.results?.[0] ?? null,
     hardDisabled: env.ACTIVATE_RI_OPS_HARD_DISABLED === "true",
     members: members.results ?? [],
+    messages: ((messages.results ?? []) as MessageRow[]).map(toMessageDto),
+    broadcasts: broadcasts.results ?? [],
     cursor: (cursor.results?.[0] as { cursor?: number } | undefined)?.cursor ?? 0,
   };
 }

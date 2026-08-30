@@ -1,8 +1,11 @@
 import type { CreateOpsMessageInput, OpsActor, OpsEvent, OpsMembershipStatus } from "../../lib/activate-ri/ops-types";
 import {
+  createAdminOpsAnnouncement,
   createOpsMessage,
+  moderateOpsMessage,
   removeOwnOpsMessage,
   setOwnOpsMessageResolved,
+  updateOpsMembership,
   updateOpsRoomMode,
 } from "../ops-db";
 import type { Env } from "../env";
@@ -36,6 +39,17 @@ export class ActivateRiOpsRoom implements DurableObject {
     }
     if (request.method === "PATCH" && url.pathname === "/settings") {
       return this.updateRoomMode(request);
+    }
+    if (request.method === "POST" && url.pathname === "/announcements") {
+      return this.createAnnouncement(request);
+    }
+    const moderation = url.pathname.match(/^\/moderation\/messages\/([^/]+)\/(remove|resolve|reopen)$/);
+    if (request.method === "POST" && moderation) {
+      return this.moderateMessage(request, moderation[1], moderation[2]);
+    }
+    const member = url.pathname.match(/^\/members\/([^/]+)$/);
+    if (request.method === "PATCH" && member) {
+      return this.updateMember(request, member[1]);
     }
     if (request.method === "GET" && url.pathname === "/stats") {
       return json({ ok: true, connectedClients: this.state.getWebSockets().length });
@@ -150,6 +164,72 @@ export class ActivateRiOpsRoom implements DurableObject {
     return json({ ok: true, event });
   }
 
+  private async createAnnouncement(request: Request): Promise<Response> {
+    const actorEmail = adminEmail(request.headers);
+    const actorKey = request.headers.get("x-ops-admin-key");
+    if (!actorEmail || !actorKey) {
+      return json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    }
+    const input = await request.json<{
+      clientNonce: string;
+      body: string;
+      context: { type: "park"; parkReference: string } | null;
+      pin: boolean;
+    }>();
+    const events = await createAdminOpsAnnouncement(this.env, actorKey, actorEmail, input);
+    if (!events) {
+      return json({ ok: false, error: "Announcement could not be posted" }, { status: 400 });
+    }
+    events.forEach((event) => this.broadcast(event));
+    return json({ ok: true, event: events[0], events });
+  }
+
+  private async moderateMessage(
+    request: Request,
+    encodedMessageId: string,
+    action: string,
+  ): Promise<Response> {
+    const actorEmail = adminEmail(request.headers);
+    if (!actorEmail) return json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    const { reason = "" } = await request.json<{ reason?: string }>();
+    const event = await moderateOpsMessage(
+      this.env,
+      decodePathSegment(encodedMessageId),
+      action as "remove" | "resolve" | "reopen",
+      actorEmail,
+      reason,
+    );
+    if (!event) return json({ ok: false, error: "Message not found" }, { status: 404 });
+    this.broadcast(event);
+    return json({ ok: true, event });
+  }
+
+  private async updateMember(request: Request, encodedActivatorId: string): Promise<Response> {
+    const actorEmail = adminEmail(request.headers);
+    if (!actorEmail) return json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    const payload = await request.json<{
+      status: OpsMembershipStatus;
+      reason: string;
+    }>();
+    const activatorId = decodePathSegment(encodedActivatorId);
+    const updated = await updateOpsMembership(
+      this.env,
+      activatorId,
+      payload.status,
+      payload.reason,
+      actorEmail,
+    );
+    if (!updated) return json({ ok: false, error: "Member not found" }, { status: 404 });
+    const control = JSON.stringify({ type: "membership-changed", status: payload.status });
+    for (const socket of this.state.getWebSockets(`member:${activatorId}`)) {
+      socket.send(control);
+    }
+    if (payload.status === "banned") {
+      this.closeTagged(`member:${activatorId}`, 1008, "Ops Room access revoked");
+    }
+    return json({ ok: true, status: payload.status });
+  }
+
   private broadcast(event: OpsEvent): void {
     const payload = JSON.stringify(event);
     for (const socket of this.state.getWebSockets()) {
@@ -188,6 +268,12 @@ function actorFromHeaders(headers: Headers): OpsActor | null {
     return { type, key, label };
   }
   return null;
+}
+
+function adminEmail(headers: Headers): string | null {
+  return headers.get("x-ops-actor-type") === "admin"
+    ? headers.get("x-ops-admin-email")
+    : null;
 }
 
 function decodePathSegment(value: string): string {

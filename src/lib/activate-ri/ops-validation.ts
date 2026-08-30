@@ -79,6 +79,75 @@ export function validateOpsRoomMode(input: unknown): OpsValidationResult<OpsRoom
   return { ok: true, value: input.roomMode as OpsRoomMode };
 }
 
+export function validateOpsAnnouncement(input: unknown): OpsValidationResult<{
+  clientNonce: string;
+  body: string;
+  context: OpsMessageContext;
+  pin: boolean;
+  emailEligibleActivators: boolean;
+}> {
+  if (!isRecord(input)) {
+    return { ok: false, errors: ["Enter a valid announcement."] };
+  }
+  const errors: string[] = [];
+  const clientNonce = typeof input.clientNonce === "string" ? input.clientNonce.trim() : "";
+  const body = typeof input.body === "string"
+    ? input.body.replace(/\r\n?/g, "\n").trim()
+    : "";
+  if (!clientNoncePattern.test(clientNonce)) errors.push("Announcement nonce must be a UUID.");
+  if (!body) errors.push("Enter an announcement.");
+  if ([...body].length > 1_000) errors.push("Announcement must be 1,000 characters or fewer.");
+  if (body.split("\n").length > 12) errors.push("Announcement may contain at most 12 lines.");
+  if (disallowedControls.test(body)) errors.push("Announcement contains unsupported control characters.");
+  const context = validateContext(input.context, errors);
+  if (context?.type === "stop") {
+    errors.push("Organizer announcements may use park context, not participant stop context.");
+  }
+  return errors.length > 0
+    ? { ok: false, errors }
+    : {
+        ok: true,
+        value: {
+          clientNonce,
+          body,
+          context,
+          pin: input.pin === true,
+          emailEligibleActivators: input.emailEligibleActivators === true,
+        },
+      };
+}
+
+export function validateOpsMembershipPatch(input: unknown): OpsValidationResult<{
+  status: "active" | "muted" | "banned";
+  reason: string;
+}> {
+  if (!isRecord(input) || !["active", "muted", "banned"].includes(String(input.status))) {
+    return { ok: false, errors: ["Choose active, muted, or banned."] };
+  }
+  const reason = typeof input.reason === "string" ? input.reason.trim() : "";
+  if ((input.status === "muted" || input.status === "banned") && !reason) {
+    return { ok: false, errors: ["Enter a moderation reason."] };
+  }
+  if ([...reason].length > 500 || disallowedControls.test(reason)) {
+    return { ok: false, errors: ["Moderation reason must be plain text up to 500 characters."] };
+  }
+  return {
+    ok: true,
+    value: { status: input.status as "active" | "muted" | "banned", reason },
+  };
+}
+
+export function validateModerationReason(input: unknown): OpsValidationResult<string> {
+  if (!isRecord(input) || typeof input.reason !== "string") {
+    return { ok: false, errors: ["Enter a moderation reason."] };
+  }
+  const reason = input.reason.trim();
+  if (!reason || [...reason].length > 500 || disallowedControls.test(reason)) {
+    return { ok: false, errors: ["Moderation reason must be plain text up to 500 characters."] };
+  }
+  return { ok: true, value: reason };
+}
+
 function validateContext(
   input: unknown,
   errors: string[],

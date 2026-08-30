@@ -1,0 +1,349 @@
+---
+import AdminOpsAnnouncement from "./AdminOpsAnnouncement.astro";
+import AdminOpsBroadcasts from "./AdminOpsBroadcasts.astro";
+import AdminOpsMembers from "./AdminOpsMembers.astro";
+import AdminOpsModeration from "./AdminOpsModeration.astro";
+---
+
+<section class="admin-panel admin-ops" aria-labelledby="admin-ops-title" data-admin-ops>
+  <div class="admin-panel__header">
+    <div>
+      <p class="eyebrow">Organizer tools</p>
+      <h2 id="admin-ops-title">Ops Room</h2>
+      <p class="lead">Control availability, announcements, moderation, and participant security.</p>
+    </div>
+    <button class="button" data-variant="light" type="button" data-admin-ops-refresh>Refresh</button>
+  </div>
+  <p class="admin-status" data-admin-ops-status aria-live="polite">Loading Ops Room state…</p>
+
+  <section class="admin-activity" aria-labelledby="admin-ops-mode-title">
+    <h3 id="admin-ops-mode-title">Room control</h3>
+    <dl class="admin-meta" data-admin-ops-summary></dl>
+    <div class="form-actions" data-admin-ops-modes>
+      <button class="button" data-variant="light" type="button" data-mode="full">Full room</button>
+      <button class="button" data-variant="light" type="button" data-mode="announcements">Announcements only</button>
+      <button class="button" data-variant="light" type="button" data-mode="off">Room off</button>
+    </div>
+  </section>
+
+  <AdminOpsAnnouncement />
+  <AdminOpsModeration />
+  <AdminOpsMembers />
+  <AdminOpsBroadcasts />
+</section>
+
+<script>
+  type Member = {
+    activator_id: string;
+    status: "active" | "muted" | "banned";
+    accepted_rules_version?: string | null;
+    accepted_rules_at?: string | null;
+    moderation_reason?: string;
+    primary_callsign: string;
+    name: string;
+  };
+  type Message = {
+    id: string;
+    kind: string;
+    authorLabel: string;
+    authorActivatorId?: string;
+    body: string;
+    createdAt: string;
+    resolved: boolean;
+    removed: boolean;
+    parkReference?: string;
+  };
+  type Broadcast = {
+    id: string;
+    status: string;
+    recipient_count: number;
+    sent_count: number;
+    failed_count: number;
+    created_at: string;
+  };
+  type AdminOpsState = {
+    ok: boolean;
+    settings: {
+      room_mode: "full" | "announcements" | "off";
+      rules_version: string;
+      updated_at: string;
+      updated_by: string;
+    } | null;
+    hardDisabled: boolean;
+    connectedClients: number;
+    members: Member[];
+    messages: Message[];
+    broadcasts: Broadcast[];
+  };
+
+  const root = document.querySelector<HTMLElement>("[data-admin-ops]");
+  const status = root?.querySelector<HTMLElement>("[data-admin-ops-status]");
+  const summary = root?.querySelector<HTMLElement>("[data-admin-ops-summary]");
+  const membersList = root?.querySelector<HTMLElement>("[data-admin-ops-members]");
+  const messagesList = root?.querySelector<HTMLElement>("[data-admin-ops-messages]");
+  const broadcastsList = root?.querySelector<HTMLElement>("[data-admin-ops-broadcasts]");
+  const announcementForm = root?.querySelector<HTMLFormElement>("[data-admin-ops-announcement]");
+  const recipientPreview = root?.querySelector<HTMLElement>("[data-admin-ops-recipient-preview]");
+  let state: AdminOpsState | null = null;
+
+  if (root) void loadState();
+  root?.querySelector("[data-admin-ops-refresh]")?.addEventListener("click", () => void loadState());
+  root?.querySelector("[data-admin-ops-modes]")?.addEventListener("click", (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-mode]");
+    if (button?.dataset.mode) void changeMode(button.dataset.mode);
+  });
+
+  announcementForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = new FormData(announcementForm);
+    const body = String(data.get("body") ?? "").trim();
+    const email = data.get("email") === "on";
+    const eligible = state?.members.filter((member) => member.status !== "banned").length ?? 0;
+    const confirmation = email
+      ? `Post this announcement and send an email copy to ${eligible} eligible activator${eligible === 1 ? "" : "s"}?`
+      : "Post this announcement to the Ops Room?";
+    if (!body || !window.confirm(confirmation)) return;
+    setStatus("Posting announcement…");
+    const response = await jsonMutation("/api/activate-ri-2026/admin/ops/announcements", "POST", {
+      clientNonce: crypto.randomUUID(),
+      body,
+      context: null,
+      pin: data.get("pin") === "on",
+      emailEligibleActivators: email,
+    });
+    if (response.ok) {
+      announcementForm.reset();
+      await loadState();
+    }
+  });
+
+  async function loadState(): Promise<void> {
+    setStatus("Loading Ops Room state…");
+    try {
+      const response = await fetch("/api/activate-ri-2026/admin/ops", {
+        headers: { accept: "application/json" },
+      });
+      const body = await response.json() as AdminOpsState & { error?: string };
+      if (!response.ok || !body.ok) {
+        setStatus(body.error ?? "Unable to load Ops Room state.");
+        return;
+      }
+      state = body;
+      renderState();
+      setStatus("Ops Room state is current.");
+    } catch {
+      setStatus("Unable to load Ops Room state.");
+    }
+  }
+
+  function renderState(): void {
+    if (!state) return;
+    renderSummary();
+    renderMembers();
+    renderMessages();
+    renderBroadcasts();
+    const eligible = state.members.filter((member) => member.status !== "banned").length;
+    recipientPreview?.replaceChildren(
+      `${eligible} activator${eligible === 1 ? "" : "s"} currently eligible for an email copy (active and muted; banned excluded).`,
+    );
+  }
+
+  function renderSummary(): void {
+    if (!summary || !state?.settings) return;
+    summary.replaceChildren();
+    addMeta(summary, "Database mode", state.settings.room_mode);
+    addMeta(summary, "Hard disable", state.hardDisabled ? "Enabled — participant access is forced off" : "Not enabled");
+    addMeta(summary, "Connected clients", String(state.connectedClients));
+    addMeta(summary, "Rules version", state.settings.rules_version);
+    addMeta(summary, "Last changed", `${formatTime(state.settings.updated_at)} by ${state.settings.updated_by}`);
+    root?.querySelectorAll<HTMLButtonElement>("[data-mode]").forEach((button) => {
+      button.disabled = button.dataset.mode === state?.settings?.room_mode;
+    });
+  }
+
+  function renderMembers(): void {
+    if (!membersList || !state) return;
+    membersList.replaceChildren();
+    if (state.members.length === 0) {
+      membersList.replaceChildren("No approved activators have Ops Room membership.");
+      return;
+    }
+    state.members.forEach((member) => {
+      const card = adminCard(`${member.primary_callsign} — ${member.name}`);
+      addText(card.body, `Room status: ${member.status}`);
+      addText(card.body, member.accepted_rules_version
+        ? `Rules accepted: ${member.accepted_rules_version} at ${formatTime(member.accepted_rules_at ?? "")}`
+        : "Rules not yet accepted");
+      if (member.moderation_reason) addText(card.body, `Moderation reason: ${member.moderation_reason}`);
+      card.actions.appendChild(actionButton("Activate", () => memberMutation(member, "active")));
+      card.actions.appendChild(actionButton("Mute", () => memberMutation(member, "muted")));
+      card.actions.appendChild(actionButton("Ban", () => memberMutation(member, "banned")));
+      card.actions.appendChild(actionButton("Disconnect room sockets", () => simpleConfirmMutation(
+        `/api/activate-ri-2026/admin/ops/members/${encodeURIComponent(member.activator_id)}/disconnect`,
+        `Disconnect current Ops Room sockets for ${member.primary_callsign}?`,
+      )));
+      card.actions.appendChild(actionButton("Revoke portal sessions", () => simpleConfirmMutation(
+        `/api/activate-ri-2026/admin/activators/${encodeURIComponent(member.activator_id)}/revoke-sessions`,
+        `Revoke every browser session for ${member.primary_callsign}? Their secure email links will still work.`,
+      )));
+      card.actions.appendChild(actionButton("Replace all secure links", () => simpleConfirmMutation(
+        `/api/activate-ri-2026/admin/activators/${encodeURIComponent(member.activator_id)}/replace-secure-links`,
+        `Replace every secure link and revoke every browser session for ${member.primary_callsign}? A new link will be emailed.`,
+      )));
+      membersList.appendChild(card.article);
+    });
+  }
+
+  function renderMessages(): void {
+    if (!messagesList || !state) return;
+    messagesList.replaceChildren();
+    if (state.messages.length === 0) {
+      messagesList.replaceChildren("No room messages yet.");
+      return;
+    }
+    state.messages.forEach((message) => {
+      const card = adminCard(`${message.authorLabel} — ${message.kind}`);
+      addText(card.body, message.removed ? "Message removed." : message.body);
+      addText(card.body, `${formatTime(message.createdAt)}${message.parkReference ? ` · ${message.parkReference}` : ""}`);
+      if (!message.removed) {
+        card.actions.appendChild(actionButton("Remove", () => moderateMessage(message, "remove")));
+        if (message.kind === "need-backup" || message.kind === "access-note") {
+          card.actions.appendChild(actionButton(message.resolved ? "Reopen" : "Resolve", () =>
+            moderateMessage(message, message.resolved ? "reopen" : "resolve")));
+        }
+      }
+      if (message.authorActivatorId) {
+        const link = document.createElement("a");
+        link.className = "button";
+        link.dataset.variant = "light";
+        link.href = `/activate-ri-2026/admin/?plan=${encodeURIComponent(message.authorActivatorId)}`;
+        link.textContent = "Related plan";
+        card.actions.appendChild(link);
+      }
+      messagesList.appendChild(card.article);
+    });
+  }
+
+  function renderBroadcasts(): void {
+    if (!broadcastsList || !state) return;
+    broadcastsList.replaceChildren();
+    if (state.broadcasts.length === 0) {
+      broadcastsList.replaceChildren("No announcement email broadcasts.");
+      return;
+    }
+    state.broadcasts.forEach((broadcast) => {
+      const card = adminCard(`Broadcast ${broadcast.status}`);
+      addText(card.body, `${broadcast.sent_count} sent · ${broadcast.failed_count} failed · ${broadcast.recipient_count} recipients`);
+      addText(card.body, formatTime(broadcast.created_at));
+      if (broadcast.status === "failed" || broadcast.status === "partial") {
+        card.actions.appendChild(actionButton("Retry failed recipients", () => simpleConfirmMutation(
+          `/api/activate-ri-2026/admin/ops/broadcasts/${encodeURIComponent(broadcast.id)}/retry`,
+          "Retry only failed recipients for this broadcast?",
+        )));
+      }
+      broadcastsList.appendChild(card.article);
+    });
+  }
+
+  async function changeMode(mode: string): Promise<void> {
+    if (!window.confirm(`Change the Ops Room mode to ${mode}?`)) return;
+    await jsonMutation("/api/activate-ri-2026/admin/ops/settings", "PATCH", { roomMode: mode });
+    await loadState();
+  }
+
+  async function memberMutation(member: Member, nextStatus: string): Promise<void> {
+    const needsReason = nextStatus === "muted" || nextStatus === "banned";
+    const reason = needsReason ? window.prompt(`Reason to mark ${member.primary_callsign} ${nextStatus}:`) : "";
+    if (needsReason && !reason?.trim()) return;
+    await jsonMutation(
+      `/api/activate-ri-2026/admin/ops/members/${encodeURIComponent(member.activator_id)}`,
+      "PATCH",
+      { status: nextStatus, reason: reason ?? "" },
+    );
+    await loadState();
+  }
+
+  async function moderateMessage(message: Message, action: string): Promise<void> {
+    const reason = window.prompt(`Reason to ${action} this message:`);
+    if (!reason?.trim()) return;
+    await jsonMutation(
+      `/api/activate-ri-2026/admin/ops/messages/${encodeURIComponent(message.id)}/${action}`,
+      "POST",
+      { reason },
+    );
+    await loadState();
+  }
+
+  async function simpleConfirmMutation(path: string, confirmation: string): Promise<void> {
+    if (!window.confirm(confirmation)) return;
+    await jsonMutation(path, "POST", {});
+    await loadState();
+  }
+
+  async function jsonMutation(path: string, method: string, body: unknown): Promise<Response> {
+    setStatus("Saving…");
+    const response = await fetch(path, {
+      method,
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const result = await response.json() as { error?: string; errors?: string[] };
+      setStatus(result.errors?.join(" ") ?? result.error ?? "Request failed.");
+    }
+    return response;
+  }
+
+  function adminCard(title: string): {
+    article: HTMLElement;
+    body: HTMLElement;
+    actions: HTMLElement;
+  } {
+    const article = document.createElement("article");
+    article.className = "admin-card";
+    const body = document.createElement("div");
+    body.className = "admin-card__body";
+    const heading = document.createElement("h4");
+    heading.textContent = title;
+    body.appendChild(heading);
+    const actions = document.createElement("div");
+    actions.className = "admin-card__actions";
+    article.appendChild(body);
+    article.appendChild(actions);
+    return { article, body, actions };
+  }
+
+  function actionButton(label: string, action: () => void | Promise<void>): HTMLButtonElement {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "button";
+    button.dataset.variant = "light";
+    button.textContent = label;
+    button.addEventListener("click", () => void action());
+    return button;
+  }
+
+  function addText(parent: HTMLElement, text: string): void {
+    const paragraph = document.createElement("p");
+    paragraph.textContent = text;
+    parent.appendChild(paragraph);
+  }
+
+  function addMeta(parent: HTMLElement, term: string, value: string): void {
+    const dt = document.createElement("dt");
+    const dd = document.createElement("dd");
+    dt.textContent = term;
+    dd.textContent = value;
+    parent.appendChild(dt);
+    parent.appendChild(dd);
+  }
+
+  function setStatus(message: string): void {
+    status?.replaceChildren(message);
+  }
+
+  function formatTime(value: string): string {
+    const date = new Date(value);
+    return Number.isNaN(date.valueOf()) ? "Unknown time" : date.toLocaleString();
+  }
+</script>
