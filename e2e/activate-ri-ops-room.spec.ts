@@ -65,9 +65,9 @@ test("approved activators acknowledge rules and exchange a live room message", a
     await first.goto(submitBody.editUrl);
     await expect(first).toHaveURL(`${server.origin}/activate-ri-2026/activators/plan/`);
     await first.goto(`${server.origin}/activate-ri-2026/activators/`);
-    await expect(first.getByRole("dialog", { name: "Activator Ops Room rules" })).toBeVisible();
-    await first.getByRole("button", { name: "I understand and agree" }).click();
-    await expect(first.getByRole("dialog", { name: "Activator Ops Room rules" })).toBeHidden();
+    await expect(first.getByRole("dialog", { name: "Coordinate clearly. Operate safely." })).toBeVisible();
+    await first.getByRole("button", { name: "Enter the Ops Room" }).click();
+    await expect(first.getByRole("dialog", { name: "Coordinate clearly. Operate safely." })).toBeHidden();
     await expect(first.locator("[data-ops-connection-label]")).toHaveText("Live");
 
     await second.goto(submitBody.editUrl);
@@ -75,6 +75,7 @@ test("approved activators acknowledge rules and exchange a live room message", a
     await expect(second.locator("[data-ops-connection-label]")).toHaveText("Live");
 
     await first.locator("[data-ops-body]").fill("Checking in from Beavertail.");
+    await first.locator("[data-ops-options] summary").click();
     const stopOption = first.locator("[data-ops-context] option").filter({
       hasText: /US-2868.*Beavertail/,
     }).first();
@@ -110,6 +111,7 @@ test("approved activators acknowledge rules and exchange a live room message", a
       "Organizer test announcement.",
     );
 
+    await admin.getByRole("button", { name: /Messages/ }).click();
     const messageCard = admin.locator("[data-admin-ops-messages] .admin-card").filter({
       hasText: "Checking in from Beavertail.",
     });
@@ -117,6 +119,7 @@ test("approved activators acknowledge rules and exchange a live room message", a
     await messageCard.getByRole("button", { name: "Remove" }).click();
     await expect(second.locator("[data-ops-feed]")).toContainText("Message removed.");
 
+    await admin.getByRole("button", { name: /People/ }).click();
     const memberCard = admin.locator("[data-admin-ops-members] .admin-card").filter({
       hasText: callsign,
     });
