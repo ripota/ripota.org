@@ -76,7 +76,7 @@
     "TURNSTILE_REQUIRED": "true",
     "AUTH_ADMIN_MODE": "passkey",
     "AUTH_ACTIVATOR_MODE": "dual",
-    "AUTH_EMAIL_LOGIN_ENABLED": "false"
+    "AUTH_EMAIL_LOGIN_ENABLED": "true"
   },
   "env": {
     "local": {
