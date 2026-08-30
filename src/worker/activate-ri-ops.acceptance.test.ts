@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { Env } from "./env";
+import { ActivateRiOpsRoom } from "./durable-objects/activate-ri-ops-room";
 import { handleActivateRiApi } from "./routes/activate-ri";
 import { createMigratedSqliteD1 } from "./test-utils/sqlite-d1";
 
@@ -264,7 +265,7 @@ async function approvedActivator(env: Env): Promise<{ cookie: string; activatorI
 }
 
 function testEnv(DB: D1Database): Env {
-  return {
+  const env: Env = {
     ACTIVATE_RI_EVENT_ID: "activate-ri-2026",
     SITE_ORIGIN: "https://ripota.org",
     TURNSTILE_REQUIRED: "false",
@@ -273,6 +274,23 @@ function testEnv(DB: D1Database): Env {
     ASSETS: { fetch: async () => new Response("unused") } as unknown as Fetcher,
     DB,
   };
+  const sockets: WebSocket[] = [];
+  const state = {
+    acceptWebSocket(socket: WebSocket) {
+      sockets.push(socket);
+    },
+    getWebSockets() {
+      return sockets;
+    },
+  } as unknown as DurableObjectState;
+  const room = new ActivateRiOpsRoom(state, env);
+  env.ACTIVATE_RI_OPS_ROOM = {
+    getByName: () => ({
+      fetch: (input: RequestInfo | URL, init?: RequestInit) =>
+        room.fetch(new Request(input, init)),
+    }),
+  } as unknown as DurableObjectNamespace;
+  return env;
 }
 
 function volunteerPayload() {

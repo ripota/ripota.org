@@ -26,6 +26,32 @@
       "database_id": "5fa75a4d-9387-437d-9f81-ebb06b645747"
     }
   ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "ACTIVATE_RI_OPS_ROOM",
+        "class_name": "ActivateRiOpsRoom"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "activate-ri-ops-room-v1",
+      "new_sqlite_classes": ["ActivateRiOpsRoom"]
+    }
+  ],
+  "ratelimits": [
+    {
+      "name": "OPS_RATE_LIMIT_BURST",
+      "namespace_id": "1001",
+      "simple": { "limit": 5, "period": 10 }
+    },
+    {
+      "name": "OPS_RATE_LIMIT_SUSTAINED",
+      "namespace_id": "1002",
+      "simple": { "limit": 20, "period": 60 }
+    }
+  ],
   "send_email": [
     {
       "name": "EMAIL"

@@ -2,7 +2,8 @@ import { validateOpsRoomMode } from "../../lib/activate-ri/ops-validation";
 import { requireAccessIdentity } from "../access";
 import type { Env } from "../env";
 import { json, readJson } from "../http";
-import { getOpsAdminState, updateOpsRoomMode } from "../ops-db";
+import { getOpsAdminState } from "../ops-db";
+import { getOpsRoomStats, updateOpsModeThroughRoom } from "../ops-room-client";
 import { hasTrustedOrigin } from "../origin";
 import { withPrivateHeaders } from "../private-response";
 
@@ -17,7 +18,11 @@ export async function handleActivateRiAdminOpsApi(
 
   const url = new URL(request.url);
   if (request.method === "GET" && url.pathname === "/api/activate-ri-2026/admin/ops") {
-    return privateJson({ ok: true, ...(await getOpsAdminState(env)) });
+    const [state, stats] = await Promise.all([
+      getOpsAdminState(env),
+      getOpsRoomStats(env),
+    ]);
+    return privateJson({ ok: true, ...state, ...stats });
   }
 
   if (request.method === "PATCH" && url.pathname === "/api/activate-ri-2026/admin/ops/settings") {
@@ -36,12 +41,9 @@ export async function handleActivateRiAdminOpsApi(
     if (!validation.ok) {
       return privateJson({ ok: false, errors: validation.errors }, { status: 400 });
     }
-    const event = await updateOpsRoomMode(env, validation.value, identity.email);
-    return privateJson({
-      ok: true,
-      event,
-      hardDisabled: env.ACTIVATE_RI_OPS_HARD_DISABLED === "true",
-    });
+    return withPrivateHeaders(
+      await updateOpsModeThroughRoom(env, validation.value, identity.email),
+    );
   }
 
   return privateJson({ ok: false, error: "Not found" }, { status: 404 });

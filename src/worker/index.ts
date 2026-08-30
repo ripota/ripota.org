@@ -14,6 +14,9 @@ import {
   isActivateRiEmbedPath,
 } from "./routes/activate-ri-embed";
 import { handlePotaSpots } from "./routes/pota";
+import { ActivateRiOpsRoom } from "./durable-objects/activate-ri-ops-room";
+
+export { ActivateRiOpsRoom };
 
 const activateRiAdminPathPattern = /^\/activate-ri-2026\/admin\/?$/;
 const activateRiEditPathPattern = /^\/activate-ri-2026\/edit\/([^/]+)\/?$/;

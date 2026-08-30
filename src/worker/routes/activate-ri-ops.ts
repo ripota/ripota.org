@@ -4,13 +4,14 @@ import type { Env } from "../env";
 import { json, readJson } from "../http";
 import {
   acceptOpsRules,
-  createOpsMessage,
   getOpsAccess,
   getOpsBootstrap,
   listOpsEvents,
-  removeOwnOpsMessage,
-  setOwnOpsMessageResolved,
 } from "../ops-db";
+import {
+  mutateOpsMessageThroughRoom,
+  postOpsMessageThroughRoom,
+} from "../ops-room-client";
 import { hasTrustedOrigin } from "../origin";
 import { withPrivateHeaders } from "../private-response";
 
@@ -83,14 +84,17 @@ export async function handleActivateRiOpsApi(
     if (!validation.ok) {
       return privateJson({ ok: false, errors: validation.errors }, { status: 400 });
     }
-    const event = await createOpsMessage(env, {
+    const actor = {
       type: "activator",
       activatorId: identity.activatorId,
       label: identity.callsign,
-    }, validation.value);
-    return event
-      ? privateJson({ ok: true, event })
-      : privateJson({ ok: false, error: "Message could not be posted" }, { status: 403 });
+    } as const;
+    if (!await withinOpsRateLimits(env, `activator:${identity.activatorId}`)) {
+      return privateJson({ ok: false, error: "Too many room updates" }, { status: 429 });
+    }
+    return withPrivateHeaders(
+      await postOpsMessageThroughRoom(env, actor, validation.value),
+    );
   }
 
   const messageMutation = url.pathname.match(
@@ -108,17 +112,19 @@ export async function handleActivateRiOpsApi(
     }
     const messageId = decodePathSegment(messageMutation[1]);
     const action = messageMutation[2];
-    const event = action === "remove"
-      ? await removeOwnOpsMessage(env, identity.activatorId, messageId)
-      : await setOwnOpsMessageResolved(
-          env,
-          identity.activatorId,
-          messageId,
-          action === "resolve",
-        );
-    return event
-      ? privateJson({ ok: true, event })
-      : privateJson({ ok: false, error: "Message not found" }, { status: 404 });
+    if (!await withinOpsRateLimits(env, `activator:${identity.activatorId}`)) {
+      return privateJson({ ok: false, error: "Too many room updates" }, { status: 429 });
+    }
+    return withPrivateHeaders(await mutateOpsMessageThroughRoom(
+      env,
+      {
+        type: "activator",
+        activatorId: identity.activatorId,
+        label: identity.callsign,
+      },
+      messageId,
+      action as "remove" | "resolve" | "reopen",
+    ));
   }
 
   return privateJson({ ok: false, error: "Not found" }, { status: 404 });
@@ -157,4 +163,12 @@ function decodePathSegment(value: string): string {
   } catch {
     return "";
   }
+}
+
+async function withinOpsRateLimits(env: Env, key: string): Promise<boolean> {
+  const checks = [env.OPS_RATE_LIMIT_BURST, env.OPS_RATE_LIMIT_SUSTAINED]
+    .filter((binding): binding is RateLimit => binding !== undefined)
+    .map((binding) => binding.limit({ key }));
+  const outcomes = await Promise.all(checks);
+  return outcomes.every((outcome) => outcome.success);
 }

@@ -1,6 +1,9 @@
 export type Env = {
   ASSETS: Fetcher;
   DB: D1Database;
+  ACTIVATE_RI_OPS_ROOM?: DurableObjectNamespace;
+  OPS_RATE_LIMIT_BURST?: RateLimit;
+  OPS_RATE_LIMIT_SUSTAINED?: RateLimit;
   EMAIL?: SendEmail;
   ACTIVATE_RI_EVENT_ID: "activate-ri-2026";
   TURNSTILE_REQUIRED?: "true" | "false";

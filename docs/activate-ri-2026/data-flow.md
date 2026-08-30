@@ -14,6 +14,9 @@ Primary runtime bindings:
 - `ASSETS`: serves the Astro static build.
 - `DB`: Cloudflare D1 database named `ripota-org`.
 - `EMAIL`: Cloudflare Email Service binding for transactional email.
+- `ACTIVATE_RI_OPS_ROOM`: one SQLite-backed Durable Object for the event room.
+- `OPS_RATE_LIMIT_BURST` and `OPS_RATE_LIMIT_SUSTAINED`: actor-keyed mutation
+  limits (5/10 seconds and 20/60 seconds).
 
 Relevant Worker routing is in `src/worker/index.ts`:
 
@@ -172,9 +175,20 @@ participant-facing effective mode to `off` without changing D1. Access-protected
 admins can inspect state and set `full`, `announcements`, or `off`; each mode
 change writes both an Ops cursor event and the existing admin activity log.
 
-Realtime delivery is added by the next implementation stage. Until then the
-room stays off in production; the HTTP bootstrap/catch-up domain is the durable
-contract the realtime layer will use.
+Participant message/removal/resolution HTTP mutations and admin room-mode
+changes are routed through the event Durable Object. The object serializes the
+mutation, commits the authoritative message/change event to D1, and only then
+broadcasts the complete sanitized event to hibernating WebSockets. D1 remains
+the history store; Durable Object storage is not a second message database.
+
+`GET /api/activate-ri-2026/ops/socket` validates exact Origin, activator session
+or Access organizer identity, membership, effective room mode, and the hard
+disable before obtaining the object. Activator sockets are tagged by opaque
+activator ID; organizer sockets carry no email. On connect the object sends a
+high-water cursor so the browser can apply bounded D1 catch-up before live
+events. The object has no heartbeat interval. Turning the room off broadcasts
+the durable mode event, closes participant sockets, and leaves organizer
+connections available for control.
 
 ## Public Schedule And Coverage Flow
 

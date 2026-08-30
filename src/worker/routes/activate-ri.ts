@@ -57,6 +57,7 @@ import { withPrivateHeaders } from "../private-response";
 import { verifyTurnstile } from "../turnstile";
 import { handleActivateRiAdminOpsApi } from "./activate-ri-admin-ops";
 import { handleActivateRiOpsApi } from "./activate-ri-ops";
+import { handleActivateRiOpsSocket } from "./activate-ri-ops-socket";
 
 const submissionReceivedMessage =
   "Submission received for organizer review.";
@@ -94,6 +95,10 @@ export async function handleActivateRiApi(
   if (url.pathname === "/api/activate-ri-2026/admin/ops" ||
     url.pathname === "/api/activate-ri-2026/admin/ops/settings") {
     return handleActivateRiAdminOpsApi(request, env);
+  }
+
+  if (url.pathname === "/api/activate-ri-2026/ops/socket") {
+    return handleActivateRiOpsSocket(request, env);
   }
 
   if (url.pathname.startsWith("/api/activate-ri-2026/ops/")) {
