@@ -399,7 +399,8 @@ describe("handleActivateRiApi", () => {
     const actionIndex = planCreatedBinds?.indexOf("plan-created") ?? -1;
     expect(JSON.parse(String(planCreatedBinds?.[actionIndex + 2]))).toEqual(
       expect.objectContaining({
-        editLinkEmail: expect.objectContaining({ status: "skipped" }),
+        accessEmail: expect.objectContaining({ status: "skipped" }),
+        accessMethod: "legacy-link",
         stopCount: 1,
       }),
     );
@@ -775,7 +776,7 @@ describe("handleActivateRiApi", () => {
     expect(testEnv.EMAIL?.send).toHaveBeenCalledWith(
       expect.objectContaining({
         text: expect.stringContaining(
-          "https://ripota.org/activate-ri-2026/access/#magic-token",
+          "https://ripota.org/activate-ri-2026/activator/plan/",
         ),
       }),
     );

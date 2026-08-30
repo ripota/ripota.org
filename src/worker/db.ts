@@ -40,7 +40,7 @@ export type ActivityEventDto = {
 export type InsertPendingPlanResult = {
   activatorId: string;
   planId: string;
-  editToken: string;
+  editToken: string | null;
   requiresAdminApproval: boolean;
 };
 
@@ -201,10 +201,10 @@ export async function insertPendingPlan(
   env: Env,
   submission: NormalizedRouteSubmission,
   now = new Date().toISOString(),
+  options: { issueEditToken?: boolean } = {},
 ): Promise<InsertPendingPlanResult> {
   const activatorId = activatorIdForEmail(env.ACTIVATE_RI_EVENT_ID, submission.submitterEmail);
-  const editToken = generateEditToken();
-  const magicTokenHash = await tokenHash(editToken);
+  const editToken = options.issueEditToken === false ? null : generateEditToken();
   const existing = await getActivatorById(env, activatorId);
   const nextStatus: ActivatorStatus = existing?.status === "approved" ? "approved" : "pending";
   const nextStopStatus = nextStatus === "approved" ? "scheduled" : "pending-review";
@@ -240,8 +240,11 @@ export async function insertPendingPlan(
       now,
       now,
     ),
-    editTokenInsert(env, activatorId, magicTokenHash, now),
   ];
+
+  if (editToken) {
+    statements.push(editTokenInsert(env, activatorId, await tokenHash(editToken), now));
+  }
 
   for (const stop of submission.stops) {
     const { startAt, endAt } = stopTimeRangeToInstants(
@@ -468,7 +471,8 @@ export async function findActivatorForEditLinkResend(
   env: Env,
   callsign: string,
   email: string,
-): Promise<{ activator: ActivatorDto; plan: EditablePlanDto | null; editToken: string } | null> {
+  options: { issueEditToken?: boolean } = {},
+): Promise<{ activator: ActivatorDto; plan: EditablePlanDto | null; editToken: string | null } | null> {
   const activator = await env.DB.prepare(
     `${activatorSelectSql}
      FROM activate_ri_activators
@@ -481,14 +485,15 @@ export async function findActivatorForEditLinkResend(
     return null;
   }
 
-  const editToken = generateEditToken();
-  const magicTokenHash = await tokenHash(editToken);
-  await editTokenInsert(
-    env,
-    activator.id,
-    magicTokenHash,
-    new Date().toISOString(),
-  ).run();
+  const editToken = options.issueEditToken === false ? null : generateEditToken();
+  if (editToken) {
+    await editTokenInsert(
+      env,
+      activator.id,
+      await tokenHash(editToken),
+      new Date().toISOString(),
+    ).run();
+  }
 
   return {
     activator: toActivatorDto(activator),
@@ -1173,15 +1178,14 @@ export async function revokeActivatorSessions(
   return true;
 }
 
-export async function replaceActivatorSecureLinks(
+export async function revokeActivatorSecureAccess(
   env: Env,
   activatorId: string,
   actorEmail: string,
   now = new Date().toISOString(),
-): Promise<{ editToken: string; plan: EditablePlanDto } | null> {
+): Promise<EditablePlanDto | null> {
   const activator = await getActivatorById(env, activatorId);
   if (!activator) return null;
-  const editToken = generateEditToken();
   await env.DB.batch([
     env.DB.prepare(
       `UPDATE activate_ri_edit_tokens
@@ -1193,18 +1197,16 @@ export async function replaceActivatorSecureLinks(
        SET revoked_at = ?
        WHERE event_id = ? AND activator_id = ? AND revoked_at IS NULL`,
     ).bind(now, env.ACTIVATE_RI_EVENT_ID, activatorId),
-    editTokenInsert(env, activatorId, await tokenHash(editToken), now),
     activityInsert(env, {
       planId: activatorId,
       actorType: "admin",
       actorEmail,
-      action: "activator-secure-links-replaced",
-      summary: `Organizer replaced all secure links for ${activator.primary_callsign}.`,
+      action: "activator-secure-access-revoked",
+      summary: `Organizer revoked legacy links and sessions for ${activator.primary_callsign}.`,
       details: { activatorId, callsign: activator.primary_callsign },
     }, now),
   ]);
-  const plan = await getPlanById(env, activatorId);
-  return plan ? { editToken, plan } : null;
+  return getPlanById(env, activatorId);
 }
 
 export async function markEditLinkEmailEvent(

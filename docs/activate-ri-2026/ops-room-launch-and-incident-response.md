@@ -16,7 +16,7 @@ editing, and the public schedule operate independently of the room.
 - Resolve completed operational requests and reopen them when coordination is
   still needed.
 - Treat room moderation, socket disconnect, portal-session revocation, and
-  secure-link replacement as separate security controls.
+  legacy-access revocation as separate security controls.
 - Direct emergencies to 911 or the appropriate local authority.
 - Never copy message bodies, raw email addresses, secure links, tokens, or
   cookies into logs or incident notes.
@@ -34,7 +34,7 @@ editing, and the public schedule operate independently of the room.
 6. Test-drive with fellow organizers in the admin console's **Live room** first.
    Use separate mobile and desktop browsers, open the room in `full` mode, and
    exercise realtime chat, reconnect, park context, announcements, pin, remove,
-   mute, ban, session revoke, and secure-link replacement. Then invite a small
+   mute, ban, session revoke, and legacy-access revocation. Then invite a small
    set of activators through their normal secure links to validate their view.
 7. Test one explicit announcement email, its recipient count, BCC batching, and
    failed-recipient retry.
@@ -78,12 +78,13 @@ are intentionally not server records and can be discarded in the room composer.
 | Stop one participant from entering the room | Ban the room membership |
 | End currently open room connections | Disconnect active sockets |
 | End current portal browser sessions | Revoke portal sessions |
-| Invalidate both distributed private links and all sessions | Replace secure links |
+| Invalidate both previously distributed private links and all sessions | Revoke legacy access |
 | Remove exposed or inappropriate content | Remove the message; its body is cleared in D1 |
 | Recover a partial announcement send | Retry failed recipients only |
 
-A room ban affects only Ops Room access. Secure-link replacement is the broader
-control: it invalidates both plan links and all existing portal sessions.
+A room ban affects only Ops Room access. Legacy-access revocation is the broader
+control: it invalidates previously issued links and existing portal sessions
+without generating another reusable link.
 
 ## Emergency rollback
 

@@ -77,6 +77,7 @@ export async function sendActivatorEditLinkEmail(
 export async function sendActivatorApprovalEmail(
   env: Env,
   plan: ActivatorEmailPlan,
+  planUrl: string,
   helpUrl: string,
   scheduleUrl: string,
 ): Promise<SendEmailResult> {
@@ -91,11 +92,12 @@ export async function sendActivatorApprovalEmail(
     subject: "Your Activate All RI 2026 plan is live",
     introLines: [
       "Your Activate All RI 2026 activation plan is approved and live on the public schedule.",
-      "Changes you save later with your private edit link go live immediately.",
+      "Changes you save later in My Plan go live immediately.",
     ],
     statusLabel: "Live on the public schedule",
     stopLines,
     stopsHeading: "Current stops",
+    planUrl,
     scheduleUrl,
     helpUrl,
   });
@@ -104,7 +106,7 @@ export async function sendActivatorApprovalEmail(
 export async function sendActivatorPlanUpdatedEmail(
   env: Env,
   plan: EditablePlanDto,
-  editUrl: string,
+  planUrl: string,
 ): Promise<SendEmailResult> {
   const stopLines = planStopSummaryLines(plan, { includeCancelled: false });
   const statusLabel = planStatusLabel(plan.status);
@@ -117,16 +119,14 @@ export async function sendActivatorPlanUpdatedEmail(
     statusLabel,
     stopLines,
     stopsHeading: "Current stops",
-    editUrl,
-    privateLinkNote:
-      "Keep this link private. You can use it to update your plan again if timing or parks change.",
+    planUrl,
   });
 }
 
 export async function sendActivatorPlanCancelledEmail(
   env: Env,
   plan: EditablePlanDto,
-  editUrl: string,
+  planUrl: string,
 ): Promise<SendEmailResult> {
   const stopLines = planStopSummaryLines(plan, { includeCancelled: true });
   const statusLabel = plan.status === "approved"
@@ -141,31 +141,28 @@ export async function sendActivatorPlanCancelledEmail(
     statusLabel,
     stopLines,
     stopsHeading: "Cancelled stops",
-    editUrl,
-    privateLinkNote:
-      "You can use the link if you need to review this signup or submit an updated plan later.",
+    planUrl,
   });
 }
 
-export async function sendActivatorSecureLinksReplacedEmail(
+export async function sendActivatorSecureAccessRevokedEmail(
   env: Env,
   plan: EditablePlanDto,
-  editUrl: string,
+  planUrl: string,
   helpUrl: string,
 ): Promise<SendEmailResult> {
   return sendActivatorReceiptEmail(env, {
-    kind: "activator-secure-links-replaced",
+    kind: "activator-secure-access-revoked",
     plan,
-    subject: "Your Activate All RI 2026 private links were replaced",
+    subject: "Your Activate All RI 2026 access was reset",
     introLines: [
-      "An organizer replaced all private access links for your activation signup.",
-      "Older private links and existing browser sessions no longer work.",
+      "An organizer revoked the private links and browser sessions for your activation signup.",
+      "Sign in with a passkey or request a short-lived email link to return.",
     ],
     statusLabel: planStatusLabel(plan.status),
     stopLines: planStopSummaryLines(plan, { includeCancelled: true }),
     stopsHeading: "Current stops",
-    editUrl,
-    privateLinkNote: "Use this new private link from now on and keep it private.",
+    planUrl,
     helpUrl,
   });
 }
@@ -175,14 +172,21 @@ export async function sendAuthAccessEmail(
   input: {
     to: string;
     accessUrl: string;
-    purpose: "login" | "passkey-reset";
+    purpose: "login" | "passkey-reset" | "activator-submission";
   },
 ): Promise<SendEmailResult> {
   const reset = input.purpose === "passkey-reset";
-  const subject = reset ? "Reset your RI POTA passkey" : "Your RI POTA sign-in link";
+  const submission = input.purpose === "activator-submission";
+  const subject = reset
+    ? "Reset your RI POTA passkey"
+    : submission
+      ? "Open your Activate All RI 2026 plan"
+      : "Your RI POTA sign-in link";
   const intro = reset
     ? "An Activate All RI organizer sent you a passkey recovery link. Your existing passkeys remain active until you finish recovery."
-    : "Use this short-lived, single-use link to sign in to your RI POTA account.";
+    : submission
+      ? "Your Activate All RI 2026 activation signup was saved. Use this short-lived, single-use link to open My Plan."
+      : "Use this short-lived, single-use link to sign in to your RI POTA account.";
   const expiration = reset ? "30 minutes" : "15 minutes";
   const text = [
     intro,
@@ -190,7 +194,7 @@ export async function sendAuthAccessEmail(
     input.accessUrl,
     "",
     `This link expires in ${expiration}. If you did not request it, you can ignore this email.`,
-    "Existing Activate All RI private links continue to work.",
+    "Any Activate All RI private links issued previously continue to work.",
     "",
     "RI POTA is an unofficial community site. Parks on the Air is the source of truth for official accounts, rules, spots, and logs.",
     "Official POTA resources: https://docs.pota.app/",
@@ -200,15 +204,15 @@ export async function sendAuthAccessEmail(
   ].join("\n");
   const html = [
     `<p>${escapeHtml(intro)}</p>`,
-    `<p><a href="${escapeHtml(input.accessUrl)}">${reset ? "Recover your passkey" : "Sign in to RI POTA"}</a></p>`,
+    `<p><a href="${escapeHtml(input.accessUrl)}">${reset ? "Recover your passkey" : submission ? "Open My Plan" : "Sign in to RI POTA"}</a></p>`,
     `<p>This link expires in ${expiration}. If you did not request it, you can ignore this email.</p>`,
-    "<p>Existing Activate All RI private links continue to work.</p>",
+    "<p>Any Activate All RI private links issued previously continue to work.</p>",
     "<p>RI POTA is an unofficial community site. Parks on the Air is the source of truth for official accounts, rules, spots, and logs.</p>",
     '<p><a href="https://docs.pota.app/">Official Parks on the Air resources</a></p>',
     "<p>73,<br>RI POTA</p>",
   ].join("");
   return sendEmail(env, {
-    kind: reset ? "auth-passkey-reset" : "auth-email-login",
+    kind: reset ? "auth-passkey-reset" : submission ? "auth-activator-submission" : "auth-email-login",
     to: input.to,
     subject,
     text,
@@ -224,7 +228,7 @@ function sendActivatorReceiptEmail(
       | "activator-approval"
       | "activator-plan-updated"
       | "activator-plan-cancelled"
-      | "activator-secure-links-replaced";
+      | "activator-secure-access-revoked";
     plan: ActivatorEmailPlan;
     subject: string;
     introLines: string[];
@@ -232,6 +236,7 @@ function sendActivatorReceiptEmail(
     stopLines: string[];
     stopsHeading: string;
     editUrl?: string;
+    planUrl?: string;
     privateLinkNote?: string;
     helpUrl?: string;
     scheduleUrl?: string;
@@ -251,7 +256,8 @@ function sendActivatorReceiptEmail(
     "",
     ...textUrlBlock("Private edit link", receipt.editUrl),
     ...textLineBlock(receipt.privateLinkNote),
-    "Existing private links continue to work. After opening yours, you can optionally add a passkey for faster future sign-in.",
+    ...textUrlBlock("My Plan", receipt.planUrl),
+    "Any private links already issued continue to work unless an organizer revokes them. Use a passkey or an email sign-in link for future access.",
     "",
     "Already added a passkey? Sign in at https://ripota.org/account/sign-in/",
     "",
@@ -269,7 +275,8 @@ function sendActivatorReceiptEmail(
     stopSummaryListHtml(receipt.stopLines),
     ...htmlUrlBlock("Private edit link", receipt.editUrl),
     ...htmlLineBlock(receipt.privateLinkNote),
-    "<p>Existing private links continue to work. After opening yours, you can optionally add a passkey for faster future sign-in.</p>",
+    ...htmlUrlBlock("Open My Plan", receipt.planUrl),
+    "<p>Any private links already issued continue to work unless an organizer revokes them. Use a passkey or an email sign-in link for future access.</p>",
     '<p><a href="https://ripota.org/account/sign-in/">Sign in with an existing passkey</a></p>',
     ...htmlUrlBlock("View the public schedule", receipt.scheduleUrl),
     ...htmlUrlBlock("Read the activator help page", receipt.helpUrl),
@@ -365,10 +372,11 @@ type EmailKind =
   | "activator-approval"
   | "activator-plan-updated"
   | "activator-plan-cancelled"
-  | "activator-secure-links-replaced"
+  | "activator-secure-access-revoked"
   | "admin-activity"
   | "admin-pending-plan"
   | "auth-email-login"
+  | "auth-activator-submission"
   | "auth-passkey-reset";
 
 async function sendEmail(

@@ -12,7 +12,8 @@ import {
   type ActivatorSessionIdentity,
 } from "../activator-session";
 import { requireActivator, requireAdmin } from "../auth/authorization";
-import { getAuthConfig } from "../auth/config";
+import { getAuthConfig, isLegacyLinkIssuanceEnabled } from "../auth/config";
+import { issueActivatorEmailLogin } from "../auth/email-login";
 import { createUnifiedActivatorSession } from "../auth/legacy";
 import { getAuthContext } from "../auth/session";
 import { linkActivatorMembership } from "../auth/db";
@@ -72,7 +73,7 @@ import {
 const submissionReceivedMessage =
   "Submission received for organizer review.";
 const resendLinkMessage =
-  "If we found a matching signup, we sent the private edit link.";
+  "If we found a matching signup, we sent a sign-in link.";
 const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
 const publicJsonCacheControl =
   "public, max-age=60, s-maxage=60, stale-while-revalidate=300";
@@ -103,7 +104,7 @@ export async function handleActivateRiApi(
   }
 
   if (url.pathname.startsWith("/api/activate-ri-2026/admin/ops") ||
-    /^\/api\/activate-ri-2026\/admin\/activators\/[^/]+\/(?:revoke-sessions|replace-secure-links)$/.test(url.pathname)) {
+    /^\/api\/activate-ri-2026\/admin\/activators\/[^/]+\/(?:revoke-sessions|revoke-legacy-access|replace-secure-links)$/.test(url.pathname)) {
     return handleActivateRiAdminOpsApi(request, env, ctx);
   }
 
@@ -290,6 +291,7 @@ export async function handleActivateRiApi(
       const emailResult = await sendActivatorApprovalEmail(
         env,
         plan,
+        portalPlanUrl(request, env),
         absoluteHelpUrl(request, env),
         absoluteScheduleUrl(request, env),
       );
@@ -925,7 +927,7 @@ async function handleEditStop(
   const activatorEmailResult = await sendActivatorPlanUpdatedEmail(
     env,
     result.plan,
-    absoluteEditUrl(request, env, token),
+    portalPlanUrl(request, env),
   );
   await logActivityEvent(env, {
     planId: result.plan.id,
@@ -981,7 +983,7 @@ async function handleCancelStop(
   const activatorEmailResult = await sendActivatorPlanUpdatedEmail(
     env,
     result.plan,
-    absoluteEditUrl(request, env, token),
+    portalPlanUrl(request, env),
   );
   await logActivityEvent(env, {
     planId: result.plan.id,
@@ -1048,7 +1050,16 @@ async function handlePlanSubmission(
     );
   }
 
-  const result = await insertPendingPlan(env, validation.value);
+  const legacyLinkIssuanceEnabled = isLegacyLinkIssuanceEnabled(env);
+  if (!legacyLinkIssuanceEnabled && env.AUTH_EMAIL_LOGIN_ENABLED !== "true") {
+    return json({ ok: false, errors: ["Activator email sign-in is temporarily unavailable."] }, { status: 503 });
+  }
+  const result = await insertPendingPlan(
+    env,
+    validation.value,
+    undefined,
+    { issueEditToken: legacyLinkIssuanceEnabled },
+  );
   const signedIn = await getAuthContext(request, env);
   if (
     signedIn?.session.purpose === "authenticated" &&
@@ -1060,22 +1071,30 @@ async function handlePlanSubmission(
       console.error(JSON.stringify({ event: "signed-in-volunteer-link-failed" }));
     }
   }
-  const editUrl = absoluteEditUrl(request, env, result.editToken);
+  const editUrl = result.editToken
+    ? absoluteEditUrl(request, env, result.editToken)
+    : null;
   const savedPlan = await getPlanById(env, result.planId);
-  const emailResult = await sendActivatorEditLinkEmail(
-    env,
-    savedPlan ?? {
-      submitter_callsign: validation.value.submitterCallsign,
-      submitter_name: validation.value.submitterName,
-      submitter_email: validation.value.submitterEmail,
-      status: result.requiresAdminApproval ? "pending" : "approved",
-      stops: [],
-    },
-    editUrl,
-    absoluteHelpUrl(request, env),
-    { requiresAdminApproval: result.requiresAdminApproval },
-  );
-  if (emailResult.status === "sent") {
+  const emailResult = editUrl
+    ? await sendActivatorEditLinkEmail(
+        env,
+        savedPlan ?? {
+          submitter_callsign: validation.value.submitterCallsign,
+          submitter_name: validation.value.submitterName,
+          submitter_email: validation.value.submitterEmail,
+          status: result.requiresAdminApproval ? "pending" : "approved",
+          stops: [],
+        },
+        editUrl,
+        absoluteHelpUrl(request, env),
+        { requiresAdminApproval: result.requiresAdminApproval },
+      )
+    : await issueActivatorEmailLogin(request, env, {
+        email: validation.value.submitterEmail,
+        activatorId: result.activatorId,
+        purpose: "activator-submission",
+      });
+  if (editUrl && emailResult?.status === "sent") {
     await markEditLinkSent(env, result.activatorId);
   }
   await logActivityEvent(env, {
@@ -1088,7 +1107,8 @@ async function handlePlanSubmission(
       submitterCallsign: validation.value.submitterCallsign,
       submitterEmail: validation.value.submitterEmail,
       stopCount: validation.value.stops.length,
-      editLinkEmail: emailActivityDetails(emailResult),
+      accessEmail: emailResult ? emailActivityDetails(emailResult) : { status: "not-sent" },
+      accessMethod: editUrl ? "legacy-link" : "single-use-email",
     },
   });
 
@@ -1111,7 +1131,7 @@ async function handlePlanSubmission(
     {
       ok: true,
       message: submissionReceivedMessage,
-      ...(env.ALLOW_LOCAL_ADMIN_AUTH === "true" ? { editUrl } : {}),
+      ...(env.ALLOW_LOCAL_ADMIN_AUTH === "true" && editUrl ? { editUrl } : {}),
     },
     { status: 202 },
   );
@@ -1204,7 +1224,7 @@ async function handleEditPlanUpdate(
     const emailResult = await sendActivatorPlanUpdatedEmail(
       env,
       plan,
-      absoluteEditUrl(request, env, token),
+      portalPlanUrl(request, env),
     );
     await logActivityEvent(env, {
       planId: plan.id,
@@ -1240,22 +1260,45 @@ async function handleResendEditLink(
     env,
     validation.callsign,
     validation.email,
+    { issueEditToken: isLegacyLinkIssuanceEnabled(env) },
   );
   if (!match) {
     return json({ ok: true, message: resendLinkMessage });
   }
 
-  const emailResult = await sendActivatorEditLinkEmail(
-    env,
-    match.plan ?? {
-      submitter_callsign: match.activator.primary_callsign,
-      submitter_name: match.activator.name,
-      submitter_email: match.activator.email_normalized,
-    },
-    absoluteEditUrl(request, env, match.editToken),
-    absoluteHelpUrl(request, env),
-    { requiresAdminApproval: match.plan?.status !== "approved" },
-  );
+  const emailResult = match.editToken
+    ? await sendActivatorEditLinkEmail(
+        env,
+        match.plan ?? {
+          submitter_callsign: match.activator.primary_callsign,
+          submitter_name: match.activator.name,
+          submitter_email: match.activator.email_normalized,
+        },
+        absoluteEditUrl(request, env, match.editToken),
+        absoluteHelpUrl(request, env),
+        { requiresAdminApproval: match.plan?.status !== "approved" },
+      )
+    : await issueActivatorEmailLogin(request, env, {
+        email: validation.email,
+        activatorId: match.activator.id,
+        rateLimit: true,
+      });
+  if (!match.editToken) {
+    await logActivityEvent(env, {
+      planId: match.plan?.id ?? match.activator.id,
+      actorType: "system",
+      actorEmail: validation.email,
+      action: emailResult?.status === "sent" ? "email-login-sent" : "email-login-not-sent",
+      summary: emailResult?.status === "sent"
+        ? `Single-use sign-in link sent to ${validation.email}.`
+        : `Single-use sign-in request did not send for ${validation.email}.`,
+      details: emailResult ? emailActivityDetails(emailResult) : { status: "not-sent" },
+    });
+    return json({ ok: true, message: resendLinkMessage });
+  }
+  if (!emailResult) {
+    return json({ ok: true, message: resendLinkMessage });
+  }
   await markEditLinkEmailEvent(
     env,
     match.plan?.id,
@@ -1359,7 +1402,7 @@ async function handleCancelPlan(
   const activatorEmailResult = await sendActivatorPlanCancelledEmail(
     env,
     activatorEmailPlan,
-    absoluteEditUrl(request, env, token),
+    portalPlanUrl(request, env),
   );
   await logActivityEvent(env, {
     planId: activatorEmailPlan.id,

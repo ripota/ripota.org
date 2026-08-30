@@ -7,10 +7,10 @@ import {
 } from "../../lib/activate-ri/ops-validation";
 import { requireAdmin } from "../auth/authorization";
 import {
-  replaceActivatorSecureLinks,
+  revokeActivatorSecureAccess,
   revokeActivatorSessions,
 } from "../db";
-import { sendActivatorSecureLinksReplacedEmail } from "../email";
+import { sendActivatorSecureAccessRevokedEmail } from "../email";
 import { tokenHash } from "../edit-token";
 import type { Env } from "../env";
 import { json, readJson } from "../http";
@@ -203,24 +203,22 @@ export async function handleActivateRiAdminOpsApi(
       : privateJson({ ok: false, error: "Activator not found" }, { status: 404 });
   }
 
-  const replaceLinks = url.pathname.match(
-    /^\/api\/activate-ri-2026\/admin\/activators\/([^/]+)\/replace-secure-links$/,
+  const revokeLegacyAccess = url.pathname.match(
+    /^\/api\/activate-ri-2026\/admin\/activators\/([^/]+)\/(?:revoke-legacy-access|replace-secure-links)$/,
   );
-  if (request.method === "POST" && replaceLinks) {
+  if (request.method === "POST" && revokeLegacyAccess) {
     const originError = requireMutationOrigin(request, env);
     if (originError) return originError;
-    const result = await replaceActivatorSecureLinks(
+    const plan = await revokeActivatorSecureAccess(
       env,
-      decodePathSegment(replaceLinks[1]),
+      decodePathSegment(revokeLegacyAccess[1]),
       identity.email,
     );
-    if (!result) return privateJson({ ok: false, error: "Activator not found" }, { status: 404 });
-    const editUrl = trustedSiteUrl(request, env, "/activate-ri-2026/access/");
-    editUrl.hash = result.editToken;
-    const emailResult = await sendActivatorSecureLinksReplacedEmail(
+    if (!plan) return privateJson({ ok: false, error: "Activator not found" }, { status: 404 });
+    const emailResult = await sendActivatorSecureAccessRevokedEmail(
       env,
-      result.plan,
-      editUrl.href,
+      plan,
+      trustedSiteUrl(request, env, "/activate-ri-2026/activator/plan/").href,
       trustedSiteUrl(request, env, "/activate-ri-2026/help/").href,
     );
     return privateJson({ ok: true, emailStatus: emailResult.status });

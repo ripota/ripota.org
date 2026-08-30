@@ -35,12 +35,12 @@ describe("VolunteerForm shared controls", () => {
 });
 
 describe("VolunteerForm existing activation hint", () => {
-  it("checks callsign and email for an existing activation and offers an edit link", () => {
+  it("checks callsign and email for an existing activation and offers account sign-in", () => {
     expect(volunteerFormSource).toContain("data-existing-activation-notice");
     expect(volunteerFormSource).toContain("/api/activate-ri-2026/activation-lookup");
-    expect(volunteerFormSource).toContain("/api/activate-ri-2026/resend-edit-link");
+    expect(volunteerFormSource).not.toContain("/api/activate-ri-2026/resend-edit-link");
     expect(volunteerFormSource).toContain("We already have an activation plan for this callsign and email.");
-    expect(volunteerFormSource).toContain("Email me my edit link");
+    expect(volunteerFormSource).toContain("Sign in to My Plan");
     expect(volunteerFormSource).toContain("You can also keep going here; submitting this form will merge these parks into your existing plan.");
   });
 });

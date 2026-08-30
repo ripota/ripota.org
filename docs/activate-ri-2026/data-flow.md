@@ -30,7 +30,8 @@ Relevant Worker routing is in `src/worker/index.ts`:
 - `/activate-ri-2026/admin/` runs through Cloudflare Access before serving the
   static admin page.
 - `/activate-ri-2026/access/` exchanges fragment credentials for a session.
-- `/activate-ri-2026/activator/` and `/activator/plan/` require that session.
+- `/activate-ri-2026/activator/`, `/activator/plan/`, and
+  `/activator/account/` require that session.
 - `/activate-ri-2026/edit/<token>/` remains a legacy session bootstrap.
 - Other public pages and static JSON files are served by `ASSETS`.
 
@@ -76,7 +77,7 @@ The current public site has two public data paths:
 | --- | --- | --- | --- |
 | Static JSON at `/data/activate-ri-2026/event.json` and `/data/activate-ri-2026/parks.json` | Files generated into `public/data/activate-ri-2026/` before deploy | No. These files change only when regenerated and deployed. | Stable event metadata and park reference data. |
 | `GET /api/activate-ri-2026/public/stops` | Short-cached live D1 query over approved plans and public stop statuses | Yes. It reflects D1 after approval or approved activator edits. | Public schedule, park coverage, coverage summary, hero stats, and map coverage. |
-| Admin and edit APIs | Live D1 queries and mutations | Yes. These are the operational editing paths. | Organizer review, activity log, activator edit links, cancellation, and resend flows. |
+| Admin and edit APIs | Live D1 queries and mutations | Yes. These are the operational editing paths. | Organizer review, activity log, activator accounts, cancellation, and compatibility flows. |
 
 The important consequence is that D1 remains authoritative for operational and
 event-dynamic public data. Admin approval and approved activator edits update D1
@@ -117,11 +118,12 @@ site by itself.
 2. `POST /api/activate-ri-2026/plans` validates the JSON payload.
 3. Turnstile is verified unless disabled for local development.
 4. D1 upserts an activator by normalized email.
-5. A private edit token is generated and only its SHA-256 hash is stored.
-6. Stops are inserted with `status = 'pending-review'`.
-7. A `plan-created` activity event is written.
-8. The Worker attempts to email a fragment-based private access link.
-9. Email success or failure is written to the activity log.
+5. Stops are inserted with `status = 'pending-review'`.
+6. A `plan-created` activity event is written.
+7. The Worker stores a hashed, 15-minute, single-use email token and attempts
+   to send the fragment-based claim link.
+8. No reusable edit token is created while legacy-link issuance is disabled.
+9. Email success or failure is written to the activity and auth audit logs.
 
 The submission succeeds even if email delivery fails. The email failure is
 visible to admins through the activity log.
@@ -149,7 +151,8 @@ static JSON files.
 
 ## Activator Edit Flow
 
-1. The activator opens an emailed `/activate-ri-2026/access/#<token>` link.
+1. The activator signs in with a passkey or a 15-minute email link. A
+   previously issued `/activate-ri-2026/access/#<token>` link remains valid.
 2. The access page removes the fragment and exchanges it for a hashed 14-day
    HttpOnly legacy session cookie. Legacy `/edit/<token>/` links do the same in
    the Worker. In dual/unified authentication mode, the credential also creates
@@ -181,6 +184,10 @@ rate-limit bindings protect the request. Only the token hash is stored and the
 secret is carried in the URL fragment. Consumption verifies the primary email,
 links the matching event activator, and creates an email-authenticated session
 that can enroll a passkey.
+
+`AUTH_LEGACY_LINK_ISSUANCE_ENABLED` controls only creation of new reusable
+links. Existing link acceptance and legacy session compatibility remain active
+independently so rollout and rollback never require deleting credentials.
 
 Administrator bootstrap starts only from a Worker-validated Cloudflare Access
 identity that is already an event admin or is explicitly allowlisted outside
@@ -217,7 +224,7 @@ members, records the recipient count before sending, and uses blind-copy batches
 of at most 49 recipients with the configured sender in `To`. Per-recipient state
 makes a retry target only failed recipients. Message removal clears the body in
 D1. Room moderation, active-socket disconnect, portal-session revocation, and
-secure-link replacement remain distinct controls.
+legacy-access revocation remain distinct controls.
 
 Participant message/removal/resolution HTTP mutations and admin room-mode
 changes are routed through the event Durable Object. The object serializes the

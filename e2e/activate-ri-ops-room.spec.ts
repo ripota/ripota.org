@@ -7,7 +7,7 @@ test("approved activators acknowledge rules and exchange a live room message", a
   browser,
   request,
 }) => {
-  const server = await startActivateRiServer();
+  const server = await startActivateRiServer({ legacyLinkIssuanceEnabled: true });
   const callsign = randomCallsign();
   const email = `${callsign.toLowerCase()}@example.com`;
   const firstContext = await browser.newContext();

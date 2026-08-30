@@ -1,5 +1,4 @@
 ---
-import EditLinkResendForm from "../../components/activate-ri/EditLinkResendForm.astro";
 import EventNav from "../../components/activate-ri/EventNav.astro";
 import Footer from "../../components/Footer.astro";
 import Notice from "../../components/Notice.astro";
@@ -47,7 +46,19 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
               </a>
             </div>
           </section>
-          <EditLinkResendForm />
+          <section class="event-guidance__item" aria-labelledby="returning-activator-title">
+            <p class="eyebrow">Returning activator</p>
+            <h2 id="returning-activator-title">Sign in to My Plan</h2>
+            <p>
+              Use a passkey or request a 15-minute, single-use link at the email
+              address on your activation signup.
+            </p>
+            <div class="button-row">
+              <a class="button" data-variant="light" href="/account/sign-in/?returnTo=%2Factivate-ri-2026%2Factivator%2Fplan%2F">
+                Passkey or email sign-in
+              </a>
+            </div>
+          </section>
         </div>
       </div>
     </section>

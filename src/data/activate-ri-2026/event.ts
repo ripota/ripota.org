@@ -47,7 +47,7 @@ export const activateRi2026Event = {
       secondary: {
         label: "Update my activation",
         href: eventRoute("volunteer"),
-        description: "Use your private edit link to update or cancel a stop.",
+        description: "Sign in to My Plan to update or cancel a stop.",
       },
     },
     "post-event": {

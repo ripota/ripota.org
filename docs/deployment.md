@@ -100,6 +100,7 @@ The initial authentication rollout starts in rollback-safe mode:
 AUTH_ADMIN_MODE=access
 AUTH_ACTIVATOR_MODE=legacy
 AUTH_EMAIL_LOGIN_ENABLED=false
+AUTH_LEGACY_LINK_ISSUANCE_ENABLED=true
 ```
 
 Do not change those values as part of the first migration/code deployment.
@@ -177,7 +178,7 @@ After deployment:
    curl -i https://ripota.org/api/activate-ri-2026/admin/plans
    ```
 
-7. If email-related changes shipped, confirm the activator edit-link email and
+7. If email-related changes shipped, confirm the activator single-use sign-in email and
    admin notification email flow. See
    `docs/activate-ri-2026/email-flow-and-setup.md`.
 8. For the unified-auth dormant deployment, confirm existing admin Access,

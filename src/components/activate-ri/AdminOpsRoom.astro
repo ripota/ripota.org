@@ -216,11 +216,11 @@ import AdminOpsModeration from "./AdminOpsModeration.astro";
       )));
       detailActions.appendChild(actionButton("Sign out all browsers", () => simpleConfirmMutation(
         `/api/activate-ri-2026/admin/activators/${encodeURIComponent(member.activator_id)}/revoke-sessions`,
-        `Revoke every browser session for ${member.primary_callsign}? Their secure email links will still work.`,
+        `Revoke every browser session for ${member.primary_callsign}? Previously issued private links will still work.`,
       )));
-      detailActions.appendChild(actionButton("Replace secure links", () => simpleConfirmMutation(
-        `/api/activate-ri-2026/admin/activators/${encodeURIComponent(member.activator_id)}/replace-secure-links`,
-        `Replace every secure link and revoke every browser session for ${member.primary_callsign}? A new link will be emailed.`,
+      detailActions.appendChild(actionButton("Revoke legacy access", () => simpleConfirmMutation(
+        `/api/activate-ri-2026/admin/activators/${encodeURIComponent(member.activator_id)}/revoke-legacy-access`,
+        `Revoke every previously issued private link and browser session for ${member.primary_callsign}? They can return with a passkey or a new single-use email sign-in link.`,
       )));
       card.body.appendChild(card.actions);
       card.body.appendChild(details);

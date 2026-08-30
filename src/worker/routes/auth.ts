@@ -90,7 +90,11 @@ export async function handleAuthApi(request: Request, env: Env): Promise<Respons
       const token = isRecord(payload) && typeof payload.token === "string" ? payload.token : "";
       const result = await consumeEmailLogin(env, token) ?? await consumePasskeyReset(env, token);
       return result
-        ? privateJson({ ok: true, expiresAt: result.expiresAt }, { headers: { "set-cookie": result.cookie } })
+        ? privateJson({
+            ok: true,
+            expiresAt: result.expiresAt,
+            nextPath: "nextPath" in result ? result.nextPath : "/account/security/",
+          }, { headers: { "set-cookie": result.cookie } })
         : privateJson({ ok: false, error: "Access link invalid or expired" }, { status: 400 });
     }
     if (request.method === "POST" && url.pathname === "/api/auth/legacy/upgrade-session") {

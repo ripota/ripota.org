@@ -406,7 +406,7 @@ describe("Activate RI Ops Room D1 flow", () => {
     expect(plans.status).toBe(200);
   });
 
-  it("revokes sessions separately and replaces all old secure links", async () => {
+  it("revokes sessions separately and can revoke all legacy access", async () => {
     const database = createMigratedSqliteD1();
     closeDatabase = database.close;
     const env = testEnv(database.DB);
@@ -436,7 +436,7 @@ describe("Activate RI Ops Room D1 flow", () => {
     expect(legacyBeforeReplace.status).toBe(200);
 
     const replace = await handleActivateRiApi(
-      adminRequest(`/api/activate-ri-2026/admin/activators/${encodeURIComponent(activatorId)}/replace-secure-links`, {
+      adminRequest(`/api/activate-ri-2026/admin/activators/${encodeURIComponent(activatorId)}/revoke-legacy-access`, {
         method: "POST",
         headers: jsonHeaders(),
         body: "{}",
@@ -451,8 +451,8 @@ describe("Activate RI Ops Room D1 flow", () => {
     );
     expect(legacyAfterReplace.status).toBe(404);
     expect(send).toHaveBeenCalledWith(expect.objectContaining({
-      subject: "Your Activate All RI 2026 private links were replaced",
-      text: expect.stringContaining("/activate-ri-2026/access/#"),
+      subject: "Your Activate All RI 2026 access was reset",
+      text: expect.stringContaining("/activate-ri-2026/activator/plan/"),
     }));
   });
 });

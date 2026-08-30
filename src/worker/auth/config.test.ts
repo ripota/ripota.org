@@ -8,6 +8,7 @@ describe("auth configuration", () => {
       adminMode: "access",
       activatorMode: "legacy",
       emailLoginEnabled: false,
+      legacyLinkIssuanceEnabled: true,
       adminReauthSeconds: defaultAdminReauthSeconds,
       expectedOrigin: "https://ripota.org",
       rpId: "ripota.org",
@@ -54,6 +55,19 @@ describe("auth configuration", () => {
       AUTH_ADMIN_MODE: "dual",
       AUTH_RATE_LIMIT_BURST: undefined,
     }))).toThrow(/rate-limit bindings/i);
+  });
+
+  it("requires email fallback before durable legacy-link issuance is disabled", () => {
+    expect(() => getAuthConfig(baseEnv({
+      AUTH_LEGACY_LINK_ISSUANCE_ENABLED: "false",
+    }))).toThrow(/requires activator email sign-in/i);
+    expect(getAuthConfig(baseEnv({
+      AUTH_EMAIL_LOGIN_ENABLED: "true",
+      AUTH_LEGACY_LINK_ISSUANCE_ENABLED: "false",
+    }))).toMatchObject({
+      emailLoginEnabled: true,
+      legacyLinkIssuanceEnabled: false,
+    });
   });
 });
 

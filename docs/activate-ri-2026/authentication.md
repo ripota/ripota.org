@@ -49,6 +49,12 @@ matching unified activator account and session. The link is not consumed,
 rotated, or revoked by that upgrade. Existing legacy browser sessions can be
 upgraded in `dual` mode.
 
+New long-lived private links are issued only when
+`AUTH_LEGACY_LINK_ISSUANCE_ENABLED=true`. Production keeps acceptance enabled
+but issuance disabled: new submissions and recovery use 15-minute, single-use
+email links. This separates rollback from compatibility and avoids putting new
+reusable bearer credentials in email.
+
 ### Administrator bootstrap and recovery
 
 `/activate-ri-2026/admin/recovery/` stays behind Cloudflare Access. Starting a
@@ -68,22 +74,28 @@ can inspect event accounts, send a 30-minute passkey replacement link, revoke
 unified and related legacy sessions, disable an account after typing its callsign/email, or
 re-enable it for a subsequent recovery. Passkey replacement revokes old
 passkeys and unified/legacy sessions in one transaction. These controls do not revoke legacy private links;
-existing operational secure-link replacement remains a separate control.
+an explicit **Revoke legacy access** operation remains separate. It revokes
+legacy private links and browser sessions without minting a replacement.
 
 ## Feature Flags
 
-Production defaults are deliberately dormant:
+The first column lists rollback-safe values; current production has advanced
+through the verified transitions shown below:
 
 | Variable | Safe value | Transition | Final value |
 | --- | --- | --- | --- |
 | `AUTH_ADMIN_MODE` | `access` | `dual` | `passkey` |
 | `AUTH_ACTIVATOR_MODE` | `legacy` | `dual` | `unified` |
 | `AUTH_EMAIL_LOGIN_ENABLED` | `false` | `true` after delivery checks | `true` |
+| `AUTH_LEGACY_LINK_ISSUANCE_ENABLED` | `true` | `false` after email checks | `false` |
 
 `access` and `legacy` preserve the previous production behavior. `dual` accepts
 the old path while enrolling and exercising the new path. `passkey` and
 `unified` require unified role sessions for protected pages and APIs, while old
 activator links remain account bootstrap credentials.
+
+The Worker refuses the unsafe combination of email login disabled and new
+legacy-link issuance disabled.
 
 Flags are top-level production vars in `wrangler.jsonc`. Change them in a
 reviewed commit and deploy the whole configuration; do not use ad-hoc CLI
@@ -110,9 +122,13 @@ Do not skip gates.
 4. **Email fallback:** set `AUTH_EMAIL_LOGIN_ENABLED=true`. Verify known and
    unknown requests have indistinguishable public responses, eligible delivery,
    fragment consumption, replay rejection, and audit records.
-5. **Unified activators:** after support readiness and telemetry review, set
+5. **Stop durable-link issuance:** set
+   `AUTH_LEGACY_LINK_ISSUANCE_ENABLED=false`. Verify a new submission creates
+   no edit-token row, sends a single-use claim link, and lands on My Plan.
+   Verify a previously issued private link still works.
+6. **Unified activators:** after support readiness and telemetry review, set
    `AUTH_ACTIVATOR_MODE=unified`. Keep legacy links enabled as bootstrap.
-6. **Passkey administrators:** only after at least two real administrators have
+7. **Passkey administrators:** only after at least two real administrators have
    tested passkeys and break-glass recovery is proven, set
    `AUTH_ADMIN_MODE=passkey`. A specifically named pending administrator may
    still enroll through the Access-protected recovery page while their address
@@ -164,8 +180,9 @@ Roll flags back before rolling code back:
 
 1. Set `AUTH_ADMIN_MODE=access`.
 2. Set `AUTH_ACTIVATOR_MODE=legacy`.
-3. Set `AUTH_EMAIL_LOGIN_ENABLED=false`.
-4. Deploy and verify Access, existing private links, and existing legacy
+3. Set `AUTH_LEGACY_LINK_ISSUANCE_ENABLED=true` before disabling email.
+4. Set `AUTH_EMAIL_LOGIN_ENABLED=false` if email fallback itself is implicated.
+5. Deploy and verify Access, existing private links, and existing legacy
    sessions.
 
 These changes do not delete users, passkeys, unified sessions, roles, links, or

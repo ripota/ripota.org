@@ -16,22 +16,28 @@ export type ActivateRiServer = {
   stop(): Promise<void>;
 };
 
-export async function startActivateRiServer(): Promise<ActivateRiServer> {
+export async function startActivateRiServer(
+  options: { legacyLinkIssuanceEnabled?: boolean } = {},
+): Promise<ActivateRiServer> {
   const port = await freePort();
   const persistTo = mkdtempSync(join(tmpdir(), "ripota-e2e-wrangler-"));
   applyLocalMigrations(persistTo);
+  const wranglerArgs = [
+    "dev",
+    "--env",
+    "local",
+    "--port",
+    String(port),
+    "--local",
+    "--persist-to",
+    persistTo,
+  ];
+  if (options.legacyLinkIssuanceEnabled) {
+    wranglerArgs.push("--var", "AUTH_LEGACY_LINK_ISSUANCE_ENABLED:true");
+  }
   const child = spawn(
     "./node_modules/.bin/wrangler",
-    [
-      "dev",
-      "--env",
-      "local",
-      "--port",
-      String(port),
-      "--local",
-      "--persist-to",
-      persistTo,
-    ],
+    wranglerArgs,
     {
       cwd: process.cwd(),
       env: {

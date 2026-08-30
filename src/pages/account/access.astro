@@ -37,10 +37,21 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ token }),
       });
-      if (!response.ok) throw new Error("invalid");
-      window.location.replace("/account/security/");
+      const body: unknown = await response.json();
+      if (!response.ok || !isRecord(body)) throw new Error("invalid");
+      window.location.replace(safeNextPath(body.nextPath));
     } catch {
       status?.replaceChildren("This access link is invalid, expired, or already used.");
     }
+  }
+
+  function safeNextPath(value: unknown): string {
+    return typeof value === "string" && value.startsWith("/") && !value.startsWith("//")
+      ? value
+      : "/account/security/";
+  }
+
+  function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
   }
 </script>

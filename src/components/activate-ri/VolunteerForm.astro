@@ -31,9 +31,9 @@ const turnstileSiteKey =
       You can also keep going here; submitting this form will merge these parks into your existing plan.
     </p>
     <div class="form-actions">
-      <button class="button" data-variant="light" type="button" data-send-existing-edit-link>
-        Email me my edit link
-      </button>
+      <a class="button" data-variant="light" href="/account/sign-in/?returnTo=%2Factivate-ri-2026%2Factivator%2Fplan%2F">
+        Sign in to My Plan
+      </a>
       <span class="form-help" data-existing-activation-status></span>
     </div>
   </div>
@@ -61,8 +61,8 @@ const turnstileSiteKey =
     <p class="eyebrow">Submission received</p>
     <h2>Plan sent for organizer review</h2>
     <p>
-      Your activation plan was submitted. Check your email for the private edit
-      link before closing this page.
+      Your activation plan was submitted. Check your email for a 15-minute,
+      single-use link that opens My Plan.
     </p>
     <div class="form-actions">
       <a class="button" data-variant="primary" href="/activate-ri-2026/" data-confirmation-overview>
@@ -113,11 +113,9 @@ const turnstileSiteKey =
   const addStopButton = document.querySelector("[data-add-stop]");
   const existingActivationNotice = document.querySelector<HTMLElement>("[data-existing-activation-notice]");
   const existingActivationStatus = document.querySelector<HTMLElement>("[data-existing-activation-status]");
-  const sendExistingEditLinkButton = document.querySelector<HTMLButtonElement>("[data-send-existing-edit-link]");
   let isSubmitting = false;
   let existingActivationCheckId = 0;
   let lastExistingActivationLookup = "";
-  let isSendingExistingEditLink = false;
 
   setupCallsignFields();
   document.addEventListener("activate-ri:coverage-filter-change", syncParkCoverageFilters);
@@ -258,9 +256,6 @@ const turnstileSiteKey =
     });
     callsignField?.addEventListener("input", () => clearExistingActivationHint());
     emailField?.addEventListener("input", () => clearExistingActivationHint());
-    sendExistingEditLinkButton?.addEventListener("click", () => {
-      void sendExistingEditLink();
-    });
   }
 
   async function checkExistingActivation(): Promise<void> {
@@ -300,45 +295,6 @@ const turnstileSiteKey =
       }
     } catch {
       clearExistingActivationHint({ keepLookup: true });
-    }
-  }
-
-  async function sendExistingEditLink(): Promise<void> {
-    const identity = currentActivatorIdentity();
-    if (!identity || isSendingExistingEditLink) {
-      return;
-    }
-
-    isSendingExistingEditLink = true;
-    if (sendExistingEditLinkButton) {
-      sendExistingEditLinkButton.disabled = true;
-    }
-    existingActivationStatus?.replaceChildren("Sending...");
-
-    try {
-      const response = await fetch("/api/activate-ri-2026/resend-edit-link", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          callsign: identity.callsign,
-          email: identity.email,
-        }),
-      });
-      const data = await parseResponse(response);
-
-      if (!response.ok || !data.ok) {
-        existingActivationStatus?.replaceChildren(data.errors?.join(" ") ?? "Unable to send the edit link.");
-        return;
-      }
-
-      existingActivationStatus?.replaceChildren(data.message ?? "If we found a matching signup, we sent the private edit link.");
-    } catch {
-      existingActivationStatus?.replaceChildren("Unable to send the edit link. Please try again later.");
-    } finally {
-      isSendingExistingEditLink = false;
-      if (sendExistingEditLinkButton) {
-        sendExistingEditLinkButton.disabled = false;
-      }
     }
   }
 

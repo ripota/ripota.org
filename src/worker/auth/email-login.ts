@@ -1,5 +1,6 @@
 import { generateEditToken, tokenHash } from "../edit-token";
 import { sendAuthAccessEmail } from "../email";
+import type { SendEmailResult } from "../email";
 import type { Env } from "../env";
 import { trustedSiteUrl } from "../origin";
 import { verifyTurnstile } from "../turnstile";
@@ -26,7 +27,6 @@ type EmailTokenRow = {
 
 type ActivatorEmailRow = {
   id: string;
-  name: string;
   email_normalized: string;
 };
 
@@ -43,28 +43,44 @@ export async function requestEmailLogin(
   if (!validEmail(email) || !await verifyTurnstile(request, env, input.turnstileToken)) {
     return genericResponse();
   }
-  const network = request.headers.get("CF-Connecting-IP") ?? "unknown";
-  const [emailRateKey, networkRateKey] = await Promise.all([
-    tokenHash(`email:${email}`),
-    tokenHash(`network:${network}`),
-  ]);
-  if (!env.AUTH_EMAIL_RATE_LIMIT) {
-    return genericResponse();
-  }
-  const [emailLimit, networkLimit] = await Promise.all([
-    env.AUTH_EMAIL_RATE_LIMIT.limit({ key: emailRateKey }),
-    env.AUTH_EMAIL_RATE_LIMIT.limit({ key: networkRateKey }),
-  ]);
-  if (!emailLimit.success || !networkLimit.success) return genericResponse();
+  await issueActivatorEmailLogin(request, env, {
+    email,
+    purpose: "login",
+    rateLimit: true,
+  });
+  return genericResponse();
+}
+
+export async function issueActivatorEmailLogin(
+  request: Request,
+  env: Env,
+  input: {
+    email: string;
+    activatorId?: string;
+    purpose?: "login" | "activator-submission";
+    rateLimit?: boolean;
+  },
+): Promise<SendEmailResult | null> {
+  const config = getAuthConfig(env, request);
+  const email = normalizeEmail(input.email);
+  if (!config.emailLoginEnabled || !validEmail(email)) return null;
+  if (input.rateLimit && !await emailLoginRateAllowed(request, env, email)) return null;
 
   const [user, activator] = await Promise.all([
     findUserByVerifiedEmail(env, email),
-    env.DB.prepare(
-      `SELECT id, name, email_normalized
-       FROM activate_ri_activators
-       WHERE event_id = ? AND email_normalized = ?
-       LIMIT 1`,
-    ).bind(env.ACTIVATE_RI_EVENT_ID, email).first<ActivatorEmailRow>(),
+    input.activatorId
+      ? env.DB.prepare(
+          `SELECT id, email_normalized
+           FROM activate_ri_activators
+           WHERE id = ? AND event_id = ? AND email_normalized = ?
+           LIMIT 1`,
+        ).bind(input.activatorId, env.ACTIVATE_RI_EVENT_ID, email).first<ActivatorEmailRow>()
+      : env.DB.prepare(
+          `SELECT id, email_normalized
+           FROM activate_ri_activators
+           WHERE event_id = ? AND email_normalized = ?
+           LIMIT 1`,
+        ).bind(env.ACTIVATE_RI_EVENT_ID, email).first<ActivatorEmailRow>(),
   ]);
   if (user?.disabledAt || !activator) {
     await authAuditStatement(env, {
@@ -72,7 +88,7 @@ export async function requestEmailLogin(
       summary: "Processed an email login request without an eligible account.",
       eventId: null,
     }).run();
-    return genericResponse();
+    return null;
   }
 
   const rawToken = generateEditToken();
@@ -83,11 +99,15 @@ export async function requestEmailLogin(
     `INSERT INTO auth_email_tokens (
        token_hash, purpose, email_normalized, user_id, activator_id, created_at, expires_at
      ) VALUES (?, 'login', ?, ?, ?, ?, ?)`,
-  ).bind(hash, email, user?.id ?? null, activator?.id ?? null, now.toISOString(), expiresAt).run();
+  ).bind(hash, email, user?.id ?? null, activator.id, now.toISOString(), expiresAt).run();
 
   const accessUrl = trustedSiteUrl(request, env, "/account/access/");
   accessUrl.hash = rawToken;
-  const delivery = await sendAuthAccessEmail(env, { to: email, accessUrl: accessUrl.href, purpose: "login" });
+  const delivery = await sendAuthAccessEmail(env, {
+    to: email,
+    accessUrl: accessUrl.href,
+    purpose: input.purpose ?? "login",
+  });
   if (delivery.status !== "sent") {
     await env.DB.prepare(
       `UPDATE auth_email_tokens SET used_at = ? WHERE token_hash = ? AND used_at IS NULL`,
@@ -97,16 +117,16 @@ export async function requestEmailLogin(
     action: "email-login-requested",
     summary: delivery.status === "sent" ? "Sent an email login link." : "Email login delivery did not complete.",
     subjectUserId: user?.id,
-    details: { deliveryStatus: delivery.status },
+    details: { deliveryStatus: delivery.status, purpose: input.purpose ?? "login" },
   }).run();
-  return genericResponse();
+  return delivery;
 }
 
 export async function consumeEmailLogin(
   env: Env,
   rawToken: string,
   now = new Date(),
-): Promise<{ cookie: string; expiresAt: string } | null> {
+): Promise<{ cookie: string; expiresAt: string; nextPath: string } | null> {
   if (!/^[a-f0-9]{64}$/i.test(rawToken)) {
     return null;
   }
@@ -158,7 +178,31 @@ export async function consumeEmailLogin(
   } catch {
     return null;
   }
-  return { cookie: authSessionCookie(session.token), expiresAt: session.expiresAt };
+  return {
+    cookie: authSessionCookie(session.token),
+    expiresAt: session.expiresAt,
+    nextPath: row.activator_id
+      ? "/activate-ri-2026/activator/plan/"
+      : "/account/security/",
+  };
+}
+
+async function emailLoginRateAllowed(
+  request: Request,
+  env: Env,
+  email: string,
+): Promise<boolean> {
+  const network = request.headers.get("CF-Connecting-IP") ?? "unknown";
+  const [emailRateKey, networkRateKey] = await Promise.all([
+    tokenHash(`email:${email}`),
+    tokenHash(`network:${network}`),
+  ]);
+  if (!env.AUTH_EMAIL_RATE_LIMIT) return false;
+  const [emailLimit, networkLimit] = await Promise.all([
+    env.AUTH_EMAIL_RATE_LIMIT.limit({ key: emailRateKey }),
+    env.AUTH_EMAIL_RATE_LIMIT.limit({ key: networkRateKey }),
+  ]);
+  return emailLimit.success && networkLimit.success;
 }
 
 function genericResponse(): { ok: true; message: string } {

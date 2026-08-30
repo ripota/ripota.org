@@ -129,14 +129,14 @@ If the action is `admin-notification-sent`, use `details.emailAttemptId` to
 find the Worker log, then check Cloudflare Email Service logs for delivery or
 rejection.
 
-### An activator did not receive a private edit link
+### An activator did not receive a sign-in link
 
-Check for `edit-link-sent`, `edit-link-send-failed`, or
-`edit-link-send-skipped` around the plan submission or resend time.
+Check `plan-created.details.accessEmail` and the matching
+`auth-email-login`/`auth-activator-submission` Worker email attempt.
 
-If the activity log says `edit-link-sent`, the activator can use the resend
-form to rotate and send a fresh magic link. If the activity log says failed or
-skipped, inspect `details.error` or `details.reason`.
+The activator can request a fresh 15-minute link from `/account/sign-in/`.
+If delivery failed or skipped, inspect `details.error` or `details.reason`.
+Do not mint or email a new reusable private link as routine recovery.
 
 ### Public schedule data looks stale
 

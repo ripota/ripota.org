@@ -24,6 +24,7 @@ export type Env = {
   AUTH_ADMIN_MODE?: "access" | "dual" | "passkey";
   AUTH_ACTIVATOR_MODE?: "legacy" | "dual" | "unified";
   AUTH_EMAIL_LOGIN_ENABLED?: "true" | "false";
+  AUTH_LEGACY_LINK_ISSUANCE_ENABLED?: "true" | "false";
   AUTH_BOOTSTRAP_ADMIN_EMAILS?: string;
   AUTH_ADMIN_REAUTH_SECONDS?: string;
 };

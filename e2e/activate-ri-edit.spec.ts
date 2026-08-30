@@ -7,7 +7,7 @@ test("activator edit link shows one merged stop list for repeated submissions", 
   page,
   request,
 }) => {
-  const server = await startActivateRiServer();
+  const server = await startActivateRiServer({ legacyLinkIssuanceEnabled: true });
   const callsign = randomCallsign();
   const email = `${callsign.toLowerCase()}@example.com`;
 
@@ -74,7 +74,7 @@ test("activator edit link shows one merged stop list for repeated submissions", 
 test("activator edit map add activation scrolls to identity fields and skips duplicate parks", async ({
   page,
 }) => {
-  const server = await startActivateRiServer();
+  const server = await startActivateRiServer({ legacyLinkIssuanceEnabled: true });
   const callsign = randomCallsign();
   const email = `${callsign.toLowerCase()}@example.com`;
 

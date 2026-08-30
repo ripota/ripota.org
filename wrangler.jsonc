@@ -76,7 +76,8 @@
     "TURNSTILE_REQUIRED": "true",
     "AUTH_ADMIN_MODE": "passkey",
     "AUTH_ACTIVATOR_MODE": "dual",
-    "AUTH_EMAIL_LOGIN_ENABLED": "true"
+    "AUTH_EMAIL_LOGIN_ENABLED": "true",
+    "AUTH_LEGACY_LINK_ISSUANCE_ENABLED": "false"
   },
   "env": {
     "local": {
@@ -135,7 +136,8 @@
         "TURNSTILE_REQUIRED": "false",
         "AUTH_ADMIN_MODE": "dual",
         "AUTH_ACTIVATOR_MODE": "dual",
-        "AUTH_EMAIL_LOGIN_ENABLED": "true"
+        "AUTH_EMAIL_LOGIN_ENABLED": "true",
+        "AUTH_LEGACY_LINK_ISSUANCE_ENABLED": "false"
       }
     },
     "production-data": {
@@ -196,7 +198,8 @@
         "TURNSTILE_REQUIRED": "false",
         "AUTH_ADMIN_MODE": "dual",
         "AUTH_ACTIVATOR_MODE": "dual",
-        "AUTH_EMAIL_LOGIN_ENABLED": "false"
+        "AUTH_EMAIL_LOGIN_ENABLED": "false",
+        "AUTH_LEGACY_LINK_ISSUANCE_ENABLED": "true"
       }
     }
   },

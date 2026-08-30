@@ -58,6 +58,7 @@ describe("activator email login", () => {
 
     const result = await consumeEmailLogin(env, rawToken, new Date("2026-08-30T12:05:00.000Z"));
     expect(result?.cookie).toMatch(/^__Host-ripota-session=/);
+    expect(result?.nextPath).toBe("/activate-ri-2026/activator/plan/");
     await expect(consumeEmailLogin(env, rawToken)).resolves.toBeNull();
 
     const token = result!.cookie.match(/^__Host-ripota-session=([^;]+)/)?.[1];

@@ -7,6 +7,7 @@ export type AuthConfig = {
   adminMode: AuthAdminMode;
   activatorMode: AuthActivatorMode;
   emailLoginEnabled: boolean;
+  legacyLinkIssuanceEnabled: boolean;
   adminReauthSeconds: number;
   expectedOrigin: string | null;
   rpId: string | null;
@@ -22,6 +23,7 @@ export function getAuthConfig(env: Env, request?: Request): AuthConfig {
     ? env.AUTH_ACTIVATOR_MODE
     : "legacy";
   const emailLoginEnabled = env.AUTH_EMAIL_LOGIN_ENABLED === "true";
+  const legacyLinkIssuanceEnabled = isLegacyLinkIssuanceEnabled(env);
   const adminReauthSeconds = positiveInteger(
     env.AUTH_ADMIN_REAUTH_SECONDS,
     defaultAdminReauthSeconds,
@@ -39,16 +41,25 @@ export function getAuthConfig(env: Env, request?: Request): AuthConfig {
     }
   }
 
+  if (!legacyLinkIssuanceEnabled && !emailLoginEnabled) {
+    throw new Error("Disabling legacy-link issuance requires activator email sign-in.");
+  }
+
   return {
     adminMode,
     activatorMode,
     emailLoginEnabled,
+    legacyLinkIssuanceEnabled,
     adminReauthSeconds,
     expectedOrigin,
     rpId,
     rpName: "RI POTA",
     passkeyEnabled,
   };
+}
+
+export function isLegacyLinkIssuanceEnabled(env: Env): boolean {
+  return env.AUTH_LEGACY_LINK_ISSUANCE_ENABLED !== "false";
 }
 
 function configuredOrigin(env: Env, request?: Request): string | null {

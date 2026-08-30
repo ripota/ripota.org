@@ -23,7 +23,7 @@ const turnstileSiteKey =
       <p class="eyebrow">Activator edits</p>
       <h2 id="activator-edit-title">Edit your activation plan</h2>
       <p class="lead">
-        This private link lets you update your Activate All RI 2026 plan.
+        My Plan lets you update your Activate All RI 2026 schedule and details.
       </p>
     </div>
   </div>
@@ -267,13 +267,13 @@ const turnstileSiteKey =
       const data = await parseResponse(response);
 
       if (!response.ok || !data.ok || !Array.isArray(data.plans)) {
-        editStatus?.replaceChildren(data.error ?? "Unable to load this edit link.");
+        editStatus?.replaceChildren(data.error ?? "Unable to load your activation plan.");
         return;
       }
 
       plans = data.plans.filter((plan): plan is PlanDto => typeof plan === "object" && plan !== null);
       if (plans.length === 0) {
-        editStatus?.replaceChildren("No activation plans found for this edit link.");
+        editStatus?.replaceChildren("No activation plans were found for this account.");
         return;
       }
 
@@ -293,7 +293,7 @@ const turnstileSiteKey =
         editStatus?.replaceChildren("Loaded. Make any changes and save.");
       }
     } catch {
-      editStatus?.replaceChildren("Unable to load this edit link.");
+      editStatus?.replaceChildren("Unable to load your activation plan.");
     }
   }
 

@@ -5,7 +5,7 @@ import { startActivateRiServer } from "./helpers/activate-ri-server";
 test.setTimeout(90_000);
 
 test("an existing private link can enroll and later use a real passkey", async ({ page }) => {
-  const server = await startActivateRiServer();
+  const server = await startActivateRiServer({ legacyLinkIssuanceEnabled: true });
   const cdp = await page.context().newCDPSession(page);
   try {
     await addVirtualAuthenticator(cdp);
@@ -33,6 +33,7 @@ test("an existing private link can enroll and later use a real passkey", async (
     await page.goto(`${server.origin}/account/sign-in/?returnTo=%2Faccount%2Fsecurity%2F`);
     await page.getByRole("button", { name: "Sign in with a passkey" }).click();
     await expect(page).toHaveURL(`${server.origin}/account/security/`);
+    await page.goto(`${server.origin}/activate-ri-2026/activator/account/`);
     await expect(page.getByRole("heading", { name: "Account security" })).toBeVisible();
   } finally {
     await cdp.send("WebAuthn.disable").catch(() => undefined);
@@ -76,7 +77,8 @@ test("an activator can use only an emailed sign-in link", async ({ page }) => {
     const link = email.split("\n").find((line) => line.startsWith(`${server.origin}/account/access/#`));
     if (!link) throw new Error("Local sign-in email did not contain its fragment link.");
     await page.goto(link);
-    await expect(page).toHaveURL(`${server.origin}/account/security/`);
+    await expect(page).toHaveURL(`${server.origin}/activate-ri-2026/activator/plan/`);
+    await page.goto(`${server.origin}/activate-ri-2026/activator/account/`);
     await expect(page.getByText(/signed in with an email link/i)).toBeVisible();
     await expect(page.getByText(/Activator access is ready now/i)).toBeVisible();
   } finally {
@@ -104,7 +106,7 @@ test("a dual-role email session cannot use administrator APIs", async ({ page })
     const link = email.split("\n").find((line) => line.startsWith(`${server.origin}/account/access/#`));
     if (!link) throw new Error("Local sign-in email did not contain its fragment link.");
     await page.goto(link);
-    await expect(page).toHaveURL(`${server.origin}/account/security/`);
+    await expect(page).toHaveURL(`${server.origin}/activate-ri-2026/activator/plan/`);
     const denied = await page.request.get(`${server.origin}/api/activate-ri-2026/admin/accounts`);
     expect(denied.status()).toBe(401);
   } finally {
@@ -114,7 +116,7 @@ test("a dual-role email session cannot use administrator APIs", async ({ page })
 });
 
 test("reset completion revokes the previous passkey and session", async ({ browser }) => {
-  const server = await startActivateRiServer();
+  const server = await startActivateRiServer({ legacyLinkIssuanceEnabled: true });
   const adminContext = await browser.newContext();
   const subjectContext = await browser.newContext();
   const adminPage = await adminContext.newPage();
@@ -131,6 +133,7 @@ test("reset completion revokes the previous passkey and session", async ({ brows
     await expect(adminPage.getByText("Passkey added.")).toBeVisible();
 
     const editUrl = await submitVolunteer(subjectPage, server.origin, "N1RST", "reset@example.com");
+    if (!editUrl) throw new Error("Legacy-link fixture did not issue an edit URL.");
     const editToken = new URL(editUrl).hash.slice(1);
     await subjectPage.goto(`${server.origin}/activate-ri-2026/edit/${encodeURIComponent(editToken)}/`);
     await subjectPage.goto(`${server.origin}/account/security/`);
@@ -220,7 +223,7 @@ function volunteerPayload() {
   };
 }
 
-async function submitVolunteer(page: Page, origin: string, callsign: string, email: string): Promise<string> {
+async function submitVolunteer(page: Page, origin: string, callsign: string, email: string): Promise<string | null> {
   const submission = await page.request.post(`${origin}/api/activate-ri-2026/plans`, {
     headers: { origin },
     data: {
@@ -231,8 +234,7 @@ async function submitVolunteer(page: Page, origin: string, callsign: string, ema
   });
   expect(submission.status(), await submission.text()).toBe(202);
   const body = await submission.json();
-  if (!isRecord(body) || typeof body.editUrl !== "string") throw new Error("Volunteer edit URL missing.");
-  return body.editUrl;
+  return isRecord(body) && typeof body.editUrl === "string" ? body.editUrl : null;
 }
 
 async function addVirtualAuthenticator(cdp: CDPSession): Promise<string> {

@@ -1,6 +1,5 @@
 ---
 import EventNav from "../../components/activate-ri/EventNav.astro";
-import EditLinkResendForm from "../../components/activate-ri/EditLinkResendForm.astro";
 import VolunteerForm from "../../components/activate-ri/VolunteerForm.astro";
 import Footer from "../../components/Footer.astro";
 import Notice from "../../components/Notice.astro";
@@ -49,10 +48,10 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
               </p>
             </article>
             <article class="event-guidance__item">
-              <h3>Private edit link</h3>
+              <h3>Account access</h3>
               <p>
-                Use an email address you can reach. That is where your private
-                edit link will be sent.
+                Use an email address you can reach. The site sends a
+                short-lived, single-use link after submission.
               </p>
             </article>
             <article class="event-guidance__item">
@@ -67,7 +66,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         <aside class="event-guidance event-guidance--compact" data-volunteer-account-state>
           <p data-volunteer-account-message>
             Returning activator? <a href="/account/sign-in/?returnTo=%2Factivate-ri-2026%2Fvolunteer%2F">Sign in with a passkey</a>
-            before submitting. Anonymous submission and the private-link email continue to work.
+            before submitting. You can also submit first and claim the plan from the email we send.
           </p>
         </aside>
         <ReferenceMap
@@ -81,7 +80,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         <VolunteerForm />
         <section
           class="event-guidance event-guidance--compact"
-          id="use-your-edit-link-when-plans-change"
+          id="update-your-plan-when-things-change"
           aria-labelledby="after-submit-title"
         >
           <div class="section-header section-header--compact">
@@ -89,16 +88,16 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
             <h2 id="after-submit-title">
               <a
                 class="section-heading-anchor"
-                href="#use-your-edit-link-when-plans-change"
-                aria-label="Use your edit link when plans change"
+                href="#update-your-plan-when-things-change"
+                aria-label="Update My Plan when things change"
               >
-                Use your edit link when plans change
+                Update My Plan when things change
               </a>
             </h2>
             <p class="lead">
-              The site emails a private edit link after submission. Keep it for
-              schedule changes, added stops, updated notes, or cancellations.
-              The resend form below can send a fresh link for matching signups.
+              The site emails a 15-minute, single-use sign-in link after
+              submission. Add a passkey for faster future access, or request
+              another email link whenever you need to return.
             </p>
           </div>
           <ul class="event-help-list">
@@ -107,7 +106,11 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
             <li>Approved plans should be updated instead of submitted again.</li>
           </ul>
         </section>
-        <EditLinkResendForm />
+        <div class="button-row">
+          <a class="button" data-variant="light" href="/account/sign-in/?returnTo=%2Factivate-ri-2026%2Factivator%2Fplan%2F">
+            Sign in to My Plan
+          </a>
+        </div>
       </div>
     </section>
     <Notice />

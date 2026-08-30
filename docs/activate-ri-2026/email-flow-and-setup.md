@@ -1,6 +1,6 @@
 # Activate RI 2026 Email Flow and Operational Setup
 
-This document covers private activator-link email, explicit Ops Room
+This document covers activator account email, explicit Ops Room
 announcement broadcasts, and the operational setup required in Cloudflare.
 
 ## Runtime Flow
@@ -9,23 +9,18 @@ announcement broadcasts, and the operational setup required in Cloudflare.
 
 1. The activator submits `/activate-ri-2026/volunteer/`.
 2. `POST /api/activate-ri-2026/plans` validates the submission and Turnstile.
-3. The Worker generates a random edit token.
-4. The activator row is upserted by normalized email.
-5. Only the SHA-256 token hash is stored in `activate_ri_edit_tokens`. The
-   legacy activator token column is cleared and is not an authentication source.
-6. The signup remains `pending` under that activator.
-7. A `plan-created` activity event is written.
-8. The Worker sends the activator an email containing:
-   - the current saved status (`Pending organizer approval` or
-     `Live on the public schedule`)
-   - the current saved stop list
-   - a fragment-based private access URL
-   - the activator help URL
-9. Email success or failure is written as `edit-link-sent` or
-   `edit-link-send-failed`.
-10. The Worker sends admins an approval-needed email if
+3. The activator row is upserted by normalized email and the signup remains
+   `pending` under that activator.
+4. No reusable edit token is created when
+   `AUTH_LEGACY_LINK_ISSUANCE_ENABLED=false`.
+5. A 15-minute login token is generated; only its SHA-256 hash is stored in
+   `auth_email_tokens`.
+6. A `plan-created` activity event is written.
+7. The Worker emails a fragment-based, single-use account-claim link that
+   opens My Plan. Delivery failure invalidates the token.
+8. The Worker sends admins an approval-needed email if
     `ACTIVATE_RI_ADMIN_EMAILS` is configured.
-11. Admin notification success, failure, or skip is written as
+9. Admin notification success, failure, or skip is written as
     `admin-notification-sent`, `admin-notification-failed`, or
     `admin-notification-skipped`.
 
@@ -43,15 +38,14 @@ visible in the admin activity log.
    - the current saved stop list
    - the public schedule URL
    - the activator help URL
-6. Approval does not generate or reveal a new edit link. The activator already
-   received the private link during signup, or can request a resend.
+6. Approval links to the stable My Plan URL and contains no bearer credential.
 
 ### Activator edits
 
-1. The activator opens `/activate-ri-2026/access/#<token>` (or an existing
-   legacy `/edit/<token>/` link).
-2. The link is exchanged for a hashed, HttpOnly 14-day browser session and the
-   browser enters the tokenless activator portal.
+1. The activator signs in with a passkey or 15-minute email link. An existing
+   legacy `/activate-ri-2026/access/#<token>` or `/edit/<token>/` link also works.
+2. Successful authentication creates a hashed, HttpOnly 14-day browser session
+   and the browser enters the tokenless activator portal.
 3. The editor uses session-authenticated `/api/activate-ri-2026/activator/*`
    routes. Legacy token APIs remain compatibility adapters.
 4. Pending plans update immediately but are still not public.
@@ -59,8 +53,8 @@ visible in the admin activity log.
    reflects the new D1 data.
 6. Every meaningful edit writes activity events.
 7. Saved plan edits trigger an activator receipt email with the current saved
-   status, current saved stop list, and tokenless portal link. Legacy-token API
-   edits include a fragment access link so the recipient can establish a session.
+   status, current saved stop list, and stable tokenless My Plan URL. Even edits
+   made through a legacy adapter do not redistribute the reusable credential.
 8. High-impact approved-plan changes trigger an admin notification attempt.
    The activity log records `admin-notification-sent`,
    `admin-notification-failed`, or `admin-notification-skipped`.
@@ -68,7 +62,7 @@ visible in the admin activity log.
 High-impact events currently include approved stop removals/cancellations,
 approved park/date changes, and full plan cancellation.
 
-Activator receipt emails, including the initial edit-link email, approval email,
+Activator receipt emails, including approval email,
 plan-update email, and cancellation email, share one receipt layout. They render
 stop summaries from the saved D1 plan state, sorted by date, start time, park
 reference, and park name:
@@ -77,16 +71,19 @@ reference, and park name:
 - YYYY-MM-DD HH:MM-HH:MM: Park Name (US-1234)
 ```
 
-### Forgot-link resend
+### Account recovery
 
-1. The activator enters callsign and email on the volunteer page.
-2. `POST /api/activate-ri-2026/resend-edit-link` looks for a matching
-   activator by callsign and normalized email.
+1. The activator selects **Email me a sign-in link** on the shared sign-in page.
+2. `POST /api/auth/email-login` looks for an eligible activator by normalized email.
 3. The response is always privacy-safe:
-   `If we found a matching signup, we sent the private edit link.`
-4. If a match exists, the Worker adds another secure token, sends a fresh link,
-   and logs the resend event. Public recovery does not revoke older links or
-   sessions, which prevents unauthenticated denial of access.
+   `If we found an account that can use email sign-in, we sent a link.`
+4. If a match exists, the Worker sends a single-use token protected by
+   Turnstile and email/network rate limits. Recovery neither creates nor
+   revokes a durable legacy link.
+
+The old `/resend-edit-link` endpoint remains a compatibility adapter. With
+legacy issuance disabled it sends the same single-use email token after a
+callsign/email match and rate limiting; it does not mint an edit token.
 
 ### Unified sign-in and passkey reset
 
@@ -113,11 +110,11 @@ passkey reset.
 
 The admin panel exposes two distinct operations:
 
-- **Revoke portal sessions** invalidates browser sessions but keeps secure
-  email links usable.
-- **Replace all secure links** revokes every edit token and browser session,
-  creates one replacement link, sends a security-notification email, and writes
-  an audit event.
+- **Revoke portal sessions** invalidates browser sessions but keeps previously
+  issued private links usable.
+- **Revoke legacy access** revokes every edit token and browser session, sends
+  a security notification with the stable My Plan URL, and writes an audit
+  event. It does not create a replacement durable link.
 
 These are separate from Ops Room mute/ban controls. A room ban does not remove
 plan-edit access.
@@ -148,7 +145,10 @@ Relevant config:
 - `ACTIVATE_RI_EMAIL_FROM_NAME` defaults to `RI POTA`.
 - `ACTIVATE_RI_ADMIN_EMAILS` must be configured outside the repository.
 - `AUTH_EMAIL_LOGIN_ENABLED` gates activator email fallback; it is `false` in
-  the safe production configuration.
+  rollback-safe configuration and enabled in current production.
+- `AUTH_LEGACY_LINK_ISSUANCE_ENABLED` independently gates creation of new
+  reusable edit links. It is `false` in current production; acceptance of
+  already-issued links remains enabled.
 
 Cloudflare docs:
 
@@ -324,7 +324,7 @@ Recommended smoke test:
 
 1. Submit a test plan from `/activate-ri-2026/volunteer/`.
 2. Confirm the activator email arrives.
-3. Open the private edit link.
+3. Open the 15-minute, single-use sign-in link and confirm it lands on My Plan.
 4. Save a small edit.
 5. Approve the plan in `/activate-ri-2026/admin/`.
 6. Make a high-impact edit, such as changing the park or cancelling the plan.
@@ -343,8 +343,9 @@ npx wrangler email sending send \
 
 ## Troubleshooting
 
-- If activator submissions succeed but no email arrives, check the admin
-  activity log for `edit-link-send-failed` or `edit-link-send-skipped`.
+- If activator submissions succeed but no email arrives, check
+  `plan-created.details.accessEmail` and the `auth-activator-submission`
+  email-attempt log.
 - If admin notifications do not arrive, confirm `ACTIVATE_RI_ADMIN_EMAILS` is
   configured in the same environment that was deployed. If it is missing, the
   admin activity log records `admin-notification-skipped` with

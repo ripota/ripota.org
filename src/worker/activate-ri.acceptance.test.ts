@@ -13,6 +13,61 @@ afterEach(() => {
 });
 
 describe("Activate RI API acceptance flow", () => {
+  it("uses a single-use email claim without minting a legacy edit link", async () => {
+    const db = createMigratedSqliteD1();
+    cleanup = db.close;
+    const send = vi.fn(async () => ({ messageId: "claim-message" }));
+    const env = {
+      ...testEnv(db.DB),
+      ALLOW_LOCAL_ADMIN_AUTH: "true" as const,
+      AUTH_EMAIL_LOGIN_ENABLED: "true" as const,
+      AUTH_LEGACY_LINK_ISSUANCE_ENABLED: "false" as const,
+      AUTH_EMAIL_RATE_LIMIT: {
+        limit: vi.fn(async () => ({ success: true })),
+      } as unknown as RateLimit,
+      EMAIL: { send } as unknown as SendEmail,
+    };
+
+    const response = await handleActivateRiApi(
+      jsonRequest("/api/activate-ri-2026/plans", volunteerPayload()),
+      env,
+    );
+
+    expect(response.status).toBe(202);
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      message: "Submission received for organizer review.",
+    });
+    const counts = await env.DB.prepare(
+      `SELECT
+         (SELECT COUNT(*) FROM activate_ri_edit_tokens) AS edit_tokens,
+         (SELECT COUNT(*) FROM auth_email_tokens WHERE purpose = 'login' AND used_at IS NULL) AS email_tokens`,
+    ).first<{ edit_tokens: number; email_tokens: number }>();
+    expect(counts).toEqual({ edit_tokens: 0, email_tokens: 1 });
+    expect(send).toHaveBeenCalledWith(expect.objectContaining({
+      subject: "Open your Activate All RI 2026 plan",
+      text: expect.stringContaining("This link expires in 15 minutes"),
+    }));
+
+    const recovery = await handleActivateRiApi(
+      jsonRequest("/api/activate-ri-2026/resend-edit-link", {
+        callsign: "N1RWJ",
+        email: "rob@example.com",
+      }),
+      env,
+    );
+    await expect(recovery.json()).resolves.toEqual({
+      ok: true,
+      message: "If we found a matching signup, we sent a sign-in link.",
+    });
+    const recoveryCounts = await env.DB.prepare(
+      `SELECT
+         (SELECT COUNT(*) FROM activate_ri_edit_tokens) AS edit_tokens,
+         (SELECT COUNT(*) FROM auth_email_tokens WHERE purpose = 'login' AND used_at IS NULL) AS email_tokens`,
+    ).first<{ edit_tokens: number; email_tokens: number }>();
+    expect(recoveryCounts).toEqual({ edit_tokens: 0, email_tokens: 2 });
+  });
+
   it("saves a volunteer plan, lists it for admins, approves it, and publishes it publicly", async () => {
     const db = createMigratedSqliteD1();
     cleanup = db.close;
