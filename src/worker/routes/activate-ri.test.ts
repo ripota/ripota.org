@@ -1458,15 +1458,19 @@ describe("handleActivateRiApi", () => {
       expect.anything(),
       expect.anything(),
       expect.anything(),
+      expect.anything(),
     ]);
     const prepareCalls = vi.mocked(testEnv.DB.prepare).mock.calls;
     const planUpdateSql = prepareCalls[1][0];
     const stopUpdateSql = prepareCalls[2][0];
-    const auditInsertSql = prepareCalls[3][0];
+    const membershipInsertSql = prepareCalls[3][0];
+    const auditInsertSql = prepareCalls[4][0];
     expect(planUpdateSql).toContain("UPDATE activate_ri_activators");
     expect(planUpdateSql).toContain("status = 'approved'");
     expect(stopUpdateSql).toContain("UPDATE activate_ri_stops");
     expect(stopUpdateSql).toContain("activator_id = ?");
+    expect(membershipInsertSql).toContain("INSERT INTO activate_ri_ops_memberships");
+    expect(membershipInsertSql).toContain("DO NOTHING");
     expect(auditInsertSql).toContain("INSERT INTO activate_ri_activity_events");
 
     const batchStatements = vi.mocked(testEnv.DB.batch).mock
@@ -1475,7 +1479,8 @@ describe("handleActivateRiApi", () => {
     }>;
     const planUpdateBinds = batchStatements[0].bind.mock.calls[0];
     const stopUpdateBinds = batchStatements[1].bind.mock.calls[0];
-    const auditInsertBinds = batchStatements[2].bind.mock.calls[0];
+    const membershipInsertBinds = batchStatements[2].bind.mock.calls[0];
+    const auditInsertBinds = batchStatements[3].bind.mock.calls[0];
     expect(planUpdateBinds).toEqual([
       expect.any(String),
       "admin@example.com",
@@ -1487,6 +1492,12 @@ describe("handleActivateRiApi", () => {
       expect.any(String),
       "plan-1",
       "activate-ri-2026",
+    ]);
+    expect(membershipInsertBinds).toEqual([
+      "activate-ri-2026",
+      "plan-1",
+      expect.any(String),
+      expect.any(String),
     ]);
     expect(auditInsertBinds[6]).toBe("plan-approved");
   });
@@ -1563,9 +1574,11 @@ describe("handleActivateRiApi", () => {
     const prepareCalls = vi.mocked(testEnv.DB.prepare).mock.calls;
     const planUpdateSql = prepareCalls[1][0];
     const stopUpdateSql = prepareCalls[2][0];
-    const auditInsertSql = prepareCalls[3][0];
+    const membershipInsertSql = prepareCalls[3][0];
+    const auditInsertSql = prepareCalls[4][0];
     expect(planUpdateSql).toContain("UPDATE activate_ri_activators");
     expect(stopUpdateSql).toContain("activator_id = ?");
+    expect(membershipInsertSql).toContain("INSERT INTO activate_ri_ops_memberships");
     expect(auditInsertSql).toContain("INSERT INTO activate_ri_activity_events");
 
     const batchStatements = vi.mocked(testEnv.DB.batch).mock
@@ -1573,7 +1586,7 @@ describe("handleActivateRiApi", () => {
       bind: { mock: { calls: unknown[][] } };
     }>;
     const stopUpdateBinds = batchStatements[1].bind.mock.calls[0];
-    const auditInsertBinds = batchStatements[2].bind.mock.calls[0];
+    const auditInsertBinds = batchStatements[3].bind.mock.calls[0];
     expect(stopUpdateBinds).toEqual([
       expect.any(String),
       "plan-1",

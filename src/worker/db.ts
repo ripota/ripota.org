@@ -543,6 +543,12 @@ export async function approvePlan(
        SET status = 'scheduled', updated_at = ?
        WHERE activator_id = ? AND event_id = ? AND status = 'pending-review'`,
     ).bind(now, planId, env.ACTIVATE_RI_EVENT_ID),
+    env.DB.prepare(
+      `INSERT INTO activate_ri_ops_memberships (
+         event_id, activator_id, status, created_at, updated_at
+       ) VALUES (?, ?, 'active', ?, ?)
+       ON CONFLICT(event_id, activator_id) DO NOTHING`,
+    ).bind(env.ACTIVATE_RI_EVENT_ID, planId, now, now),
     activityInsert(env, {
       planId,
       actorType: "admin",

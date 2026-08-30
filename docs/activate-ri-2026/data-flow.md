@@ -6,8 +6,8 @@ architecture. It is descriptive, not a proposal.
 ## System Shape
 
 The project is an Astro static site deployed with Cloudflare Workers Static
-Assets. The Worker handles API routes, the protected admin page, and edit-link
-shell routing. Static pages and generated JSON live in the Astro build output.
+Assets. The Worker handles API routes, protected private pages, and secure-link
+session exchange. Static pages and generated JSON live in the Astro build output.
 
 Primary runtime bindings:
 
@@ -20,7 +20,9 @@ Relevant Worker routing is in `src/worker/index.ts`:
 - `/api/activate-ri-2026/*` routes to the Activate RI API handler.
 - `/activate-ri-2026/admin/` runs through Cloudflare Access before serving the
   static admin page.
-- `/activate-ri-2026/edit/<token>/` rewrites to the static edit shell.
+- `/activate-ri-2026/access/` exchanges fragment credentials for a session.
+- `/activate-ri-2026/activators/` and `/activators/plan/` require that session.
+- `/activate-ri-2026/edit/<token>/` remains a legacy session bootstrap.
 - Other public pages and static JSON files are served by `ASSETS`.
 
 ## Sources of Truth
@@ -29,11 +31,13 @@ D1 is the source of truth for operational event data:
 
 - activators
 - private edit-token hashes
+- hashed 14-day activator sessions
 - submitted plans
 - activation stops
 - approval state
 - cancellation state
 - activity/audit events
+- Ops Room membership, settings, messages, durable change events, and broadcast state
 
 Generated JSON files under `public/data/activate-ri-2026/` are build artifacts
 used by public pages for stable event and park reference data. They are not
@@ -101,11 +105,10 @@ site by itself.
 3. Turnstile is verified unless disabled for local development.
 4. D1 upserts an activator by normalized email.
 5. A private edit token is generated and only its SHA-256 hash is stored.
-6. A plan is inserted with `status = 'pending'`.
-7. Its stops are inserted with `status = 'pending-review'`.
-8. A `plan-created` activity event is written.
-9. The Worker attempts to email the private edit link.
-10. Email success or failure is written to the activity log.
+6. Stops are inserted with `status = 'pending-review'`.
+7. A `plan-created` activity event is written.
+8. The Worker attempts to email a fragment-based private access link.
+9. Email success or failure is written to the activity log.
 
 The submission succeeds even if email delivery fails. The email failure is
 visible to admins through the activity log.
@@ -124,26 +127,22 @@ D1 migrations to a temporary SQLite database. The browser path is covered by the
    `POST /api/activate-ri-2026/admin/plans/<plan-id>/approve`.
 5. D1 changes the plan from `pending` to `approved`.
 6. D1 changes pending-review stops for that plan to `scheduled`.
-7. D1 writes a `plan-approved` activity event.
+7. D1 creates an active Ops Room membership if one does not already exist.
+   Existing muted or banned membership state is preserved.
+8. D1 writes a `plan-approved` activity event.
 
 Approval updates D1 immediately. It does not currently regenerate or deploy the
 static JSON files.
 
 ## Activator Edit Flow
 
-1. The activator opens `/activate-ri-2026/edit/<token>/`.
-2. The Worker serves the static edit shell for that token path.
-3. The browser fetches editable plans from
-   `GET /api/activate-ri-2026/edit/<token>/plans`.
-4. The token is hashed and matched against D1; the raw token is not stored.
-5. Saving plan-level changes sends
-   `PATCH /api/activate-ri-2026/edit/<token>/plans/<plan-id>`.
-6. Saving a single approved stop sends
-   `PATCH /api/activate-ri-2026/edit/<token>/stops/<stop-id>`.
-7. Cancelling a stop sends
-   `POST /api/activate-ri-2026/edit/<token>/stops/<stop-id>/cancel`.
-8. Cancelling a whole plan sends
-   `POST /api/activate-ri-2026/edit/<token>/plans/<plan-id>/cancel`.
+1. The activator opens an emailed `/activate-ri-2026/access/#<token>` link.
+2. The access page removes the fragment and exchanges it for a hashed 14-day
+   HttpOnly session cookie. Legacy `/edit/<token>/` links do the same in the Worker.
+3. The browser lands on the tokenless `/activate-ri-2026/activators/plan/` page.
+4. The editor reads and mutates `/api/activate-ri-2026/activator/*` routes with
+   the session cookie. State changes also require the exact configured Origin.
+5. Legacy token APIs remain compatibility adapters over the same domain helpers.
 
 Pending-plan edits keep stops in `pending-review`. Approved-plan edits keep
 active stops public by setting edited or added stops to `scheduled`, unless a
@@ -151,6 +150,31 @@ stop is already `completed`.
 
 High-impact approved-plan changes attempt to notify admins by email. Those
 notifications are best-effort and do not roll back accepted edits.
+
+## Ops Room Durable Data Flow
+
+Migration `0010_activator_ops_room.sql` creates independent membership,
+settings, messages, durable change events, and announcement-broadcast tables.
+The initial settings row is deliberately `off`; deploying this schema does not
+open participant access.
+
+Approved activators receive independent room memberships. A later itinerary
+cancellation does not remove membership, while mute and ban state survive
+repeated approval. Participant bootstrap returns membership/rules state, room
+mode, the current pin, the newest 50 sanitized messages, upcoming owned stops,
+and a transactionally consistent event cursor. Catch-up reads append-only events
+in bounded pages. Message creation is UUID-nonce idempotent and commits its
+message plus `message-created` event atomically. Removed message bodies are
+cleared in D1 and never returned by later reads.
+
+The deployment-level `ACTIVATE_RI_OPS_HARD_DISABLED=true` override forces the
+participant-facing effective mode to `off` without changing D1. Access-protected
+admins can inspect state and set `full`, `announcements`, or `off`; each mode
+change writes both an Ops cursor event and the existing admin activity log.
+
+Realtime delivery is added by the next implementation stage. Until then the
+room stays off in production; the HTTP bootstrap/catch-up domain is the durable
+contract the realtime layer will use.
 
 ## Public Schedule And Coverage Flow
 

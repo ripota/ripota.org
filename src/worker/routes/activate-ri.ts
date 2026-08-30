@@ -55,6 +55,8 @@ import { json, readJson } from "../http";
 import { hasTrustedOrigin, trustedSiteUrl } from "../origin";
 import { withPrivateHeaders } from "../private-response";
 import { verifyTurnstile } from "../turnstile";
+import { handleActivateRiAdminOpsApi } from "./activate-ri-admin-ops";
+import { handleActivateRiOpsApi } from "./activate-ri-ops";
 
 const submissionReceivedMessage =
   "Submission received for organizer review.";
@@ -87,6 +89,15 @@ export async function handleActivateRiApi(
       },
       { status: 403 },
     );
+  }
+
+  if (url.pathname === "/api/activate-ri-2026/admin/ops" ||
+    url.pathname === "/api/activate-ri-2026/admin/ops/settings") {
+    return handleActivateRiAdminOpsApi(request, env);
+  }
+
+  if (url.pathname.startsWith("/api/activate-ri-2026/ops/")) {
+    return handleActivateRiOpsApi(request, env);
   }
 
   if (

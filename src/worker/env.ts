@@ -9,6 +9,7 @@ export type Env = {
   ACTIVATE_RI_EMAIL_FROM_NAME?: string;
   ACTIVATE_RI_ADMIN_EMAILS?: string;
   SITE_ORIGIN?: string;
+  ACTIVATE_RI_OPS_HARD_DISABLED?: "true" | "false";
   CF_ACCESS_TEAM_DOMAIN?: string;
   CF_ACCESS_AUD?: string;
   ALLOW_ADMIN_HEADER_AUTH?: "true" | "false";

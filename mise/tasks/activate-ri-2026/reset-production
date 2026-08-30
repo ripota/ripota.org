@@ -11,6 +11,16 @@ wrangler=(npx wrangler)
 base_env=(--env "")
 
 reset_sql="
+DELETE FROM activate_ri_ops_email_recipients;
+DELETE FROM activate_ri_ops_email_broadcasts;
+DELETE FROM activate_ri_ops_events;
+DELETE FROM activate_ri_ops_messages;
+DELETE FROM activate_ri_ops_memberships;
+UPDATE activate_ri_ops_settings
+SET room_mode = 'off', pinned_message_id = NULL,
+    updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+    updated_by = 'database-reset';
+DELETE FROM activate_ri_activator_sessions;
 DELETE FROM activate_ri_edit_tokens;
 DELETE FROM activate_ri_activity_events;
 DELETE FROM activate_ri_audit_events;
@@ -19,7 +29,19 @@ DELETE FROM activate_ri_activators;
 "
 
 verify_sql="
-SELECT 'edit_tokens' AS table_name, COUNT(*) AS row_count FROM activate_ri_edit_tokens
+SELECT 'ops_email_recipients' AS table_name, COUNT(*) AS row_count FROM activate_ri_ops_email_recipients
+UNION ALL
+SELECT 'ops_email_broadcasts', COUNT(*) FROM activate_ri_ops_email_broadcasts
+UNION ALL
+SELECT 'ops_events', COUNT(*) FROM activate_ri_ops_events
+UNION ALL
+SELECT 'ops_messages', COUNT(*) FROM activate_ri_ops_messages
+UNION ALL
+SELECT 'ops_memberships', COUNT(*) FROM activate_ri_ops_memberships
+UNION ALL
+SELECT 'activator_sessions', COUNT(*) FROM activate_ri_activator_sessions
+UNION ALL
+SELECT 'edit_tokens', COUNT(*) FROM activate_ri_edit_tokens
 UNION ALL
 SELECT 'activity_events', COUNT(*) FROM activate_ri_activity_events
 UNION ALL

@@ -9,16 +9,23 @@ Do not delete and recreate the D1 database unless the binding and
 
 ## What gets deleted
 
-The reset removes all Activate RI signup, stop, edit-token, moderation, and
-activity/audit rows:
+The reset removes all Activate RI signup, session, stop, edit-token, Ops Room,
+moderation, broadcast, and activity/audit rows:
 
+- `activate_ri_ops_email_recipients`
+- `activate_ri_ops_email_broadcasts`
+- `activate_ri_ops_events`
+- `activate_ri_ops_messages`
+- `activate_ri_ops_memberships`
+- `activate_ri_activator_sessions`
 - `activate_ri_edit_tokens`
 - `activate_ri_activity_events`
 - `activate_ri_audit_events`
 - `activate_ri_stops`
 - `activate_ri_activators`
 
-It intentionally keeps the D1 migration table and schema intact.
+It intentionally keeps the D1 migration table and schema intact. The singleton
+Ops Room settings row is retained and reset to `room_mode = 'off'` with no pin.
 
 ## Before resetting production
 
@@ -53,6 +60,13 @@ Use this when clearing data created by `wrangler dev` or local API testing:
 
 ```bash
 npx wrangler d1 execute ripota-org --local --command="
+DELETE FROM activate_ri_ops_email_recipients;
+DELETE FROM activate_ri_ops_email_broadcasts;
+DELETE FROM activate_ri_ops_events;
+DELETE FROM activate_ri_ops_messages;
+DELETE FROM activate_ri_ops_memberships;
+UPDATE activate_ri_ops_settings SET room_mode = 'off', pinned_message_id = NULL;
+DELETE FROM activate_ri_activator_sessions;
 DELETE FROM activate_ri_edit_tokens;
 DELETE FROM activate_ri_activity_events;
 DELETE FROM activate_ri_audit_events;
@@ -88,6 +102,18 @@ Local:
 npx wrangler d1 execute ripota-org --local --command="
 SELECT 'edit_tokens' AS table_name, COUNT(*) AS row_count FROM activate_ri_edit_tokens
 UNION ALL
+SELECT 'activator_sessions', COUNT(*) FROM activate_ri_activator_sessions
+UNION ALL
+SELECT 'ops_memberships', COUNT(*) FROM activate_ri_ops_memberships
+UNION ALL
+SELECT 'ops_messages', COUNT(*) FROM activate_ri_ops_messages
+UNION ALL
+SELECT 'ops_events', COUNT(*) FROM activate_ri_ops_events
+UNION ALL
+SELECT 'ops_email_broadcasts', COUNT(*) FROM activate_ri_ops_email_broadcasts
+UNION ALL
+SELECT 'ops_email_recipients', COUNT(*) FROM activate_ri_ops_email_recipients
+UNION ALL
 SELECT 'activity_events', COUNT(*) FROM activate_ri_activity_events
 UNION ALL
 SELECT 'audit_events', COUNT(*) FROM activate_ri_audit_events
@@ -104,6 +130,18 @@ Remote:
 npx wrangler d1 execute ripota-org --remote --command="
 SELECT 'edit_tokens' AS table_name, COUNT(*) AS row_count FROM activate_ri_edit_tokens
 UNION ALL
+SELECT 'activator_sessions', COUNT(*) FROM activate_ri_activator_sessions
+UNION ALL
+SELECT 'ops_memberships', COUNT(*) FROM activate_ri_ops_memberships
+UNION ALL
+SELECT 'ops_messages', COUNT(*) FROM activate_ri_ops_messages
+UNION ALL
+SELECT 'ops_events', COUNT(*) FROM activate_ri_ops_events
+UNION ALL
+SELECT 'ops_email_broadcasts', COUNT(*) FROM activate_ri_ops_email_broadcasts
+UNION ALL
+SELECT 'ops_email_recipients', COUNT(*) FROM activate_ri_ops_email_recipients
+UNION ALL
 SELECT 'activity_events', COUNT(*) FROM activate_ri_activity_events
 UNION ALL
 SELECT 'audit_events', COUNT(*) FROM activate_ri_audit_events
@@ -115,7 +153,7 @@ SELECT 'activators', COUNT(*) FROM activate_ri_activators;
 ```
 
 The production reset task prints this verification query after the reset. All
-five counts should be `0`.
+counts should be `0`; the retained Ops settings row should remain `off`.
 
 ## Undo a production reset
 

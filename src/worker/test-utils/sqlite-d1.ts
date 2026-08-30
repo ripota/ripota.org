@@ -22,6 +22,7 @@ const migrations = [
   "0007_activate_ri_edit_tokens.sql",
   "0008_pota_spots_cache.sql",
   "0009_activator_sessions.sql",
+  "0010_activator_ops_room.sql",
 ];
 
 export function createMigratedSqliteD1(): SqliteD1Context {
@@ -86,6 +87,14 @@ class SqliteD1PreparedStatement {
 
   runSync<T = unknown>(): D1Result<T> {
     const statement = this.sqlite.prepare(this.sql);
+    if (/^\s*(?:SELECT|WITH|PRAGMA)\b/i.test(this.sql)) {
+      const results = statement.all(...this.sqliteValues()) as T[];
+      return {
+        success: true,
+        results,
+        meta: { changes: 0, last_row_id: 0 },
+      } as unknown as D1Result<T>;
+    }
     const result = statement.run(...this.sqliteValues());
     return {
       success: true,
