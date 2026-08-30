@@ -73,7 +73,7 @@ export async function handleActivateRiAdminOpsApi(
     return withPrivateHeaders(await postAdminOpsMessageThroughRoom(
       env,
       actorKey,
-      `Organizer · ${localPart}`,
+      `Organizer (${localPart})`,
       identity.email,
       validation.value,
     ));

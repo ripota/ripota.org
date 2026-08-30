@@ -249,7 +249,7 @@ describe("Activate RI Ops Room D1 flow", () => {
       members: [],
       messages: [{
         authorType: "admin",
-        authorLabel: "Organizer · organizer",
+        authorLabel: "Organizer (organizer)",
         kind: "access-note",
         parkReference: "US-2868",
       }],
