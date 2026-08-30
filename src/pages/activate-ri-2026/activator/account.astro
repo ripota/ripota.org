@@ -1,0 +1,28 @@
+---
+import ActivatorPortalNav from "../../../components/activate-ri/ActivatorPortalNav.astro";
+import EventNav from "../../../components/activate-ri/EventNav.astro";
+import AccountSecurityContent from "../../../components/auth/AccountSecurityContent.astro";
+import Footer from "../../../components/Footer.astro";
+import Notice from "../../../components/Notice.astro";
+import SiteHeader from "../../../components/SiteHeader.astro";
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+---
+
+<BaseLayout
+  title="Activate All RI 2026 Account"
+  description="Manage account security for the Activate All RI 2026 activator portal."
+  privatePage
+>
+  <SiteHeader variant="solid" showEventLink />
+  <main id="main">
+    <section class="section event-page" aria-labelledby="security-title">
+      <div class="container stack">
+        <EventNav />
+        <ActivatorPortalNav />
+        <AccountSecurityContent eyebrow="Activator account" />
+      </div>
+    </section>
+    <Notice />
+  </main>
+  <Footer />
+</BaseLayout>

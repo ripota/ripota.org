@@ -1,0 +1,20 @@
+---
+import AccountIdentity from "./AccountIdentity.astro";
+import PasskeyManager from "./PasskeyManager.astro";
+import SessionManager from "./SessionManager.astro";
+
+interface Props {
+  eyebrow?: string;
+}
+
+const { eyebrow = "RI POTA account" } = Astro.props;
+---
+
+<div class="section-header">
+  <p class="eyebrow">{eyebrow}</p>
+  <h1 id="security-title">Account security</h1>
+  <p>Email sign-in can open activator tools, but administrator actions always require a passkey.</p>
+</div>
+<AccountIdentity />
+<PasskeyManager />
+<SessionManager />

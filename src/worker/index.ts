@@ -35,7 +35,7 @@ const activateRiAdminPathPattern = /^\/activate-ri-2026\/admin\/?$/;
 const activateRiAdminRecoveryPathPattern = /^\/activate-ri-2026\/admin\/recovery\/?$/;
 const activateRiEditPathPattern = /^\/activate-ri-2026\/edit\/([^/]+)\/?$/;
 const activateRiAccessPathPattern = /^\/activate-ri-2026\/access\/?$/;
-const activateRiPortalPathPattern = /^\/activate-ri-2026\/activator(?:\/plan)?\/?$/;
+const activateRiPortalPathPattern = /^\/activate-ri-2026\/activator(?:\/(?:plan|account))?\/?$/;
 const accountPathPattern = /^\/account\/(?:sign-in|access|security)\/?$/;
 
 export default {
@@ -169,13 +169,13 @@ export default {
               ).href,
             },
           }),
-          url.pathname.endsWith("/plan/") ? "editor" : "portal",
+          url.pathname.endsWith("/plan/") || url.pathname.endsWith("/account/") ? "editor" : "portal",
         );
       }
 
       return withPrivateHeaders(
         await fetchAssetWithoutRedirect(env, request),
-        url.pathname.endsWith("/plan/") ? "editor" : "portal",
+        url.pathname.endsWith("/plan/") || url.pathname.endsWith("/account/") ? "editor" : "portal",
       );
     }
 

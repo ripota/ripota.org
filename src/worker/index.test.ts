@@ -113,6 +113,28 @@ describe("worker routing", () => {
     }
   });
 
+  it("protects the contextual activator account page", async () => {
+    const testEnv = env();
+    const database = createMigratedSqliteD1();
+    testEnv.DB = database.DB;
+
+    try {
+      const response = await worker.fetch(
+        request("/activate-ri-2026/activator/account/"),
+        testEnv,
+      );
+
+      expect(response.status).toBe(303);
+      expect(response.headers.get("location")).toBe(
+        "https://ripota.org/activate-ri-2026/access/",
+      );
+      expect(response.headers.get("cache-control")).toBe("private, no-store");
+      expect(testEnv.ASSETS.fetch).not.toHaveBeenCalled();
+    } finally {
+      database.close();
+    }
+  });
+
   it("serves the tokenless plan page to an authenticated activator", async () => {
     const testEnv = env();
     const database = createMigratedSqliteD1();

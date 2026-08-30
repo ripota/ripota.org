@@ -6,7 +6,7 @@ const currentPath = Astro.url.pathname.endsWith("/")
 const links = [
   ["Ops Room", "/activate-ri-2026/activator/"],
   ["My Plan", "/activate-ri-2026/activator/plan/"],
-  ["Account security", "/account/security/"],
+  ["Account", "/activate-ri-2026/activator/account/"],
 ];
 ---
 
@@ -25,7 +25,7 @@ const links = [
 </nav>
 
 <aside class="event-guidance event-guidance--compact" data-passkey-enrollment-prompt hidden>
-  <p><strong>Make your next sign-in faster.</strong> Add a passkey, or keep using email and your existing private link.</p>
+  <p><strong>Make your next sign-in faster.</strong> Add a passkey, or keep using email and any private link you already have.</p>
   <div class="button-row">
     <button class="button" data-variant="primary" type="button" data-upgrade-account>Set up a passkey</button>
   </div>
@@ -90,8 +90,8 @@ const links = [
   upgradeAccount?.addEventListener("click", async () => {
     const response = await fetch("/api/auth/legacy/upgrade-session", { method: "POST" });
     window.location.assign(response.ok
-      ? "/account/security/"
-      : "/account/sign-in/?returnTo=%2Faccount%2Fsecurity%2F");
+      ? "/activate-ri-2026/activator/account/"
+      : "/account/sign-in/?returnTo=%2Factivate-ri-2026%2Factivator%2Faccount%2F");
   });
 
   async function showEnrollmentPrompt(): Promise<void> {

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import accessPageSource from "../../pages/activate-ri-2026/access.astro?raw";
+import accountPageSource from "../../pages/activate-ri-2026/activator/account.astro?raw";
 import planPageSource from "../../pages/activate-ri-2026/activator/plan.astro?raw";
+import portalNavSource from "../../components/activate-ri/ActivatorPortalNav.astro?raw";
 import eventNavSource from "../../components/activate-ri/EventNav.astro?raw";
 import siteDataSource from "../../data/site.ts?raw";
 
@@ -40,5 +42,12 @@ describe("activate-ri private activator pages", () => {
     expect(eventNavSource).not.toContain("/activators/");
     expect(planPageSource).toContain("<EventNav />");
     expect(planPageSource).toContain("<ActivatorPortalNav />");
+  });
+
+  it("keeps account security inside the activator navigation context", () => {
+    expect(portalNavSource).toContain('["Account", "/activate-ri-2026/activator/account/"]');
+    expect(accountPageSource).toContain("<EventNav />");
+    expect(accountPageSource).toContain("<ActivatorPortalNav />");
+    expect(accountPageSource).toContain("<AccountSecurityContent");
   });
 });
