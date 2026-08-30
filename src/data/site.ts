@@ -72,6 +72,12 @@ export const siteFeedbackLink = {
   description: "Suggest a correction, broken-link fix, or local-resource improvement for ripota.org.",
 } satisfies ExternalLink;
 
+export const onAirLink = {
+  label: "On air now",
+  href: "/on-air/",
+  description: "See current official POTA spots at Rhode Island references.",
+} satisfies ExternalLink;
+
 export const pathCards: PathCardContent[] = [
   {
     eyebrow: "Already active in RI?",
@@ -149,6 +155,7 @@ export const footerLinkGroups: FooterLinkGroup[] = [
     label: "RI POTA",
     variant: "site",
     links: [
+      onAirLink,
       {
         label: "Assets",
         href: "/assets/",

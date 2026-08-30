@@ -35,6 +35,7 @@ describe("homepage live spots map", () => {
   it("subscribes to shared live POTA spots and replaces active marker state", () => {
     expect(referenceMapSource).toContain("livePotaSpotsStore.subscribe");
     expect(referenceMapSource).not.toContain("window.setInterval");
+    expect(referenceMapSource).not.toContain("isPreviewFeatureEnabled");
     expect(referenceMapSource).toContain('item.liveSpots = spotsByReference.get(item.reference) ?? []');
     expect(referenceMapSource).toContain('"reference-map-marker--live"');
     expect(referenceMapSource).toContain("On air now");

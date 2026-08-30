@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   defaultShareImage,
   footerLinkGroups,
+  onAirLink,
   resourceIntro,
   officialLinks,
   primaryCallsToAction,
@@ -49,6 +50,7 @@ describe("site content", () => {
         label: "RI POTA",
         variant: "site",
         links: [
+          expect.objectContaining({ label: "On air now", href: "/on-air/" }),
           expect.objectContaining({ label: "Assets", href: "/assets/" }),
           expect.objectContaining({
             label: "Suggest a site improvement",
@@ -73,6 +75,12 @@ describe("site content", () => {
         ],
       },
     ]);
+  });
+
+  it("links to the dedicated live activity page", () => {
+    expect(onAirLink).toEqual(
+      expect.objectContaining({ label: "On air now", href: "/on-air/" }),
+    );
   });
 
   it("states that Rhode Island POTA is unofficial", () => {

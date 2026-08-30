@@ -5,7 +5,6 @@ import Notice from "../components/Notice.astro";
 import OnAirNow from "../components/OnAirNow.astro";
 import OfficialLinks from "../components/OfficialLinks.astro";
 import PathCard from "../components/PathCard.astro";
-import PreviewGate from "../components/PreviewGate.astro";
 import ResourceMapPreview from "../components/ResourceMapPreview.astro";
 import SiteHeader from "../components/SiteHeader.astro";
 import { pathCards, siteIdentity } from "../data/site";
@@ -16,19 +15,17 @@ import BaseLayout from "../layouts/BaseLayout.astro";
   <SiteHeader showEventLink />
   <main id="main">
     <Hero />
-    <PreviewGate feature="on-air">
-      <section
-        class="section"
-        id="on-air"
-        aria-labelledby="on-air-now-title"
-        data-on-air-section
-        hidden
-      >
-        <div class="container">
-          <OnAirNow />
-        </div>
-      </section>
-    </PreviewGate>
+    <section
+      class="section"
+      id="on-air"
+      aria-labelledby="on-air-now-title"
+      data-on-air-section
+      hidden
+    >
+      <div class="container">
+        <OnAirNow variant="compact" />
+      </div>
+    </section>
     <section class="section" id="paths" aria-labelledby="paths-title">
       <div class="container">
         <div class="section-header">

@@ -1,0 +1,40 @@
+---
+import Footer from "../components/Footer.astro";
+import Notice from "../components/Notice.astro";
+import OnAirNow from "../components/OnAirNow.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout
+  title="Rhode Island on air"
+  description="Current official Parks on the Air spots at Rhode Island references, refreshed about once a minute."
+  canonicalPath="/on-air/"
+>
+  <SiteHeader variant="solid" showEventLink />
+  <main id="main" class="on-air-page">
+    <section class="on-air-hero" aria-labelledby="on-air-page-title">
+      <div class="container on-air-hero__inner">
+        <div class="on-air-hero__heading">
+          <p class="eyebrow on-air-hero__eyebrow">Live official spots</p>
+          <h1 id="on-air-page-title">Rhode Island on air</h1>
+          <p class="on-air-hero__copy">
+            Current spots at Rhode Island references, refreshed about once a
+            minute from the <a href="https://pota.app/">official POTA app</a>.
+          </p>
+        </div>
+        <div
+          class="on-air-hero__spots"
+          id="current-spots"
+          aria-labelledby="on-air-now-title"
+          data-on-air-section
+          hidden
+        >
+          <OnAirNow variant="full" />
+        </div>
+      </div>
+    </section>
+    <Notice />
+  </main>
+  <Footer />
+</BaseLayout>

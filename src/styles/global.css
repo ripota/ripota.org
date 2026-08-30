@@ -345,14 +345,6 @@ p {
   align-items: center;
 }
 
-.preview-gate[hidden] {
-  display: none;
-}
-
-.preview-gate:not([hidden]) {
-  display: contents;
-}
-
 .on-air-now {
   display: grid;
   gap: 1rem;
@@ -414,6 +406,96 @@ p {
 .on-air-now__empty {
   color: var(--text-muted);
   font-size: 0.9rem;
+}
+
+.on-air-now__action {
+  padding-top: 0.15rem;
+}
+
+.on-air-now__table-header,
+.on-air-now--full .on-air-now__list li {
+  grid-template-columns: minmax(280px, 2fr) 100px 150px 150px minmax(120px, 0.7fr);
+  gap: 1rem;
+  align-items: center;
+}
+
+.on-air-now__table-header {
+  display: grid;
+  border-bottom: 2px solid var(--border-subtle);
+  padding: 0.65rem 0;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.on-air-now--full .on-air-now__list {
+  display: block;
+}
+
+.on-air-now--full .on-air-now__list li {
+  display: grid;
+  border: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  border-radius: 0;
+  background: transparent;
+  padding: 0.9rem 0;
+}
+
+.on-air-now--full .on-air-now__list li:last-child {
+  border-bottom: 0;
+}
+
+.on-air-now--full .on-air-now__park {
+  font-size: 1rem;
+}
+
+.on-air-hero {
+  padding: clamp(2.5rem, 5vw, 5rem) 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 12% 15%, color-mix(in srgb, var(--accent) 24%, transparent), transparent 25rem),
+    linear-gradient(135deg, var(--surface-brand), color-mix(in srgb, var(--surface-brand) 82%, #000 18%));
+  color: var(--text-on-hero);
+}
+
+.on-air-hero__inner {
+  display: grid;
+  gap: clamp(1.5rem, 3vw, 2.5rem);
+}
+
+.on-air-hero__heading {
+  display: grid;
+  gap: 0.8rem;
+  min-width: 0;
+}
+
+.on-air-hero__eyebrow {
+  color: #f1c883;
+}
+
+.on-air-hero h1 {
+  max-width: none;
+  font-size: clamp(3.2rem, 6vw, 5.4rem);
+}
+
+.on-air-hero__copy {
+  max-width: 590px;
+  color: color-mix(in srgb, var(--text-on-hero) 86%, transparent);
+  font-size: 1.18rem;
+}
+
+.on-air-hero__copy a {
+  font-weight: 800;
+}
+
+.on-air-hero__spots {
+  min-width: 0;
+}
+
+.on-air-hero__spots .on-air-now {
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.22);
 }
 
 .resource-copy {
@@ -2139,6 +2221,25 @@ p {
   .asset-layout,
   .asset-downloads {
     grid-template-columns: 1fr;
+  }
+
+  .on-air-now__table-header {
+    display: none;
+  }
+
+  .on-air-now--full .on-air-now__list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+    gap: 0.75rem;
+  }
+
+  .on-air-now--full .on-air-now__list li {
+    grid-template-columns: 1fr;
+    gap: 0.3rem;
+    border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--border-subtle));
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--accent) 8%, var(--surface-raised));
+    padding: 0.9rem;
   }
 
   .admin-panel__header,

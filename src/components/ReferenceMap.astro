@@ -151,7 +151,6 @@ const payload = JSON.stringify({
   import { fetchPublicActivationStops } from "../lib/activate-ri/public-stops-client";
   import { livePotaSpotsStore } from "../lib/pota/live-spots-store";
   import type { LivePotaSpot } from "../lib/pota/spots";
-  import { isPreviewFeatureEnabled } from "../lib/preview";
   import {
     formatActivationDate,
     formatActivationTimeRange,
@@ -267,7 +266,7 @@ const payload = JSON.stringify({
       layersByReference,
     );
 
-    if (payload.variant === "home" && isPreviewFeatureEnabled("on-air")) {
+    if (payload.variant === "home") {
       livePotaSpotsStore.subscribe((state) => {
         if (state.status !== "loading") {
           updateLiveSpots(
