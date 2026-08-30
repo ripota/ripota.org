@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import roomSource from "../../components/activate-ri/ActivatorOpsRoom.astro?raw";
+import portalNavSource from "../../components/activate-ri/ActivatorPortalNav.astro?raw";
 import portalSource from "../../pages/activate-ri-2026/activators/index.astro?raw";
 
 describe("Activator Ops Room client", () => {
@@ -22,5 +23,15 @@ describe("Activator Ops Room client", () => {
     expect(roomSource).toContain("body.textContent");
     expect(roomSource).not.toContain("innerHTML");
     expect(portalSource).toContain("<Notice />");
+  });
+
+  it("requires explicit confirmation before signing out of the browser", () => {
+    expect(portalNavSource).not.toContain(">Exit<");
+    expect(portalNavSource).toContain("Sign out of this browser?");
+    expect(portalNavSource).toContain("You’ll need your private email link to get back in.");
+    expect(portalNavSource).toContain("signoutDialog?.showModal()");
+    expect(portalNavSource.indexOf('method: "DELETE"')).toBeGreaterThan(
+      portalNavSource.indexOf('signoutConfirm?.addEventListener("click"'),
+    );
   });
 });

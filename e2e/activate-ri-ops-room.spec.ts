@@ -126,6 +126,19 @@ test("approved activators acknowledge rules and exchange a live room message", a
     admin.once("dialog", (dialog) => dialog.accept("E2E mute check."));
     await memberCard.getByRole("button", { name: "Mute", exact: true }).click();
     await expect(second.locator("[data-ops-send]")).toBeDisabled();
+
+    await first.getByRole("button", { name: "Sign out", exact: true }).click();
+    const signoutDialog = first.getByRole("dialog", { name: "Sign out of this browser?" });
+    await expect(signoutDialog).toBeVisible();
+    await expect(signoutDialog).toContainText("You’ll need your private email link to get back in.");
+    await signoutDialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(signoutDialog).toBeHidden();
+    await expect(first).toHaveURL(`${server.origin}/activate-ri-2026/activators/`);
+
+    await first.getByRole("button", { name: "Sign out", exact: true }).click();
+    await signoutDialog.getByRole("button", { name: "Sign out", exact: true }).click();
+    await expect(first).toHaveURL(`${server.origin}/activate-ri-2026/access/`);
+    await expect(first.getByText("No active activator session was found in this browser.")).toBeVisible();
   } finally {
     await firstContext.close();
     await secondContext.close();

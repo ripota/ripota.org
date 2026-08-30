@@ -3985,10 +3985,6 @@ p {
   font-size: 0.86rem;
 }
 
-.event-nav__logout-short {
-  display: none;
-}
-
 .ops-app__intro {
   display: flex;
   align-items: end;
@@ -4556,14 +4552,6 @@ p {
     min-height: 2.2rem;
     padding: 0.42rem 0.58rem;
     font-size: 0.78rem;
-  }
-
-  .event-nav__logout-full {
-    display: none;
-  }
-
-  .event-nav__logout-short {
-    display: inline;
   }
 
   .ops-app__intro {

@@ -18,19 +18,59 @@ const links = [
     ))
   }
   <button class="button" data-variant="light" type="button" data-activator-logout>
-    <span class="event-nav__logout-full">Sign out</span>
-    <span class="event-nav__logout-short" aria-hidden="true">Exit</span>
+    Sign out
   </button>
 </nav>
 
+<dialog
+  class="form-confirmation"
+  data-activator-signout-dialog
+  aria-labelledby="activator-signout-title"
+>
+  <form class="form-confirmation__body" method="dialog">
+    <p class="eyebrow">Private activator access</p>
+    <h2 id="activator-signout-title">Sign out of this browser?</h2>
+    <p>You’ll need your private email link to get back in.</p>
+    <p class="form-status" data-activator-signout-status aria-live="polite"></p>
+    <div class="form-actions">
+      <button class="button" data-variant="light" type="submit" value="cancel">
+        Cancel
+      </button>
+      <button class="button" data-variant="primary" type="button" data-activator-signout-confirm>
+        Sign out
+      </button>
+    </div>
+  </form>
+</dialog>
+
 <script>
+  const signoutDialog = document.querySelector<HTMLDialogElement>("[data-activator-signout-dialog]");
+  const signoutConfirm = document.querySelector<HTMLButtonElement>("[data-activator-signout-confirm]");
+  const signoutStatus = document.querySelector<HTMLElement>("[data-activator-signout-status]");
+
   document.querySelector<HTMLButtonElement>("[data-activator-logout]")
-    ?.addEventListener("click", async () => {
-      window.dispatchEvent(new Event("activate-ri:logout"));
-      await fetch("/api/activate-ri-2026/activator/session", {
+    ?.addEventListener("click", () => {
+      signoutStatus?.replaceChildren();
+      signoutDialog?.showModal();
+    });
+
+  signoutConfirm?.addEventListener("click", async () => {
+    signoutConfirm.disabled = true;
+    signoutStatus?.replaceChildren("Signing out…");
+    try {
+      const response = await fetch("/api/activate-ri-2026/activator/session", {
         method: "DELETE",
         headers: { accept: "application/json" },
       });
+      if (!response.ok) {
+        throw new Error("Sign out failed");
+      }
+
+      window.dispatchEvent(new Event("activate-ri:logout"));
       window.location.replace("/activate-ri-2026/access/");
-    });
+    } catch {
+      signoutStatus?.replaceChildren("Unable to sign out. Please try again.");
+      signoutConfirm.disabled = false;
+    }
+  });
 </script>
