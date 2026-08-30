@@ -1,0 +1,330 @@
+---
+import riReferences from "../../data/ri-references.json";
+
+const references = riReferences.map(({ reference, name, potaUrl }) => ({
+  reference,
+  name,
+  potaUrl,
+}));
+---
+
+<section class="hunter-checklist" data-hunter-checklist data-references={JSON.stringify(references)}>
+  <div class="hunter-import" aria-labelledby="hunter-import-title">
+    <div class="hunter-import__copy">
+      <p class="eyebrow">Private browser-local import</p>
+      <h2 id="hunter-import-title">Import your official Hunted Parks export</h2>
+      <ol>
+        <li>
+          <a href="https://pota.app/#/user/stats" target="_blank" rel="noopener noreferrer">
+            Open POTA My Stats
+          </a>
+          and sign in if needed.
+        </li>
+        <li>Beside <strong>Hunted Parks</strong>, choose <strong>Export CSV</strong> to download <code>hunter_parks.csv</code>.</li>
+        <li>Return here and choose or drop that file. Import begins immediately.</li>
+      </ol>
+      <p class="hunter-import__help">
+        If POTA asks you to sign in, finish signing in, return here, and use <strong>Open POTA My Stats</strong> again.
+      </p>
+    </div>
+
+    <div class="hunter-drop" data-hunter-drop>
+      <p><strong>Choose or drop <code>hunter_parks.csv</code></strong></p>
+      <p>CSV only, up to 5 MB. The file never leaves this browser.</p>
+      <label class="button" data-variant="light" for="hunter-csv-input">Choose CSV file</label>
+      <input
+        id="hunter-csv-input"
+        class="hunter-file-input"
+        type="file"
+        accept=".csv,text/csv"
+        data-hunter-file
+      />
+    </div>
+  </div>
+
+  <p class="hunter-privacy">
+    RI POTA does not upload or retain your CSV, callsign, worldwide history, QSO counts, or dates. Only the RI reference IDs in your latest import, manual checkbox choices, schema version, and import time are saved in this browser.
+  </p>
+
+  <p class="hunter-message" role="status" aria-live="polite" data-hunter-status>
+    No checklist has been imported in this browser yet.
+  </p>
+  <p class="hunter-message hunter-message--error" role="alert" data-hunter-error hidden></p>
+
+  <section class="hunter-results" aria-labelledby="hunter-results-title" data-hunter-results hidden>
+    <div class="hunter-results__header">
+      <div>
+        <p class="eyebrow">Your browser-local checklist</p>
+        <h2 id="hunter-results-title" data-hunter-progress-text>0 of 61 Rhode Island parks hunted</h2>
+      </div>
+      <progress data-hunter-progress max={references.length} value="0">0 of {references.length}</progress>
+    </div>
+
+    <div class="hunter-checklist-controls">
+      <label class="event-filter">
+        Search parks
+        <input class="event-filter__control" type="search" data-hunter-search placeholder="Reference or park name" />
+      </label>
+      <label class="event-filter">
+        Show
+        <select class="event-filter__control" data-hunter-filter>
+          <option value="all">Hunted and remaining</option>
+          <option value="hunted">Hunted only</option>
+          <option value="remaining">Remaining only</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="hunter-lists">
+      <section aria-labelledby="hunter-complete-title" data-hunter-complete-section>
+        <h3 id="hunter-complete-title">Hunted <span data-hunter-complete-count></span></h3>
+        <ul class="hunter-park-list" data-hunter-complete></ul>
+        <p class="hunter-list-empty" data-hunter-complete-empty hidden>No hunted parks match this search.</p>
+      </section>
+      <section aria-labelledby="hunter-remaining-title" data-hunter-remaining-section>
+        <h3 id="hunter-remaining-title">Remaining <span data-hunter-remaining-count></span></h3>
+        <ul class="hunter-park-list" data-hunter-remaining></ul>
+        <p class="hunter-list-empty" data-hunter-remaining-empty hidden>No remaining parks match this search.</p>
+      </section>
+    </div>
+
+    <div class="hunter-local-actions">
+      <button class="button" data-variant="light" type="button" data-hunter-reset-overrides>
+        Reset manual changes
+      </button>
+      <button class="button" data-variant="light" type="button" data-hunter-clear>
+        Clear my checklist data
+      </button>
+    </div>
+    <p class="hunter-local-note">
+      Reset removes checkbox overrides and returns to the latest imported RI references. Clear removes both the import and overrides from this browser only.
+    </p>
+  </section>
+</section>
+
+<script>
+  import {
+    HUNTER_CHECKLIST_STORAGE_KEY,
+    HUNTER_CSV_MAX_BYTES,
+    applyHunterImport,
+    effectiveHuntedReferences,
+    emptyHunterChecklistState,
+    normalizeHunterChecklistState,
+    parseHunterParksCsv,
+    type HunterChecklistState,
+    type HunterReference,
+  } from "../../lib/activate-ri/hunter-checklist";
+
+  document.querySelectorAll<HTMLElement>("[data-hunter-checklist]").forEach(setupHunterChecklist);
+
+  function setupHunterChecklist(root: HTMLElement): void {
+    const references = parseReferences(root.dataset.references);
+    const fileInput = root.querySelector("[data-hunter-file]") as HTMLInputElement | null;
+    const dropTarget = root.querySelector("[data-hunter-drop]") as HTMLElement | null;
+    const results = root.querySelector("[data-hunter-results]") as HTMLElement | null;
+    const status = root.querySelector("[data-hunter-status]") as HTMLElement | null;
+    const error = root.querySelector("[data-hunter-error]") as HTMLElement | null;
+    const search = root.querySelector("[data-hunter-search]") as HTMLInputElement | null;
+    const filter = root.querySelector("[data-hunter-filter]") as HTMLSelectElement | null;
+    let storageAvailable = true;
+    let state = loadState();
+
+    render();
+
+    fileInput?.addEventListener("change", () => {
+      const file = fileInput.files?.[0];
+      if (file) void importFile(file);
+    });
+    for (const eventName of ["dragenter", "dragover"]) {
+      dropTarget?.addEventListener(eventName, (event) => {
+        event.preventDefault();
+        dropTarget.dataset.dragActive = "true";
+      });
+    }
+    for (const eventName of ["dragleave", "drop"]) {
+      dropTarget?.addEventListener(eventName, (event) => {
+        event.preventDefault();
+        delete dropTarget.dataset.dragActive;
+      });
+    }
+    dropTarget?.addEventListener("drop", (event) => {
+      const file = event.dataTransfer?.files[0];
+      if (file) void importFile(file);
+    });
+    search?.addEventListener("input", renderLists);
+    filter?.addEventListener("change", renderLists);
+    root.querySelector("[data-hunter-reset-overrides]")?.addEventListener("click", () => {
+      state.manualOverrides = {};
+      persistState();
+      announce("Manual changes reset. Your latest imported RI references are shown.");
+      render();
+    });
+    root.querySelector("[data-hunter-clear]")?.addEventListener("click", () => {
+      state = emptyHunterChecklistState();
+      try {
+        localStorage.removeItem(HUNTER_CHECKLIST_STORAGE_KEY);
+      } catch {
+        storageAvailable = false;
+      }
+      announce("Checklist data cleared from this browser.");
+      render();
+    });
+
+    async function importFile(file: File): Promise<void> {
+      clearError();
+      announce(`Importing ${file.name}…`);
+      try {
+        if (file.size > HUNTER_CSV_MAX_BYTES) {
+          throw new Error("This file is larger than the 5 MB import limit.");
+        }
+        const parsed = parseHunterParksCsv(await file.text(), references);
+        state = applyHunterImport(state, parsed);
+        persistState();
+        const unmatched = parsed.unmatchedRiReferenceIds.length > 0
+          ? ` ${parsed.unmatchedRiReferenceIds.length} Rhode Island reference ID${parsed.unmatchedRiReferenceIds.length === 1 ? " was" : "s were"} not in the current RI list: ${parsed.unmatchedRiReferenceIds.join(", ")}.`
+          : "";
+        announce(
+          `Import complete: examined ${parsed.examinedRows} row${parsed.examinedRows === 1 ? "" : "s"}, found ${parsed.importedReferenceIds.length} current Rhode Island park${parsed.importedReferenceIds.length === 1 ? "" : "s"}, and ignored ${parsed.ignoredNonRiRows} non-Rhode Island row${parsed.ignoredNonRiRows === 1 ? "" : "s"}.${unmatched}`,
+        );
+        render();
+      } catch (caught) {
+        showError(caught instanceof Error ? caught.message : "The CSV could not be imported.");
+      } finally {
+        if (fileInput) fileInput.value = "";
+      }
+    }
+
+    function loadState(): HunterChecklistState {
+      try {
+        const stored = localStorage.getItem(HUNTER_CHECKLIST_STORAGE_KEY);
+        return stored ? normalizeHunterChecklistState(JSON.parse(stored), references) : emptyHunterChecklistState();
+      } catch {
+        storageAvailable = false;
+        showError("Browser storage is unavailable. You can use the checklist now, but it will not survive a reload.");
+        return emptyHunterChecklistState();
+      }
+    }
+
+    function persistState(): void {
+      try {
+        localStorage.setItem(HUNTER_CHECKLIST_STORAGE_KEY, JSON.stringify(state));
+        storageAvailable = true;
+      } catch {
+        storageAvailable = false;
+        showError("Browser storage is unavailable. Your current checklist cannot be saved for the next visit.");
+      }
+    }
+
+    function render(): void {
+      if (results) results.hidden = state.lastImportedAt === null && Object.keys(state.manualOverrides).length === 0;
+      renderLists();
+      if (!storageAvailable && error?.hidden) {
+        showError("Browser storage is unavailable. Your current checklist cannot be saved for the next visit.");
+      }
+    }
+
+    function renderLists(): void {
+      const hunted = effectiveHuntedReferences(state, references);
+      const query = search?.value.trim().toLowerCase() ?? "";
+      const selectedFilter = filter?.value ?? "all";
+      const matching = references.filter(({ reference, name }) =>
+        !query || reference.toLowerCase().includes(query) || name.toLowerCase().includes(query),
+      );
+      const completed = matching.filter(({ reference }) => hunted.has(reference));
+      const remaining = matching.filter(({ reference }) => !hunted.has(reference));
+      const completedList = root.querySelector("[data-hunter-complete]") as HTMLUListElement | null;
+      const remainingList = root.querySelector("[data-hunter-remaining]") as HTMLUListElement | null;
+      completedList?.replaceChildren(...completed.map((reference) => parkItem(reference, true)));
+      remainingList?.replaceChildren(...remaining.map((reference) => parkItem(reference, false)));
+
+      setText("[data-hunter-progress-text]", `${hunted.size} of ${references.length} Rhode Island parks hunted; ${references.length - hunted.size} remaining`);
+      setText("[data-hunter-complete-count]", `(${hunted.size})`);
+      setText("[data-hunter-remaining-count]", `(${references.length - hunted.size})`);
+      const progress = root.querySelector("[data-hunter-progress]") as HTMLProgressElement | null;
+      if (progress) {
+        progress.max = references.length;
+        progress.value = hunted.size;
+        progress.textContent = `${hunted.size} of ${references.length}`;
+      }
+
+      const completedSection = root.querySelector("[data-hunter-complete-section]") as HTMLElement | null;
+      const remainingSection = root.querySelector("[data-hunter-remaining-section]") as HTMLElement | null;
+      if (completedSection) completedSection.hidden = selectedFilter === "remaining";
+      if (remainingSection) remainingSection.hidden = selectedFilter === "hunted";
+      const completedEmpty = root.querySelector("[data-hunter-complete-empty]") as HTMLElement | null;
+      const remainingEmpty = root.querySelector("[data-hunter-remaining-empty]") as HTMLElement | null;
+      if (completedEmpty) completedEmpty.hidden = completed.length > 0;
+      if (remainingEmpty) remainingEmpty.hidden = remaining.length > 0;
+    }
+
+    function parkItem(park: HunterReference, checked: boolean): HTMLLIElement {
+      const item = document.createElement("li");
+      const label = document.createElement("label");
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = checked;
+      checkbox.setAttribute("aria-label", `${park.reference} ${park.name} hunted`);
+      checkbox.addEventListener("change", () => {
+        state.manualOverrides[park.reference] = checkbox.checked;
+        persistState();
+        announce(`${park.reference} marked ${checkbox.checked ? "hunted" : "remaining"}.`);
+        render();
+      });
+      const copy = document.createElement("span");
+      const reference = document.createElement("strong");
+      reference.textContent = park.reference;
+      const name = document.createElement("span");
+      name.textContent = park.name;
+      copy.appendChild(reference);
+      copy.appendChild(name);
+      const official = document.createElement("a");
+      official.href = park.potaUrl;
+      official.target = "_blank";
+      official.rel = "noopener noreferrer";
+      official.textContent = "Official POTA park";
+      label.appendChild(checkbox);
+      label.appendChild(copy);
+      item.appendChild(label);
+      item.appendChild(official);
+      return item;
+    }
+
+    function setText(selector: string, value: string): void {
+      const element = root.querySelector(selector) as HTMLElement | null;
+      if (element) element.textContent = value;
+    }
+
+    function announce(message: string): void {
+      if (status) status.textContent = message;
+    }
+
+    function showError(message: string): void {
+      if (!error) return;
+      error.textContent = message;
+      error.hidden = false;
+    }
+
+    function clearError(): void {
+      if (!error) return;
+      error.textContent = "";
+      error.hidden = true;
+    }
+  }
+
+  function parseReferences(value: string | undefined): HunterReference[] {
+    if (!value) return [];
+    try {
+      const parsed: unknown = JSON.parse(value);
+      return Array.isArray(parsed)
+        ? parsed.filter((item): item is HunterReference =>
+            typeof item === "object" && item !== null &&
+            typeof (item as HunterReference).reference === "string" &&
+            typeof (item as HunterReference).name === "string" &&
+            typeof (item as HunterReference).potaUrl === "string",
+          )
+        : [];
+    } catch {
+      return [];
+    }
+  }
+</script>

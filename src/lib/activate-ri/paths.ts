@@ -3,7 +3,7 @@ export type EventPageKey =
   | "volunteer"
   | "schedule"
   | "parks"
-  | "hunters"
+  | "hunter"
   | "awards"
   | "admin";
 
@@ -12,7 +12,7 @@ const routes: Record<EventPageKey, string> = {
   volunteer: "/activate-ri-2026/volunteer/",
   schedule: "/activate-ri-2026/schedule/",
   parks: "/activate-ri-2026/parks/",
-  hunters: "/activate-ri-2026/hunters/",
+  hunter: "/activate-ri-2026/hunter/",
   awards: "/activate-ri-2026/awards/",
   admin: "/activate-ri-2026/admin/",
 };

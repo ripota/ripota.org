@@ -1,0 +1,33 @@
+---
+import EventNav from "../../components/activate-ri/EventNav.astro";
+import HunterChecklist from "../../components/activate-ri/HunterChecklist.astro";
+import Footer from "../../components/Footer.astro";
+import Notice from "../../components/Notice.astro";
+import SiteHeader from "../../components/SiteHeader.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+---
+
+<BaseLayout
+  title="Activate All RI 2026 Hunter Checklist"
+  description="Compare your official POTA Hunted Parks CSV with Rhode Island's current 61 references, privately in your browser."
+  canonicalPath="/activate-ri-2026/hunter/"
+>
+  <SiteHeader variant="solid" showEventLink />
+  <main id="main">
+    <section class="section event-page" aria-labelledby="hunter-title">
+      <div class="container">
+        <EventNav />
+        <div class="section-header">
+          <p class="eyebrow">For hunters</p>
+          <h1 id="hunter-title">Your Rhode Island park checklist</h1>
+          <p class="lead">
+            See which of Rhode Island's 61 current POTA references you have hunted and what remains, using the complete export from your own POTA account.
+          </p>
+        </div>
+        <HunterChecklist />
+      </div>
+    </section>
+    <Notice />
+  </main>
+  <Footer />
+</BaseLayout>
