@@ -1,0 +1,34 @@
+---
+const currentPath = Astro.url.pathname.endsWith("/")
+  ? Astro.url.pathname
+  : `${Astro.url.pathname}/`;
+
+const links = [
+  ["Ops Room", "/activate-ri-2026/activators/"],
+  ["My Plan", "/activate-ri-2026/activators/plan/"],
+];
+---
+
+<nav class="event-nav" aria-label="Private activator navigation">
+  {
+    links.map(([label, href]) => (
+      <a href={href} aria-current={currentPath === href ? "page" : undefined}>
+        {label}
+      </a>
+    ))
+  }
+  <button class="button" data-variant="light" type="button" data-activator-logout>
+    Sign out
+  </button>
+</nav>
+
+<script>
+  document.querySelector<HTMLButtonElement>("[data-activator-logout]")
+    ?.addEventListener("click", async () => {
+      await fetch("/api/activate-ri-2026/activator/session", {
+        method: "DELETE",
+        headers: { accept: "application/json" },
+      });
+      window.location.replace("/activate-ri-2026/access/");
+    });
+</script>

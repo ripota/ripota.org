@@ -450,6 +450,7 @@ describe("Activate RI API acceptance flow", () => {
 function testEnv(DB: D1Database): Env {
   return {
     ACTIVATE_RI_EVENT_ID: "activate-ri-2026",
+    SITE_ORIGIN: "https://ripota.org",
     TURNSTILE_REQUIRED: "false",
     ALLOW_ADMIN_HEADER_AUTH: "true",
     ACTIVATE_RI_EMAIL_FROM: "activate-ri-2026@ripota.org",
@@ -484,17 +485,17 @@ function volunteerPayload(): Record<string, unknown> {
 function jsonRequest(path: string, payload: unknown): Request {
   return new Request(`https://ripota.org${path}`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      origin: "https://ripota.org",
+    },
     body: JSON.stringify(payload),
   });
 }
 
 function editApiPlansPath(editUrl: string): string {
-  const editPath = new URL(editUrl).pathname.replace(/\/$/, "");
-  return editPath.replace(
-    "/activate-ri-2026/edit/",
-    "/api/activate-ri-2026/edit/",
-  ) + "/plans";
+  const editToken = new URL(editUrl).hash.slice(1);
+  return `/api/activate-ri-2026/edit/${encodeURIComponent(editToken)}/plans`;
 }
 
 function adminRequest(path: string, init: RequestInit = {}): Request {

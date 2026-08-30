@@ -1,33 +1,29 @@
 ---
 import ActivatorEditForm from "../../../components/activate-ri/ActivatorEditForm.astro";
-import EventNav from "../../../components/activate-ri/EventNav.astro";
+import ActivatorPortalNav from "../../../components/activate-ri/ActivatorPortalNav.astro";
 import Footer from "../../../components/Footer.astro";
 import Notice from "../../../components/Notice.astro";
 import ReferenceMap from "../../../components/ReferenceMap.astro";
 import SiteHeader from "../../../components/SiteHeader.astro";
 import BaseLayout from "../../../layouts/BaseLayout.astro";
-
-export function getStaticPaths() {
-  return [{ params: { token: "[token]" } }];
-}
 ---
 
 <BaseLayout
-  title="Edit Activate All RI 2026 Stop"
-  description="Private Activate All RI 2026 activator edit page."
-  canonicalPath="/activate-ri-2026/edit/[token]/"
+  title="Edit Activate All RI 2026 Plan"
+  description="Private Activate All RI 2026 activator plan editor."
+  privatePage
 >
   <SiteHeader variant="solid" showEventLink />
   <main id="main">
     <section class="section event-page" aria-labelledby="edit-title">
       <div class="container">
-        <EventNav />
+        <ActivatorPortalNav />
         <div class="section-header">
-          <p class="eyebrow">Private edit link</p>
-          <h1 id="edit-title">Activator edit page</h1>
+          <p class="eyebrow">My activation plan</p>
+          <h1 id="edit-title">Activator plan editor</h1>
           <p class="lead">
-            Use the private magic link from your signup email to manage your
-            Activate All RI 2026 plan before or after organizer approval.
+            Update your Activate All RI 2026 plan before or after organizer
+            approval.
           </p>
         </div>
         <ReferenceMap

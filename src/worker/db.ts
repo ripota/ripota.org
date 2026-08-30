@@ -212,9 +212,8 @@ export async function insertPendingPlan(
     env.DB.prepare(
       `INSERT INTO activate_ri_activators (
         id, event_id, email_normalized, name, phone, club, primary_callsign,
-        magic_token_hash, public_notes, organizer_notes, status, created_at,
-        updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        public_notes, organizer_notes, status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(event_id, email_normalized) DO UPDATE SET
         name = excluded.name,
         phone = excluded.phone,
@@ -235,7 +234,6 @@ export async function insertPendingPlan(
       submission.submitterPhone,
       submission.club,
       submission.submitterCallsign,
-      magicTokenHash,
       submission.publicNotes,
       submission.organizerNotes,
       nextStatus,
@@ -376,19 +374,16 @@ export async function getPlansByTokenHash(
     `${activatorSelectSql}
      FROM activate_ri_activators
      WHERE event_id = ?
-       AND (
-         magic_token_hash = ?
-         OR EXISTS (
-           SELECT 1
-           FROM activate_ri_edit_tokens t
-           WHERE t.activator_id = activate_ri_activators.id
-             AND t.event_id = activate_ri_activators.event_id
-             AND t.token_hash = ?
-             AND t.revoked_at IS NULL
-         )
+       AND EXISTS (
+         SELECT 1
+         FROM activate_ri_edit_tokens t
+         WHERE t.activator_id = activate_ri_activators.id
+           AND t.event_id = activate_ri_activators.event_id
+           AND t.token_hash = ?
+           AND t.revoked_at IS NULL
        )`,
   )
-    .bind(env.ACTIVATE_RI_EVENT_ID, magicTokenHash, magicTokenHash)
+    .bind(env.ACTIVATE_RI_EVENT_ID, magicTokenHash)
     .first<ActivatorRow>();
 
   if (!activator) {
@@ -411,19 +406,16 @@ export async function getPlanByTokenHash(
      FROM activate_ri_activators
      WHERE event_id = ?
        AND id = ?
-       AND (
-         magic_token_hash = ?
-         OR EXISTS (
-           SELECT 1
-           FROM activate_ri_edit_tokens t
-           WHERE t.activator_id = activate_ri_activators.id
-             AND t.event_id = activate_ri_activators.event_id
-             AND t.token_hash = ?
-             AND t.revoked_at IS NULL
-         )
+       AND EXISTS (
+         SELECT 1
+         FROM activate_ri_edit_tokens t
+         WHERE t.activator_id = activate_ri_activators.id
+           AND t.event_id = activate_ri_activators.event_id
+           AND t.token_hash = ?
+           AND t.revoked_at IS NULL
        )`,
   )
-    .bind(env.ACTIVATE_RI_EVENT_ID, planId, magicTokenHash, magicTokenHash)
+    .bind(env.ACTIVATE_RI_EVENT_ID, planId, magicTokenHash)
     .first<ActivatorRow>();
 
   if (!activator) {
@@ -431,6 +423,33 @@ export async function getPlanByTokenHash(
   }
 
   return (await withStops(env, [activator]))[0] ?? null;
+}
+
+export async function getPlansByActivatorId(
+  env: Env,
+  activatorId: string,
+): Promise<ActivatorPlansDto | null> {
+  const activator = await getActivatorById(env, activatorId);
+  if (!activator) {
+    return null;
+  }
+
+  return {
+    activator: toActivatorDto(activator),
+    plans: await withStops(env, [activator]),
+  };
+}
+
+export async function getPlanByActivatorId(
+  env: Env,
+  activatorId: string,
+  planId: string,
+): Promise<EditablePlanDto | null> {
+  if (activatorId !== planId) {
+    return null;
+  }
+
+  return getPlanById(env, planId);
 }
 
 export async function getPlanById(
@@ -548,7 +567,28 @@ export async function updatePlanByTokenHash(
   submission: EditablePlanSubmission,
   now = new Date().toISOString(),
 ): Promise<UpdatePlanResult> {
-  const existing = await getPlanByTokenHash(env, magicTokenHash, planId);
+  const authorized = await getPlanByTokenHash(env, magicTokenHash, planId);
+  if (!authorized) {
+    return { ok: false, status: 404, error: "Plan not found" };
+  }
+
+  return updatePlanByActivatorId(
+    env,
+    authorized.id,
+    planId,
+    submission,
+    now,
+  );
+}
+
+export async function updatePlanByActivatorId(
+  env: Env,
+  activatorId: string,
+  planId: string,
+  submission: EditablePlanSubmission,
+  now = new Date().toISOString(),
+): Promise<UpdatePlanResult> {
+  const existing = await getPlanByActivatorId(env, activatorId, planId);
   if (!existing) {
     return { ok: false, status: 404, error: "Plan not found" };
   }
@@ -800,7 +840,31 @@ export async function cancelPlanByTokenHash(
   | { ok: true; plan: EditablePlanDto; highImpactEvents: ActivityEventInput[] }
   | { ok: false; status: 404; error: string }
 > {
-  const existing = await getPlanByTokenHash(env, magicTokenHash, planId);
+  const authorized = await getPlanByTokenHash(env, magicTokenHash, planId);
+  if (!authorized) {
+    return { ok: false, status: 404, error: "Plan not found" };
+  }
+
+  return cancelPlanByActivatorId(
+    env,
+    authorized.id,
+    planId,
+    cancelReason,
+    now,
+  );
+}
+
+export async function cancelPlanByActivatorId(
+  env: Env,
+  activatorId: string,
+  planId: string,
+  cancelReason: string,
+  now = new Date().toISOString(),
+): Promise<
+  | { ok: true; plan: EditablePlanDto; highImpactEvents: ActivityEventInput[] }
+  | { ok: false; status: 404; error: string }
+> {
+  const existing = await getPlanByActivatorId(env, activatorId, planId);
   if (!existing) {
     return { ok: false, status: 404, error: "Plan not found" };
   }
@@ -860,6 +924,32 @@ export async function updateStopByToken(
     return { ok: false, status: 404, error: "Stop not found" };
   }
 
+  return updateStopForActivator(env, activator, stopId, fields, now);
+}
+
+export async function updateStopByActivatorId(
+  env: Env,
+  activatorId: string,
+  stopId: string,
+  fields: EditStopFields,
+  now = new Date().toISOString(),
+): Promise<EditStopResult> {
+  const activator = await findEditStopActivatorById(env, activatorId, stopId);
+  if (!activator) {
+    return { ok: false, status: 404, error: "Stop not found" };
+  }
+
+  return updateStopForActivator(env, activator, stopId, fields, now);
+}
+
+async function updateStopForActivator(
+  env: Env,
+  activator: EditStopActivatorRow,
+  stopId: string,
+  fields: EditStopFields,
+  now: string,
+): Promise<EditStopResult> {
+
   if (activator.status !== "approved") {
     return { ok: false, status: 409, error: "Plan is not approved" };
   }
@@ -880,23 +970,7 @@ export async function updateStopByToken(
          updated_at = ?
      WHERE id = ?
        AND event_id = ?
-       AND activator_id IN (
-         SELECT id
-         FROM activate_ri_activators
-         WHERE event_id = ?
-           AND status = 'approved'
-           AND (
-             magic_token_hash = ?
-             OR EXISTS (
-               SELECT 1
-               FROM activate_ri_edit_tokens t
-               WHERE t.activator_id = activate_ri_activators.id
-                 AND t.event_id = activate_ri_activators.event_id
-                 AND t.token_hash = ?
-                 AND t.revoked_at IS NULL
-             )
-           )
-       )`,
+       AND activator_id = ?`,
   )
     .bind(
       startAt,
@@ -907,9 +981,7 @@ export async function updateStopByToken(
       now,
       stopId,
       env.ACTIVATE_RI_EVENT_ID,
-      env.ACTIVATE_RI_EVENT_ID,
-      magicTokenHash,
-      magicTokenHash,
+      activator.activator_id,
     )
     .run();
 
@@ -976,6 +1048,32 @@ export async function cancelStopByToken(
     return { ok: false, status: 404, error: "Stop not found" };
   }
 
+  return cancelStopForActivator(env, activator, stopId, cancelReason, now);
+}
+
+export async function cancelStopByActivatorId(
+  env: Env,
+  activatorId: string,
+  stopId: string,
+  cancelReason: string,
+  now = new Date().toISOString(),
+): Promise<CancelStopResult> {
+  const activator = await findEditStopActivatorById(env, activatorId, stopId);
+  if (!activator) {
+    return { ok: false, status: 404, error: "Stop not found" };
+  }
+
+  return cancelStopForActivator(env, activator, stopId, cancelReason, now);
+}
+
+async function cancelStopForActivator(
+  env: Env,
+  activator: EditStopActivatorRow,
+  stopId: string,
+  cancelReason: string,
+  now: string,
+): Promise<CancelStopResult> {
+
   if (activator.status !== "approved") {
     return { ok: false, status: 409, error: "Plan is not approved" };
   }
@@ -1005,32 +1103,14 @@ export async function cancelStopByToken(
            updated_at = ?
        WHERE id = ?
          AND event_id = ?
-         AND activator_id IN (
-           SELECT id
-           FROM activate_ri_activators
-           WHERE event_id = ?
-             AND status = 'approved'
-             AND (
-               magic_token_hash = ?
-               OR EXISTS (
-                 SELECT 1
-                 FROM activate_ri_edit_tokens t
-                 WHERE t.activator_id = activate_ri_activators.id
-                   AND t.event_id = activate_ri_activators.event_id
-                   AND t.token_hash = ?
-                   AND t.revoked_at IS NULL
-               )
-             )
-         )`,
+         AND activator_id = ?`,
     ).bind(
       now,
       cancelReason,
       now,
       stopId,
       env.ACTIVATE_RI_EVENT_ID,
-      env.ACTIVATE_RI_EVENT_ID,
-      magicTokenHash,
-      magicTokenHash,
+      activator.activator_id,
     ),
     activityInsert(env, highImpactEvent, now),
   ]);
@@ -1163,16 +1243,13 @@ async function findEditStopActivator(
      WHERE s.id = ?
        AND s.event_id = ?
        AND a.event_id = ?
-       AND (
-         a.magic_token_hash = ?
-         OR EXISTS (
-           SELECT 1
-           FROM activate_ri_edit_tokens t
-           WHERE t.activator_id = a.id
-             AND t.event_id = a.event_id
-             AND t.token_hash = ?
-             AND t.revoked_at IS NULL
-         )
+       AND EXISTS (
+         SELECT 1
+         FROM activate_ri_edit_tokens t
+         WHERE t.activator_id = a.id
+           AND t.event_id = a.event_id
+           AND t.token_hash = ?
+           AND t.revoked_at IS NULL
        )`,
   )
     .bind(
@@ -1180,7 +1257,43 @@ async function findEditStopActivator(
       env.ACTIVATE_RI_EVENT_ID,
       env.ACTIVATE_RI_EVENT_ID,
       magicTokenHash,
-      magicTokenHash,
+    )
+    .first<EditStopActivatorRow>();
+}
+
+async function findEditStopActivatorById(
+  env: Env,
+  activatorId: string,
+  stopId: string,
+): Promise<EditStopActivatorRow | null> {
+  return env.DB.prepare(
+    `SELECT
+       a.id AS activator_id,
+       a.email_normalized,
+       a.primary_callsign,
+       a.status,
+       s.start_at,
+       s.end_at,
+       s.park_reference,
+       s.bands_json,
+       s.modes_json,
+       s.public_notes,
+       s.organizer_notes,
+       s.status AS stop_status,
+       s.created_at,
+       s.updated_at
+     FROM activate_ri_stops s
+     INNER JOIN activate_ri_activators a ON a.id = s.activator_id
+     WHERE s.id = ?
+       AND s.activator_id = ?
+       AND s.event_id = ?
+       AND a.event_id = ?`,
+  )
+    .bind(
+      stopId,
+      activatorId,
+      env.ACTIVATE_RI_EVENT_ID,
+      env.ACTIVATE_RI_EVENT_ID,
     )
     .first<EditStopActivatorRow>();
 }

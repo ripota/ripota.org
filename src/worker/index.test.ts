@@ -6,7 +6,9 @@ import { createMigratedSqliteD1 } from "./test-utils/sqlite-d1";
 function env(): Env {
   return {
     ACTIVATE_RI_EVENT_ID: "activate-ri-2026",
+    SITE_ORIGIN: "https://ripota.org",
     TURNSTILE_REQUIRED: "false",
+    ALLOW_LOCAL_ADMIN_AUTH: "true",
     ASSETS: {
       fetch: vi.fn(async () => new Response("asset shell")),
     } as unknown as Fetcher,
@@ -30,64 +32,140 @@ describe("worker routing", () => {
     vi.unstubAllGlobals();
   });
 
-  it("rewrites real Activate RI edit tokens to the static edit shell", async () => {
+  it("exchanges a legacy edit link for a private activator session", async () => {
+    const testEnv = env();
+    const database = createMigratedSqliteD1();
+    testEnv.DB = database.DB;
+
+    try {
+      const submitResponse = await worker.fetch(
+        request("/api/activate-ri-2026/plans", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            origin: "https://ripota.org",
+          },
+          body: JSON.stringify(volunteerPayload()),
+        }),
+        testEnv,
+      );
+      const submitBody = (await submitResponse.json()) as { editUrl: string };
+      const editToken = new URL(submitBody.editUrl).hash.slice(1);
+
+      const response = await worker.fetch(
+        request(`/activate-ri-2026/edit/${encodeURIComponent(editToken)}/`),
+        testEnv,
+      );
+
+      expect(response.status).toBe(303);
+      expect(response.headers.get("location")).toBe(
+        "https://ripota.org/activate-ri-2026/activators/plan/",
+      );
+      expect(response.headers.get("set-cookie")).toMatch(
+        /^__Host-activate-ri-session=.+; Secure; HttpOnly; SameSite=Strict; Path=\/; Max-Age=1209600$/,
+      );
+      expect(response.headers.get("cache-control")).toBe("private, no-store");
+      expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+      expect(testEnv.ASSETS.fetch).not.toHaveBeenCalled();
+    } finally {
+      database.close();
+    }
+  });
+
+  it("does not disclose whether an invalid legacy edit token was once valid", async () => {
+    const testEnv = env();
+    const database = createMigratedSqliteD1();
+    testEnv.DB = database.DB;
+
+    try {
+      const response = await worker.fetch(
+        request("/activate-ri-2026/edit/not-a-real-token/"),
+        testEnv,
+      );
+
+      expect(response.status).toBe(404);
+      expect(response.headers.get("cache-control")).toBe("private, no-store");
+      expect(testEnv.ASSETS.fetch).not.toHaveBeenCalled();
+    } finally {
+      database.close();
+    }
+  });
+
+  it("redirects unauthenticated activator portal requests to access", async () => {
+    const testEnv = env();
+    const database = createMigratedSqliteD1();
+    testEnv.DB = database.DB;
+
+    try {
+      const response = await worker.fetch(
+        request("/activate-ri-2026/activators/plan/"),
+        testEnv,
+      );
+
+      expect(response.status).toBe(303);
+      expect(response.headers.get("location")).toBe(
+        "https://ripota.org/activate-ri-2026/access/",
+      );
+      expect(response.headers.get("cache-control")).toBe("private, no-store");
+      expect(testEnv.ASSETS.fetch).not.toHaveBeenCalled();
+    } finally {
+      database.close();
+    }
+  });
+
+  it("serves the tokenless plan page to an authenticated activator", async () => {
+    const testEnv = env();
+    const database = createMigratedSqliteD1();
+    testEnv.DB = database.DB;
+
+    try {
+      const submitResponse = await worker.fetch(
+        request("/api/activate-ri-2026/plans", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            origin: "https://ripota.org",
+          },
+          body: JSON.stringify(volunteerPayload()),
+        }),
+        testEnv,
+      );
+      const submitBody = (await submitResponse.json()) as { editUrl: string };
+      const token = new URL(submitBody.editUrl).hash.slice(1);
+      const exchangeResponse = await worker.fetch(
+        request(`/activate-ri-2026/edit/${encodeURIComponent(token)}/`),
+        testEnv,
+      );
+      const cookie = exchangeResponse.headers.get("set-cookie")?.split(";", 1)[0];
+
+      const response = await worker.fetch(
+        request("/activate-ri-2026/activators/plan/", {
+          headers: { cookie: cookie ?? "" },
+        }),
+        testEnv,
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.text()).resolves.toBe("asset shell");
+      expect(response.headers.get("cache-control")).toBe("private, no-store");
+      expect(testEnv.ASSETS.fetch).toHaveBeenCalledOnce();
+    } finally {
+      database.close();
+    }
+  });
+
+  it("serves the access shell with private response headers", async () => {
     const testEnv = env();
 
     const response = await worker.fetch(
-      request("/activate-ri-2026/edit/abc123/?ignored=true"),
-      testEnv,
-    );
-
-    expect(response.status).toBe(200);
-    expect(testEnv.ASSETS.fetch).toHaveBeenCalledOnce();
-
-    const assetRequest = vi.mocked(testEnv.ASSETS.fetch).mock
-      .calls[0][0] as Request;
-    expect(assetRequest.method).toBe("GET");
-    expect(new URL(assetRequest.url).pathname).toBe(
-      "/activate-ri-2026/edit-shell/",
-    );
-    expect(new URL(assetRequest.url).search).toBe("");
-  });
-
-  it("rewrites HEAD edit token requests to the static edit shell", async () => {
-    const testEnv = env();
-
-    await worker.fetch(
-      request("/activate-ri-2026/edit/abc123", { method: "HEAD" }),
-      testEnv,
-    );
-
-    const assetRequest = vi.mocked(testEnv.ASSETS.fetch).mock
-      .calls[0][0] as Request;
-    expect(assetRequest.method).toBe("HEAD");
-    expect(new URL(assetRequest.url).pathname).toBe(
-      "/activate-ri-2026/edit-shell/",
-    );
-  });
-
-  it("follows edit shell asset redirects internally", async () => {
-    const testEnv = env();
-    testEnv.ASSETS = {
-      fetch: vi
-        .fn()
-        .mockResolvedValueOnce(
-          new Response(null, {
-            status: 307,
-            headers: { location: "/activate-ri-2026/edit-shell/" },
-          }),
-        )
-        .mockResolvedValueOnce(new Response("asset shell")),
-    } as unknown as Fetcher;
-
-    const response = await worker.fetch(
-      request("/activate-ri-2026/edit/abc123/"),
+      request("/activate-ri-2026/access/"),
       testEnv,
     );
 
     expect(response.status).toBe(200);
     await expect(response.text()).resolves.toBe("asset shell");
-    expect(testEnv.ASSETS.fetch).toHaveBeenCalledTimes(2);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
   });
 
   it("keeps API requests on API routing", async () => {
@@ -216,3 +294,20 @@ describe("worker routing", () => {
     expect(testEnv.ASSETS.fetch).not.toHaveBeenCalled();
   });
 });
+
+function volunteerPayload(): Record<string, unknown> {
+  return {
+    submitterCallsign: "N1RWJ",
+    submitterName: "Rob Jackson",
+    submitterEmail: "rob@example.com",
+    stops: [
+      {
+        parkReference: "US-2868",
+        plannedDate: "2026-09-11",
+        timeBlock: "09:00-12:00",
+        bands: ["40m"],
+        modes: ["SSB"],
+      },
+    ],
+  };
+}

@@ -1,5 +1,12 @@
 import type { Env } from "./env";
+import {
+  activatorSessionCookie,
+  createActivatorSession,
+  getActivatorSession,
+} from "./activator-session";
 import { requireAccessIdentity } from "./access";
+import { trustedSiteUrl } from "./origin";
+import { withPrivateHeaders } from "./private-response";
 import { json } from "./http";
 import { handleActivateRiApi } from "./routes/activate-ri";
 import {
@@ -9,8 +16,9 @@ import {
 import { handlePotaSpots } from "./routes/pota";
 
 const activateRiAdminPathPattern = /^\/activate-ri-2026\/admin\/?$/;
-const activateRiEditPathPattern = /^\/activate-ri-2026\/edit\/[^/]+\/?$/;
-const activateRiEditShellPath = "/activate-ri-2026/edit-shell/";
+const activateRiEditPathPattern = /^\/activate-ri-2026\/edit\/([^/]+)\/?$/;
+const activateRiAccessPathPattern = /^\/activate-ri-2026\/access\/?$/;
+const activateRiPortalPathPattern = /^\/activate-ri-2026\/activators(?:\/plan)?\/?$/;
 
 export default {
   async fetch(
@@ -52,18 +60,72 @@ export default {
         return identity;
       }
 
-      return env.ASSETS.fetch(request);
+      return withPrivateHeaders(await env.ASSETS.fetch(request));
+    }
+
+    if (
+      request.method === "GET" &&
+      activateRiEditPathPattern.test(url.pathname)
+    ) {
+      const match = url.pathname.match(activateRiEditPathPattern);
+      const token = match ? decodePathSegment(match[1]) : "";
+      const session = token ? await createActivatorSession(env, token) : null;
+      if (!session) {
+        return withPrivateHeaders(
+          new Response("Private access link not found.", { status: 404 }),
+          "editor",
+        );
+      }
+
+      const location = trustedSiteUrl(
+        request,
+        env,
+        "/activate-ri-2026/activators/plan/",
+      ).href;
+      return withPrivateHeaders(
+        new Response(null, {
+          status: 303,
+          headers: {
+            location,
+            "set-cookie": activatorSessionCookie(session.sessionToken),
+          },
+        }),
+        "editor",
+      );
     }
 
     if (
       (request.method === "GET" || request.method === "HEAD") &&
-      activateRiEditPathPattern.test(url.pathname)
+      activateRiAccessPathPattern.test(url.pathname)
     ) {
-      const shellUrl = new URL(request.url);
-      shellUrl.pathname = activateRiEditShellPath;
-      shellUrl.search = "";
+      return withPrivateHeaders(await env.ASSETS.fetch(request));
+    }
 
-      return fetchAssetWithoutRedirect(env, new Request(shellUrl, request));
+    if (
+      (request.method === "GET" || request.method === "HEAD") &&
+      activateRiPortalPathPattern.test(url.pathname)
+    ) {
+      const identity = await getActivatorSession(request, env);
+      if (!identity) {
+        return withPrivateHeaders(
+          new Response(null, {
+            status: 303,
+            headers: {
+              location: trustedSiteUrl(
+                request,
+                env,
+                "/activate-ri-2026/access/",
+              ).href,
+            },
+          }),
+          url.pathname.endsWith("/plan/") ? "editor" : "portal",
+        );
+      }
+
+      return withPrivateHeaders(
+        await fetchAssetWithoutRedirect(env, request),
+        url.pathname.endsWith("/plan/") ? "editor" : "portal",
+      );
     }
 
     return env.ASSETS.fetch(request);
@@ -86,4 +148,12 @@ async function fetchAssetWithoutRedirect(
 
   const redirectedUrl = new URL(location, request.url);
   return env.ASSETS.fetch(new Request(redirectedUrl, request));
+}
+
+function decodePathSegment(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return "";
+  }
 }

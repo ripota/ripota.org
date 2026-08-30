@@ -1,0 +1,35 @@
+---
+import ActivatorPortalNav from "../../../components/activate-ri/ActivatorPortalNav.astro";
+import Footer from "../../../components/Footer.astro";
+import Notice from "../../../components/Notice.astro";
+import SiteHeader from "../../../components/SiteHeader.astro";
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+---
+
+<BaseLayout
+  title="Activate All RI 2026 Activator Portal"
+  description="Private Activate All RI 2026 activator portal."
+  privatePage
+>
+  <SiteHeader variant="solid" showEventLink />
+  <main id="main">
+    <section class="section event-page" aria-labelledby="portal-title">
+      <div class="container">
+        <ActivatorPortalNav />
+        <div class="section-header">
+          <p class="eyebrow">Private activator portal</p>
+          <h1 id="portal-title">Activator Ops Room</h1>
+          <p class="lead">
+            Event coordination will appear here when organizers open the room.
+            Your plan editor remains available now.
+          </p>
+          <a class="button" data-variant="primary" href="/activate-ri-2026/activators/plan/">
+            Open my plan
+          </a>
+        </div>
+      </div>
+    </section>
+    <Notice />
+  </main>
+  <Footer />
+</BaseLayout>

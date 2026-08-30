@@ -6,13 +6,25 @@ import {
 import { planRowsToPublicStops } from "../../lib/activate-ri/public-export";
 import { requireAccessIdentity } from "../access";
 import {
+  activatorSessionCookie,
+  clearActivatorSessionCookie,
+  createActivatorSession,
+  requireActivatorSession,
+  revokeCurrentActivatorSession,
+  type ActivatorSessionIdentity,
+} from "../activator-session";
+import {
   activatorSignupExists,
   approvePlan,
   cancelPlanByTokenHash,
+  cancelPlanByActivatorId,
   cancelStopByToken,
+  cancelStopByActivatorId,
   findActivatorForEditLinkResend,
   getPlanById,
+  getPlanByActivatorId,
   getPlanByTokenHash,
+  getPlansByActivatorId,
   getPlansByTokenHash,
   insertPendingPlan,
   listActivityEvents,
@@ -23,7 +35,9 @@ import {
   markEditLinkEmailEvent,
   markEditLinkSent,
   updatePlanByTokenHash,
+  updatePlanByActivatorId,
   updateStopByToken,
+  updateStopByActivatorId,
   type EditablePlanSubmission,
   type EditStopFields,
 } from "../db";
@@ -38,6 +52,8 @@ import {
 import { tokenHash } from "../edit-token";
 import type { Env } from "../env";
 import { json, readJson } from "../http";
+import { hasTrustedOrigin, trustedSiteUrl } from "../origin";
+import { withPrivateHeaders } from "../private-response";
 import { verifyTurnstile } from "../turnstile";
 
 const submissionReceivedMessage =
@@ -130,6 +146,45 @@ export async function handleActivateRiApi(
     );
   }
 
+  if (url.pathname === "/api/activate-ri-2026/activator/session") {
+    return handleActivatorSession(request, env);
+  }
+
+  if (
+    request.method === "GET" &&
+    url.pathname === "/api/activate-ri-2026/activator/plans"
+  ) {
+    return handleActivatorPlansLookup(request, env);
+  }
+
+  const activatorPlanMatch = url.pathname.match(
+    /^\/api\/activate-ri-2026\/activator\/plans\/([^/]+)$/,
+  );
+  if (request.method === "PATCH" && activatorPlanMatch) {
+    return handleActivatorPlanUpdate(request, env, activatorPlanMatch[1]);
+  }
+
+  const activatorPlanCancelMatch = url.pathname.match(
+    /^\/api\/activate-ri-2026\/activator\/plans\/([^/]+)\/cancel$/,
+  );
+  if (request.method === "POST" && activatorPlanCancelMatch) {
+    return handleActivatorPlanCancel(request, env, activatorPlanCancelMatch[1]);
+  }
+
+  const activatorStopMatch = url.pathname.match(
+    /^\/api\/activate-ri-2026\/activator\/stops\/([^/]+)$/,
+  );
+  if (request.method === "PATCH" && activatorStopMatch) {
+    return handleActivatorStopUpdate(request, env, activatorStopMatch[1]);
+  }
+
+  const activatorStopCancelMatch = url.pathname.match(
+    /^\/api\/activate-ri-2026\/activator\/stops\/([^/]+)\/cancel$/,
+  );
+  if (request.method === "POST" && activatorStopCancelMatch) {
+    return handleActivatorStopCancel(request, env, activatorStopCancelMatch[1]);
+  }
+
   const approveMatch = url.pathname.match(
     /^\/api\/activate-ri-2026\/admin\/plans\/([^/]+)\/approve$/,
   );
@@ -157,8 +212,8 @@ export async function handleActivateRiApi(
       const emailResult = await sendActivatorApprovalEmail(
         env,
         plan,
-        absoluteHelpUrl(request),
-        absoluteScheduleUrl(request),
+        absoluteHelpUrl(request, env),
+        absoluteScheduleUrl(request, env),
       );
       if (emailResult.status !== "sent") {
         await logActivityEvent(env, {
@@ -304,6 +359,434 @@ function publicStopsCacheKey(request: Request): Request {
   });
 }
 
+async function handleActivatorSession(
+  request: Request,
+  env: Env,
+): Promise<Response> {
+  if (request.method === "POST") {
+    if (!hasTrustedOrigin(request, env)) {
+      return privateJson({ ok: false, error: "Forbidden" }, { status: 403 });
+    }
+
+    const payloadResult = await readRequiredPayload(request);
+    if (!payloadResult.ok) {
+      return privateJson(
+        { ok: false, errors: [payloadResult.error] },
+        { status: payloadResult.status },
+      );
+    }
+
+    const token = isObject(payloadResult.value) &&
+        typeof payloadResult.value.token === "string"
+      ? payloadResult.value.token.trim()
+      : "";
+    if (!token || token.length > 256) {
+      return privateJson(
+        { ok: false, error: "Access link not found" },
+        { status: 404 },
+      );
+    }
+
+    const session = await createActivatorSession(env, token);
+    if (!session) {
+      return privateJson(
+        { ok: false, error: "Access link not found" },
+        { status: 404 },
+      );
+    }
+
+    return privateJson(
+      {
+        ok: true,
+        activator: portalIdentity(session.identity),
+        expiresAt: session.identity.expiresAt,
+      },
+      { headers: { "set-cookie": activatorSessionCookie(session.sessionToken) } },
+    );
+  }
+
+  if (request.method === "GET") {
+    const identity = await requireActivatorSession(request, env);
+    if (identity instanceof Response) {
+      return identity;
+    }
+
+    return privateJson({
+      ok: true,
+      activator: portalIdentity(identity),
+      expiresAt: identity.expiresAt,
+    });
+  }
+
+  if (request.method === "DELETE") {
+    if (!hasTrustedOrigin(request, env)) {
+      return privateJson({ ok: false, error: "Forbidden" }, { status: 403 });
+    }
+
+    await revokeCurrentActivatorSession(request, env);
+    return privateJson(
+      { ok: true },
+      { headers: { "set-cookie": clearActivatorSessionCookie() } },
+    );
+  }
+
+  return privateJson(
+    { ok: false, error: "Method not allowed" },
+    { status: 405, headers: { allow: "GET, POST, DELETE" } },
+  );
+}
+
+async function handleActivatorPlansLookup(
+  request: Request,
+  env: Env,
+): Promise<Response> {
+  const identity = await requireActivatorSession(request, env);
+  if (identity instanceof Response) {
+    return identity;
+  }
+
+  const data = await getPlansByActivatorId(env, identity.activatorId);
+  if (!data) {
+    return privateJson({ ok: false, error: "Plans not found" }, { status: 404 });
+  }
+
+  return privateJson({ ok: true, activator: data.activator, plans: data.plans });
+}
+
+async function handleActivatorPlanUpdate(
+  request: Request,
+  env: Env,
+  encodedPlanId: string,
+): Promise<Response> {
+  const identity = await requireMutationSession(request, env);
+  if (identity instanceof Response) {
+    return identity;
+  }
+
+  const planId = decodePathSegment(encodedPlanId);
+  if (!planId) {
+    return privateJson({ ok: false, error: "Plan not found" }, { status: 404 });
+  }
+
+  const payloadResult = await readRequiredPayload(request);
+  if (!payloadResult.ok) {
+    return privateJson(
+      { ok: false, errors: [payloadResult.error] },
+      { status: payloadResult.status },
+    );
+  }
+
+  const validation = validateEditablePlanPayload(payloadResult.value);
+  if (!validation.ok) {
+    return privateJson({ ok: false, errors: validation.errors }, { status: 400 });
+  }
+
+  const turnstileToken = isObject(payloadResult.value)
+    ? payloadResult.value.turnstileToken
+    : undefined;
+  if (!await verifyTurnstile(request, env, turnstileToken)) {
+    return privateJson(
+      { ok: false, errors: ["Turnstile verification failed."] },
+      { status: 400 },
+    );
+  }
+
+  const updateResult = await updatePlanByActivatorId(
+    env,
+    identity.activatorId,
+    planId,
+    validation.value,
+  );
+  if (!updateResult.ok) {
+    return privateJson(
+      { ok: false, error: updateResult.error },
+      { status: updateResult.status },
+    );
+  }
+
+  const plan = await getPlanByActivatorId(env, identity.activatorId, planId);
+  if (plan) {
+    await sendPlanUpdateNotifications(
+      request,
+      env,
+      plan,
+      updateResult.highImpactEvents,
+      "plan update",
+    );
+  }
+
+  return privateJson({ ok: true });
+}
+
+async function handleActivatorPlanCancel(
+  request: Request,
+  env: Env,
+  encodedPlanId: string,
+): Promise<Response> {
+  const identity = await requireMutationSession(request, env);
+  if (identity instanceof Response) {
+    return identity;
+  }
+
+  const planId = decodePathSegment(encodedPlanId);
+  if (!planId) {
+    return privateJson({ ok: false, error: "Plan not found" }, { status: 404 });
+  }
+
+  const payloadResult = await readOptionalPayload(request);
+  if (!payloadResult.ok) {
+    return privateJson(
+      { ok: false, errors: [payloadResult.error] },
+      { status: payloadResult.status },
+    );
+  }
+  const validation = validateCancelStopPayload(payloadResult.value);
+  if (!validation.ok) {
+    return privateJson({ ok: false, errors: validation.errors }, { status: 400 });
+  }
+
+  const turnstileToken = isObject(payloadResult.value)
+    ? payloadResult.value.turnstileToken
+    : undefined;
+  if (!await verifyTurnstile(request, env, turnstileToken)) {
+    return privateJson(
+      { ok: false, errors: ["Turnstile verification failed."] },
+      { status: 400 },
+    );
+  }
+
+  const result = await cancelPlanByActivatorId(
+    env,
+    identity.activatorId,
+    planId,
+    validation.cancelReason,
+  );
+  if (!result.ok) {
+    return privateJson({ ok: false, error: result.error }, { status: result.status });
+  }
+
+  const currentPlan = await getPlanByActivatorId(env, identity.activatorId, planId);
+  const plan = currentPlan ?? result.plan;
+  const emailResult = await sendActivatorPlanCancelledEmail(
+    env,
+    plan,
+    portalPlanUrl(request, env),
+  );
+  await logActivityEvent(env, {
+    planId: plan.id,
+    actorType: "system",
+    actorEmail: plan.submitter_email,
+    action: activatorNotificationAction(emailResult),
+    summary: activatorNotificationSummary(emailResult, "plan cancellation"),
+    details: emailActivityDetails(emailResult),
+  });
+
+  if (result.highImpactEvents.length > 0) {
+    const adminEmailResult = await sendAdminActivityEmail(
+      env,
+      result.plan,
+      result.highImpactEvents,
+    );
+    await logActivityEvent(env, {
+      planId: result.plan.id,
+      actorType: "system",
+      action: adminNotificationAction(adminEmailResult),
+      summary: adminNotificationSummary(adminEmailResult, "plan cancellation"),
+      details: emailActivityDetails(adminEmailResult, { includeRecipients: true }),
+    });
+  }
+
+  return privateJson({ ok: true });
+}
+
+async function handleActivatorStopUpdate(
+  request: Request,
+  env: Env,
+  encodedStopId: string,
+): Promise<Response> {
+  const identity = await requireMutationSession(request, env);
+  if (identity instanceof Response) {
+    return identity;
+  }
+
+  const stopId = decodePathSegment(encodedStopId);
+  if (!stopId) {
+    return privateJson({ ok: false, error: "Stop not found" }, { status: 404 });
+  }
+
+  const payloadResult = await readRequiredPayload(request);
+  if (!payloadResult.ok) {
+    return privateJson(
+      { ok: false, errors: [payloadResult.error] },
+      { status: payloadResult.status },
+    );
+  }
+  const validation = validateEditStopPayload(payloadResult.value);
+  if (!validation.ok) {
+    return privateJson({ ok: false, errors: validation.errors }, { status: 400 });
+  }
+
+  const result = await updateStopByActivatorId(
+    env,
+    identity.activatorId,
+    stopId,
+    validation.value,
+  );
+  if (!result.ok) {
+    return privateJson({ ok: false, error: result.error }, { status: result.status });
+  }
+
+  await sendStopUpdateNotification(request, env, result.plan, stopId, "stop update");
+  return privateJson({ ok: true });
+}
+
+async function handleActivatorStopCancel(
+  request: Request,
+  env: Env,
+  encodedStopId: string,
+): Promise<Response> {
+  const identity = await requireMutationSession(request, env);
+  if (identity instanceof Response) {
+    return identity;
+  }
+
+  const stopId = decodePathSegment(encodedStopId);
+  if (!stopId) {
+    return privateJson({ ok: false, error: "Stop not found" }, { status: 404 });
+  }
+
+  const payloadResult = await readOptionalPayload(request);
+  if (!payloadResult.ok) {
+    return privateJson(
+      { ok: false, errors: [payloadResult.error] },
+      { status: payloadResult.status },
+    );
+  }
+  const validation = validateCancelStopPayload(payloadResult.value);
+  if (!validation.ok) {
+    return privateJson({ ok: false, errors: validation.errors }, { status: 400 });
+  }
+
+  const result = await cancelStopByActivatorId(
+    env,
+    identity.activatorId,
+    stopId,
+    validation.cancelReason,
+  );
+  if (!result.ok) {
+    return privateJson({ ok: false, error: result.error }, { status: result.status });
+  }
+
+  await sendStopUpdateNotification(
+    request,
+    env,
+    result.plan,
+    stopId,
+    "stop cancellation",
+  );
+  if (result.highImpactEvents.length > 0) {
+    const emailResult = await sendAdminActivityEmail(
+      env,
+      result.plan,
+      result.highImpactEvents,
+    );
+    await logActivityEvent(env, {
+      planId: result.plan.id,
+      stopId,
+      actorType: "system",
+      action: adminNotificationAction(emailResult),
+      summary: adminNotificationSummary(emailResult, "stop cancellation"),
+      details: emailActivityDetails(emailResult, { includeRecipients: true }),
+    });
+  }
+
+  return privateJson({ ok: true });
+}
+
+async function requireMutationSession(
+  request: Request,
+  env: Env,
+): Promise<ActivatorSessionIdentity | Response> {
+  if (!hasTrustedOrigin(request, env)) {
+    return privateJson({ ok: false, error: "Forbidden" }, { status: 403 });
+  }
+
+  return requireActivatorSession(request, env);
+}
+
+async function sendPlanUpdateNotifications(
+  request: Request,
+  env: Env,
+  plan: Awaited<ReturnType<typeof getPlanById>> & {},
+  highImpactEvents: Parameters<typeof sendAdminActivityEmail>[2],
+  label: string,
+): Promise<void> {
+  if (highImpactEvents.length > 0) {
+    const adminResult = await sendAdminActivityEmail(env, plan, highImpactEvents);
+    await logActivityEvent(env, {
+      planId: plan.id,
+      actorType: "system",
+      action: adminNotificationAction(adminResult),
+      summary: adminNotificationSummary(adminResult, "high-impact edit"),
+      details: emailActivityDetails(adminResult, { includeRecipients: true }),
+    });
+  }
+
+  const activatorResult = await sendActivatorPlanUpdatedEmail(
+    env,
+    plan,
+    portalPlanUrl(request, env),
+  );
+  await logActivityEvent(env, {
+    planId: plan.id,
+    actorType: "system",
+    actorEmail: plan.submitter_email,
+    action: activatorNotificationAction(activatorResult),
+    summary: activatorNotificationSummary(activatorResult, label),
+    details: emailActivityDetails(activatorResult),
+  });
+}
+
+async function sendStopUpdateNotification(
+  request: Request,
+  env: Env,
+  plan: NonNullable<Awaited<ReturnType<typeof getPlanById>>>,
+  stopId: string,
+  label: string,
+): Promise<void> {
+  const result = await sendActivatorPlanUpdatedEmail(
+    env,
+    plan,
+    portalPlanUrl(request, env),
+  );
+  await logActivityEvent(env, {
+    planId: plan.id,
+    stopId,
+    actorType: "system",
+    actorEmail: plan.submitter_email,
+    action: activatorNotificationAction(result),
+    summary: activatorNotificationSummary(result, label),
+    details: emailActivityDetails(result),
+  });
+}
+
+function portalIdentity(identity: ActivatorSessionIdentity) {
+  return {
+    id: identity.activatorId,
+    callsign: identity.callsign,
+    name: identity.name,
+    status: identity.status,
+  };
+}
+
+function portalPlanUrl(request: Request, env: Env): string {
+  return trustedSiteUrl(request, env, "/activate-ri-2026/activators/plan/").href;
+}
+
+function privateJson(data: unknown, init: ResponseInit = {}): Response {
+  return withPrivateHeaders(json(data, init));
+}
+
 async function handleEditStop(
   request: Request,
   env: Env,
@@ -345,7 +828,7 @@ async function handleEditStop(
   const activatorEmailResult = await sendActivatorPlanUpdatedEmail(
     env,
     result.plan,
-    absoluteEditUrl(request, token),
+    absoluteEditUrl(request, env, token),
   );
   await logActivityEvent(env, {
     planId: result.plan.id,
@@ -401,7 +884,7 @@ async function handleCancelStop(
   const activatorEmailResult = await sendActivatorPlanUpdatedEmail(
     env,
     result.plan,
-    absoluteEditUrl(request, token),
+    absoluteEditUrl(request, env, token),
   );
   await logActivityEvent(env, {
     planId: result.plan.id,
@@ -469,7 +952,7 @@ async function handlePlanSubmission(
   }
 
   const result = await insertPendingPlan(env, validation.value);
-  const editUrl = absoluteEditUrl(request, result.editToken);
+  const editUrl = absoluteEditUrl(request, env, result.editToken);
   const savedPlan = await getPlanById(env, result.planId);
   const emailResult = await sendActivatorEditLinkEmail(
     env,
@@ -481,7 +964,7 @@ async function handlePlanSubmission(
       stops: [],
     },
     editUrl,
-    absoluteHelpUrl(request),
+    absoluteHelpUrl(request, env),
     { requiresAdminApproval: result.requiresAdminApproval },
   );
   if (emailResult.status === "sent") {
@@ -613,7 +1096,7 @@ async function handleEditPlanUpdate(
     const emailResult = await sendActivatorPlanUpdatedEmail(
       env,
       plan,
-      absoluteEditUrl(request, token),
+      absoluteEditUrl(request, env, token),
     );
     await logActivityEvent(env, {
       planId: plan.id,
@@ -661,8 +1144,8 @@ async function handleResendEditLink(
       submitter_name: match.activator.name,
       submitter_email: match.activator.email_normalized,
     },
-    absoluteEditUrl(request, match.editToken),
-    absoluteHelpUrl(request),
+    absoluteEditUrl(request, env, match.editToken),
+    absoluteHelpUrl(request, env),
     { requiresAdminApproval: match.plan?.status !== "approved" },
   );
   await markEditLinkEmailEvent(
@@ -768,7 +1251,7 @@ async function handleCancelPlan(
   const activatorEmailResult = await sendActivatorPlanCancelledEmail(
     env,
     activatorEmailPlan,
-    absoluteEditUrl(request, token),
+    absoluteEditUrl(request, env, token),
   );
   await logActivityEvent(env, {
     planId: activatorEmailPlan.id,
@@ -1033,19 +1516,18 @@ function decodePathSegment(value: string): string {
   }
 }
 
-function absoluteEditUrl(request: Request, editToken: string): string {
-  return new URL(
-    `/activate-ri-2026/edit/${encodeURIComponent(editToken)}/`,
-    request.url,
-  ).href;
+function absoluteEditUrl(request: Request, env: Env, editToken: string): string {
+  const url = trustedSiteUrl(request, env, "/activate-ri-2026/access/");
+  url.hash = editToken;
+  return url.href;
 }
 
-function absoluteHelpUrl(request: Request): string {
-  return new URL("/activate-ri-2026/help/", request.url).href;
+function absoluteHelpUrl(request: Request, env: Env): string {
+  return trustedSiteUrl(request, env, "/activate-ri-2026/help/").href;
 }
 
-function absoluteScheduleUrl(request: Request): string {
-  return new URL("/activate-ri-2026/schedule/", request.url).href;
+function absoluteScheduleUrl(request: Request, env: Env): string {
+  return trustedSiteUrl(request, env, "/activate-ri-2026/schedule/").href;
 }
 
 type EmailActivityResult =

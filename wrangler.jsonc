@@ -14,7 +14,9 @@
       "/api/*",
       "/embed/*",
       "/activate-ri-2026/admin*",
-      "/activate-ri-2026/edit/*"
+      "/activate-ri-2026/edit/*",
+      "/activate-ri-2026/access*",
+      "/activate-ri-2026/activators*"
     ]
   },
   "d1_databases": [
@@ -33,6 +35,7 @@
     "ACTIVATE_RI_EVENT_ID": "activate-ri-2026",
     "ACTIVATE_RI_EMAIL_FROM": "activate-ri-2026@ripota.org",
     "ACTIVATE_RI_EMAIL_FROM_NAME": "RI POTA",
+    "SITE_ORIGIN": "https://ripota.org",
     "TURNSTILE_REQUIRED": "true"
   },
   "env": {

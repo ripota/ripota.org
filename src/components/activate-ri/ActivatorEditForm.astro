@@ -69,8 +69,8 @@ const turnstileSiteKey =
       the event overview.
     </p>
     <div class="form-actions">
-      <a class="button" data-variant="primary" href="/activate-ri-2026/" data-edit-confirmation-overview>
-        Back to event overview
+      <a class="button" data-variant="primary" href="/activate-ri-2026/activators/" data-edit-confirmation-overview>
+        Back to activator portal
       </a>
     </div>
   </div>
@@ -253,12 +253,6 @@ const turnstileSiteKey =
 
   async function loadPlan(showLoading = true): Promise<void> {
     if (!editForm || !editFields || !editStops || !editActions || !editAddStopActions) {
-      return;
-    }
-
-    const token = editToken();
-    if (!token) {
-      editStatus?.replaceChildren("This edit link is missing its private token.");
       return;
     }
 
@@ -660,19 +654,11 @@ const turnstileSiteKey =
   }
 
   function apiUrl(): string {
-    return `/api/activate-ri-2026/edit/${encodeURIComponent(editToken())}/plans`;
+    return "/api/activate-ri-2026/activator/plans";
   }
 
   function selectedPlanUrl(): string {
     return `${apiUrl()}/${encodeURIComponent(selectedPlanId)}`;
-  }
-
-  function editToken(): string {
-    const pathParts = window.location.pathname.split("/").filter(Boolean);
-
-    return pathParts[0] === "activate-ri-2026" && pathParts[1] === "edit"
-      ? pathParts[2] ?? ""
-      : "";
   }
 
   async function parseResponse(response: Response): Promise<{

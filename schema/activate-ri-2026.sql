@@ -45,6 +45,22 @@ CREATE INDEX activate_ri_edit_tokens_active_idx
   ON activate_ri_edit_tokens(event_id, token_hash)
   WHERE revoked_at IS NULL;
 
+CREATE TABLE activate_ri_activator_sessions (
+  token_hash TEXT PRIMARY KEY,
+  event_id TEXT NOT NULL,
+  activator_id TEXT NOT NULL REFERENCES activate_ri_activators(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  last_used_at TEXT,
+  revoked_at TEXT
+);
+
+CREATE INDEX activate_ri_activator_sessions_actor_idx
+  ON activate_ri_activator_sessions(event_id, activator_id);
+
+CREATE INDEX activate_ri_activator_sessions_expiry_idx
+  ON activate_ri_activator_sessions(expires_at);
+
 CREATE TABLE activate_ri_stops (
   id TEXT PRIMARY KEY,
   activator_id TEXT NOT NULL REFERENCES activate_ri_activators(id) ON DELETE CASCADE,

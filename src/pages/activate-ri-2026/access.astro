@@ -1,0 +1,81 @@
+---
+import Footer from "../../components/Footer.astro";
+import Notice from "../../components/Notice.astro";
+import SiteHeader from "../../components/SiteHeader.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+---
+
+<BaseLayout
+  title="Activate All RI 2026 Private Access"
+  description="Private access for Activate All RI 2026 activators."
+  privatePage
+>
+  <SiteHeader variant="solid" showEventLink />
+  <main id="main">
+    <section class="section event-page" aria-labelledby="access-title">
+      <div class="container">
+        <div class="section-header">
+          <p class="eyebrow">Private activator access</p>
+          <h1 id="access-title">Opening your activator portal</h1>
+          <p class="lead" data-access-status aria-live="polite">
+            Verifying your private link…
+          </p>
+          <p data-access-help hidden>
+            Reopen the private link in your signup email, or request another
+            link from the <a href="/activate-ri-2026/volunteer/">volunteer page</a>.
+          </p>
+        </div>
+      </div>
+    </section>
+    <Notice />
+  </main>
+  <Footer />
+</BaseLayout>
+
+<script>
+  const status = document.querySelector<HTMLElement>("[data-access-status]");
+  const help = document.querySelector<HTMLElement>("[data-access-help]");
+  const token = decodeURIComponent(window.location.hash.slice(1));
+  window.history.replaceState(null, "", window.location.pathname);
+
+  void openPortal();
+
+  async function openPortal(): Promise<void> {
+    try {
+      if (!token) {
+        const existing = await fetch("/api/activate-ri-2026/activator/session", {
+          headers: { accept: "application/json" },
+        });
+        if (existing.ok) {
+          window.location.replace("/activate-ri-2026/activators/");
+          return;
+        }
+
+        showFailure("This page is missing its private access token.");
+        return;
+      }
+
+      const response = await fetch("/api/activate-ri-2026/activator/session", {
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ token }),
+      });
+      if (!response.ok) {
+        showFailure("This private link is invalid or has been replaced.");
+        return;
+      }
+
+      window.location.replace("/activate-ri-2026/activators/plan/");
+    } catch {
+      showFailure("Private access is temporarily unavailable. Please try again.");
+    }
+  }
+
+  function showFailure(message: string): void {
+    status?.replaceChildren(message);
+    help?.removeAttribute("hidden");
+  }
+</script>

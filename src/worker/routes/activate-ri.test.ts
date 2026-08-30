@@ -5,6 +5,7 @@ import type { Env } from "../env";
 function env(): Env {
   return {
     ACTIVATE_RI_EVENT_ID: "activate-ri-2026",
+    SITE_ORIGIN: "https://ripota.org",
     TURNSTILE_REQUIRED: "false",
     ALLOW_ADMIN_HEADER_AUTH: "false",
     ASSETS: { fetch: vi.fn() } as unknown as Fetcher,
@@ -774,7 +775,7 @@ describe("handleActivateRiApi", () => {
     expect(testEnv.EMAIL?.send).toHaveBeenCalledWith(
       expect.objectContaining({
         text: expect.stringContaining(
-          "https://ripota.org/activate-ri-2026/edit/magic-token/",
+          "https://ripota.org/activate-ri-2026/access/#magic-token",
         ),
       }),
     );
@@ -1645,7 +1646,7 @@ describe("handleActivateRiApi", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
     expect(testEnv.DB.prepare).toHaveBeenCalledWith(
-      expect.stringContaining("a.magic_token_hash = ?"),
+      expect.stringContaining("FROM activate_ri_edit_tokens"),
     );
     expect(testEnv.DB.prepare).toHaveBeenCalledWith(
       expect.stringContaining("UPDATE activate_ri_stops"),
@@ -1662,7 +1663,6 @@ describe("handleActivateRiApi", () => {
       "activate-ri-2026",
       "activate-ri-2026",
       expectedHash,
-      expectedHash,
     ]);
     expect(updateBinds).toEqual([
       "2026-09-11T10:00:00.000Z",
@@ -1673,9 +1673,7 @@ describe("handleActivateRiApi", () => {
       expect.any(String),
       "stop-1",
       "activate-ri-2026",
-      "activate-ri-2026",
-      expectedHash,
-      expectedHash,
+      "plan-1",
     ]);
     expect(JSON.stringify(updateBinds)).not.toContain(token);
   });
@@ -1743,16 +1741,13 @@ describe("handleActivateRiApi", () => {
       (result) => result.value as { bind: { mock: { calls: unknown[][] } } },
     );
     const cancelBinds = statements[1].bind.mock.calls[0];
-    const expectedHash = await sha256Hex(token);
     expect(cancelBinds).toEqual([
       expect.any(String),
       "Weather.",
       expect.any(String),
       "stop-1",
       "activate-ri-2026",
-      "activate-ri-2026",
-      expectedHash,
-      expectedHash,
+      "plan-1",
     ]);
     expect(JSON.stringify(cancelBinds)).not.toContain(token);
   });
