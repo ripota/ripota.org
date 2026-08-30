@@ -97,6 +97,11 @@ activator links remain account bootstrap credentials.
 The Worker refuses the unsafe combination of email login disabled and new
 legacy-link issuance disabled.
 
+Production reached unified activator mode on 2026-08-30 after the final
+legacy-only browser session was explicitly revoked. Previously issued private
+links remain valid account-bootstrap credentials, and activator email fallback
+remains enabled.
+
 Flags are top-level production vars in `wrangler.jsonc`. Change them in a
 reviewed commit and deploy the whole configuration; do not use ad-hoc CLI
 `--var` overrides that could omit other production vars.
@@ -126,8 +131,10 @@ Do not skip gates.
    `AUTH_LEGACY_LINK_ISSUANCE_ENABLED=false`. Verify a new submission creates
    no edit-token row, sends a single-use claim link, and lands on My Plan.
    Verify a previously issued private link still works.
-6. **Unified activators:** after support readiness and telemetry review, set
-   `AUTH_ACTIVATOR_MODE=unified`. Keep legacy links enabled as bootstrap.
+6. **Unified activators (complete):** after support readiness and telemetry
+   review, set `AUTH_ACTIVATOR_MODE=unified`. Keep legacy links enabled as
+   bootstrap. Production completed this transition on 2026-08-30 after safe
+   aggregate checks showed no legacy-only activators.
 7. **Passkey administrators:** only after at least two real administrators have
    tested passkeys and break-glass recovery is proven, set
    `AUTH_ADMIN_MODE=passkey`. A specifically named pending administrator may

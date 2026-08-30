@@ -75,7 +75,7 @@
     "SITE_ORIGIN": "https://ripota.org",
     "TURNSTILE_REQUIRED": "true",
     "AUTH_ADMIN_MODE": "passkey",
-    "AUTH_ACTIVATOR_MODE": "dual",
+    "AUTH_ACTIVATOR_MODE": "unified",
     "AUTH_EMAIL_LOGIN_ENABLED": "true",
     "AUTH_LEGACY_LINK_ISSUANCE_ENABLED": "false"
   },
