@@ -11,6 +11,7 @@ import {
 import type { Env } from "../env";
 import { authAuditStatement } from "./audit";
 import { getAuthConfig } from "./config";
+import { defaultPasskeyLabel } from "./passkey-label";
 import {
   consumeChallengeStatement,
   createChallenge,
@@ -187,12 +188,18 @@ export async function verifyRegistration(
   }
   const now = new Date();
   const createdAt = now.toISOString();
+  const registrationInfo = verification.registrationInfo;
   const credentialInput = {
     userId: context.user.id,
-    credential: verification.registrationInfo.credential,
-    deviceType: verification.registrationInfo.credentialDeviceType,
-    backedUp: verification.registrationInfo.credentialBackedUp,
-    label: input.label,
+    credential: registrationInfo.credential,
+    deviceType: registrationInfo.credentialDeviceType,
+    backedUp: registrationInfo.credentialBackedUp,
+    label: input.label?.trim() || defaultPasskeyLabel({
+      aaguid: registrationInfo.aaguid,
+      deviceType: registrationInfo.credentialDeviceType,
+      backedUp: registrationInfo.credentialBackedUp,
+      transports: registrationInfo.credential.transports,
+    }),
   };
   const passkey = context.session.purpose === "recovery"
     ? preparePasskeyRecovery(env, credentialInput, createdAt)

@@ -268,7 +268,7 @@ describe("passkey ceremonies", () => {
       verified: true,
       registrationInfo: {
         fmt: "none",
-        aaguid: "00000000-0000-0000-0000-000000000000",
+        aaguid: "bada5566-a7aa-401f-bd96-45619a55120d",
         credential,
         credentialType: "public-key",
         attestationObject: new Uint8Array(),
@@ -282,12 +282,11 @@ describe("passkey ceremonies", () => {
     const result = await verifyRegistration(env, request, {
       challengeId: String(options.challengeId),
       response: registrationResponse,
-      label: "Phone",
     }, verifier);
     expect(result.cookie).toMatch(/^__Host-ripota-session=/);
     await expect(getPasskeyByCredentialId(env, credential.id)).resolves.toMatchObject({
       userId: user.id,
-      label: "Phone",
+      label: "1Password",
       backedUp: true,
     });
   });

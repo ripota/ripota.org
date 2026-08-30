@@ -29,7 +29,7 @@
       const verifyResponse = await fetch("/api/auth/passkeys/registration/verify", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ challengeId: options.challengeId, response, label: "Passkey" }),
+        body: JSON.stringify({ challengeId: options.challengeId, response }),
       });
       if (!verifyResponse.ok) throw new Error("verify");
       status?.replaceChildren("Passkey added.");
