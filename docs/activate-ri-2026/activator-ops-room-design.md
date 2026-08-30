@@ -67,13 +67,13 @@ Recommended routes:
 
 ```text
 /activate-ri-2026/access/
-/activate-ri-2026/activators/
-/activate-ri-2026/activators/plan/
+/activate-ri-2026/activator/
+/activate-ri-2026/activator/plan/
 ```
 
 - `/access/` exchanges a secure-link token for a browser session.
-- `/activators/` opens the Activator Ops Room.
-- `/activators/plan/` contains the existing plan-edit experience using the same browser session.
+- `/activator/` opens the Activator Ops Room.
+- `/activator/plan/` contains the existing plan-edit experience using the same browser session.
 - Existing `/activate-ri-2026/edit/<token>/` links remain temporarily supported as migration bootstraps.
 
 The activator portal should have obvious navigation between **Ops Room** and **My Plan**.
@@ -251,7 +251,7 @@ The legacy route becomes a short-lived bootstrap:
 
 1. send strict private response headers
 2. exchange the path token for a browser session
-3. replace navigation with `/activate-ri-2026/activators/plan/`
+3. replace navigation with `/activate-ri-2026/activator/plan/`
 
 Keep the legacy flow until after the event. Do not require activators to find a newly issued link.
 
@@ -353,7 +353,7 @@ Use route-specific Content Security Policies:
 - `base-uri 'none'`
 - `object-src 'none'`
 
-Add `/activate-ri-2026/activators*` and any private access shell requiring Worker headers to `assets.run_worker_first`.
+Add `/activate-ri-2026/activator*` and any private access shell requiring Worker headers to `assets.run_worker_first`.
 
 ### 4.9 Trusted origin
 
@@ -1433,8 +1433,8 @@ src/worker/durable-objects/activate-ri-ops-room.ts
 
 ```text
 src/pages/activate-ri-2026/access.astro
-src/pages/activate-ri-2026/activators/index.astro
-src/pages/activate-ri-2026/activators/plan.astro
+src/pages/activate-ri-2026/activator/index.astro
+src/pages/activate-ri-2026/activator/plan.astro
 
 src/components/activate-ri/ActivatorPortalNav.astro
 src/components/activate-ri/ActivatorOpsRoom.astro

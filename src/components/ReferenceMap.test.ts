@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import referenceMapSource from "./ReferenceMap.astro?raw";
 import eventHeroSource from "./activate-ri/EventHero.astro?raw";
 import volunteerPageSource from "../pages/activate-ri-2026/volunteer.astro?raw";
-import editPageSource from "../pages/activate-ri-2026/activators/plan.astro?raw";
+import editPageSource from "../pages/activate-ri-2026/activator/plan.astro?raw";
 
 describe("ReferenceMap volunteer links", () => {
   it("carries the selected park reference from coverage popups to the volunteer form", () => {

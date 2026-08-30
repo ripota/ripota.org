@@ -163,7 +163,7 @@ async function sendAnnouncementBatch(
     return { ok: false, error: "Email service is not configured." };
   }
   const portalUrl = new URL(
-    "/activate-ri-2026/activators/",
+    "/activate-ri-2026/activator/",
     env.SITE_ORIGIN ?? "https://ripota.org",
   ).href;
   const text = [

@@ -3,9 +3,14 @@ import { startActivateRiServer } from "./helpers/activate-ri-server";
 
 test.setTimeout(60_000);
 
-test("the Activator tab opens the recovery flow when this browser has no session", async ({ page }) => {
+test("the Activator tab opens the recovery flow when this browser has no session", async ({ page, request }) => {
   const server = await startActivateRiServer();
   try {
+    const removedPluralRoute = await request.get(
+      `${server.origin}/activate-ri-2026/activators/`,
+    );
+    expect(removedPluralRoute.status()).toBe(404);
+
     await page.goto(`${server.origin}/activate-ri-2026/`);
     await page.getByRole("link", { name: "Activator", exact: true }).click();
 

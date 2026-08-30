@@ -63,15 +63,17 @@ test("approved activators acknowledge rules and exchange a live room message", a
     expect(mode.ok(), await mode.text()).toBe(true);
 
     await first.goto(submitBody.editUrl);
-    await expect(first).toHaveURL(`${server.origin}/activate-ri-2026/activators/plan/`);
-    await first.goto(`${server.origin}/activate-ri-2026/activators/`);
+    await expect(first).toHaveURL(`${server.origin}/activate-ri-2026/activator/plan/`);
+    await first.goto(`${server.origin}/activate-ri-2026/activator/`);
+    await expect(first.locator(".event-nav").first().getByRole("link", { name: "Activator", exact: true })).toHaveAttribute("aria-current", "page");
+    await expect(first.getByRole("navigation", { name: "Activator tools" })).toBeVisible();
     await expect(first.getByRole("dialog", { name: "Coordinate clearly. Operate safely." })).toBeVisible();
     await first.getByRole("button", { name: "Enter the Ops Room" }).click();
     await expect(first.getByRole("dialog", { name: "Coordinate clearly. Operate safely." })).toBeHidden();
     await expect(first.locator("[data-ops-connection-label]")).toHaveText("Live");
 
     await second.goto(submitBody.editUrl);
-    await second.goto(`${server.origin}/activate-ri-2026/activators/`);
+    await second.goto(`${server.origin}/activate-ri-2026/activator/`);
     await expect(second.locator("[data-ops-connection-label]")).toHaveText("Live");
 
     await first.locator("[data-ops-body]").fill("Checking in from Beavertail.");
@@ -133,7 +135,7 @@ test("approved activators acknowledge rules and exchange a live room message", a
     await expect(signoutDialog).toContainText("You’ll need your private email link to get back in.");
     await signoutDialog.getByRole("button", { name: "Cancel" }).click();
     await expect(signoutDialog).toBeHidden();
-    await expect(first).toHaveURL(`${server.origin}/activate-ri-2026/activators/`);
+    await expect(first).toHaveURL(`${server.origin}/activate-ri-2026/activator/`);
 
     await first.getByRole("button", { name: "Sign out", exact: true }).click();
     await signoutDialog.getByRole("button", { name: "Sign out", exact: true }).click();

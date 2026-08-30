@@ -24,7 +24,7 @@ Relevant Worker routing is in `src/worker/index.ts`:
 - `/activate-ri-2026/admin/` runs through Cloudflare Access before serving the
   static admin page.
 - `/activate-ri-2026/access/` exchanges fragment credentials for a session.
-- `/activate-ri-2026/activators/` and `/activators/plan/` require that session.
+- `/activate-ri-2026/activator/` and `/activator/plan/` require that session.
 - `/activate-ri-2026/edit/<token>/` remains a legacy session bootstrap.
 - Other public pages and static JSON files are served by `ASSETS`.
 
@@ -142,7 +142,7 @@ static JSON files.
 1. The activator opens an emailed `/activate-ri-2026/access/#<token>` link.
 2. The access page removes the fragment and exchanges it for a hashed 14-day
    HttpOnly session cookie. Legacy `/edit/<token>/` links do the same in the Worker.
-3. The browser lands on the tokenless `/activate-ri-2026/activators/plan/` page.
+3. The browser lands on the tokenless `/activate-ri-2026/activator/plan/` page.
 4. The editor reads and mutates `/api/activate-ri-2026/activator/*` routes with
    the session cookie. State changes also require the exact configured Origin.
 5. Legacy token APIs remain compatibility adapters over the same domain helpers.

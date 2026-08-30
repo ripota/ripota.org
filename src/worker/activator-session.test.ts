@@ -124,7 +124,7 @@ describe("activator sessions", () => {
 });
 
 function requestWithSession(sessionToken: string): Request {
-  return new Request("https://ripota.org/activate-ri-2026/activators/", {
+  return new Request("https://ripota.org/activate-ri-2026/activator/", {
     headers: { cookie: `__Host-activate-ri-session=${sessionToken}` },
   });
 }

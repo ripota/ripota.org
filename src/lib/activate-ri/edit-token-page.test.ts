@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import accessPageSource from "../../pages/activate-ri-2026/access.astro?raw";
-import planPageSource from "../../pages/activate-ri-2026/activators/plan.astro?raw";
+import planPageSource from "../../pages/activate-ri-2026/activator/plan.astro?raw";
 import eventNavSource from "../../components/activate-ri/EventNav.astro?raw";
 import siteDataSource from "../../data/site.ts?raw";
 
@@ -17,7 +17,7 @@ describe("activate-ri private activator pages", () => {
   });
 
   it("offers a public Activator tab with session-aware access recovery", () => {
-    expect(eventNavSource).toContain('["Activator", "/activate-ri-2026/activators/"]');
+    expect(eventNavSource).toContain('["Activator", "/activate-ri-2026/activator/"]');
     expect(eventNavSource).toContain('"/activate-ri-2026/access/"');
     expect(eventNavSource).toContain('"/activate-ri-2026/volunteer/"');
     expect(accessPageSource).toContain("EditLinkResendForm");
@@ -33,5 +33,11 @@ describe("activate-ri private activator pages", () => {
       eventNavSource.indexOf('["Activator",'),
     );
     expect(siteDataSource).toContain('label: "Activate All RI help"');
+  });
+
+  it("uses singular Activator page routes", () => {
+    expect(eventNavSource).not.toContain("/activators/");
+    expect(planPageSource).toContain("<EventNav />");
+    expect(planPageSource).toContain("<ActivatorPortalNav />");
   });
 });

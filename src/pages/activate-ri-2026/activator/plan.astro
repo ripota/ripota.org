@@ -1,6 +1,7 @@
 ---
 import ActivatorEditForm from "../../../components/activate-ri/ActivatorEditForm.astro";
 import ActivatorPortalNav from "../../../components/activate-ri/ActivatorPortalNav.astro";
+import EventNav from "../../../components/activate-ri/EventNav.astro";
 import Footer from "../../../components/Footer.astro";
 import Notice from "../../../components/Notice.astro";
 import ReferenceMap from "../../../components/ReferenceMap.astro";
@@ -17,6 +18,7 @@ import BaseLayout from "../../../layouts/BaseLayout.astro";
   <main id="main">
     <section class="section event-page" aria-labelledby="edit-title">
       <div class="container">
+        <EventNav />
         <ActivatorPortalNav />
         <div class="section-header">
           <p class="eyebrow">My activation plan</p>

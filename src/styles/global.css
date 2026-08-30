@@ -3973,16 +3973,34 @@ p {
   width: min(100% - 2rem, 1240px);
 }
 
-.ops-app .event-nav {
+.activator-tools-nav {
   align-items: center;
-  margin-bottom: 0.85rem;
+  width: auto;
+  gap: 0.5rem;
+  margin: -0.65rem 0 1.5rem;
+  border-top: 1px solid var(--border-subtle);
+  padding: 0.65rem 0 0;
+  overflow: visible;
+  flex-wrap: wrap;
 }
 
-.ops-app .event-nav a,
-.ops-app .event-nav .button {
+.activator-tools-nav__label {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.activator-tools-nav a,
+.activator-tools-nav .button {
   min-height: 2.45rem;
   padding: 0.52rem 0.78rem;
   font-size: 0.86rem;
+}
+
+.activator-tools-nav .button {
+  margin-left: auto;
 }
 
 .ops-app__intro {
@@ -4526,14 +4544,14 @@ p {
     width: min(100% - 1rem, 1240px);
   }
 
-  .ops-app .event-nav {
+  .ops-app .activator-tools-nav {
     width: auto;
     margin: 0 0 0.7rem;
-    padding: 0;
+    padding: 0.55rem 0 0;
     overflow: visible;
   }
 
-  .ops-app .event-nav .button {
+  .ops-app .activator-tools-nav .button {
     width: auto;
     margin-left: auto;
   }
@@ -4595,13 +4613,13 @@ p {
     padding-top: 0.4rem;
   }
 
-  .ops-app .event-nav {
+  .ops-app .activator-tools-nav {
     gap: 0.4rem;
     margin-bottom: 0.35rem;
   }
 
-  .ops-app .event-nav a,
-  .ops-app .event-nav .button {
+  .ops-app .activator-tools-nav a,
+  .ops-app .activator-tools-nav .button {
     width: auto;
     min-height: 2.2rem;
     padding: 0.42rem 0.58rem;

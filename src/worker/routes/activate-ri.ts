@@ -859,7 +859,7 @@ function portalIdentity(identity: ActivatorSessionIdentity) {
 }
 
 function portalPlanUrl(request: Request, env: Env): string {
-  return trustedSiteUrl(request, env, "/activate-ri-2026/activators/plan/").href;
+  return trustedSiteUrl(request, env, "/activate-ri-2026/activator/plan/").href;
 }
 
 function privateJson(data: unknown, init: ResponseInit = {}): Response {

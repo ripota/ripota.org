@@ -59,7 +59,7 @@ describe("worker routing", () => {
 
       expect(response.status).toBe(303);
       expect(response.headers.get("location")).toBe(
-        "https://ripota.org/activate-ri-2026/activators/plan/",
+        "https://ripota.org/activate-ri-2026/activator/plan/",
       );
       expect(response.headers.get("set-cookie")).toMatch(
         /^__Host-activate-ri-session=.+; Secure; HttpOnly; SameSite=Strict; Path=\/; Max-Age=1209600$/,
@@ -98,7 +98,7 @@ describe("worker routing", () => {
 
     try {
       const response = await worker.fetch(
-        request("/activate-ri-2026/activators/plan/"),
+        request("/activate-ri-2026/activator/plan/"),
         testEnv,
       );
 
@@ -139,7 +139,7 @@ describe("worker routing", () => {
       const cookie = exchangeResponse.headers.get("set-cookie")?.split(";", 1)[0];
 
       const response = await worker.fetch(
-        request("/activate-ri-2026/activators/plan/", {
+        request("/activate-ri-2026/activator/plan/", {
           headers: { cookie: cookie ?? "" },
         }),
         testEnv,

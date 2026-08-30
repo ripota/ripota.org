@@ -16,7 +16,7 @@
       "/activate-ri-2026/admin*",
       "/activate-ri-2026/edit/*",
       "/activate-ri-2026/access*",
-      "/activate-ri-2026/activators*"
+      "/activate-ri-2026/activator*"
     ]
   },
   "d1_databases": [

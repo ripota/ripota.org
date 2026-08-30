@@ -66,7 +66,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
           headers: { accept: "application/json" },
         });
         if (existing.ok) {
-          window.location.replace("/activate-ri-2026/activators/");
+          window.location.replace("/activate-ri-2026/activator/");
           return;
         }
 
@@ -87,7 +87,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         return;
       }
 
-      window.location.replace("/activate-ri-2026/activators/plan/");
+      window.location.replace("/activate-ri-2026/activator/plan/");
     } catch {
       showFailure("Private access is temporarily unavailable. Please try again.");
     }

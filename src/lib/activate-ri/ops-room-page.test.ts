@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import roomSource from "../../components/activate-ri/ActivatorOpsRoom.astro?raw";
 import portalNavSource from "../../components/activate-ri/ActivatorPortalNav.astro?raw";
-import portalSource from "../../pages/activate-ri-2026/activators/index.astro?raw";
+import portalSource from "../../pages/activate-ri-2026/activator/index.astro?raw";
 
 describe("Activator Ops Room client", () => {
   it("uses a WebSocket with cursor catch-up and no periodic polling", () => {
@@ -23,6 +23,15 @@ describe("Activator Ops Room client", () => {
     expect(roomSource).toContain("body.textContent");
     expect(roomSource).not.toContain("innerHTML");
     expect(portalSource).toContain("<Notice />");
+  });
+
+  it("keeps event navigation above a secondary Activator tools navigation", () => {
+    expect(portalSource.indexOf("<EventNav />")).toBeLessThan(
+      portalSource.indexOf("<ActivatorPortalNav />"),
+    );
+    expect(portalSource).not.toContain("showEventLink compact");
+    expect(portalNavSource).toContain('class="event-nav activator-tools-nav"');
+    expect(portalNavSource).toContain('aria-label="Activator tools"');
   });
 
   it("requires explicit confirmation before signing out of the browser", () => {

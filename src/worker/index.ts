@@ -30,7 +30,7 @@ export { ActivateRiOpsRoom };
 const activateRiAdminPathPattern = /^\/activate-ri-2026\/admin\/?$/;
 const activateRiEditPathPattern = /^\/activate-ri-2026\/edit\/([^/]+)\/?$/;
 const activateRiAccessPathPattern = /^\/activate-ri-2026\/access\/?$/;
-const activateRiPortalPathPattern = /^\/activate-ri-2026\/activators(?:\/plan)?\/?$/;
+const activateRiPortalPathPattern = /^\/activate-ri-2026\/activator(?:\/plan)?\/?$/;
 
 export default {
   async fetch(
@@ -92,7 +92,7 @@ export default {
       const location = trustedSiteUrl(
         request,
         env,
-        "/activate-ri-2026/activators/plan/",
+        "/activate-ri-2026/activator/plan/",
       ).href;
       return withPrivateHeaders(
         new Response(null, {

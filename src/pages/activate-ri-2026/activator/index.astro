@@ -1,6 +1,7 @@
 ---
 import ActivatorPortalNav from "../../../components/activate-ri/ActivatorPortalNav.astro";
 import ActivatorOpsRoom from "../../../components/activate-ri/ActivatorOpsRoom.astro";
+import EventNav from "../../../components/activate-ri/EventNav.astro";
 import Notice from "../../../components/Notice.astro";
 import SiteHeader from "../../../components/SiteHeader.astro";
 import BaseLayout from "../../../layouts/BaseLayout.astro";
@@ -12,10 +13,11 @@ import BaseLayout from "../../../layouts/BaseLayout.astro";
   privatePage
   bodyClass="ops-app-page"
 >
-  <SiteHeader variant="solid" showEventLink compact />
+  <SiteHeader variant="solid" showEventLink />
   <main id="main" class="ops-app-main">
     <section class="ops-app" aria-labelledby="portal-title">
       <div class="container ops-app__container">
+        <EventNav />
         <ActivatorPortalNav />
         <div class="ops-app__intro">
           <div>

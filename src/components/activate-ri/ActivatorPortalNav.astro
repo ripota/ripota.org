@@ -4,12 +4,13 @@ const currentPath = Astro.url.pathname.endsWith("/")
   : `${Astro.url.pathname}/`;
 
 const links = [
-  ["Ops Room", "/activate-ri-2026/activators/"],
-  ["My Plan", "/activate-ri-2026/activators/plan/"],
+  ["Ops Room", "/activate-ri-2026/activator/"],
+  ["My Plan", "/activate-ri-2026/activator/plan/"],
 ];
 ---
 
-<nav class="event-nav" aria-label="Private activator navigation">
+<nav class="event-nav activator-tools-nav" aria-label="Activator tools">
+  <span class="activator-tools-nav__label">Activator tools</span>
   {
     links.map(([label, href]) => (
       <a href={href} aria-current={currentPath === href ? "page" : undefined}>
