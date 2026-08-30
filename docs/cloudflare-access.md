@@ -6,6 +6,12 @@ rollout:
 - `/activate-ri-2026/admin*`
 - `/api/activate-ri-2026/admin/*`
 
+The recovery page posts to
+`/api/activate-ri-2026/admin/auth/access-bootstrap/start`, which deliberately
+stays beneath the protected admin API prefix. The older
+`/api/auth/access-bootstrap/start` route remains a compatibility alias, but the
+site does not depend on a separate Access application path for it.
+
 The Worker also validates Access JWTs for admin requests when these production
 vars are configured:
 
@@ -25,7 +31,7 @@ administrators have enrolled and tested passkeys plus break-glass recovery may
 `AUTH_ADMIN_MODE` move to `passkey`. At that point, keep Access on at least:
 
 - `/activate-ri-2026/admin/recovery*`
-- `/api/auth/access-bootstrap/start`
+- `/api/activate-ri-2026/admin/auth/access-bootstrap/start`
 
 See `docs/activate-ri-2026/authentication.md` for the required safety gates and
 rollback sequence.
@@ -43,9 +49,9 @@ In the Cloudflare dashboard:
 5. Add a second public hostname/path to the same application during rollout:
    - Domain: `ripota.org`
    - Path: `/api/activate-ri-2026/admin/*`
-6. Add the recovery bootstrap endpoint to the same application:
-   - Domain: `ripota.org`
-   - Path: `/api/auth/access-bootstrap/start`
+6. Keep the protected admin API hostname/path in step 5 while recovery is
+   available. It includes the recovery bootstrap endpoint at
+   `/api/activate-ri-2026/admin/auth/access-bootstrap/start`.
 7. Add an **Allow** policy for the admin users.
    - For a small admin list, use an email rule with the exact admin email
      addresses.

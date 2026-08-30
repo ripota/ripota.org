@@ -258,6 +258,41 @@ describe("worker routing", () => {
     expect(testEnv.ASSETS.fetch).toHaveBeenCalledOnce();
   });
 
+  it.each([
+    "/api/activate-ri-2026/admin/auth/access-bootstrap/start",
+    "/api/auth/access-bootstrap/start",
+  ])("routes administrator bootstrap at %s", async (path) => {
+    const testEnv = {
+      ...env(),
+      ALLOW_LOCAL_ADMIN_AUTH: "false" as const,
+      ALLOW_ADMIN_HEADER_AUTH: "true" as const,
+      AUTH_BOOTSTRAP_ADMIN_EMAILS: "admin@example.com",
+    };
+    const database = createMigratedSqliteD1();
+    testEnv.DB = database.DB;
+
+    try {
+      const response = await worker.fetch(
+        request(path, {
+          method: "POST",
+          headers: {
+            origin: "https://ripota.org",
+            "Cf-Access-Authenticated-User-Email": "admin@example.com",
+          },
+        }),
+        testEnv,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("set-cookie")).toMatch(
+        /^__Host-ripota-session=.+; Secure; HttpOnly; SameSite=Strict; Path=\//,
+      );
+      await expect(response.json()).resolves.toMatchObject({ ok: true });
+    } finally {
+      database.close();
+    }
+  });
+
   it("serves the Activate RI admin page on localhost when local admin auth is enabled", async () => {
     const testEnv = {
       ...env(),

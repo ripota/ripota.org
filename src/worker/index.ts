@@ -50,7 +50,10 @@ export default {
       return json({ ok: true, eventId: env.ACTIVATE_RI_EVENT_ID });
     }
 
-    if (url.pathname.startsWith("/api/auth/")) {
+    if (
+      url.pathname.startsWith("/api/auth/") ||
+      url.pathname === "/api/activate-ri-2026/admin/auth/access-bootstrap/start"
+    ) {
       return handleAuthApi(request, env);
     }
 

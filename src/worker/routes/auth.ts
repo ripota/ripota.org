@@ -115,7 +115,13 @@ export async function handleAuthApi(request: Request, env: Env): Promise<Respons
       headers.append("set-cookie", result.unified.cookie);
       return privateJson({ ok: true, expiresAt: result.unified.expiresAt }, { headers });
     }
-    if (request.method === "POST" && url.pathname === "/api/auth/access-bootstrap/start") {
+    if (
+      request.method === "POST" &&
+      (
+        url.pathname === "/api/activate-ri-2026/admin/auth/access-bootstrap/start" ||
+        url.pathname === "/api/auth/access-bootstrap/start"
+      )
+    ) {
       const result = await accessBootstrap(request, env);
       if (result instanceof Response) {
         return withPrivateHeaders(result);
