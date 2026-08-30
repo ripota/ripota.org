@@ -234,6 +234,10 @@ function adminDb(options: AdminDbOptions = {}): D1Database {
             : (options.planRows ?? [pendingPlanRow]),
       })),
       first: vi.fn(async () => {
+        if (sql.includes("FROM auth_activator_memberships")) {
+          return null;
+        }
+
         if (
           sql.includes("FROM activate_ri_activators") ||
           sql.includes("submitter_callsign")

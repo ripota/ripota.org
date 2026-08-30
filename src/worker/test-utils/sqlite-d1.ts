@@ -26,6 +26,7 @@ const migrations = [
   "0011_activate_ri_pota_evidence.sql",
   "0012_unified_auth.sql",
   "0013_auth_ceremony_sessions.sql",
+  "0014_preserve_unified_activator_ownership.sql",
 ];
 
 export function createMigratedSqliteD1(): SqliteD1Context {

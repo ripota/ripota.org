@@ -99,6 +99,26 @@ export type PreparedUser = {
   statements: D1PreparedStatement[];
 };
 
+export type PreparedActivatorMembershipLink = {
+  status: "existing" | "pending";
+  statements: D1PreparedStatement[];
+};
+
+export class ActivatorMembershipConflictError extends Error {
+  constructor() {
+    super("Activator ownership conflicts with an existing active membership.");
+    this.name = "ActivatorMembershipConflictError";
+  }
+}
+
+export function isActivatorMembershipConflict(error: unknown): boolean {
+  return error instanceof ActivatorMembershipConflictError || (
+    error instanceof Error &&
+    /unique/i.test(error.message) &&
+    error.message.includes("auth_activator_memberships")
+  );
+}
+
 export function prepareUserWithVerifiedEmail(
   env: Env,
   email: string,
@@ -184,29 +204,112 @@ export async function linkActivatorMembership(
   userId: string,
   activatorId: string,
   now = new Date().toISOString(),
-): Promise<void> {
-  const activator = await env.DB.prepare(
-    `SELECT id FROM activate_ri_activators WHERE id = ? AND event_id = ? LIMIT 1`,
-  ).bind(activatorId, env.ACTIVATE_RI_EVENT_ID).first<{ id: string }>();
-  if (!activator) {
-    throw new Error("Activator not found.");
+): Promise<"existing" | "linked"> {
+  const prepared = await prepareActivatorMembershipLink(env, userId, activatorId, now);
+  if (prepared.status === "existing") {
+    return "existing";
   }
 
-  await env.DB.batch(prepareActivatorMembershipLink(env, userId, activatorId, now));
+  try {
+    await env.DB.batch(prepared.statements);
+  } catch (error) {
+    if (isActivatorMembershipConflict(error)) {
+      throw new ActivatorMembershipConflictError();
+    }
+    throw error;
+  }
+  return "linked";
 }
 
-export function prepareActivatorMembershipLink(
+export async function prepareActivatorMembershipLink(
   env: Env,
   userId: string,
   activatorId: string,
   now = new Date().toISOString(),
-): D1PreparedStatement[] {
-  return [
+  options: {
+    activatorWillBeInserted?: boolean;
+    activatorEmail?: string;
+    userWillBeInserted?: boolean;
+    userPrimaryEmail?: string;
+  } = {},
+): Promise<PreparedActivatorMembershipLink> {
+  const relationships = await env.DB.prepare(
+    `SELECT user_id, activator_id
+     FROM auth_activator_memberships
+     WHERE event_id = ?
+       AND revoked_at IS NULL
+       AND (user_id = ? OR activator_id = ?)`,
+  ).bind(env.ACTIVATE_RI_EVENT_ID, userId, activatorId).all<{
+    user_id: string;
+    activator_id: string;
+  }>();
+  const active = relationships.results ?? [];
+  if (active.some((row) => row.user_id === userId && row.activator_id === activatorId)) {
+    return { status: "existing", statements: [] };
+  }
+  if (active.length > 0) {
+    throw new ActivatorMembershipConflictError();
+  }
+
+  if (options.activatorWillBeInserted) {
+    const userEmail = options.userWillBeInserted
+      ? options.userPrimaryEmail
+      : (await env.DB.prepare(
+          `SELECT email_normalized
+           FROM auth_user_emails
+           WHERE user_id = ? AND is_primary = 1 AND verified_at IS NOT NULL
+           LIMIT 1`,
+        ).bind(userId).first<{ email_normalized: string }>())?.email_normalized;
+    if (
+      !userEmail ||
+      !options.activatorEmail ||
+      normalizeEmail(userEmail) !== normalizeEmail(options.activatorEmail)
+    ) {
+      throw new ActivatorMembershipConflictError();
+    }
+  } else if (options.userWillBeInserted) {
+    const activator = await env.DB.prepare(
+      `SELECT email_normalized
+       FROM activate_ri_activators
+       WHERE id = ? AND event_id = ?
+       LIMIT 1`,
+    ).bind(activatorId, env.ACTIVATE_RI_EVENT_ID).first<{ email_normalized: string }>();
+    if (
+      !activator ||
+      !options.userPrimaryEmail ||
+      activator.email_normalized !== normalizeEmail(options.userPrimaryEmail)
+    ) {
+      throw new ActivatorMembershipConflictError();
+    }
+  } else {
+    const identity = await env.DB.prepare(
+      `SELECT
+         activator.email_normalized AS activator_email,
+         primary_email.email_normalized AS primary_email
+       FROM activate_ri_activators activator
+       LEFT JOIN auth_user_emails primary_email
+         ON primary_email.user_id = ?
+         AND primary_email.is_primary = 1
+         AND primary_email.verified_at IS NOT NULL
+       WHERE activator.id = ? AND activator.event_id = ?
+       LIMIT 1`,
+    ).bind(userId, activatorId, env.ACTIVATE_RI_EVENT_ID).first<{
+      activator_email: string;
+      primary_email: string | null;
+    }>();
+    if (!identity) {
+      throw new Error("Activator not found.");
+    }
+    if (!identity.primary_email || identity.primary_email !== identity.activator_email) {
+      throw new ActivatorMembershipConflictError();
+    }
+  }
+
+  return { status: "pending", statements: [
     env.DB.prepare(
       `INSERT INTO auth_activator_memberships (
          id, user_id, event_id, activator_id, created_at
-       ) VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT DO NOTHING`,
+       ) VALUES (?, ?, ?, ?, ?)`,
     ).bind(crypto.randomUUID(), userId, env.ACTIVATE_RI_EVENT_ID, activatorId, now),
     authAuditStatement(env, {
       action: "activator-membership-linked",
@@ -214,7 +317,7 @@ export function prepareActivatorMembershipLink(
       subjectUserId: userId,
       createdAt: now,
     }),
-  ];
+  ] };
 }
 
 export async function grantAdminRole(

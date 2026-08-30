@@ -11,6 +11,7 @@ import {
 import { timeBlockUtcDateOffset } from "../lib/activate-ri/time-blocks";
 import { generateEditToken, tokenHash } from "./edit-token";
 import type { Env } from "./env";
+import { prepareActivatorMembershipLink } from "./auth/db";
 
 export type ActivityActorType = "activator" | "admin" | "system";
 
@@ -165,7 +166,12 @@ type UpdatePlanResult =
       highImpactEvents: ActivityEventInput[];
       activatorNotificationEvents: ActivityEventInput[];
     }
-  | { ok: false; status: 404; error: string };
+  | { ok: false; status: 404 | 409; error: string };
+
+type ActivatorOwnerRow = {
+  user_id: string;
+  primary_email: string | null;
+};
 
 type EditStopActivatorRow = {
   activator_id: string;
@@ -201,11 +207,15 @@ export async function insertPendingPlan(
   env: Env,
   submission: NormalizedRouteSubmission,
   now = new Date().toISOString(),
-  options: { issueEditToken?: boolean } = {},
+  options: { issueEditToken?: boolean; linkUserId?: string } = {},
 ): Promise<InsertPendingPlanResult> {
-  const activatorId = activatorIdForEmail(env.ACTIVATE_RI_EVENT_ID, submission.submitterEmail);
+  const submittedEmail = submission.submitterEmail.trim().toLowerCase();
+  const existing = await getActivatorByEmail(env, submittedEmail);
+  const activatorId = existing?.id ?? activatorIdForEmail(
+    env.ACTIVATE_RI_EVENT_ID,
+    submittedEmail,
+  );
   const editToken = options.issueEditToken === false ? null : generateEditToken();
-  const existing = await getActivatorById(env, activatorId);
   const nextStatus: ActivatorStatus = existing?.status === "approved" ? "approved" : "pending";
   const nextStopStatus = nextStatus === "approved" ? "scheduled" : "pending-review";
   const statements: D1PreparedStatement[] = [
@@ -229,7 +239,7 @@ export async function insertPendingPlan(
     ).bind(
       activatorId,
       env.ACTIVATE_RI_EVENT_ID,
-      submission.submitterEmail,
+      submittedEmail,
       submission.submitterName,
       submission.submitterPhone,
       submission.club,
@@ -244,6 +254,20 @@ export async function insertPendingPlan(
 
   if (editToken) {
     statements.push(editTokenInsert(env, activatorId, await tokenHash(editToken), now));
+  }
+
+  if (options.linkUserId) {
+    const membership = await prepareActivatorMembershipLink(
+      env,
+      options.linkUserId,
+      activatorId,
+      now,
+      {
+        activatorWillBeInserted: existing === null,
+        activatorEmail: submittedEmail,
+      },
+    );
+    statements.push(...membership.statements);
   }
 
   for (const stop of submission.stops) {
@@ -604,6 +628,16 @@ export async function updatePlanByActivatorId(
     return { ok: false, status: 404, error: "Plan not found" };
   }
 
+  const submittedEmail = submission.submitterEmail.trim().toLowerCase();
+  const owner = await getActiveActivatorOwner(env, existing.id);
+  if (owner && (!owner.primary_email || owner.primary_email !== submittedEmail)) {
+    return {
+      ok: false,
+      status: 409,
+      error: "This registration's email is tied to its verified account. Contact an organizer to change it.",
+    };
+  }
+
   const approved = existing.status === "approved";
   const nextStopStatus = approved ? "scheduled" : "pending-review";
   const existingStops = new Map(existing.stops.map((stop) => [stop.id, stop]));
@@ -629,7 +663,7 @@ export async function updatePlanByActivatorId(
     ).bind(
       submission.submitterCallsign,
       submission.submitterName,
-      submission.submitterEmail,
+      submittedEmail,
       submission.submitterPhone,
       submission.club,
       submission.publicNotes,
@@ -641,7 +675,7 @@ export async function updatePlanByActivatorId(
     activityInsert(env, {
       planId: existing.id,
       actorType: "activator",
-      actorEmail: submission.submitterEmail,
+      actorEmail: submittedEmail,
       action: "plan-updated",
       summary: `${submission.submitterCallsign} updated activator details.`,
       details: {
@@ -649,7 +683,7 @@ export async function updatePlanByActivatorId(
         next: {
           submitterCallsign: submission.submitterCallsign,
           submitterName: submission.submitterName,
-          submitterEmail: submission.submitterEmail,
+          submitterEmail: submittedEmail,
           club: submission.club,
           publicNotes: submission.publicNotes,
           organizerNotes: submission.organizerNotes,
@@ -702,7 +736,7 @@ export async function updatePlanByActivatorId(
         planId: existing.id,
         stopId: existingStop.id,
         actorType: "activator",
-        actorEmail: submission.submitterEmail,
+        actorEmail: submittedEmail,
         action: "stop-updated",
         summary: `${submission.submitterCallsign} updated ${existingStop.park_reference}.`,
         details: {
@@ -720,7 +754,7 @@ export async function updatePlanByActivatorId(
           planId: existing.id,
           stopId: existingStop.id,
           actorType: "activator",
-          actorEmail: submission.submitterEmail,
+          actorEmail: submittedEmail,
           action: "admin-notification-needed",
           summary: `${submission.submitterCallsign} changed ${existingStop.park_reference} to ${stop.parkReference} on an approved activator.`,
           details: {
@@ -740,7 +774,7 @@ export async function updatePlanByActivatorId(
           planId: existing.id,
           stopId: existingStop.id,
           actorType: "activator",
-          actorEmail: submission.submitterEmail,
+          actorEmail: submittedEmail,
           action: "activator-notification-needed",
           summary: `${submission.submitterCallsign} changed activation stop timing or park.`,
           details: {
@@ -778,7 +812,7 @@ export async function updatePlanByActivatorId(
         planId: existing.id,
         stopId,
         actorType: "activator",
-        actorEmail: submission.submitterEmail,
+        actorEmail: submittedEmail,
         action: "stop-added",
         summary: `${submission.submitterCallsign} added ${stop.parkReference}.`,
         details: { next: stop },
@@ -787,7 +821,7 @@ export async function updatePlanByActivatorId(
         planId: existing.id,
         stopId,
         actorType: "activator",
-        actorEmail: submission.submitterEmail,
+        actorEmail: submittedEmail,
         action: "activator-notification-needed",
         summary: `${submission.submitterCallsign} added ${stop.parkReference}.`,
         details: { next: stop },
@@ -804,7 +838,7 @@ export async function updatePlanByActivatorId(
       planId: existing.id,
       stopId: existingStop.id,
       actorType: "activator" as const,
-      actorEmail: submission.submitterEmail,
+      actorEmail: submittedEmail,
       action: "stop-withdrawn",
       summary: `${submission.submitterCallsign} removed ${existingStop.park_reference}.`,
       details: { previous: stopSnapshot(existingStop) },
@@ -1283,6 +1317,37 @@ async function getActivatorById(
   )
     .bind(env.ACTIVATE_RI_EVENT_ID, id)
     .first<ActivatorRow>();
+}
+
+async function getActivatorByEmail(
+  env: Env,
+  email: string,
+): Promise<ActivatorRow | null> {
+  return env.DB.prepare(
+    `${activatorSelectSql}
+     FROM activate_ri_activators
+     WHERE event_id = ? AND email_normalized = ?`,
+  )
+    .bind(env.ACTIVATE_RI_EVENT_ID, email.trim().toLowerCase())
+    .first<ActivatorRow>();
+}
+
+async function getActiveActivatorOwner(
+  env: Env,
+  activatorId: string,
+): Promise<ActivatorOwnerRow | null> {
+  return env.DB.prepare(
+    `SELECT m.user_id, primary_email.email_normalized AS primary_email
+     FROM auth_activator_memberships m
+     LEFT JOIN auth_user_emails primary_email
+       ON primary_email.user_id = m.user_id
+       AND primary_email.is_primary = 1
+       AND primary_email.verified_at IS NOT NULL
+     WHERE m.event_id = ?
+       AND m.activator_id = ?
+       AND m.revoked_at IS NULL
+     LIMIT 1`,
+  ).bind(env.ACTIVATE_RI_EVENT_ID, activatorId).first<ActivatorOwnerRow>();
 }
 
 async function findEditStopActivator(

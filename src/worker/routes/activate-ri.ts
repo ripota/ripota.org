@@ -16,7 +16,7 @@ import { getAuthConfig, isLegacyLinkIssuanceEnabled } from "../auth/config";
 import { issueActivatorEmailLogin } from "../auth/email-login";
 import { createUnifiedActivatorSession } from "../auth/legacy";
 import { getAuthContext } from "../auth/session";
-import { linkActivatorMembership } from "../auth/db";
+import { isActivatorMembershipConflict } from "../auth/db";
 import {
   activatorSignupExists,
   approvePlan,
@@ -1054,22 +1054,32 @@ async function handlePlanSubmission(
   if (!legacyLinkIssuanceEnabled && env.AUTH_EMAIL_LOGIN_ENABLED !== "true") {
     return json({ ok: false, errors: ["Activator email sign-in is temporarily unavailable."] }, { status: 503 });
   }
-  const result = await insertPendingPlan(
-    env,
-    validation.value,
-    undefined,
-    { issueEditToken: legacyLinkIssuanceEnabled },
-  );
   const signedIn = await getAuthContext(request, env);
-  if (
+  const linkUserId =
     signedIn?.session.purpose === "authenticated" &&
     signedIn.user.primaryEmail === validation.value.submitterEmail.trim().toLowerCase()
-  ) {
-    try {
-      await linkActivatorMembership(env, signedIn.user.id, result.activatorId);
-    } catch {
-      console.error(JSON.stringify({ event: "signed-in-volunteer-link-failed" }));
+      ? signedIn.user.id
+      : undefined;
+  let result: Awaited<ReturnType<typeof insertPendingPlan>>;
+  try {
+    result = await insertPendingPlan(
+      env,
+      validation.value,
+      undefined,
+      {
+        issueEditToken: legacyLinkIssuanceEnabled,
+        linkUserId,
+      },
+    );
+  } catch (error) {
+    if (linkUserId && isActivatorMembershipConflict(error)) {
+      console.error(JSON.stringify({ event: "signed-in-volunteer-membership-conflict" }));
+      return privateJson({
+        ok: false,
+        error: "We couldn't safely associate this submission with your account. Contact an organizer for help.",
+      }, { status: 409 });
     }
+    throw error;
   }
   const editUrl = result.editToken
     ? absoluteEditUrl(request, env, result.editToken)

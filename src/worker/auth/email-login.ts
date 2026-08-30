@@ -7,8 +7,10 @@ import { verifyTurnstile } from "../turnstile";
 import { authAuditStatement } from "./audit";
 import { getAuthConfig } from "./config";
 import {
+  ActivatorMembershipConflictError,
   findUserByVerifiedEmail,
   getUserById,
+  isActivatorMembershipConflict,
   normalizeEmail,
   prepareActivatorMembershipLink,
   prepareUserWithVerifiedEmail,
@@ -22,6 +24,7 @@ type EmailTokenRow = {
   email_normalized: string;
   user_id: string | null;
   activator_id: string | null;
+  activator_name: string | null;
   expires_at: string;
 };
 
@@ -132,9 +135,16 @@ export async function consumeEmailLogin(
   }
   const hash = await tokenHash(rawToken);
   const row = await env.DB.prepare(
-    `SELECT token_hash, email_normalized, user_id, activator_id, expires_at
-     FROM auth_email_tokens
-     WHERE token_hash = ? AND purpose = 'login' AND used_at IS NULL AND expires_at > ?
+    `SELECT
+       t.token_hash,
+       t.email_normalized,
+       t.user_id,
+       t.activator_id,
+       a.name AS activator_name,
+       t.expires_at
+     FROM auth_email_tokens t
+     LEFT JOIN activate_ri_activators a ON a.id = t.activator_id
+     WHERE t.token_hash = ? AND t.purpose = 'login' AND t.used_at IS NULL AND t.expires_at > ?
      LIMIT 1`,
   ).bind(hash, now.toISOString()).first<EmailTokenRow>();
   if (!row) {
@@ -145,10 +155,36 @@ export async function consumeEmailLogin(
     : await findUserByVerifiedEmail(env, row.email_normalized);
   const preparedUser = existingUser
     ? null
-    : prepareUserWithVerifiedEmail(env, row.email_normalized, "", now.toISOString());
+    : prepareUserWithVerifiedEmail(
+        env,
+        row.email_normalized,
+        row.activator_name ?? "",
+        now.toISOString(),
+      );
   const user = existingUser ?? preparedUser!.user;
   if (!user || user.disabledAt) {
     return null;
+  }
+  let preparedMembership: Awaited<ReturnType<typeof prepareActivatorMembershipLink>> | null = null;
+  if (row.activator_id) {
+    try {
+      preparedMembership = await prepareActivatorMembershipLink(
+        env,
+        user.id,
+        row.activator_id,
+        now.toISOString(),
+        {
+          userWillBeInserted: preparedUser !== null,
+          userPrimaryEmail: row.email_normalized,
+        },
+      );
+    } catch (error) {
+      if (error instanceof ActivatorMembershipConflictError) {
+        console.error(JSON.stringify({ event: "email-login-membership-conflict" }));
+        return null;
+      }
+      throw error;
+    }
   }
   const session = await prepareAuthSession(env, {
     userId: user.id,
@@ -161,9 +197,7 @@ export async function consumeEmailLogin(
        WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?`,
     ).bind(now.toISOString(), hash, now.toISOString()),
     ...(preparedUser?.statements ?? []),
-    ...(row.activator_id
-      ? prepareActivatorMembershipLink(env, user.id, row.activator_id, now.toISOString())
-      : []),
+    ...(preparedMembership?.statements ?? []),
     session.statement,
     authAuditStatement(env, {
       action: "email-login-consumed",
@@ -175,7 +209,12 @@ export async function consumeEmailLogin(
   ];
   try {
     await env.DB.batch(statements);
-  } catch {
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: preparedMembership?.status === "pending" && isActivatorMembershipConflict(error)
+        ? "email-login-membership-conflict"
+        : "email-login-consume-transaction-failed",
+    }));
     return null;
   }
   return {

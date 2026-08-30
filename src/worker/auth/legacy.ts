@@ -8,9 +8,9 @@ import {
 import type { Env } from "../env";
 import { authAuditStatement } from "./audit";
 import {
-  createUserWithVerifiedEmail,
   findUserByVerifiedEmail,
-  linkActivatorMembership,
+  prepareActivatorMembershipLink,
+  prepareUserWithVerifiedEmail,
 } from "./db";
 import { authSessionCookie, prepareAuthSession } from "./session";
 import type { AuthMethod } from "./types";
@@ -38,12 +38,31 @@ export async function claimActivator(
   if (existing?.disabledAt) {
     throw new Error("Account disabled.");
   }
-  const user = existing ?? await createUserWithVerifiedEmail(
+  const preparedUser = existing
+    ? null
+    : prepareUserWithVerifiedEmail(
+        env,
+        activator.email_normalized,
+        activator.name,
+      );
+  const user = existing ?? preparedUser!.user;
+  const preparedMembership = await prepareActivatorMembershipLink(
     env,
-    activator.email_normalized,
-    activator.name,
+    user.id,
+    activator.id,
+    undefined,
+    {
+      userWillBeInserted: preparedUser !== null,
+      userPrimaryEmail: activator.email_normalized,
+    },
   );
-  await linkActivatorMembership(env, user.id, activator.id);
+  const statements = [
+    ...(preparedUser?.statements ?? []),
+    ...preparedMembership.statements,
+  ];
+  if (statements.length > 0) {
+    await env.DB.batch(statements);
+  }
   return { userId: user.id, email: activator.email_normalized };
 }
 
