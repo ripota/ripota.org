@@ -4,6 +4,8 @@ export type Env = {
   ACTIVATE_RI_OPS_ROOM?: DurableObjectNamespace;
   OPS_RATE_LIMIT_BURST?: RateLimit;
   OPS_RATE_LIMIT_SUSTAINED?: RateLimit;
+  AUTH_RATE_LIMIT_BURST?: RateLimit;
+  AUTH_EMAIL_RATE_LIMIT?: RateLimit;
   EMAIL?: SendEmail;
   ACTIVATE_RI_EVENT_ID: "activate-ri-2026";
   TURNSTILE_REQUIRED?: "true" | "false";
@@ -19,4 +21,9 @@ export type Env = {
   ALLOW_LOCAL_ADMIN_AUTH?: "true" | "false";
   LOCAL_ADMIN_EMAIL?: string;
   REMOTE_DATA_READ_ONLY?: "true" | "false";
+  AUTH_ADMIN_MODE?: "access" | "dual" | "passkey";
+  AUTH_ACTIVATOR_MODE?: "legacy" | "dual" | "unified";
+  AUTH_EMAIL_LOGIN_ENABLED?: "true" | "false";
+  AUTH_BOOTSTRAP_ADMIN_EMAILS?: string;
+  AUTH_ADMIN_REAUTH_SECONDS?: string;
 };
