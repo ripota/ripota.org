@@ -2727,6 +2727,534 @@ p {
   }
 }
 
+/* Organizer console: dense enough for event day, calm enough for setup. */
+.admin-app-page {
+  min-height: 100dvh;
+  background:
+    radial-gradient(circle at 12% 3%, rgb(40 147 135 / 8%), transparent 30rem),
+    var(--surface-page);
+}
+
+.admin-app-main {
+  min-height: calc(100dvh - 3.5rem);
+}
+
+.admin-app {
+  padding-block: clamp(0.8rem, 2vw, 1.4rem) 1.5rem;
+}
+
+.admin-app__container {
+  width: min(100% - 2rem, 1240px);
+}
+
+.admin-app .event-nav {
+  align-items: center;
+  margin-bottom: 0.8rem;
+}
+
+.admin-app .event-nav a,
+.admin-app .event-nav .button {
+  min-height: 2.4rem;
+  padding: 0.48rem 0.72rem;
+  font-size: 0.84rem;
+}
+
+.admin-app__intro {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 2rem;
+  margin-bottom: 1rem;
+}
+
+.admin-app__intro h1 {
+  max-width: none;
+  margin-top: 0.08rem;
+  color: var(--surface-ink);
+  font-size: clamp(2.1rem, 5vw, 3.5rem);
+  line-height: 0.98;
+}
+
+.admin-app__intro .lead {
+  max-width: 52ch;
+  padding-bottom: 0.15rem;
+  color: var(--text-muted);
+  font-size: 0.92rem;
+}
+
+.admin-workspace-tabs,
+.admin-ops-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  width: fit-content;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 0.25rem;
+  background: color-mix(in srgb, var(--surface-raised) 82%, transparent);
+  box-shadow: 0 8px 24px rgb(2 18 17 / 7%);
+}
+
+.admin-workspace-tabs {
+  margin-bottom: 0.8rem;
+}
+
+.admin-workspace-tabs button,
+.admin-ops-tabs button {
+  min-height: 2.3rem;
+  border: 0;
+  border-radius: 8px;
+  padding: 0.42rem 0.85rem;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.admin-workspace-tabs button[data-active="true"],
+.admin-ops-tabs button[data-active="true"] {
+  background: var(--surface-ink);
+  color: var(--surface-page);
+  box-shadow: 0 4px 12px rgb(2 18 17 / 18%);
+}
+
+.admin-workspace-tabs span:not(:empty),
+.admin-ops-tabs span:not(:empty) {
+  display: inline-grid;
+  min-width: 1.25rem;
+  min-height: 1.25rem;
+  place-items: center;
+  border-radius: 999px;
+  padding-inline: 0.28rem;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  font-size: 0.7rem;
+}
+
+.admin-view.admin-panel {
+  gap: 0.85rem;
+  max-width: none;
+  margin-top: 0;
+  border-radius: 16px;
+  padding: clamp(0.9rem, 2vw, 1.25rem);
+  box-shadow: 0 16px 44px rgb(2 18 17 / 10%);
+}
+
+.admin-view[hidden],
+.admin-ops-view[hidden] {
+  display: none;
+}
+
+.admin-view .admin-panel__header {
+  align-items: center;
+}
+
+.admin-view .admin-panel__header h2,
+.admin-view .admin-panel__header h3 {
+  max-width: none;
+  font-size: clamp(1.55rem, 3vw, 2.1rem);
+}
+
+.admin-view .admin-panel__header .lead {
+  margin-top: 0.25rem;
+  font-size: 0.86rem;
+}
+
+.admin-view > .admin-status {
+  min-height: 0;
+  margin: -0.2rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.admin-ops-tabs {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.admin-ops-tabs button {
+  flex: 1 0 auto;
+}
+
+.admin-ops-view {
+  display: grid;
+  gap: 0.8rem;
+  min-width: 0;
+}
+
+.admin-room-control,
+.admin-announcement,
+.admin-ops-view > .admin-activity {
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 1rem;
+  background: color-mix(in srgb, var(--surface-page) 55%, transparent);
+}
+
+.admin-room-control {
+  display: grid;
+  grid-template-columns: minmax(8rem, 0.55fr) minmax(28rem, 1.8fr) minmax(15rem, 0.8fr);
+  align-items: center;
+  gap: 1rem;
+}
+
+.admin-room-control h3,
+.admin-announcement h3,
+.admin-ops-view > .admin-activity h3 {
+  max-width: none;
+  margin: 0.15rem 0 0;
+  font-size: 1.3rem;
+}
+
+.admin-mode-switch {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 0.3rem;
+  background: var(--surface-raised);
+}
+
+.admin-mode-switch button {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+  min-height: 3.5rem;
+  align-content: center;
+  border: 0;
+  border-radius: 7px;
+  padding: 0.45rem;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.admin-mode-switch button strong {
+  color: var(--text-primary);
+  font-size: 0.85rem;
+}
+
+.admin-mode-switch button span {
+  font-size: 0.68rem;
+  line-height: 1.25;
+}
+
+.admin-mode-switch button[data-active="true"] {
+  background: color-mix(in srgb, var(--accent) 15%, var(--surface-raised));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent);
+  opacity: 1;
+}
+
+.admin-ops-metrics {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.18rem 0.6rem;
+  margin: 0;
+  font-size: 0.72rem;
+}
+
+.admin-ops-metrics dt {
+  color: var(--text-muted);
+  font-weight: 750;
+}
+
+.admin-ops-metrics dd {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.admin-announcement {
+  display: grid;
+  grid-template-columns: minmax(12rem, 0.65fr) minmax(24rem, 1.35fr);
+  gap: 1.25rem;
+}
+
+.admin-announcement .lead {
+  margin-top: 0.3rem;
+  font-size: 0.8rem;
+}
+
+.admin-announcement .admin-ops-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+  align-items: center;
+  gap: 0.55rem 0.8rem;
+}
+
+.admin-announcement .admin-ops-form > label:first-child {
+  grid-column: 1 / -1;
+}
+
+.admin-announcement .admin-ops-check {
+  justify-content: flex-start;
+  gap: 0.45rem !important;
+  font-size: 0.78rem;
+  line-height: 1.3;
+}
+
+.admin-announcement .admin-ops-check input {
+  flex: 0 0 auto;
+  width: 1rem;
+}
+
+.admin-announcement textarea {
+  min-height: 5rem;
+  resize: vertical;
+}
+
+.admin-announcement .ops-meta {
+  grid-column: 1 / 3;
+  font-size: 0.7rem;
+}
+
+.admin-announcement .button {
+  grid-column: 3;
+  grid-row: 2 / span 2;
+  align-self: stretch;
+}
+
+.admin-ops-view .admin-list {
+  gap: 0.55rem;
+}
+
+.admin-ops-view .admin-card {
+  gap: 0.8rem;
+  border-radius: 10px;
+  padding: 0.8rem;
+  background: var(--surface-raised);
+}
+
+.admin-ops-view .admin-card h4 {
+  max-width: none;
+  font-size: 0.95rem;
+}
+
+.admin-ops-view .admin-card__body {
+  gap: 0.25rem;
+}
+
+.admin-ops-view .admin-card__body p {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.admin-card[data-variant="member"] {
+  display: block;
+}
+
+.admin-card[data-variant="member"] > .admin-card__actions {
+  display: none;
+}
+
+.admin-card[data-variant="member"] .admin-card__body > .admin-card__actions {
+  display: flex;
+  margin-top: 0.4rem;
+}
+
+.admin-member-status {
+  width: fit-content;
+  border-radius: 999px;
+  padding: 0.22rem 0.48rem;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  font-weight: 750;
+}
+
+.admin-member-status[data-status="muted"],
+.admin-member-status[data-status="banned"] {
+  background: rgb(145 69 38 / 14%);
+  color: var(--warning-strong, #873b20);
+}
+
+.admin-member-details {
+  margin-top: 0.45rem;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 0.45rem;
+}
+
+.admin-member-details summary {
+  color: var(--link-strong);
+  cursor: pointer;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.admin-member-details .admin-card__actions {
+  margin-top: 0.5rem;
+}
+
+.admin-view .button {
+  min-height: 2.25rem;
+  padding: 0.42rem 0.68rem;
+  font-size: 0.78rem;
+}
+
+.admin-app-page .notice {
+  border-block: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--surface-raised) 72%, transparent);
+}
+
+.admin-app-page .notice__inner {
+  width: min(100% - 2rem, 1240px);
+  padding-block: 0.65rem;
+  font-size: 0.78rem;
+}
+
+@media (max-width: 920px) {
+  .admin-room-control {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-ops-metrics {
+    grid-template-columns: repeat(3, auto 1fr);
+  }
+
+  .admin-announcement {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .admin-app-main {
+    min-height: calc(100dvh - 3.25rem);
+  }
+
+  .admin-app {
+    padding-top: 0.55rem;
+  }
+
+  .admin-app__container {
+    width: min(100% - 1rem, 1240px);
+  }
+
+  .admin-app .event-nav {
+    width: auto;
+    margin: 0 0 0.65rem;
+    padding: 0;
+    overflow: visible;
+  }
+
+  .admin-app .event-nav a,
+  .admin-app .event-nav .button {
+    width: auto;
+    min-height: 2.2rem;
+    padding: 0.4rem 0.56rem;
+    font-size: 0.76rem;
+  }
+
+  .admin-app__intro {
+    display: grid;
+    gap: 0.3rem;
+    margin-bottom: 0.7rem;
+  }
+
+  .admin-app__intro h1 {
+    font-size: 2.15rem;
+  }
+
+  .admin-app__intro .lead {
+    font-size: 0.8rem;
+  }
+
+  .admin-workspace-tabs {
+    position: sticky;
+    top: 3.55rem;
+    z-index: 12;
+    width: 100%;
+  }
+
+  .admin-workspace-tabs button {
+    flex: 1;
+    padding-inline: 0.45rem;
+  }
+
+  .admin-view.admin-panel {
+    border-radius: 12px;
+    padding: 0.8rem;
+  }
+
+  .admin-view .admin-panel__header {
+    align-items: center;
+    flex-direction: row;
+  }
+
+  .admin-view .admin-panel__header .lead {
+    display: none;
+  }
+
+  .admin-ops-tabs {
+    padding-bottom: 0.3rem;
+    overflow-x: auto;
+  }
+
+  .admin-ops-tabs button {
+    flex: 0 0 auto;
+  }
+
+  .admin-room-control,
+  .admin-announcement,
+  .admin-ops-view > .admin-activity {
+    padding: 0.8rem;
+  }
+
+  .admin-mode-switch {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-mode-switch button {
+    grid-template-columns: 5rem 1fr;
+    min-height: 2.7rem;
+    align-items: center;
+  }
+
+  .admin-ops-metrics {
+    grid-template-columns: auto 1fr;
+  }
+
+  .admin-announcement .admin-ops-form {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-announcement .admin-ops-form > *,
+  .admin-announcement .ops-meta,
+  .admin-announcement .button {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .admin-announcement .button {
+    width: 100%;
+  }
+
+  .admin-ops-view .admin-card,
+  .admin-view .admin-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-ops-view .admin-card__actions,
+  .admin-card[data-variant="member"] .admin-card__body > .admin-card__actions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .admin-ops-view .admin-card__actions .button,
+  .admin-card[data-variant="member"] .admin-card__body > .admin-card__actions .button {
+    width: 100%;
+  }
+
+  .admin-member-details .admin-card__actions {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-app-page .notice__inner {
+    width: min(100% - 1rem, 1240px);
+  }
+}
+
 /* Activator Ops Room: a focused field tool rather than a long-form event page. */
 .ops-app-page {
   min-height: 100dvh;

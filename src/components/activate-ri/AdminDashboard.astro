@@ -1,4 +1,5 @@
-<section class="admin-panel" aria-labelledby="admin-dashboard-title" data-admin-dashboard>
+<div data-admin-dashboard>
+<section class="admin-panel admin-view" id="admin-plans" aria-labelledby="admin-dashboard-title" data-admin-view="plans" hidden>
   <div class="admin-panel__header">
     <div>
       <p class="eyebrow">Organizer tools</p>
@@ -7,8 +8,8 @@
         This admin queue is protected by Cloudflare Access in production.
       </p>
     </div>
-    <button class="button" data-variant="primary" type="button" data-load-plans>
-      Refresh pending submissions
+    <button class="button" data-variant="light" type="button" data-load-plans>
+      Refresh
     </button>
   </div>
 
@@ -17,7 +18,9 @@
   </p>
   <div class="admin-list" data-admin-list></div>
 
-  <section class="admin-activity" aria-labelledby="admin-activity-title">
+  </section>
+
+  <section class="admin-panel admin-view" id="admin-activity" aria-labelledby="admin-activity-title" data-admin-view="activity" hidden>
     <div class="admin-panel__header">
       <div>
         <h3 id="admin-activity-title">Activity log</h3>
@@ -32,7 +35,7 @@
     </p>
     <div class="admin-list" data-activity-list></div>
   </section>
-</section>
+</div>
 
 <script>
   import { activityDetailEntries } from "../../lib/activate-ri/activity-details";
@@ -131,6 +134,7 @@
     }
 
     list.replaceChildren();
+    document.querySelector("[data-admin-plan-count]")?.replaceChildren(plans.length > 0 ? String(plans.length) : "");
 
     if (plans.length === 0) {
       status.replaceChildren("No pending submissions.");

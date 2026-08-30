@@ -5,31 +5,42 @@ import AdminOpsMembers from "./AdminOpsMembers.astro";
 import AdminOpsModeration from "./AdminOpsModeration.astro";
 ---
 
-<section class="admin-panel admin-ops" aria-labelledby="admin-ops-title" data-admin-ops>
+<section class="admin-panel admin-view admin-ops" id="admin-ops" aria-labelledby="admin-ops-title" data-admin-ops data-admin-view="ops">
   <div class="admin-panel__header">
     <div>
       <p class="eyebrow">Organizer tools</p>
       <h2 id="admin-ops-title">Ops Room</h2>
-      <p class="lead">Control availability, announcements, moderation, and participant security.</p>
+      <p class="lead">Control availability, join the live room, and handle exceptions.</p>
     </div>
     <button class="button" data-variant="light" type="button" data-admin-ops-refresh>Refresh</button>
   </div>
   <p class="admin-status" data-admin-ops-status aria-live="polite">Loading Ops Room state…</p>
 
-  <section class="admin-activity" aria-labelledby="admin-ops-mode-title">
-    <h3 id="admin-ops-mode-title">Room control</h3>
-    <dl class="admin-meta" data-admin-ops-summary></dl>
-    <div class="form-actions" data-admin-ops-modes>
-      <button class="button" data-variant="light" type="button" data-mode="full">Full room</button>
-      <button class="button" data-variant="light" type="button" data-mode="announcements">Announcements only</button>
-      <button class="button" data-variant="light" type="button" data-mode="off">Room off</button>
-    </div>
-  </section>
+  <nav class="admin-ops-tabs" aria-label="Ops Room tools" data-admin-ops-tabs>
+    <button type="button" data-admin-ops-tab="room">Room</button>
+    <button type="button" data-admin-ops-tab="messages">Messages <span data-admin-message-count></span></button>
+    <button type="button" data-admin-ops-tab="people">People <span data-admin-member-count></span></button>
+    <button type="button" data-admin-ops-tab="broadcasts">Email</button>
+  </nav>
 
-  <AdminOpsAnnouncement />
-  <AdminOpsModeration />
-  <AdminOpsMembers />
-  <AdminOpsBroadcasts />
+  <div class="admin-ops-view" data-admin-ops-view="room">
+    <section class="admin-room-control" aria-labelledby="admin-ops-mode-title">
+      <div>
+        <p class="eyebrow">Availability</p>
+        <h3 id="admin-ops-mode-title">Room control</h3>
+      </div>
+      <div class="admin-mode-switch" data-admin-ops-modes>
+        <button type="button" data-mode="full"><strong>Open</strong><span>Everyone can post</span></button>
+        <button type="button" data-mode="announcements"><strong>Announce</strong><span>Organizer posts only</span></button>
+        <button type="button" data-mode="off"><strong>Off</strong><span>Participant access closed</span></button>
+      </div>
+      <dl class="admin-ops-metrics" data-admin-ops-summary></dl>
+    </section>
+    <AdminOpsAnnouncement />
+  </div>
+  <div class="admin-ops-view" data-admin-ops-view="messages" hidden><AdminOpsModeration /></div>
+  <div class="admin-ops-view" data-admin-ops-view="people" hidden><AdminOpsMembers /></div>
+  <div class="admin-ops-view" data-admin-ops-view="broadcasts" hidden><AdminOpsBroadcasts /></div>
 </section>
 
 <script>
@@ -84,6 +95,8 @@ import AdminOpsModeration from "./AdminOpsModeration.astro";
   const broadcastsList = root?.querySelector<HTMLElement>("[data-admin-ops-broadcasts]");
   const announcementForm = root?.querySelector<HTMLFormElement>("[data-admin-ops-announcement]");
   const recipientPreview = root?.querySelector<HTMLElement>("[data-admin-ops-recipient-preview]");
+  const opsTabs = root?.querySelector<HTMLElement>("[data-admin-ops-tabs]");
+  const opsViews = root?.querySelectorAll<HTMLElement>("[data-admin-ops-view]") ?? [];
   let state: AdminOpsState | null = null;
 
   if (root) void loadState();
@@ -92,6 +105,11 @@ import AdminOpsModeration from "./AdminOpsModeration.astro";
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-mode]");
     if (button?.dataset.mode) void changeMode(button.dataset.mode);
   });
+  opsTabs?.addEventListener("click", (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-admin-ops-tab]");
+    if (button?.dataset.adminOpsTab) showOpsView(button.dataset.adminOpsTab);
+  });
+  showOpsView("room");
 
   announcementForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -142,6 +160,8 @@ import AdminOpsModeration from "./AdminOpsModeration.astro";
     renderMembers();
     renderMessages();
     renderBroadcasts();
+    root?.querySelector("[data-admin-message-count]")?.replaceChildren(state.messages.length ? String(state.messages.length) : "");
+    root?.querySelector("[data-admin-member-count]")?.replaceChildren(state.members.length ? String(state.members.length) : "");
     const eligible = state.members.filter((member) => member.status !== "banned").length;
     recipientPreview?.replaceChildren(
       `${eligible} activator${eligible === 1 ? "" : "s"} currently eligible for an email copy (active and muted; banned excluded).`,
@@ -151,13 +171,14 @@ import AdminOpsModeration from "./AdminOpsModeration.astro";
   function renderSummary(): void {
     if (!summary || !state?.settings) return;
     summary.replaceChildren();
-    addMeta(summary, "Database mode", state.settings.room_mode);
-    addMeta(summary, "Hard disable", state.hardDisabled ? "Enabled — participant access is forced off" : "Not enabled");
-    addMeta(summary, "Connected clients", String(state.connectedClients));
-    addMeta(summary, "Rules version", state.settings.rules_version);
-    addMeta(summary, "Last changed", `${formatTime(state.settings.updated_at)} by ${state.settings.updated_by}`);
+    addMeta(summary, "Live now", `${state.connectedClients} connected`);
+    addMeta(summary, "Rules", state.settings.rules_version);
+    addMeta(summary, "Last change", formatTime(state.settings.updated_at));
+    if (state.hardDisabled) addMeta(summary, "Hard disable", "Enabled");
     root?.querySelectorAll<HTMLButtonElement>("[data-mode]").forEach((button) => {
-      button.disabled = button.dataset.mode === state?.settings?.room_mode;
+      const active = button.dataset.mode === state?.settings?.room_mode;
+      button.disabled = active;
+      button.dataset.active = String(active);
     });
   }
 
@@ -169,27 +190,38 @@ import AdminOpsModeration from "./AdminOpsModeration.astro";
       return;
     }
     state.members.forEach((member) => {
-      const card = adminCard(`${member.primary_callsign} — ${member.name}`);
-      addText(card.body, `Room status: ${member.status}`);
-      addText(card.body, member.accepted_rules_version
-        ? `Rules accepted: ${member.accepted_rules_version} at ${formatTime(member.accepted_rules_at ?? "")}`
-        : "Rules not yet accepted");
-      if (member.moderation_reason) addText(card.body, `Moderation reason: ${member.moderation_reason}`);
+      const card = adminCard(`${member.primary_callsign} — ${member.name}`, "member");
+      const statusLine = document.createElement("p");
+      statusLine.className = "admin-member-status";
+      statusLine.dataset.status = member.status;
+      statusLine.textContent = `${member.status} · ${member.accepted_rules_version ? "rules accepted" : "rules pending"}`;
+      card.body.appendChild(statusLine);
+      const details = document.createElement("details");
+      details.className = "admin-member-details";
+      const detailsSummary = document.createElement("summary");
+      detailsSummary.textContent = "Manage access and security";
+      const detailActions = document.createElement("div");
+      detailActions.className = "admin-card__actions";
+      details.appendChild(detailsSummary);
+      details.appendChild(detailActions);
+      if (member.moderation_reason) addText(details, `Moderation note: ${member.moderation_reason}`);
       card.actions.appendChild(actionButton("Activate", () => memberMutation(member, "active")));
       card.actions.appendChild(actionButton("Mute", () => memberMutation(member, "muted")));
       card.actions.appendChild(actionButton("Ban", () => memberMutation(member, "banned")));
-      card.actions.appendChild(actionButton("Disconnect room sockets", () => simpleConfirmMutation(
+      detailActions.appendChild(actionButton("Disconnect room", () => simpleConfirmMutation(
         `/api/activate-ri-2026/admin/ops/members/${encodeURIComponent(member.activator_id)}/disconnect`,
         `Disconnect current Ops Room sockets for ${member.primary_callsign}?`,
       )));
-      card.actions.appendChild(actionButton("Revoke portal sessions", () => simpleConfirmMutation(
+      detailActions.appendChild(actionButton("Sign out all browsers", () => simpleConfirmMutation(
         `/api/activate-ri-2026/admin/activators/${encodeURIComponent(member.activator_id)}/revoke-sessions`,
         `Revoke every browser session for ${member.primary_callsign}? Their secure email links will still work.`,
       )));
-      card.actions.appendChild(actionButton("Replace all secure links", () => simpleConfirmMutation(
+      detailActions.appendChild(actionButton("Replace secure links", () => simpleConfirmMutation(
         `/api/activate-ri-2026/admin/activators/${encodeURIComponent(member.activator_id)}/replace-secure-links`,
         `Replace every secure link and revoke every browser session for ${member.primary_callsign}? A new link will be emailed.`,
       )));
+      card.body.appendChild(card.actions);
+      card.body.appendChild(details);
       membersList.appendChild(card.article);
     });
   }
@@ -294,13 +326,14 @@ import AdminOpsModeration from "./AdminOpsModeration.astro";
     return response;
   }
 
-  function adminCard(title: string): {
+  function adminCard(title: string, variant = "default"): {
     article: HTMLElement;
     body: HTMLElement;
     actions: HTMLElement;
   } {
     const article = document.createElement("article");
     article.className = "admin-card";
+    article.dataset.variant = variant;
     const body = document.createElement("div");
     body.className = "admin-card__body";
     const heading = document.createElement("h4");
@@ -345,5 +378,14 @@ import AdminOpsModeration from "./AdminOpsModeration.astro";
   function formatTime(value: string): string {
     const date = new Date(value);
     return Number.isNaN(date.valueOf()) ? "Unknown time" : date.toLocaleString();
+  }
+
+  function showOpsView(name: string): void {
+    opsViews.forEach((view) => { view.hidden = view.dataset.adminOpsView !== name; });
+    opsTabs?.querySelectorAll<HTMLButtonElement>("[data-admin-ops-tab]").forEach((button) => {
+      const active = button.dataset.adminOpsTab === name;
+      button.dataset.active = String(active);
+      button.setAttribute("aria-selected", String(active));
+    });
   }
 </script>

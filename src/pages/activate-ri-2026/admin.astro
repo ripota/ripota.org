@@ -2,7 +2,6 @@
 import AdminDashboard from "../../components/activate-ri/AdminDashboard.astro";
 import AdminOpsRoom from "../../components/activate-ri/AdminOpsRoom.astro";
 import EventNav from "../../components/activate-ri/EventNav.astro";
-import Footer from "../../components/Footer.astro";
 import Notice from "../../components/Notice.astro";
 import SiteHeader from "../../components/SiteHeader.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
@@ -12,25 +11,65 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
   title="Activate All RI 2026 Admin"
   description="Review pending Activate All RI 2026 activation submissions."
   privatePage
+  bodyClass="admin-app-page"
 >
-  <SiteHeader variant="solid" showEventLink />
-  <main id="main">
-    <section class="section event-page" aria-labelledby="admin-title">
-      <div class="container">
+  <SiteHeader variant="solid" compact />
+  <main id="main" class="admin-app-main">
+    <section class="admin-app" aria-labelledby="admin-title" data-admin-app>
+      <div class="container admin-app__container">
         <EventNav />
-        <div class="section-header">
-          <p class="eyebrow">Admin review</p>
-          <h1 id="admin-title">Admin queue</h1>
+        <div class="admin-app__intro">
+          <div>
+            <p class="eyebrow">Organizer console</p>
+            <h1 id="admin-title">Activate RI operations</h1>
+          </div>
           <p class="lead">
-            Review pending Activate All RI 2026 activation submissions before
-            they appear on the public schedule.
+            Run the room, help activators, and review event activity from one focused workspace.
           </p>
         </div>
+
+        <nav class="admin-workspace-tabs" aria-label="Organizer workspaces" data-admin-workspace-tabs>
+          <button type="button" data-admin-workspace="ops" aria-controls="admin-ops">Ops Room</button>
+          <button type="button" data-admin-workspace="plans" aria-controls="admin-plans">Plans <span data-admin-plan-count></span></button>
+          <button type="button" data-admin-workspace="activity" aria-controls="admin-activity">Activity</button>
+        </nav>
+
         <AdminDashboard />
         <AdminOpsRoom />
       </div>
     </section>
     <Notice />
   </main>
-  <Footer />
 </BaseLayout>
+
+<script>
+  const adminApp = document.querySelector<HTMLElement>("[data-admin-app]");
+  const workspaceTabs = adminApp?.querySelector<HTMLElement>("[data-admin-workspace-tabs]");
+  const workspacePanels = adminApp?.querySelectorAll<HTMLElement>("[data-admin-view]") ?? [];
+  const workspaceKey = "activate-ri-admin-workspace";
+  const validWorkspaces = new Set(["ops", "plans", "activity"]);
+
+  function showWorkspace(name: string, updateHash = true): void {
+    const next = validWorkspaces.has(name) ? name : "ops";
+    workspacePanels.forEach((panel) => {
+      const active = panel.dataset.adminView === next;
+      panel.hidden = !active;
+    });
+    workspaceTabs?.querySelectorAll<HTMLButtonElement>("[data-admin-workspace]").forEach((button) => {
+      const active = button.dataset.adminWorkspace === next;
+      button.dataset.active = String(active);
+      button.setAttribute("aria-selected", String(active));
+      button.tabIndex = active ? 0 : -1;
+    });
+    localStorage.setItem(workspaceKey, next);
+    if (updateHash) history.replaceState(null, "", `#${next}`);
+  }
+
+  workspaceTabs?.addEventListener("click", (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-admin-workspace]");
+    if (button?.dataset.adminWorkspace) showWorkspace(button.dataset.adminWorkspace);
+  });
+
+  const requested = location.hash.slice(1);
+  showWorkspace(validWorkspaces.has(requested) ? requested : localStorage.getItem(workspaceKey) ?? "ops", false);
+</script>

@@ -1,9 +1,13 @@
-<section class="admin-activity" aria-labelledby="admin-ops-announcement-title">
-  <h3 id="admin-ops-announcement-title">Organizer announcement</h3>
+<section class="admin-activity admin-announcement" aria-labelledby="admin-ops-announcement-title">
+  <div>
+    <p class="eyebrow">Reach everyone</p>
+    <h3 id="admin-ops-announcement-title">Post an announcement</h3>
+    <p class="lead">Room posts are immediate. Email copies are optional and require confirmation.</p>
+  </div>
   <form class="event-form admin-ops-form" data-admin-ops-announcement>
     <label>
-      Announcement text
-      <textarea name="body" rows="4" maxlength="1000" required></textarea>
+      <span class="sr-only">Announcement text</span>
+      <textarea name="body" rows="3" maxlength="1000" required placeholder="What does the room need to know?"></textarea>
     </label>
     <label class="admin-ops-check"><input type="checkbox" name="pin" /> Pin this announcement</label>
     <label class="admin-ops-check"><input type="checkbox" name="email" /> Also email eligible activators</label>
