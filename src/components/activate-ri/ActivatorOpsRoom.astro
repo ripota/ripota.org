@@ -1,6 +1,5 @@
 ---
 import references from "../../data/ri-references.json";
-import OpsComposer from "./OpsComposer.astro";
 import OpsConnectionStatus from "./OpsConnectionStatus.astro";
 import OpsFeed from "./OpsFeed.astro";
 import OpsPinnedAnnouncement from "./OpsPinnedAnnouncement.astro";
@@ -20,7 +19,6 @@ const parkNames = Object.fromEntries(
     <div class="ops-room__main">
       <OpsPinnedAnnouncement />
       <OpsFeed />
-      <OpsComposer />
     </div>
     <aside class="ops-room__sidebar">
       <OpsUpcomingStops />
@@ -438,14 +436,17 @@ const parkNames = Object.fromEntries(
     const body = document.createElement("p");
     body.className = "ops-message__body";
     body.textContent = message.removed ? "Message removed." : message.body;
+    const content = document.createElement("div");
+    content.className = "ops-message__content";
     item.appendChild(header);
-    item.appendChild(body);
+    content.appendChild(body);
     if (message.parkReference) {
       const context = document.createElement("p");
       context.className = "ops-meta";
       context.textContent = `${message.parkReference} — ${parkNames[message.parkReference] ?? "RI park"}`;
-      item.appendChild(context);
+      content.appendChild(context);
     }
+    item.appendChild(content);
     if (message.resolved) {
       const resolved = document.createElement("span");
       resolved.className = "ops-badge";
