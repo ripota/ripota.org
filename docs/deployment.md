@@ -94,7 +94,7 @@ npx wrangler secret put AUTH_BOOTSTRAP_ADMIN_EMAILS
 validate Cloudflare Access JWTs on admin requests. See
 `docs/cloudflare-access.md`.
 
-The top-level authentication vars intentionally deploy in rollback-safe mode:
+The initial authentication rollout starts in rollback-safe mode:
 
 ```text
 AUTH_ADMIN_MODE=access
@@ -103,6 +103,8 @@ AUTH_EMAIL_LOGIN_ENABLED=false
 ```
 
 Do not change those values as part of the first migration/code deployment.
+Subsequent reviewed rollout commits advance the top-level production values;
+`wrangler.jsonc` is the source of truth for the current modes.
 Follow the enrollment, dual-mode, email, and final-mode gates in
 `docs/activate-ri-2026/authentication.md`. In particular, do not narrow
 Cloudflare Access until two administrator passkeys and break-glass recovery

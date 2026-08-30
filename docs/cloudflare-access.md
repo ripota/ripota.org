@@ -99,9 +99,12 @@ comma-separated list outside git:
 npx wrangler secret put AUTH_BOOTSTRAP_ADMIN_EMAILS
 ```
 
-After two administrators have enrolled and tested recovery, replace the value
-with an empty allowlist or remove the secret. Existing event admin roles can
-still use Access-protected recovery.
+After each specifically named administrator has enrolled and tested a passkey,
+remove their address from the allowlist. The allowlist may remain temporarily
+for a pending administrator after `AUTH_ADMIN_MODE=passkey`, provided Access
+continues to protect the full admin surface. Once all intended administrators
+have enrolled, replace the value with an empty allowlist or remove the secret.
+Existing event admin roles can still use Access-protected recovery.
 
 ## Verify
 

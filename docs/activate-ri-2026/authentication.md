@@ -57,9 +57,11 @@ bootstrap session requires a valid Access identity and either:
 - an existing event admin role, or
 - an exact address in the external `AUTH_BOOTSTRAP_ADMIN_EMAILS` allowlist.
 
-An allowlisted first administrator receives an event admin role and a short
-enrollment session. Remove bootstrap addresses after two real administrators
-have enrolled and tested passkeys.
+An allowlisted administrator receives an event admin role and a short
+enrollment session. The allowlist may remain during rollout for specifically
+named administrators who have not enrolled yet. While it remains, keep
+Cloudflare Access on the full admin surface. Remove each bootstrap address
+after that administrator has enrolled and tested a passkey.
 
 From the admin **Account security** tab, a passkey-authenticated administrator
 can inspect event accounts, send a 30-minute passkey replacement link, revoke
@@ -112,8 +114,12 @@ Do not skip gates.
    `AUTH_ACTIVATOR_MODE=unified`. Keep legacy links enabled as bootstrap.
 6. **Passkey administrators:** only after at least two real administrators have
    tested passkeys and break-glass recovery is proven, set
-   `AUTH_ADMIN_MODE=passkey`. Narrow
-   Cloudflare Access to the recovery page only after this gate.
+   `AUTH_ADMIN_MODE=passkey`. A specifically named pending administrator may
+   still enroll through the Access-protected recovery page while their address
+   remains in `AUTH_BOOTSTRAP_ADMIN_EMAILS`. Keep Access on the full admin
+   surface until the pending administrator has enrolled and the bootstrap
+   allowlist has been removed; narrow Access to the recovery page only after
+   this gate.
 
 At each stage, verify the public site, volunteer submission, activator portal,
 admin dashboard, Ops Room HTTP/WebSocket authorization, and recent Worker logs
