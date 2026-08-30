@@ -95,11 +95,13 @@ Do not skip gates.
    `0013_auth_ceremony_sessions.sql` plus code with
    `access` / `legacy` / email `false`. Confirm old Access admin, private links,
    browser sessions, submissions, and email still work.
-2. **Admin enrollment:** configure `AUTH_BOOTSTRAP_ADMIN_EMAILS` outside git,
-   enroll at least two administrators through Access, and verify on separate
-   devices: sign-in, admin page/API, account listing, session revocation, one
-   reset-link replacement, and a break-glass bootstrap/recovery path. Then use
-   `AUTH_ADMIN_MODE=dual` for an observation period.
+2. **Admin canary:** configure `AUTH_BOOTSTRAP_ADMIN_EMAILS` outside git and
+   enroll the first administrator through Access. Keep Access on the full admin
+   surface, set `AUTH_ADMIN_MODE=dual`, and verify the passkey session, admin
+   page/API, and account listing while Access remains the fallback. Enroll at
+   least one more administrator on a separate device, then verify sign-in,
+   session revocation, one reset-link replacement, and a break-glass
+   bootstrap/recovery path. Observe `dual` mode before proceeding.
 3. **Activator dual mode:** set `AUTH_ACTIVATOR_MODE=dual`. Verify an existing
    private link, an existing legacy browser session, new passkey enrollment,
    and passkey sign-in without rotating the link.
@@ -108,8 +110,9 @@ Do not skip gates.
    fragment consumption, replay rejection, and audit records.
 5. **Unified activators:** after support readiness and telemetry review, set
    `AUTH_ACTIVATOR_MODE=unified`. Keep legacy links enabled as bootstrap.
-6. **Passkey administrators:** only after two administrator passkeys and
-   break-glass recovery are proven, set `AUTH_ADMIN_MODE=passkey`. Narrow
+6. **Passkey administrators:** only after at least two real administrators have
+   tested passkeys and break-glass recovery is proven, set
+   `AUTH_ADMIN_MODE=passkey`. Narrow
    Cloudflare Access to the recovery page only after this gate.
 
 At each stage, verify the public site, volunteer submission, activator portal,

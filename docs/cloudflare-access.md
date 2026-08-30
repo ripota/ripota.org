@@ -26,9 +26,11 @@ administrator authorization mechanism. With `dual`, a current passkey admin
 session is preferred and Access remains the compatibility fallback. Sensitive
 account recovery controls always require a passkey administrator session.
 
-Do not narrow Access when switching to `dual`. Only after at least two real
-administrators have enrolled and tested passkeys plus break-glass recovery may
-`AUTH_ADMIN_MODE` move to `passkey`. At that point, keep Access on at least:
+Do not narrow Access when switching to `dual`. The first enrolled administrator
+may act as the passkey canary because Access remains the compatibility fallback
+across the full admin surface. Only after at least two real administrators have
+enrolled and tested passkeys plus break-glass recovery may `AUTH_ADMIN_MODE`
+move to `passkey`. At that point, keep Access on at least:
 
 - `/activate-ri-2026/admin/recovery*`
 - `/api/activate-ri-2026/admin/auth/access-bootstrap/start`
