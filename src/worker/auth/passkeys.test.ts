@@ -250,7 +250,8 @@ describe("passkey ceremonies", () => {
     expect(state).toEqual({ used_at: null, revoked_at: null });
   });
 
-  it("binds registration to the current user and rotates the session", async () => {
+  it("binds bootstrap registration to the current user while passkey login is disabled", async () => {
+    env.AUTH_ADMIN_MODE = "access";
     const user = await createUserWithVerifiedEmail(env, "user@example.com", "User");
     const enrollment = await createAuthSession(env, {
       userId: user.id,
@@ -289,6 +290,18 @@ describe("passkey ceremonies", () => {
       label: "Phone",
       backedUp: true,
     });
+  });
+
+  it("does not allow an ordinary session to enroll while passkey login is disabled", async () => {
+    env.AUTH_ADMIN_MODE = "access";
+    const user = await createUserWithVerifiedEmail(env, "user@example.com", "User");
+    const session = await createAuthSession(env, {
+      userId: user.id,
+      authenticationMethod: "legacy-session",
+    });
+
+    await expect(registrationOptions(env, authRequest("/registration", session.token)))
+      .rejects.toMatchObject({ message: "Unauthorized.", status: 401 });
   });
 
   it("rejects a registration challenge presented by another user", async () => {

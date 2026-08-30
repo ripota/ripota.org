@@ -126,7 +126,7 @@ export async function verifyAuthentication(
 export async function registrationOptions(env: Env, request: Request): Promise<Record<string, unknown>> {
   const config = getAuthConfig(env, request);
   const context = await getAuthContext(request, env);
-  if (!config.passkeyEnabled || !config.rpId || !config.expectedOrigin || !context) {
+  if (!config.rpId || !config.expectedOrigin || !context || !canRegisterPasskey(config.passkeyEnabled, context.session.purpose)) {
     throw new PasskeyError("Unauthorized.", 401);
   }
   const credentials = await listPasskeys(env, context.user.id);
@@ -163,7 +163,7 @@ export async function verifyRegistration(
 ): Promise<{ cookie: string; expiresAt: string }> {
   const config = getAuthConfig(env, request);
   const context = await getAuthContext(request, env);
-  if (!config.passkeyEnabled || !config.rpId || !config.expectedOrigin || !context) {
+  if (!config.rpId || !config.expectedOrigin || !context || !canRegisterPasskey(config.passkeyEnabled, context.session.purpose)) {
     throw new PasskeyError("Unauthorized.", 401);
   }
   const challenge = await getActiveChallengeById(env, input.challengeId, "registration");
@@ -254,4 +254,8 @@ function base64UrlBytes(value: string): Uint8Array<ArrayBuffer> {
   const padded = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
   const binary = atob(padded);
   return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+}
+
+function canRegisterPasskey(passkeyEnabled: boolean, purpose: "authenticated" | "enrollment" | "recovery"): boolean {
+  return passkeyEnabled || purpose === "enrollment" || purpose === "recovery";
 }
