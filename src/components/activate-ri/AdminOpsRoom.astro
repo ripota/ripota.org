@@ -1,6 +1,7 @@
 ---
 import AdminOpsAnnouncement from "./AdminOpsAnnouncement.astro";
 import AdminOpsBroadcasts from "./AdminOpsBroadcasts.astro";
+import AdminOpsLiveRoom from "./AdminOpsLiveRoom.astro";
 import AdminOpsMembers from "./AdminOpsMembers.astro";
 import AdminOpsModeration from "./AdminOpsModeration.astro";
 ---
@@ -36,6 +37,7 @@ import AdminOpsModeration from "./AdminOpsModeration.astro";
       </div>
       <dl class="admin-ops-metrics" data-admin-ops-summary></dl>
     </section>
+    <AdminOpsLiveRoom />
     <AdminOpsAnnouncement />
   </div>
   <div class="admin-ops-view" data-admin-ops-view="messages" hidden><AdminOpsModeration /></div>

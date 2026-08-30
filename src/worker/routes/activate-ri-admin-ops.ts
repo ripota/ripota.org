@@ -1,4 +1,5 @@
 import {
+  validateOpsMessage,
   validateModerationReason,
   validateOpsAnnouncement,
   validateOpsMembershipPatch,
@@ -13,11 +14,12 @@ import { sendActivatorSecureLinksReplacedEmail } from "../email";
 import { tokenHash } from "../edit-token";
 import type { Env } from "../env";
 import { json, readJson } from "../http";
-import { getOpsAdminState } from "../ops-db";
+import { getOpsAdminState, listOpsEvents } from "../ops-db";
 import {
   disconnectOpsMember,
   getOpsRoomStats,
   moderateOpsMessageThroughRoom,
+  postAdminOpsMessageThroughRoom,
   postOpsAnnouncementThroughRoom,
   updateOpsMemberThroughRoom,
   updateOpsModeThroughRoom,
@@ -44,6 +46,37 @@ export async function handleActivateRiAdminOpsApi(
       getOpsRoomStats(env),
     ]);
     return privateJson({ ok: true, ...state, ...stats });
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/activate-ri-2026/admin/ops/events") {
+    const after = integerQuery(url.searchParams.get("after"));
+    const through = integerQuery(url.searchParams.get("through"));
+    if (after === null || through === null || through < after) {
+      return privateJson({ ok: false, errors: ["Use valid event cursors."] }, { status: 400 });
+    }
+    return privateJson({ ok: true, ...(await listOpsEvents(env, after, through, 250)) });
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/activate-ri-2026/admin/ops/messages") {
+    const payload = await mutationPayload(request, env);
+    if (payload instanceof Response) return payload;
+    const validation = validateOpsMessage(payload);
+    if (!validation.ok || !["chat", "access-note"].includes(validation.ok ? validation.value.kind : "")) {
+      return privateJson(
+        { ok: false, errors: validation.ok ? ["Organizers may post general or park access updates here."] : validation.errors },
+        { status: 400 },
+      );
+    }
+    const normalizedEmail = identity.email.trim().toLowerCase();
+    const actorKey = `admin:${await tokenHash(normalizedEmail)}`;
+    const localPart = normalizedEmail.split("@")[0] || "organizer";
+    return withPrivateHeaders(await postAdminOpsMessageThroughRoom(
+      env,
+      actorKey,
+      `Organizer · ${localPart}`,
+      identity.email,
+      validation.value,
+    ));
   }
 
   if (request.method === "PATCH" && url.pathname === "/api/activate-ri-2026/admin/ops/settings") {
@@ -220,6 +253,12 @@ function decodePathSegment(value: string): string {
   } catch {
     return "";
   }
+}
+
+function integerQuery(value: string | null): number | null {
+  if (value === null || !/^\d+$/.test(value)) return null;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : null;
 }
 
 function privateJson(data: unknown, init: ResponseInit = {}): Response {

@@ -1,0 +1,245 @@
+---
+import references from "../../data/ri-references.json";
+---
+
+<section class="admin-live-room" aria-labelledby="admin-live-room-title" data-admin-live-room>
+  <div class="admin-live-room__header">
+    <div>
+      <p class="eyebrow">Test drive and operate</p>
+      <h3 id="admin-live-room-title">Live room</h3>
+    </div>
+    <span class="admin-live-room__status" data-admin-live-status>Connecting…</span>
+  </div>
+  <ol class="admin-live-feed" data-admin-live-feed aria-live="polite">
+    <li class="admin-live-empty">Loading room messages…</li>
+  </ol>
+  <form class="admin-live-composer" data-admin-live-composer>
+    <label class="sr-only" for="admin-live-message">Message the room as an organizer</label>
+    <textarea id="admin-live-message" name="body" rows="2" maxlength="1000" required placeholder="Message the room as an organizer…"></textarea>
+    <button class="button" data-variant="primary" type="submit">Send</button>
+    <details>
+      <summary>Message options</summary>
+      <div class="admin-live-options">
+        <label>Update type
+          <select name="kind">
+            <option value="chat">General update</option>
+            <option value="access-note">Park access</option>
+          </select>
+        </label>
+        <label>Park context <span>(optional)</span>
+          <select name="parkReference">
+            <option value="">No park context</option>
+            {references.map((reference) => (
+              <option value={reference.reference}>{reference.reference} — {reference.name}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+    </details>
+  </form>
+  <p class="admin-live-room__help">
+    Every organizer on this page joins the real room. Use ordinary messages to rehearse together;
+    reserve announcements and email for actual event-wide guidance.
+  </p>
+</section>
+
+<script>
+  type RoomMode = "full" | "announcements" | "off";
+  type Message = {
+    id: string;
+    kind: string;
+    authorType: "activator" | "admin" | "system";
+    authorLabel: string;
+    body: string;
+    parkReference?: string;
+    createdAt: string;
+    resolved: boolean;
+    removed: boolean;
+  };
+  type RoomEvent =
+    | { sequence: number; type: "message-created"; message: Message }
+    | { sequence: number; type: "message-removed"; messageId: string }
+    | { sequence: number; type: "message-resolved" | "message-reopened"; messageId: string; resolvedAt?: string }
+    | { sequence: number; type: "room-mode-changed"; mode: RoomMode }
+    | { sequence: number; type: "pin-changed" };
+
+  const liveRoom = document.querySelector<HTMLElement>("[data-admin-live-room]");
+  const liveFeed = liveRoom?.querySelector<HTMLOListElement>("[data-admin-live-feed]");
+  const liveStatus = liveRoom?.querySelector<HTMLElement>("[data-admin-live-status]");
+  const liveComposer = liveRoom?.querySelector<HTMLFormElement>("[data-admin-live-composer]");
+  const liveBody = liveComposer?.querySelector<HTMLTextAreaElement>("textarea[name=body]");
+  const liveSend = liveComposer?.querySelector<HTMLButtonElement>("button[type=submit]");
+  const liveMessages = new Map<string, Message>();
+  let liveCursor = 0;
+  let liveMode: RoomMode = "off";
+  let liveSocket: WebSocket | null = null;
+
+  if (liveRoom) void initializeLiveRoom();
+  liveComposer?.addEventListener("submit", (event) => void sendLiveMessage(event));
+
+  async function initializeLiveRoom(): Promise<void> {
+    try {
+      const response = await fetch("/api/activate-ri-2026/admin/ops", { headers: { accept: "application/json" } });
+      const data = await response.json() as {
+        ok?: boolean;
+        settings?: { room_mode?: RoomMode } | null;
+        messages?: Message[];
+        cursor?: number;
+      };
+      if (!response.ok || !data.ok) throw new Error("Unavailable");
+      liveMode = data.settings?.room_mode ?? "off";
+      liveCursor = data.cursor ?? 0;
+      for (const message of (data.messages ?? []).slice().reverse()) liveMessages.set(message.id, message);
+      renderLiveRoom();
+      connectLiveSocket();
+    } catch {
+      setLiveStatus("Room unavailable");
+      disableLiveComposer(true);
+    }
+  }
+
+  function connectLiveSocket(): void {
+    if (liveSocket || document.hidden) return;
+    const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+    liveSocket = new WebSocket(`${protocol}//${location.host}/api/activate-ri-2026/ops/socket`);
+    liveSocket.addEventListener("open", () => setLiveStatus("Live"));
+    liveSocket.addEventListener("message", (event) => void handleLiveEvent(event));
+    liveSocket.addEventListener("close", () => {
+      liveSocket = null;
+      setLiveStatus("Reconnecting…");
+      window.setTimeout(connectLiveSocket, 2000);
+    });
+    liveSocket.addEventListener("error", () => liveSocket?.close());
+  }
+
+  async function handleLiveEvent(event: MessageEvent): Promise<void> {
+    const payload = JSON.parse(String(event.data)) as RoomEvent | {
+      type: "hello";
+      highWatermark: number;
+      roomMode: RoomMode;
+    };
+    if (payload.type === "hello") {
+      if (payload.highWatermark > liveCursor) await catchUpLiveRoom(payload.highWatermark);
+      liveMode = payload.roomMode;
+      renderLiveRoom();
+      return;
+    }
+    if (payload.sequence <= liveCursor) return;
+    if (payload.sequence > liveCursor + 1) await catchUpLiveRoom(payload.sequence - 1);
+    applyLiveEvent(payload);
+  }
+
+  async function catchUpLiveRoom(through: number): Promise<void> {
+    const response = await fetch(`/api/activate-ri-2026/admin/ops/events?after=${liveCursor}&through=${through}`);
+    const data = await response.json() as { ok?: boolean; events?: RoomEvent[]; nextCursor?: number };
+    if (!response.ok || !data.ok) return;
+    for (const event of data.events ?? []) applyLiveEvent(event, false);
+    liveCursor = Math.max(liveCursor, data.nextCursor ?? liveCursor);
+    renderLiveRoom();
+  }
+
+  function applyLiveEvent(event: RoomEvent, render = true): void {
+    liveCursor = Math.max(liveCursor, event.sequence);
+    if (event.type === "message-created") liveMessages.set(event.message.id, event.message);
+    if (event.type === "message-removed") {
+      const message = liveMessages.get(event.messageId);
+      if (message) liveMessages.set(event.messageId, { ...message, body: "", removed: true });
+    }
+    if (event.type === "message-resolved" || event.type === "message-reopened") {
+      const message = liveMessages.get(event.messageId);
+      if (message) liveMessages.set(event.messageId, { ...message, resolved: event.type === "message-resolved" });
+    }
+    if (event.type === "room-mode-changed") liveMode = event.mode;
+    if (render) renderLiveRoom();
+  }
+
+  function renderLiveRoom(): void {
+    if (!liveFeed) return;
+    const messages = [...liveMessages.values()].slice(-50);
+    liveFeed.replaceChildren();
+    if (messages.length === 0) {
+      const item = document.createElement("li");
+      item.className = "admin-live-empty";
+      item.textContent = "No messages yet. Open the room and start a rehearsal with your fellow organizers.";
+      liveFeed.appendChild(item);
+    } else {
+      for (const message of messages) liveFeed.appendChild(liveMessageElement(message));
+      liveFeed.scrollTop = liveFeed.scrollHeight;
+    }
+    setLiveStatus(liveMode === "full" ? "Live" : liveMode === "announcements" ? "Announcements only" : "Room off");
+    disableLiveComposer(liveMode !== "full");
+  }
+
+  function liveMessageElement(message: Message): HTMLLIElement {
+    const item = document.createElement("li");
+    item.className = "admin-live-message";
+    item.dataset.author = message.authorType;
+    const header = document.createElement("div");
+    const author = document.createElement("strong");
+    author.textContent = message.authorLabel;
+    const meta = document.createElement("span");
+    meta.textContent = `${message.kind.replaceAll("-", " ")}${message.parkReference ? ` · ${message.parkReference}` : ""} · ${formatLiveTime(message.createdAt)}`;
+    header.appendChild(author);
+    header.appendChild(meta);
+    const body = document.createElement("p");
+    body.textContent = message.removed ? "Message removed." : message.body;
+    if (message.resolved) item.dataset.resolved = "true";
+    item.appendChild(header);
+    item.appendChild(body);
+    return item;
+  }
+
+  async function sendLiveMessage(event: SubmitEvent): Promise<void> {
+    event.preventDefault();
+    if (!liveComposer || !liveBody || liveMode !== "full") return;
+    const data = new FormData(liveComposer);
+    const body = String(data.get("body") ?? "").trim();
+    if (!body) return;
+    disableLiveComposer(true);
+    setLiveStatus("Sending…");
+    const parkReference = String(data.get("parkReference") ?? "");
+    try {
+      const response = await fetch("/api/activate-ri-2026/admin/ops/messages", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          clientNonce: crypto.randomUUID(),
+          kind: String(data.get("kind") ?? "chat"),
+          body,
+          context: parkReference ? { type: "park", parkReference } : null,
+        }),
+      });
+      if (!response.ok) throw new Error("Unable to send");
+      liveBody.value = "";
+      setLiveStatus("Sent");
+    } catch {
+      setLiveStatus("Could not send");
+    } finally {
+      disableLiveComposer(liveMode !== "full");
+      liveBody.focus();
+    }
+  }
+
+  function disableLiveComposer(disabled: boolean): void {
+    if (liveBody) liveBody.disabled = disabled;
+    if (liveSend) liveSend.disabled = disabled;
+  }
+
+  function setLiveStatus(label: string): void {
+    liveStatus?.replaceChildren(label);
+  }
+
+  function formatLiveTime(value: string): string {
+    const date = new Date(value);
+    return Number.isNaN(date.valueOf()) ? "unknown time" : date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      liveSocket?.close(1000, "Page hidden");
+      liveSocket = null;
+    } else {
+      connectLiveSocket();
+    }
+  });
+</script>

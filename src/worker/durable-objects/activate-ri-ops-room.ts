@@ -1,5 +1,6 @@
 import type { CreateOpsMessageInput, OpsActor, OpsEvent, OpsMembershipStatus } from "../../lib/activate-ri/ops-types";
 import {
+  createAdminOpsMessage,
   createAdminOpsAnnouncement,
   createOpsMessage,
   moderateOpsMessage,
@@ -110,11 +111,13 @@ export class ActivateRiOpsRoom implements DurableObject {
 
   private async createMessage(request: Request): Promise<Response> {
     const actor = actorFromHeaders(request.headers);
-    if (!actor || actor.type !== "activator") {
+    if (!actor) {
       return json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
     const input = await request.json<CreateOpsMessageInput>();
-    const event = await createOpsMessage(this.env, actor, input);
+    const event = actor.type === "activator"
+      ? await createOpsMessage(this.env, actor, input)
+      : await createAdminOpsMessage(this.env, actor.key, actor.label, input);
     if (!event) {
       return json({ ok: false, error: "Message could not be posted" }, { status: 403 });
     }
@@ -263,7 +266,7 @@ function actorFromHeaders(headers: Headers): OpsActor | null {
     const activatorId = headers.get("x-ops-activator-id");
     return activatorId ? { type, activatorId, label } : null;
   }
-  if (type === "admin" && label === "Organizer") {
+  if (type === "admin" && label) {
     const key = headers.get("x-ops-admin-key") ?? "admin";
     return { type, key, label };
   }

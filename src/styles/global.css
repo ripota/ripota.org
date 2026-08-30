@@ -2973,6 +2973,183 @@ p {
   gap: 1.25rem;
 }
 
+.admin-live-room {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.58fr);
+  gap: 0.7rem 1rem;
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--border-subtle));
+  border-radius: 12px;
+  padding: 1rem;
+  background: var(--surface-raised);
+  box-shadow: 0 12px 28px rgb(2 18 17 / 8%);
+}
+
+.admin-live-room__header {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.admin-live-room__header h3 {
+  max-width: none;
+  margin-top: 0.15rem;
+  font-size: 1.35rem;
+}
+
+.admin-live-room__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  padding: 0.3rem 0.55rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.admin-live-room__status::before {
+  width: 0.48rem;
+  height: 0.48rem;
+  border-radius: 999px;
+  background: var(--accent);
+  content: "";
+}
+
+.admin-live-feed {
+  display: grid;
+  min-height: 15rem;
+  max-height: 24rem;
+  align-content: start;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.2rem 0.35rem 0.2rem 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.admin-live-empty {
+  display: grid;
+  min-height: 15rem;
+  place-content: center;
+  border: 1px dashed var(--border-subtle);
+  border-radius: 10px;
+  padding: 1rem;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.admin-live-message {
+  display: grid;
+  gap: 0.28rem;
+  width: min(88%, 40rem);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px 12px 12px 3px;
+  padding: 0.65rem 0.75rem;
+  background: color-mix(in srgb, var(--surface-page) 55%, var(--surface-raised));
+}
+
+.admin-live-message[data-author="admin"] {
+  justify-self: end;
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border-subtle));
+  border-radius: 12px 12px 3px 12px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-raised));
+}
+
+.admin-live-message > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.admin-live-message strong {
+  font-size: 0.8rem;
+}
+
+.admin-live-message span {
+  color: var(--text-muted);
+  font-size: 0.66rem;
+  text-align: right;
+}
+
+.admin-live-message p {
+  color: var(--text-primary);
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
+.admin-live-message[data-resolved="true"] {
+  opacity: 0.65;
+}
+
+.admin-live-composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-content: start;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.admin-live-composer textarea,
+.admin-live-options select {
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid var(--border-subtle);
+  border-radius: 7px;
+  background: var(--surface-page);
+  color: var(--text-primary);
+  padding: 0.65rem;
+  font: inherit;
+}
+
+.admin-live-composer textarea {
+  min-height: 5.2rem;
+  resize: vertical;
+}
+
+.admin-live-composer > .button {
+  align-self: stretch;
+}
+
+.admin-live-composer details {
+  grid-column: 1 / -1;
+}
+
+.admin-live-composer summary {
+  width: fit-content;
+  color: var(--link-strong);
+  cursor: pointer;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.admin-live-options {
+  display: grid;
+  grid-template-columns: minmax(8rem, 0.65fr) minmax(12rem, 1.35fr);
+  gap: 0.5rem;
+  margin-top: 0.45rem;
+}
+
+.admin-live-options label {
+  display: grid;
+  gap: 0.22rem;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.admin-live-room__help {
+  grid-column: 2;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  line-height: 1.4;
+}
+
 .admin-announcement .lead {
   margin-top: 0.3rem;
   font-size: 0.8rem;
@@ -3115,6 +3292,14 @@ p {
   .admin-announcement {
     grid-template-columns: 1fr;
   }
+
+  .admin-live-room {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-live-room__help {
+    grid-column: 1;
+  }
 }
 
 @media (max-width: 680px) {
@@ -3227,6 +3412,35 @@ p {
 
   .admin-announcement .button {
     width: 100%;
+  }
+
+  .admin-live-room {
+    padding: 0.8rem;
+  }
+
+  .admin-live-feed {
+    min-height: 12rem;
+    max-height: 42dvh;
+  }
+
+  .admin-live-empty {
+    min-height: 12rem;
+  }
+
+  .admin-live-composer {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .admin-live-composer textarea {
+    min-height: 4.4rem;
+  }
+
+  .admin-live-composer > .button {
+    width: auto;
+  }
+
+  .admin-live-options {
+    grid-template-columns: 1fr;
   }
 
   .admin-ops-view .admin-card,

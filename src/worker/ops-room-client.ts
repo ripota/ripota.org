@@ -22,6 +22,24 @@ export async function postOpsMessageThroughRoom(
   });
 }
 
+export async function postAdminOpsMessageThroughRoom(
+  env: Env,
+  actorKey: string,
+  actorLabel: string,
+  actorEmail: string,
+  input: CreateOpsMessageInput,
+): Promise<Response> {
+  return opsRoomStub(env).fetch("https://ops.internal/messages", {
+    method: "POST",
+    headers: {
+      ...Object.fromEntries(actorHeaders({ type: "admin", key: actorKey, label: "Organizer" })),
+      "x-ops-admin-email": actorEmail,
+      "x-ops-label": actorLabel,
+    },
+    body: JSON.stringify(input),
+  });
+}
+
 export async function updateOpsModeThroughRoom(
   env: Env,
   roomMode: OpsRoomMode,

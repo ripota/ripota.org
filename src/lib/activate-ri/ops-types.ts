@@ -17,7 +17,7 @@ export type OpsActor =
   | {
       type: "admin";
       key: string;
-      label: "Organizer";
+      label: string;
     };
 
 export type OpsMessageContext =

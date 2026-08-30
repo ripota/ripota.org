@@ -258,6 +258,58 @@ export async function createOpsMessage(
   return getMessageCreatedEvent(env, authorKey, input.clientNonce);
 }
 
+export async function createAdminOpsMessage(
+  env: Env,
+  actorKey: string,
+  actorLabel: string,
+  input: CreateOpsMessageInput,
+  now = new Date().toISOString(),
+): Promise<OpsEvent | null> {
+  if (input.kind !== "chat" && input.kind !== "access-note") {
+    return null;
+  }
+  const parkReference = input.context?.type === "park"
+    ? input.context.parkReference
+    : null;
+  if (input.context?.type === "stop") {
+    return null;
+  }
+  const messageId = crypto.randomUUID();
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT OR IGNORE INTO activate_ri_ops_messages (
+         id, event_id, author_type, author_key, author_label, kind, body,
+         park_reference, client_nonce, created_at
+       )
+       SELECT ?, ?, 'admin', ?, ?, ?, ?, ?, ?, ?
+       WHERE EXISTS (
+         SELECT 1 FROM activate_ri_ops_settings
+         WHERE event_id = ? AND room_mode = 'full'
+       )`,
+    ).bind(
+      messageId,
+      env.ACTIVATE_RI_EVENT_ID,
+      actorKey,
+      actorLabel,
+      input.kind,
+      input.body,
+      parkReference,
+      input.clientNonce,
+      now,
+      env.ACTIVATE_RI_EVENT_ID,
+    ),
+    env.DB.prepare(
+      `INSERT OR IGNORE INTO activate_ri_ops_events (
+         event_id, event_type, message_id, metadata_json, created_at
+       )
+       SELECT event_id, 'message-created', id, '{}', created_at
+       FROM activate_ri_ops_messages
+       WHERE event_id = ? AND author_key = ? AND client_nonce = ?`,
+    ).bind(env.ACTIVATE_RI_EVENT_ID, actorKey, input.clientNonce),
+  ]);
+  return getMessageCreatedEvent(env, actorKey, input.clientNonce);
+}
+
 export async function createAdminOpsAnnouncement(
   env: Env,
   actorKey: string,
@@ -668,8 +720,9 @@ export async function getOpsAdminState(env: Env) {
        FROM activate_ri_ops_events WHERE event_id = ?`,
     ).bind(env.ACTIVATE_RI_EVENT_ID),
   ]);
+  const settingsRow = (settings.results?.[0] ?? null) as SettingsRow | null;
   return {
-    settings: settings.results?.[0] ?? null,
+    settings: settingsRow,
     hardDisabled: env.ACTIVATE_RI_OPS_HARD_DISABLED === "true",
     members: members.results ?? [],
     messages: ((messages.results ?? []) as MessageRow[]).map(toMessageDto),

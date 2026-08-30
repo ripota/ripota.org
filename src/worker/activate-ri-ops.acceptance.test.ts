@@ -197,6 +197,77 @@ describe("Activate RI Ops Room D1 flow", () => {
     expect(membership?.status).toBe("muted");
   });
 
+  it("lets authenticated organizers rehearse in the live room without participant records", async () => {
+    const database = createMigratedSqliteD1();
+    closeDatabase = database.close;
+    const env = testEnv(database.DB);
+
+    const closedPost = await handleActivateRiApi(
+      adminRequest("/api/activate-ri-2026/admin/ops/messages", {
+        method: "POST",
+        headers: jsonHeaders(),
+        body: JSON.stringify({
+          clientNonce: "0af14d67-568f-4955-91be-2ecb367f4c6e",
+          kind: "chat",
+          body: "Sound check before opening.",
+          context: null,
+        }),
+      }),
+      env,
+    );
+    expect(closedPost.status).toBe(403);
+
+    await handleActivateRiApi(
+      adminRequest("/api/activate-ri-2026/admin/ops/settings", {
+        method: "PATCH",
+        headers: jsonHeaders(),
+        body: JSON.stringify({ roomMode: "full" }),
+      }),
+      env,
+    );
+    const posted = await handleActivateRiApi(
+      adminRequest("/api/activate-ri-2026/admin/ops/messages", {
+        method: "POST",
+        headers: jsonHeaders(),
+        body: JSON.stringify({
+          clientNonce: "76759270-b3a3-41ac-9582-c76e80e274d6",
+          kind: "access-note",
+          body: "Organizer test: east entrance is clear.",
+          context: { type: "park", parkReference: "US-2868" },
+        }),
+      }),
+      env,
+    );
+    expect(posted.status).toBe(200);
+    const postedBody = await posted.json() as { event: { sequence: number } };
+
+    const state = await handleActivateRiApi(
+      adminRequest("/api/activate-ri-2026/admin/ops"),
+      env,
+    );
+    await expect(state.json()).resolves.toMatchObject({
+      members: [],
+      messages: [{
+        authorType: "admin",
+        authorLabel: "Organizer · organizer",
+        kind: "access-note",
+        parkReference: "US-2868",
+      }],
+    });
+
+    const events = await handleActivateRiApi(
+      adminRequest(`/api/activate-ri-2026/admin/ops/events?after=0&through=${postedBody.event.sequence}`),
+      env,
+    );
+    await expect(events.json()).resolves.toMatchObject({
+      ok: true,
+      events: [
+        { type: "room-mode-changed", mode: "full" },
+        { type: "message-created", message: { body: "Organizer test: east entrance is clear." } },
+      ],
+    });
+  });
+
   it("enforces exact Origin and the deployment hard-disable", async () => {
     const database = createMigratedSqliteD1();
     closeDatabase = database.close;

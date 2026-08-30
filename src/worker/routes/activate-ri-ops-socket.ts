@@ -3,7 +3,7 @@ import { getActivatorSession } from "../activator-session";
 import { tokenHash } from "../edit-token";
 import type { Env } from "../env";
 import { json } from "../http";
-import { getOpsAccess } from "../ops-db";
+import { getOpsAccess, getOpsAdminState } from "../ops-db";
 import { actorHeaders, opsRoomStub } from "../ops-room-client";
 import { hasTrustedOrigin } from "../origin";
 import { withPrivateHeaders } from "../private-response";
@@ -46,7 +46,9 @@ export async function handleActivateRiOpsSocket(
       key: `admin:${await tokenHash(admin.email.trim().toLowerCase())}`,
       label: "Organizer",
     });
-    headers.set("x-ops-room-mode", "off");
+    const state = await getOpsAdminState(env);
+    const mode = state.hardDisabled ? "off" : state.settings?.room_mode ?? "off";
+    headers.set("x-ops-room-mode", mode);
   }
 
   return opsRoomStub(env).fetch("https://ops.internal/socket", {
