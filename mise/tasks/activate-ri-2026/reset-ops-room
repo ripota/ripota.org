@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; -*-
+#MISE description="Dry-run or reset only Activate RI Ops Room test state"
+#MISE raw=true
+#USAGE flag "--remote" help="Target the deployed D1 database instead of local Wrangler state"
+#USAGE flag "--confirm" help="Reset Ops Room state after all checks pass"
+
+set -euo pipefail
+
+database_name="ripota-org"
+event_id="activate-ri-2026"
+target_label="local"
+target_args=(--local --env local)
+
+if [[ "${usage_remote:-false}" == "true" ]]; then
+  target_label="production"
+  target_args=(--remote --env "")
+fi
+
+counts_sql="
+SELECT
+  (SELECT COUNT(*) FROM activate_ri_ops_messages
+   WHERE event_id = '${event_id}') AS messages,
+  (SELECT COUNT(*) FROM activate_ri_ops_events
+   WHERE event_id = '${event_id}') AS events,
+  (SELECT COUNT(*) FROM activate_ri_ops_email_broadcasts
+   WHERE event_id = '${event_id}') AS broadcasts,
+  (SELECT COUNT(*) FROM activate_ri_ops_email_recipients
+   WHERE broadcast_id IN (
+     SELECT id FROM activate_ri_ops_email_broadcasts WHERE event_id = '${event_id}'
+   )) AS broadcast_recipients,
+  (SELECT COUNT(*) FROM activate_ri_activity_events
+   WHERE event_id = '${event_id}' AND action LIKE 'ops-%') AS ops_activity,
+  (SELECT COUNT(*) FROM activate_ri_activator_sessions
+   WHERE event_id = '${event_id}') AS portal_sessions,
+  (SELECT COUNT(*) FROM activate_ri_ops_memberships
+   WHERE event_id = '${event_id}'
+     AND (status <> 'active' OR accepted_rules_version IS NOT NULL
+          OR moderation_reason <> '')) AS members_needing_reset;
+"
+
+reset_sql="
+DELETE FROM activate_ri_ops_email_recipients
+WHERE broadcast_id IN (
+  SELECT id FROM activate_ri_ops_email_broadcasts WHERE event_id = '${event_id}'
+);
+DELETE FROM activate_ri_ops_email_broadcasts WHERE event_id = '${event_id}';
+DELETE FROM activate_ri_ops_events WHERE event_id = '${event_id}';
+DELETE FROM activate_ri_ops_messages WHERE event_id = '${event_id}';
+DELETE FROM activate_ri_activity_events
+WHERE event_id = '${event_id}' AND action LIKE 'ops-%';
+DELETE FROM activate_ri_activator_sessions WHERE event_id = '${event_id}';
+UPDATE activate_ri_ops_memberships
+SET status = 'active',
+    accepted_rules_version = NULL,
+    accepted_rules_at = NULL,
+    moderation_reason = '',
+    moderated_at = NULL,
+    moderated_by = '',
+    updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+WHERE event_id = '${event_id}';
+UPDATE activate_ri_ops_settings
+SET room_mode = 'off',
+    pinned_message_id = NULL,
+    updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+    updated_by = 'ops-room-prelaunch-reset'
+WHERE event_id = '${event_id}';
+"
+
+echo "Ops Room prelaunch reset target: ${target_label}"
+echo "This preserves activators, plans, stops, edit tokens, and secure links."
+echo "Candidate counts:"
+npx wrangler d1 execute "${database_name}" "${target_args[@]}" --command="${counts_sql}"
+
+mode_json="$(npx wrangler d1 execute "${database_name}" "${target_args[@]}" \
+  --command="SELECT room_mode FROM activate_ri_ops_settings WHERE event_id = '${event_id}';" \
+  --json)"
+room_mode="$(jq -r '.[0].results[0].room_mode // "missing"' <<<"${mode_json}")"
+echo "Current room mode: ${room_mode}"
+
+if [[ "${usage_confirm:-false}" != "true" ]]; then
+  echo "Dry run only. Set the room to off, then add --confirm to reset this target."
+  exit 0
+fi
+
+if [[ "${room_mode}" != "off" ]]; then
+  echo "Refusing to reset while the room mode is '${room_mode}'. Set it to off first." >&2
+  exit 65
+fi
+
+if [[ "${usage_remote:-false}" == "true" ]]; then
+  echo "Checking Cloudflare Wrangler authentication."
+  npx wrangler whoami
+  mise run backup-production
+fi
+
+echo "Resetting only Ops Room test state in ${target_label}."
+npx wrangler d1 execute "${database_name}" "${target_args[@]}" --command="${reset_sql}"
+
+echo "Counts after reset:"
+npx wrangler d1 execute "${database_name}" "${target_args[@]}" --command="${counts_sql}"
+echo "Ops Room test state is clean and the room remains off."

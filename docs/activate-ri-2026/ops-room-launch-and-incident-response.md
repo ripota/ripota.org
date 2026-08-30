@@ -31,11 +31,41 @@ editing, and the public schedule operate independently of the room.
    exposing a credential in a request path after exchange.
 4. Verify an activator can edit a plan while the room is off.
 5. Set the rules and opening announcement before admitting participants.
-6. Soft-launch to selected mobile and desktop participants. Exercise reconnect,
-   pin, remove, mute, ban, session revoke, and secure-link replacement.
+6. Test-drive with fellow organizers in the admin console's **Live room** first.
+   Use separate mobile and desktop browsers, open the room in `full` mode, and
+   exercise realtime chat, reconnect, park context, announcements, pin, remove,
+   mute, ban, session revoke, and secure-link replacement. Then invite a small
+   set of activators through their normal secure links to validate their view.
 7. Test one explicit announcement email, its recipient count, BCC batching, and
    failed-recipient retry.
 8. Move to `announcements` or `full` only after the soft launch succeeds.
+
+## Prelaunch test cleanup
+
+The organizer Live room uses the real room and deliberately does not create fake
+activators or memberships. After the rehearsal, set the room mode to `off` and
+preview the cleanup locally or in production:
+
+```bash
+mise run activate-ri-2026:reset-ops-room
+mise run activate-ri-2026:reset-ops-room -- --remote
+```
+
+The task prints candidate counts and makes no changes without `--confirm`. A
+confirmed production reset first creates a D1 backup and refuses to run unless
+the room is already off. It deletes Ops messages, events, broadcasts, recipients,
+Ops audit activity, and portal sessions; clears rule acceptance and test
+moderation state; and leaves the room off. It preserves activators, plans, stops,
+edit tokens, and secure links.
+
+To perform the production cleanup after reviewing the preview:
+
+```bash
+mise run activate-ri-2026:reset-ops-room -- --remote --confirm
+```
+
+Ask testers to close or refresh their room tabs afterward. Device-local drafts
+are intentionally not server records and can be discarded in the room composer.
 
 ## Incident controls
 

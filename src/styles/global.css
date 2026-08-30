@@ -3370,6 +3370,16 @@ p {
     display: none;
   }
 
+  .admin-view .admin-panel__header .button {
+    flex: 0 0 auto;
+    width: auto;
+  }
+
+  .admin-view .admin-panel__header h2 {
+    font-size: 1.6rem;
+    white-space: nowrap;
+  }
+
   .admin-ops-tabs {
     padding-bottom: 0.3rem;
     overflow-x: auto;
@@ -3377,6 +3387,8 @@ p {
 
   .admin-ops-tabs button {
     flex: 0 0 auto;
+    padding-inline: 0.55rem;
+    font-size: 0.78rem;
   }
 
   .admin-room-control,
