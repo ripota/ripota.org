@@ -1,0 +1,37 @@
+<section class="ops-card ops-composer-card" aria-labelledby="ops-composer-title">
+  <p class="eyebrow">Send an update</p>
+  <h2 id="ops-composer-title">Message the room</h2>
+  <form class="ops-composer" data-ops-composer>
+    <label>
+      Message type
+      <select name="kind" data-ops-kind>
+        <option value="chat">General coordination</option>
+        <option value="access-note">Park access note</option>
+        <option value="running-late">Running late</option>
+        <option value="need-backup">Need backup</option>
+      </select>
+    </label>
+    <label>
+      Park or stop context
+      <select name="context" data-ops-context>
+        <option value="">No park context</option>
+      </select>
+    </label>
+    <label>
+      Message
+      <textarea name="body" rows="4" maxlength="1000" required data-ops-body></textarea>
+    </label>
+    <p class="ops-compose-note">
+      Plain text only. Do not share private contact information. This room is
+      not continuously monitored and is not for emergencies.
+    </p>
+    <div class="form-actions">
+      <button class="button" data-variant="primary" type="submit" data-ops-send>Send</button>
+      <span class="ops-send-state" data-ops-send-state aria-live="polite"></span>
+    </div>
+  </form>
+  <div class="ops-unsent" data-ops-unsent hidden>
+    <strong>Not sent</strong>
+    <p>Your draft is saved on this device. Review it and press Send after you reconnect.</p>
+  </div>
+</section>

@@ -1,5 +1,6 @@
 ---
 import ActivatorPortalNav from "../../../components/activate-ri/ActivatorPortalNav.astro";
+import ActivatorOpsRoom from "../../../components/activate-ri/ActivatorOpsRoom.astro";
 import Footer from "../../../components/Footer.astro";
 import Notice from "../../../components/Notice.astro";
 import SiteHeader from "../../../components/SiteHeader.astro";
@@ -20,13 +21,11 @@ import BaseLayout from "../../../layouts/BaseLayout.astro";
           <p class="eyebrow">Private activator portal</p>
           <h1 id="portal-title">Activator Ops Room</h1>
           <p class="lead">
-            Event coordination will appear here when organizers open the room.
-            Your plan editor remains available now.
+            Coordinate park access, delays, and backup coverage with approved
+            activators and organizers. This room is not for emergencies.
           </p>
-          <a class="button" data-variant="primary" href="/activate-ri-2026/activators/plan/">
-            Open my plan
-          </a>
         </div>
+        <ActivatorOpsRoom />
       </div>
     </section>
     <Notice />

@@ -1,0 +1,22 @@
+<section class="ops-card ops-feed-card" aria-labelledby="ops-feed-title">
+  <div class="ops-card__heading">
+    <div>
+      <p class="eyebrow">Event coordination</p>
+      <h2 id="ops-feed-title">Operations feed</h2>
+    </div>
+    <button class="button" data-variant="light" type="button" data-ops-refresh>
+      Refresh
+    </button>
+  </div>
+  <fieldset class="ops-filters" data-ops-filters>
+    <legend>Show messages</legend>
+    <label><input type="radio" name="ops-filter" value="all" checked /> All</label>
+    <label><input type="radio" name="ops-filter" value="announcement" /> Announcements</label>
+    <label><input type="radio" name="ops-filter" value="need-backup" /> Backup</label>
+    <label><input type="radio" name="ops-filter" value="access-note" /> Access</label>
+    <label><input type="radio" name="ops-filter" value="my-parks" /> My parks</label>
+  </fieldset>
+  <ol class="ops-feed" data-ops-feed aria-live="polite" aria-relevant="additions text">
+    <li class="ops-empty">Loading room history…</li>
+  </ol>
+</section>

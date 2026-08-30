@@ -25,6 +25,7 @@ const links = [
 <script>
   document.querySelector<HTMLButtonElement>("[data-activator-logout]")
     ?.addEventListener("click", async () => {
+      window.dispatchEvent(new Event("activate-ri:logout"));
       await fetch("/api/activate-ri-2026/activator/session", {
         method: "DELETE",
         headers: { accept: "application/json" },

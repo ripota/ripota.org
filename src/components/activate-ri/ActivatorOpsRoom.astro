@@ -1,0 +1,758 @@
+---
+import references from "../../data/ri-references.json";
+import OpsComposer from "./OpsComposer.astro";
+import OpsConnectionStatus from "./OpsConnectionStatus.astro";
+import OpsFeed from "./OpsFeed.astro";
+import OpsPinnedAnnouncement from "./OpsPinnedAnnouncement.astro";
+import OpsUpcomingStops from "./OpsUpcomingStops.astro";
+
+const parkNames = Object.fromEntries(
+  references.map((reference) => [reference.reference, reference.name]),
+);
+---
+
+<div class="ops-room" data-ops-room data-park-names={JSON.stringify(parkNames)}>
+  <OpsConnectionStatus />
+  <div class="ops-room__layout">
+    <div class="ops-room__main">
+      <OpsPinnedAnnouncement />
+      <OpsFeed />
+    </div>
+    <aside class="ops-room__sidebar">
+      <OpsUpcomingStops />
+      <OpsComposer />
+    </aside>
+  </div>
+
+  <dialog class="ops-rules" data-ops-rules aria-labelledby="ops-rules-title">
+    <form method="dialog" data-ops-rules-form>
+      <p class="eyebrow">Before entering</p>
+      <h2 id="ops-rules-title">Activator Ops Room rules</h2>
+      <ul>
+        <li>The room is visible to approved activators and organizers.</li>
+        <li>Messages are stored and may be moderated.</li>
+        <li>Do not publish private contact information.</li>
+        <li>The room is not continuously monitored and is not for emergencies.</li>
+        <li>Never interact with the room while driving.</li>
+        <li>Official POTA resources remain authoritative for rules, references, spots, and logs.</li>
+      </ul>
+      <p class="form-status" data-ops-rules-status aria-live="polite"></p>
+      <div class="form-actions">
+        <button class="button" data-variant="primary" value="accept" type="submit">
+          I understand and agree
+        </button>
+        <a class="button" data-variant="light" href="/activate-ri-2026/activators/plan/">
+          Leave the room
+        </a>
+      </div>
+    </form>
+  </dialog>
+</div>
+
+<script>
+  type RoomMode = "full" | "announcements" | "off";
+  type MembershipStatus = "active" | "muted" | "banned";
+  type MessageKind = "chat" | "access-note" | "running-late" | "need-backup" | "announcement" | "system";
+  type Message = {
+    id: string;
+    kind: MessageKind;
+    authorType: "activator" | "admin" | "system";
+    authorLabel: string;
+    authorActivatorId?: string;
+    body: string;
+    parkReference?: string;
+    stopId?: string;
+    createdAt: string;
+    resolved: boolean;
+    resolvedAt?: string;
+    removed: boolean;
+    removedAt?: string;
+    removedBy?: "author" | "organizer";
+  };
+  type Stop = { id: string; parkReference: string; startAt: string; endAt: string };
+  type RoomEvent =
+    | { sequence: number; type: "message-created"; message: Message }
+    | { sequence: number; type: "message-removed"; messageId: string; removedAt: string; removedBy: "author" | "organizer" }
+    | { sequence: number; type: "message-resolved" | "message-reopened"; messageId: string; resolvedAt?: string }
+    | { sequence: number; type: "pin-changed"; pinnedMessage: Message | null }
+    | { sequence: number; type: "room-mode-changed"; mode: RoomMode };
+  type Bootstrap = {
+    ok: true;
+    membership: { status: MembershipStatus; acceptedRulesVersion?: string; acceptedRulesAt?: string };
+    rulesVersion: string;
+    roomMode: RoomMode;
+    pinnedMessage: Message | null;
+    messages: Message[];
+    upcomingStops: Stop[];
+    cursor: number;
+  };
+  type Draft = { clientNonce: string; kind: string; context: string; body: string };
+
+  const room = document.querySelector<HTMLElement>("[data-ops-room]");
+  const connection = room?.querySelector<HTMLElement>("[data-ops-connection]");
+  const connectionLabel = room?.querySelector<HTMLElement>("[data-ops-connection-label]");
+  const feed = room?.querySelector<HTMLOListElement>("[data-ops-feed]");
+  const filters = room?.querySelector<HTMLElement>("[data-ops-filters]");
+  const stopsElement = room?.querySelector<HTMLElement>("[data-ops-stops]");
+  const composer = room?.querySelector<HTMLFormElement>("[data-ops-composer]");
+  const kindSelect = room?.querySelector("[data-ops-kind]") as HTMLSelectElement | null | undefined;
+  const contextSelect = room?.querySelector("[data-ops-context]") as HTMLSelectElement | null | undefined;
+  const bodyInput = room?.querySelector<HTMLTextAreaElement>("[data-ops-body]");
+  const sendButton = room?.querySelector<HTMLButtonElement>("[data-ops-send]");
+  const sendState = room?.querySelector<HTMLElement>("[data-ops-send-state]");
+  const unsent = room?.querySelector<HTMLElement>("[data-ops-unsent]");
+  const pin = room?.querySelector<HTMLElement>("[data-ops-pin]");
+  const pinBody = room?.querySelector<HTMLElement>("[data-ops-pin-body]");
+  const pinMeta = room?.querySelector<HTMLElement>("[data-ops-pin-meta]");
+  const rulesDialog = room?.querySelector<HTMLDialogElement>("[data-ops-rules]");
+  const rulesForm = room?.querySelector<HTMLFormElement>("[data-ops-rules-form]");
+  const rulesStatus = room?.querySelector<HTMLElement>("[data-ops-rules-status]");
+  const parkNames = JSON.parse(room?.dataset.parkNames ?? "{}") as Record<string, string>;
+  const messages = new Map<string, Message>();
+  const socketEvents: RoomEvent[] = [];
+  const retryDelays = [1_000, 2_000, 5_000, 10_000, 30_000, 60_000];
+  const cursorKey = "activate-ri-ops-cursor";
+  const filterKey = "activate-ri-ops-filter";
+  let activatorId = "";
+  let upcomingStops: Stop[] = [];
+  let pinnedMessage: Message | null = null;
+  let membershipStatus: MembershipStatus = "active";
+  let roomMode: RoomMode = "off";
+  let cursor = 0;
+  let socket: WebSocket | null = null;
+  let syncing = false;
+  let retryAttempt = 0;
+  let retryTimer: number | undefined;
+  let hiddenCloseTimer: number | undefined;
+  let intentionalClose = false;
+  let lastSynchronizedAt: Date | null = null;
+
+  if (room) {
+    void initialize();
+  }
+
+  async function initialize(): Promise<void> {
+    restoreFilter();
+    await loadRoom();
+    await restoreDraft();
+  }
+
+  async function loadRoom(): Promise<void> {
+    window.clearTimeout(retryTimer);
+    closeSocket(true);
+    setConnection("loading", "Connecting…");
+    try {
+      const [sessionResponse, bootstrapResponse] = await Promise.all([
+        fetch("/api/activate-ri-2026/activator/session", { headers: { accept: "application/json" } }),
+        fetch("/api/activate-ri-2026/ops/bootstrap", { headers: { accept: "application/json" } }),
+      ]);
+      if (sessionResponse.status === 401) {
+        window.location.replace("/activate-ri-2026/access/");
+        return;
+      }
+      if (!bootstrapResponse.ok) {
+        setConnection("unavailable", bootstrapResponse.status === 503
+          ? "Room unavailable"
+          : "You do not currently have Ops Room access");
+        disableComposer(true);
+        feed?.replaceChildren(emptyItem("The room is not available. Your plan editor still works."));
+        return;
+      }
+      const sessionBody = await sessionResponse.json() as { activator?: { id?: string } };
+      const data = await bootstrapResponse.json() as Bootstrap;
+      activatorId = sessionBody.activator?.id ?? "";
+      membershipStatus = data.membership.status;
+      roomMode = data.roomMode;
+      upcomingStops = data.upcomingStops;
+      pinnedMessage = data.pinnedMessage;
+      messages.clear();
+      data.messages.forEach((message) => messages.set(message.id, message));
+      cursor = data.cursor;
+      localStorage.setItem(cursorKey, String(cursor));
+      renderAll();
+      if (data.membership.acceptedRulesVersion !== data.rulesVersion) {
+        rulesDialog?.showModal();
+      }
+      connectSocket();
+    } catch {
+      setConnection("offline", offlineLabel());
+      disableComposer(false);
+      scheduleReconnect();
+    }
+  }
+
+  function connectSocket(): void {
+    if (document.hidden || !navigator.onLine || socket || roomMode === "off") {
+      return;
+    }
+    intentionalClose = false;
+    setConnection("reconnecting", retryAttempt === 0 ? "Connecting…" : "Reconnecting");
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    socket = new WebSocket(`${protocol}//${window.location.host}/api/activate-ri-2026/ops/socket`);
+    socket.addEventListener("message", (event) => void handleSocketMessage(event));
+    socket.addEventListener("close", () => {
+      socket = null;
+      if (intentionalClose || document.hidden || roomMode === "off") {
+        return;
+      }
+      setConnection(navigator.onLine ? "reconnecting" : "offline", offlineLabel());
+      scheduleReconnect();
+    });
+    socket.addEventListener("error", () => socket?.close());
+  }
+
+  async function handleSocketMessage(raw: MessageEvent): Promise<void> {
+    let payload: unknown;
+    try {
+      payload = JSON.parse(String(raw.data));
+    } catch {
+      socket?.close(1002, "Invalid event");
+      return;
+    }
+    if (isHello(payload)) {
+      syncing = true;
+      await catchUp(cursor, payload.highWatermark);
+      for (const event of socketEvents.sort((a, b) => a.sequence - b.sequence)) {
+        applyEvent(event);
+      }
+      socketEvents.length = 0;
+      syncing = false;
+      retryAttempt = 0;
+      markSynchronized();
+      updateRoomMode(payload.roomMode);
+      return;
+    }
+    if (!isRoomEvent(payload)) {
+      socket?.close(1002, "Invalid event");
+      return;
+    }
+    if (syncing) {
+      socketEvents.push(payload);
+      return;
+    }
+    if (payload.sequence > cursor + 1) {
+      syncing = true;
+      socketEvents.push(payload);
+      await catchUp(cursor, payload.sequence - 1);
+      for (const event of socketEvents.sort((a, b) => a.sequence - b.sequence)) {
+        applyEvent(event);
+      }
+      socketEvents.length = 0;
+      syncing = false;
+      markSynchronized();
+      return;
+    }
+    applyEvent(payload);
+    markSynchronized();
+  }
+
+  async function catchUp(after: number, through: number): Promise<void> {
+    let next = after;
+    while (next < through) {
+      const response = await fetch(
+        `/api/activate-ri-2026/ops/events?after=${next}&through=${through}&limit=250`,
+        { headers: { accept: "application/json" } },
+      );
+      if (!response.ok) {
+        throw new Error("Catch-up failed");
+      }
+      const page = await response.json() as {
+        events: RoomEvent[];
+        nextCursor: number;
+        hasMore: boolean;
+        resetRequired?: boolean;
+      };
+      if (page.resetRequired) {
+        await loadRoom();
+        return;
+      }
+      page.events.forEach(applyEvent);
+      next = page.nextCursor;
+      if (!page.hasMore) {
+        break;
+      }
+    }
+  }
+
+  function applyEvent(event: RoomEvent): void {
+    if (event.sequence <= cursor) {
+      return;
+    }
+    if (event.type === "message-created") {
+      messages.set(event.message.id, event.message);
+    } else if (event.type === "message-removed") {
+      const message = messages.get(event.messageId);
+      if (message) {
+        messages.set(event.messageId, {
+          ...message,
+          body: "",
+          removed: true,
+          removedAt: event.removedAt,
+          removedBy: event.removedBy,
+        });
+      }
+    } else if (event.type === "message-resolved" || event.type === "message-reopened") {
+      const message = messages.get(event.messageId);
+      if (message) {
+        messages.set(event.messageId, {
+          ...message,
+          resolved: event.type === "message-resolved",
+          resolvedAt: event.resolvedAt,
+        });
+      }
+    } else if (event.type === "pin-changed") {
+      pinnedMessage = event.pinnedMessage;
+    } else if (event.type === "room-mode-changed") {
+      updateRoomMode(event.mode);
+    }
+    cursor = event.sequence;
+    localStorage.setItem(cursorKey, String(cursor));
+    renderFeed();
+    renderPin();
+  }
+
+  function renderAll(): void {
+    renderStops();
+    renderContexts();
+    renderFeed();
+    renderPin();
+    updateRoomMode(roomMode);
+  }
+
+  function renderStops(): void {
+    if (!stopsElement) return;
+    stopsElement.replaceChildren();
+    if (upcomingStops.length === 0) {
+      stopsElement.appendChild(emptyParagraph("No upcoming scheduled stops. Open your plan editor to review your itinerary."));
+      return;
+    }
+    upcomingStops.forEach((stop, index) => {
+      const card = document.createElement("article");
+      card.className = "ops-stop";
+      if (index === 0) card.dataset.next = "true";
+      const heading = document.createElement("h3");
+      heading.textContent = stopLabel(stop);
+      const actions = document.createElement("div");
+      actions.className = "ops-quick-actions";
+      actions.appendChild(quickAction("Running late", "running-late", stop.id));
+      actions.appendChild(quickAction("Need backup", "need-backup", stop.id));
+      actions.appendChild(quickAction("Access problem", "access-note", stop.id));
+      card.appendChild(heading);
+      card.appendChild(actions);
+      stopsElement.appendChild(card);
+    });
+  }
+
+  function renderContexts(): void {
+    if (!contextSelect) return;
+    const selected = contextSelect.value;
+    contextSelect.replaceChildren();
+    contextSelect.appendChild(new Option("No park context", ""));
+    const stopGroup = document.createElement("optgroup");
+    stopGroup.label = "My upcoming stops";
+    upcomingStops.forEach((stop) => stopGroup.appendChild(new Option(stopLabel(stop), `stop:${stop.id}`)));
+    contextSelect.appendChild(stopGroup);
+    const parkGroup = document.createElement("optgroup");
+    parkGroup.label = "Rhode Island parks";
+    Object.entries(parkNames).forEach(([reference, name]) => {
+      parkGroup.appendChild(new Option(`${reference} — ${name}`, `park:${reference}`));
+    });
+    contextSelect.appendChild(parkGroup);
+    if ([...contextSelect.options].some((option) => option.value === selected)) {
+      contextSelect.value = selected;
+    }
+  }
+
+  function renderFeed(): void {
+    if (!feed) return;
+    const nearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 80;
+    const previousHeight = feed.scrollHeight;
+    const filter = selectedFilter();
+    const myParks = new Set(upcomingStops.map((stop) => stop.parkReference));
+    const visible = [...messages.values()].filter((message) => {
+      if (filter === "all") return true;
+      if (filter === "my-parks") return Boolean(message.parkReference && myParks.has(message.parkReference));
+      return message.kind === filter;
+    });
+    feed.replaceChildren();
+    if (visible.length === 0) {
+      feed.appendChild(emptyItem("No messages match this filter."));
+      return;
+    }
+    visible.forEach((message) => feed.appendChild(messageItem(message)));
+    if (nearBottom) {
+      feed.scrollTop = feed.scrollHeight;
+    } else {
+      feed.scrollTop += feed.scrollHeight - previousHeight;
+    }
+  }
+
+  function messageItem(message: Message): HTMLLIElement {
+    const item = document.createElement("li");
+    item.className = `ops-message ops-message--${message.kind}`;
+    const header = document.createElement("div");
+    header.className = "ops-message__header";
+    const author = document.createElement("strong");
+    author.textContent = message.authorType === "admin" ? "Organizer" : message.authorLabel;
+    const meta = document.createElement("span");
+    meta.textContent = `${kindLabel(message.kind)} · ${formatTimestamp(message.createdAt)}`;
+    header.appendChild(author);
+    header.appendChild(meta);
+    const body = document.createElement("p");
+    body.className = "ops-message__body";
+    body.textContent = message.removed ? "Message removed." : message.body;
+    item.appendChild(header);
+    item.appendChild(body);
+    if (message.parkReference) {
+      const context = document.createElement("p");
+      context.className = "ops-meta";
+      context.textContent = `${message.parkReference} — ${parkNames[message.parkReference] ?? "RI park"}`;
+      item.appendChild(context);
+    }
+    if (message.resolved) {
+      const resolved = document.createElement("span");
+      resolved.className = "ops-badge";
+      resolved.textContent = "Resolved";
+      item.appendChild(resolved);
+    }
+    if (!message.removed && message.authorActivatorId === activatorId) {
+      const actions = document.createElement("div");
+      actions.className = "ops-message__actions";
+      if (message.kind === "need-backup" || message.kind === "access-note") {
+        actions.appendChild(messageAction(message, message.resolved ? "Reopen" : "Resolve", message.resolved ? "reopen" : "resolve"));
+      }
+      actions.appendChild(messageAction(message, "Remove", "remove"));
+      item.appendChild(actions);
+    }
+    return item;
+  }
+
+  function renderPin(): void {
+    if (!pin || !pinBody || !pinMeta) return;
+    if (!pinnedMessage || pinnedMessage.removed) {
+      pin.hidden = true;
+      return;
+    }
+    pin.hidden = false;
+    pinBody.textContent = pinnedMessage.body;
+    pinMeta.textContent = `Organizer · ${formatTimestamp(pinnedMessage.createdAt)}${
+      pinnedMessage.parkReference ? ` · ${pinnedMessage.parkReference} — ${parkNames[pinnedMessage.parkReference] ?? "RI park"}` : ""
+    }`;
+  }
+
+  function updateRoomMode(mode: RoomMode): void {
+    roomMode = mode;
+    disableComposer(mode !== "full" || membershipStatus !== "active");
+    if (mode === "announcements") {
+      setConnection("announcements", "Announcements only");
+    } else if (mode === "off") {
+      setConnection("unavailable", "Room unavailable");
+      closeSocket(true);
+    }
+  }
+
+  composer?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!kindSelect || !contextSelect || !bodyInput || !bodyInput.value.trim()) return;
+    const draft: Draft = {
+      clientNonce: composer.dataset.clientNonce || crypto.randomUUID(),
+      kind: kindSelect.value,
+      context: contextSelect.value,
+      body: bodyInput.value,
+    };
+    composer.dataset.clientNonce = draft.clientNonce;
+    if (!navigator.onLine || socket?.readyState !== WebSocket.OPEN) {
+      await saveDraft(draft);
+      showUnsent("Not sent — review this draft after reconnecting.");
+      return;
+    }
+    setSendState("Sending…");
+    sendButton && (sendButton.disabled = true);
+    try {
+      const response = await fetch("/api/activate-ri-2026/ops/messages", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          clientNonce: draft.clientNonce,
+          kind: draft.kind,
+          body: draft.body,
+          context: contextPayload(draft.context),
+        }),
+      });
+      const result = await response.json() as { event?: RoomEvent; error?: string; errors?: string[] };
+      if (!response.ok || !result.event) {
+        await saveDraft(draft);
+        showUnsent(result.errors?.join(" ") ?? result.error ?? "Not sent.");
+        return;
+      }
+      applyEvent(result.event);
+      bodyInput.value = "";
+      delete composer.dataset.clientNonce;
+      await clearDraft();
+      unsent && (unsent.hidden = true);
+      setSendState("Sent");
+    } catch {
+      await saveDraft(draft);
+      showUnsent("Not sent — check your connection and review before retrying.");
+    } finally {
+      sendButton && (sendButton.disabled = false);
+    }
+  });
+
+  rulesForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    rulesStatus?.replaceChildren("Saving acknowledgement…");
+    const response = await fetch("/api/activate-ri-2026/ops/rules/accept", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+    if (!response.ok) {
+      rulesStatus?.replaceChildren("Unable to save acknowledgement. Please try again.");
+      return;
+    }
+    rulesDialog?.close();
+    rulesStatus?.replaceChildren();
+  });
+
+  filters?.addEventListener("change", () => {
+    localStorage.setItem(filterKey, selectedFilter());
+    renderFeed();
+  });
+
+  room?.querySelector("[data-ops-refresh]")?.addEventListener("click", () => void loadRoom());
+
+  document.addEventListener("visibilitychange", () => {
+    window.clearTimeout(hiddenCloseTimer);
+    if (document.hidden) {
+      setConnection("paused", "Paused while in background");
+      hiddenCloseTimer = window.setTimeout(() => closeSocket(true), 30_000);
+    } else {
+      connectSocket();
+    }
+  });
+  window.addEventListener("offline", () => setConnection("offline", offlineLabel()));
+  window.addEventListener("online", connectSocket);
+  window.addEventListener("beforeunload", () => closeSocket(true));
+  window.addEventListener("activate-ri:logout", () => {
+    localStorage.removeItem(cursorKey);
+    localStorage.removeItem(filterKey);
+    void clearDraft();
+    closeSocket(true);
+  });
+
+  function quickAction(label: string, kind: string, stopId: string): HTMLButtonElement {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "button";
+    button.dataset.variant = "light";
+    button.textContent = label;
+    button.addEventListener("click", () => {
+      if (kindSelect) kindSelect.value = kind;
+      if (contextSelect) contextSelect.value = `stop:${stopId}`;
+      bodyInput?.focus();
+    });
+    return button;
+  }
+
+  function messageAction(message: Message, label: string, action: string): HTMLButtonElement {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "button";
+    button.dataset.variant = "light";
+    button.textContent = label;
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      try {
+        const response = await fetch(`/api/activate-ri-2026/ops/messages/${encodeURIComponent(message.id)}/${action}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: "{}",
+        });
+        const result = await response.json() as { event?: RoomEvent };
+        if (response.ok && result.event) applyEvent(result.event);
+      } finally {
+        button.disabled = false;
+      }
+    });
+    return button;
+  }
+
+  function contextPayload(value: string): null | { type: "stop"; stopId: string } | { type: "park"; parkReference: string } {
+    if (value.startsWith("stop:")) return { type: "stop", stopId: value.slice(5) };
+    if (value.startsWith("park:")) return { type: "park", parkReference: value.slice(5) };
+    return null;
+  }
+
+  function stopLabel(stop: Stop): string {
+    const start = new Date(stop.startAt);
+    const end = new Date(stop.endAt);
+    const date = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      weekday: "short",
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(start);
+    const endTime = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(end);
+    return `${stop.parkReference} — ${parkNames[stop.parkReference] ?? "RI park"} — ${date}–${endTime}`;
+  }
+
+  function formatTimestamp(value: string): string {
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(new Date(value));
+  }
+
+  function kindLabel(kind: MessageKind): string {
+    return ({
+      chat: "Coordination",
+      "access-note": "Access note",
+      "running-late": "Running late",
+      "need-backup": "Backup needed",
+      announcement: "Announcement",
+      system: "System",
+    } as Record<MessageKind, string>)[kind];
+  }
+
+  function selectedFilter(): string {
+    return room?.querySelector<HTMLInputElement>('input[name="ops-filter"]:checked')?.value ?? "all";
+  }
+
+  function restoreFilter(): void {
+    const saved = localStorage.getItem(filterKey);
+    const input = saved
+      ? room?.querySelector<HTMLInputElement>(`input[name="ops-filter"][value="${CSS.escape(saved)}"]`)
+      : null;
+    if (input) input.checked = true;
+  }
+
+  function setConnection(state: string, label: string): void {
+    if (connection) connection.dataset.state = state;
+    connectionLabel?.replaceChildren(label);
+  }
+
+  function markSynchronized(): void {
+    lastSynchronizedAt = new Date();
+    setConnection(roomMode === "announcements" ? "announcements" : "live",
+      roomMode === "announcements" ? "Announcements only" : "Live");
+  }
+
+  function offlineLabel(): string {
+    return lastSynchronizedAt
+      ? `Offline — last synchronized at ${lastSynchronizedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
+      : "Offline";
+  }
+
+  function disableComposer(disabled: boolean): void {
+    const controls = Array.from(
+      composer?.querySelectorAll("input, select, textarea, button") ?? [],
+    ) as Array<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | HTMLButtonElement>;
+    controls.forEach((control) => control.disabled = disabled);
+    if (disabled && sendState) {
+      sendState.textContent = membershipStatus === "muted"
+        ? "You can read the room, but posting is muted."
+        : roomMode === "announcements"
+        ? "Participant posting is paused."
+        : "Posting unavailable.";
+    }
+  }
+
+  function setSendState(value: string): void {
+    sendState?.replaceChildren(value);
+  }
+
+  function showUnsent(value: string): void {
+    setSendState(value);
+    if (unsent) unsent.hidden = false;
+  }
+
+  function scheduleReconnect(): void {
+    window.clearTimeout(retryTimer);
+    if (document.hidden || !navigator.onLine || roomMode === "off") return;
+    const base = retryDelays[Math.min(retryAttempt, retryDelays.length - 1)];
+    const jitter = Math.round(base * (Math.random() * 0.3 - 0.15));
+    retryAttempt += 1;
+    retryTimer = window.setTimeout(connectSocket, base + jitter);
+  }
+
+  function closeSocket(intentional: boolean): void {
+    intentionalClose = intentional;
+    socket?.close(1000, "Paused");
+    socket = null;
+  }
+
+  function emptyItem(text: string): HTMLLIElement {
+    const item = document.createElement("li");
+    item.className = "ops-empty";
+    item.textContent = text;
+    return item;
+  }
+
+  function emptyParagraph(text: string): HTMLParagraphElement {
+    const paragraph = document.createElement("p");
+    paragraph.className = "ops-empty";
+    paragraph.textContent = text;
+    return paragraph;
+  }
+
+  function isHello(value: unknown): value is { type: "hello"; highWatermark: number; roomMode: RoomMode } {
+    return typeof value === "object" && value !== null &&
+      (value as { type?: unknown }).type === "hello" &&
+      Number.isSafeInteger((value as { highWatermark?: unknown }).highWatermark) &&
+      ["full", "announcements", "off"].includes(String((value as { roomMode?: unknown }).roomMode));
+  }
+
+  function isRoomEvent(value: unknown): value is RoomEvent {
+    return typeof value === "object" && value !== null &&
+      Number.isSafeInteger((value as { sequence?: unknown }).sequence) &&
+      typeof (value as { type?: unknown }).type === "string";
+  }
+
+  async function restoreDraft(): Promise<void> {
+    const draft = await draftOperation<Draft | undefined>("readonly", (store) => store.get("current"));
+    if (!draft || !composer || !kindSelect || !contextSelect || !bodyInput) return;
+    kindSelect.value = draft.kind;
+    contextSelect.value = draft.context;
+    bodyInput.value = draft.body;
+    composer.dataset.clientNonce = draft.clientNonce;
+    showUnsent("Not sent — review this saved draft before sending.");
+  }
+
+  async function saveDraft(draft: Draft): Promise<void> {
+    await draftOperation("readwrite", (store) => store.put(draft, "current"));
+  }
+
+  async function clearDraft(): Promise<void> {
+    await draftOperation("readwrite", (store) => store.delete("current"));
+  }
+
+  function draftOperation<T>(
+    mode: IDBTransactionMode,
+    operation: (store: IDBObjectStore) => IDBRequest<T>,
+  ): Promise<T | undefined> {
+    return new Promise((resolve) => {
+      const open = indexedDB.open("activate-ri-ops", 1);
+      open.addEventListener("upgradeneeded", () => {
+        if (!open.result.objectStoreNames.contains("drafts")) {
+          open.result.createObjectStore("drafts");
+        }
+      });
+      open.addEventListener("error", () => resolve(undefined));
+      open.addEventListener("success", () => {
+        const transaction = open.result.transaction("drafts", mode);
+        const request = operation(transaction.objectStore("drafts"));
+        request.addEventListener("success", () => resolve(request.result));
+        request.addEventListener("error", () => resolve(undefined));
+        transaction.addEventListener("complete", () => open.result.close());
+      });
+    });
+  }
+</script>
