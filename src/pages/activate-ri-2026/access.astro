@@ -24,9 +24,14 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
             Checking this browser for an active activator session…
           </p>
           <p data-access-help hidden>
-            Open the private link from your signup email to authorize this browser for 14 days,
-            or request a fresh link below.
+            Sign in with a passkey, request a short-lived email sign-in link, or open the existing
+            private link from your signup email. Previously issued private links still work.
           </p>
+          <div class="button-row">
+            <a class="button" data-variant="primary" href="/account/sign-in/?returnTo=%2Factivate-ri-2026%2Factivator%2F">
+              Passkey or email sign-in
+            </a>
+          </div>
         </div>
         <div class="event-guidance event-guidance--compact" data-access-recovery hidden>
           <section class="event-guidance__item" aria-labelledby="new-activator-title">

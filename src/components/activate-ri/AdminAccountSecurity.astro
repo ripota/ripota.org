@@ -1,0 +1,94 @@
+<section class="admin-workspace" id="admin-security" data-admin-view="security" hidden>
+  <div class="admin-panel">
+    <p class="eyebrow">Account safety</p>
+    <h2>Administrator and activator accounts</h2>
+    <p>
+      Reset links are non-destructive until the replacement passkey is installed.
+      Emergency disable immediately revokes credentials and sessions but preserves event data.
+    </p>
+    <div data-admin-account-list>Loading account security status…</div>
+    <p class="form-status" data-admin-account-status aria-live="polite"></p>
+  </div>
+</section>
+
+<script>
+  const list = document.querySelector<HTMLElement>("[data-admin-account-list]");
+  const status = document.querySelector<HTMLElement>("[data-admin-account-status]");
+  void loadAccounts();
+
+  async function loadAccounts(): Promise<void> {
+    const response = await fetch("/api/activate-ri-2026/admin/accounts");
+    const body = await response.json();
+    if (!response.ok || !isRecord(body) || !Array.isArray(body.accounts)) {
+      status?.replaceChildren("Passkey administrator authentication is required.");
+      return;
+    }
+    const accounts = body.accounts.filter(isAccount);
+    list?.replaceChildren(...accounts.map(accountCard));
+  }
+
+  function accountCard(account: Account): HTMLElement {
+    const card = document.createElement("article");
+    card.className = "admin-panel";
+    const title = document.createElement("h3");
+    title.textContent = account.callsign ?? account.email;
+    const detail = document.createElement("p");
+    detail.textContent = account.claimed
+      ? `${account.admin ? "Administrator · " : ""}${account.passkeyCount} active passkey(s) · ${account.activeSessionCount} active session(s)${account.disabled ? " · DISABLED" : ""}`
+      : "Activator account not yet claimed";
+    card.appendChild(title);
+    card.appendChild(detail);
+    if (!account.userId) return card;
+
+    const actions = document.createElement("div");
+    actions.className = "button-row";
+    actions.appendChild(actionButton("Send reset link", "passkey-reset", account, false));
+    actions.appendChild(actionButton("Revoke sessions", "revoke-auth-sessions", account, false));
+    actions.appendChild(actionButton(account.disabled ? "Re-enable" : "Emergency disable", account.disabled ? "enable-auth" : "disable-auth", account, !account.disabled));
+    card.appendChild(actions);
+    return card;
+  }
+
+  function actionButton(label: string, action: string, account: Account, destructive: boolean): HTMLButtonElement {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "button";
+    button.dataset.variant = destructive ? "danger" : "light";
+    button.textContent = label;
+    button.addEventListener("click", async () => {
+      let confirmation = "";
+      if (destructive) {
+        confirmation = window.prompt(`Type ${account.callsign ?? account.email} to immediately disable this account.`) ?? "";
+        if (!confirmation) return;
+        if (account.admin && !window.confirm("This account also has the administrator role. Continue?")) return;
+      } else if (!window.confirm(`${label} for ${account.callsign ?? account.email}?`)) {
+        return;
+      }
+      button.disabled = true;
+      const response = await fetch(`/api/activate-ri-2026/admin/accounts/${encodeURIComponent(account.userId!)}/${action}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ confirmation }),
+      });
+      status?.replaceChildren(response.ok ? `${label} completed.` : `${label} did not complete.`);
+      button.disabled = false;
+      if (response.ok) await loadAccounts();
+    });
+    return button;
+  }
+
+  type Account = {
+    userId: string | null; email: string; callsign: string | null; admin: boolean;
+    claimed: boolean; disabled: boolean; passkeyCount: number; activeSessionCount: number;
+  };
+  function isAccount(value: unknown): value is Account {
+    return isRecord(value) && (value.userId === null || typeof value.userId === "string") &&
+      typeof value.email === "string" && (value.callsign === null || typeof value.callsign === "string") &&
+      typeof value.admin === "boolean" && typeof value.claimed === "boolean" &&
+      typeof value.disabled === "boolean" && typeof value.passkeyCount === "number" &&
+      typeof value.activeSessionCount === "number";
+  }
+  function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+  }
+</script>

@@ -487,6 +487,7 @@ async function approvedActivator(env: Env): Promise<{
     jsonRequest("/api/activate-ri-2026/activator/session", { token }),
     env,
   );
+  expect(session.status, await session.clone().text()).toBe(200);
   const cookie = session.headers.get("set-cookie")?.split(";", 1)[0] ?? "";
   expect(cookie).toContain("__Host-activate-ri-session=");
   return { cookie, activatorId, editToken: token };

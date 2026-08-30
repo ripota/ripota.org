@@ -1,5 +1,5 @@
 import { validateOpsMessage } from "../../lib/activate-ri/ops-validation";
-import { requireActivatorSession } from "../activator-session";
+import { requireActivator } from "../auth/authorization";
 import type { Env } from "../env";
 import { json, readJson } from "../http";
 import {
@@ -19,7 +19,7 @@ export async function handleActivateRiOpsApi(
   request: Request,
   env: Env,
 ): Promise<Response> {
-  const identity = await requireActivatorSession(request, env);
+  const identity = await requireActivator(request, env);
   if (identity instanceof Response) {
     return identity;
   }

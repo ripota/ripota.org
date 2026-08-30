@@ -24,6 +24,12 @@ import {
   revokePasskey,
   revokeUserSession,
 } from "../auth/db";
+import { consumeEmailLogin, requestEmailLogin } from "../auth/email-login";
+import { upgradeLegacySession } from "../auth/legacy";
+import { clearActivatorSessionCookie } from "../activator-session";
+import { accessBootstrap } from "../auth/bootstrap";
+import { consumePasskeyReset } from "../auth/admin-recovery";
+import { getAuthConfig } from "../auth/config";
 
 export async function handleAuthApi(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
@@ -53,7 +59,45 @@ export async function handleAuthApi(request: Request, env: Env): Promise<Respons
 
     if (request.method === "POST" && url.pathname === "/api/auth/logout") {
       await revokeCurrentAuthSession(request, env);
-      return privateJson({ ok: true }, { headers: { "set-cookie": clearAuthSessionCookie() } });
+      const headers = new Headers();
+      headers.append("set-cookie", clearAuthSessionCookie());
+      headers.append("set-cookie", clearActivatorSessionCookie());
+      return privateJson({ ok: true }, { headers });
+    }
+    if (request.method === "POST" && url.pathname === "/api/auth/email-login") {
+      const payload = await readJson(request);
+      const input = isRecord(payload) ? payload : {};
+      return privateJson(await requestEmailLogin(request, env, {
+        email: input.email,
+        turnstileToken: input.turnstileToken,
+      }));
+    }
+    if (request.method === "POST" && url.pathname === "/api/auth/email-login/consume") {
+      const payload = await readJson(request);
+      const token = isRecord(payload) && typeof payload.token === "string" ? payload.token : "";
+      const result = await consumeEmailLogin(env, token) ?? await consumePasskeyReset(env, token);
+      return result
+        ? privateJson({ ok: true, expiresAt: result.expiresAt }, { headers: { "set-cookie": result.cookie } })
+        : privateJson({ ok: false, error: "Access link invalid or expired" }, { status: 400 });
+    }
+    if (request.method === "POST" && url.pathname === "/api/auth/legacy/upgrade-session") {
+      const result = await upgradeLegacySession(request, env);
+      if (!result) {
+        return privateJson({ ok: false, error: "Unauthorized" }, { status: 401 });
+      }
+      const headers = new Headers();
+      headers.append("set-cookie", result.unified.cookie);
+      headers.append("set-cookie", result.clearLegacyCookie);
+      return privateJson({ ok: true, expiresAt: result.unified.expiresAt }, { headers });
+    }
+    if (request.method === "POST" && url.pathname === "/api/auth/access-bootstrap/start") {
+      const result = await accessBootstrap(request, env);
+      if (result instanceof Response) {
+        return withPrivateHeaders(result);
+      }
+      return privateJson({ ok: true, expiresAt: result.expiresAt }, {
+        headers: { "set-cookie": result.cookie },
+      });
     }
     if (request.method === "GET" && url.pathname === "/api/auth/passkeys") {
       const context = await getAuthContext(request, env);
@@ -167,7 +211,11 @@ async function requirePasskeyContext(request: Request, env: Env) {
   if (!context || context.session.purpose !== "authenticated") {
     return privateJson({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
-  if (!context.session.passkeyVerifiedAt) {
+  const verifiedAt = context.session.passkeyVerifiedAt
+    ? new Date(context.session.passkeyVerifiedAt).getTime()
+    : Number.NaN;
+  const reauthWindowMs = getAuthConfig(env, request).adminReauthSeconds * 1000;
+  if (!Number.isFinite(verifiedAt) || Date.now() - verifiedAt > reauthWindowMs) {
     return privateJson({ ok: false, error: "Passkey reauthentication required", reauthenticationRequired: true }, { status: 401 });
   }
   return context;

@@ -26,17 +26,35 @@
     const body = await response.json();
     if (!isRecord(body) || !Array.isArray(body.sessions)) return;
     const sessions = body.sessions.filter(isSession);
-    list?.replaceChildren(...sessions.map((session) => {
-      const item = document.createElement("li");
-      item.textContent = `${session.current ? "This browser" : "Browser session"} — ${session.authenticationMethod}; last used ${new Date(session.lastUsedAt ?? session.createdAt).toLocaleString()}`;
-      return item;
-    }));
+    list?.replaceChildren(...sessions.map(sessionItem));
   }
 
-  function isSession(value: unknown): value is {
-    authenticationMethod: string; current: boolean; lastUsedAt: string | null; createdAt: string;
-  } {
-    return isRecord(value) && typeof value.authenticationMethod === "string" &&
+  function sessionItem(session: Session): HTMLLIElement {
+    const item = document.createElement("li");
+    item.appendChild(document.createTextNode(`${session.current ? "This browser" : "Browser session"} — ${session.authenticationMethod}; last used ${new Date(session.lastUsedAt ?? session.createdAt).toLocaleString()} `));
+    if (!session.current) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "button";
+      button.dataset.variant = "light";
+      button.textContent = "Sign out";
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        const response = await fetch(`/api/auth/sessions/${encodeURIComponent(session.id)}`, { method: "DELETE" });
+        status?.replaceChildren(response.ok ? "Browser signed out." : "Passkey reauthentication is required.");
+        if (response.ok) await loadSessions();
+        else button.disabled = false;
+      });
+      item.appendChild(button);
+    }
+    return item;
+  }
+
+  type Session = {
+    id: string; authenticationMethod: string; current: boolean; lastUsedAt: string | null; createdAt: string;
+  };
+  function isSession(value: unknown): value is Session {
+    return isRecord(value) && typeof value.id === "string" && typeof value.authenticationMethod === "string" &&
       typeof value.current === "boolean" && typeof value.createdAt === "string" &&
       (value.lastUsedAt === null || typeof value.lastUsedAt === "string");
   }

@@ -5,7 +5,7 @@ import {
   validateOpsMembershipPatch,
   validateOpsRoomMode,
 } from "../../lib/activate-ri/ops-validation";
-import { requireAccessIdentity } from "../access";
+import { requireAdmin } from "../auth/authorization";
 import {
   replaceActivatorSecureLinks,
   revokeActivatorSessions,
@@ -34,7 +34,7 @@ export async function handleActivateRiAdminOpsApi(
   env: Env,
   ctx?: ExecutionContext,
 ): Promise<Response> {
-  const identity = await requireAccessIdentity(request, env);
+  const identity = await requireAdmin(request, env);
   if (identity instanceof Response) {
     return withPrivateHeaders(identity);
   }

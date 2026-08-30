@@ -50,14 +50,47 @@
     const body = await response.json();
     if (!isRecord(body) || !Array.isArray(body.passkeys)) return;
     const passkeys = body.passkeys.filter(isPasskey);
-    list?.replaceChildren(...passkeys.map((passkey) => {
-      const item = document.createElement("li");
-      const label = document.createElement("strong");
-      label.textContent = passkey.label || "Passkey";
-      item.appendChild(label);
-      item.appendChild(document.createTextNode(` — ${passkey.backedUp ? "backed up" : "single device"}; added ${new Date(passkey.createdAt).toLocaleDateString()}`));
-      return item;
-    }));
+    list?.replaceChildren(...passkeys.map(passkeyItem));
+  }
+
+  function passkeyItem(passkey: Passkey): HTMLLIElement {
+    const item = document.createElement("li");
+    const label = document.createElement("strong");
+    label.textContent = passkey.label || "Passkey";
+    item.appendChild(label);
+    item.appendChild(document.createTextNode(` — ${passkey.backedUp ? "backed up" : "single device"}; added ${new Date(passkey.createdAt).toLocaleDateString()} `));
+    const rename = document.createElement("button");
+    rename.type = "button";
+    rename.className = "button";
+    rename.dataset.variant = "light";
+    rename.textContent = "Rename";
+    rename.addEventListener("click", async () => {
+      const next = window.prompt("Passkey name", passkey.label || "Passkey")?.trim();
+      if (!next) return;
+      const response = await fetch(`/api/auth/passkeys/${encodeURIComponent(passkey.id)}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ label: next }),
+      });
+      status?.replaceChildren(response.ok ? "Passkey renamed." : "Passkey reauthentication is required.");
+      if (response.ok) await loadPasskeys();
+    });
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "button";
+    remove.dataset.variant = "light";
+    remove.textContent = "Remove";
+    remove.addEventListener("click", async () => {
+      if (!window.confirm(`Remove ${passkey.label || "this passkey"}?`)) return;
+      const response = await fetch(`/api/auth/passkeys/${encodeURIComponent(passkey.id)}`, { method: "DELETE" });
+      const body = await response.json().catch(() => null);
+      const message = isRecord(body) && typeof body.error === "string" ? body.error : "Passkey was not removed.";
+      status?.replaceChildren(response.ok ? "Passkey removed." : message);
+      if (response.ok) await loadPasskeys();
+    });
+    item.appendChild(rename);
+    item.appendChild(remove);
+    return item;
   }
 
   function isRegistrationOptionsBody(value: unknown): value is {
@@ -69,9 +102,10 @@
       isRecord(value.options.rp) && isRecord(value.options.user);
   }
 
-  function isPasskey(value: unknown): value is {
+  type Passkey = {
     id: string; label: string; backedUp: boolean; createdAt: string; lastUsedAt: string | null;
-  } {
+  };
+  function isPasskey(value: unknown): value is Passkey {
     return isRecord(value) && typeof value.id === "string" && typeof value.label === "string" &&
       typeof value.backedUp === "boolean" && typeof value.createdAt === "string" &&
       (value.lastUsedAt === null || typeof value.lastUsedAt === "string");

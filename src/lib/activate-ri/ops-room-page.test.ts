@@ -37,9 +37,10 @@ describe("Activator Ops Room client", () => {
   it("requires explicit confirmation before signing out of the browser", () => {
     expect(portalNavSource).not.toContain(">Exit<");
     expect(portalNavSource).toContain("Sign out of this browser?");
-    expect(portalNavSource).toContain("You’ll need your private email link to get back in.");
+    expect(portalNavSource).toContain("a passkey, an email sign-in link, or your existing private link");
     expect(portalNavSource).toContain("signoutDialog?.showModal()");
-    expect(portalNavSource.indexOf('method: "DELETE"')).toBeGreaterThan(
+    expect(portalNavSource).toContain('fetch("/api/auth/logout"');
+    expect(portalNavSource.indexOf('method: "POST"')).toBeGreaterThan(
       portalNavSource.indexOf('signoutConfirm?.addEventListener("click"'),
     );
   });

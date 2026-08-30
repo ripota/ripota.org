@@ -47,10 +47,14 @@ export async function createActivatorSession(
        a.status
      FROM activate_ri_edit_tokens t
      INNER JOIN activate_ri_activators a ON a.id = t.activator_id
+     LEFT JOIN auth_activator_memberships m
+       ON m.activator_id = a.id AND m.event_id = a.event_id AND m.revoked_at IS NULL
+     LEFT JOIN auth_users u ON u.id = m.user_id
      WHERE t.event_id = ?
        AND a.event_id = t.event_id
        AND t.token_hash = ?
        AND t.revoked_at IS NULL
+       AND (m.user_id IS NULL OR u.disabled_at IS NULL)
      LIMIT 1`,
   )
     .bind(env.ACTIVATE_RI_EVENT_ID, editTokenHash)

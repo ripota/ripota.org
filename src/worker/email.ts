@@ -3,7 +3,7 @@ import type { Env } from "./env";
 import references from "../data/ri-references.json";
 import { formatActivationDateTimeRange } from "../lib/activate-ri/time";
 
-type SendEmailResult =
+export type SendEmailResult =
   | {
       ok: true;
       status: "sent";
@@ -170,6 +170,52 @@ export async function sendActivatorSecureLinksReplacedEmail(
   });
 }
 
+export async function sendAuthAccessEmail(
+  env: Env,
+  input: {
+    to: string;
+    accessUrl: string;
+    purpose: "login" | "passkey-reset";
+  },
+): Promise<SendEmailResult> {
+  const reset = input.purpose === "passkey-reset";
+  const subject = reset ? "Reset your RI POTA passkey" : "Your RI POTA sign-in link";
+  const intro = reset
+    ? "An Activate All RI organizer sent you a passkey recovery link. Your existing passkeys remain active until you finish recovery."
+    : "Use this short-lived, single-use link to sign in to your RI POTA account.";
+  const expiration = reset ? "30 minutes" : "15 minutes";
+  const text = [
+    intro,
+    "",
+    input.accessUrl,
+    "",
+    `This link expires in ${expiration}. If you did not request it, you can ignore this email.`,
+    "Existing Activate All RI private links continue to work.",
+    "",
+    "RI POTA is an unofficial community site. Parks on the Air is the source of truth for official accounts, rules, spots, and logs.",
+    "Official POTA resources: https://docs.pota.app/",
+    "",
+    "73,",
+    "RI POTA",
+  ].join("\n");
+  const html = [
+    `<p>${escapeHtml(intro)}</p>`,
+    `<p><a href="${escapeHtml(input.accessUrl)}">${reset ? "Recover your passkey" : "Sign in to RI POTA"}</a></p>`,
+    `<p>This link expires in ${expiration}. If you did not request it, you can ignore this email.</p>`,
+    "<p>Existing Activate All RI private links continue to work.</p>",
+    "<p>RI POTA is an unofficial community site. Parks on the Air is the source of truth for official accounts, rules, spots, and logs.</p>",
+    '<p><a href="https://docs.pota.app/">Official Parks on the Air resources</a></p>',
+    "<p>73,<br>RI POTA</p>",
+  ].join("");
+  return sendEmail(env, {
+    kind: reset ? "auth-passkey-reset" : "auth-email-login",
+    to: input.to,
+    subject,
+    text,
+    html,
+  });
+}
+
 function sendActivatorReceiptEmail(
   env: Env,
   receipt: {
@@ -205,6 +251,10 @@ function sendActivatorReceiptEmail(
     "",
     ...textUrlBlock("Private edit link", receipt.editUrl),
     ...textLineBlock(receipt.privateLinkNote),
+    "Existing private links continue to work. After opening yours, you can optionally add a passkey for faster future sign-in.",
+    "",
+    "Already added a passkey? Sign in at https://ripota.org/account/sign-in/",
+    "",
     ...textUrlBlock("Public schedule", receipt.scheduleUrl),
     ...textUrlBlock("Activator help", receipt.helpUrl),
     "73,",
@@ -219,6 +269,8 @@ function sendActivatorReceiptEmail(
     stopSummaryListHtml(receipt.stopLines),
     ...htmlUrlBlock("Private edit link", receipt.editUrl),
     ...htmlLineBlock(receipt.privateLinkNote),
+    "<p>Existing private links continue to work. After opening yours, you can optionally add a passkey for faster future sign-in.</p>",
+    '<p><a href="https://ripota.org/account/sign-in/">Sign in with an existing passkey</a></p>',
     ...htmlUrlBlock("View the public schedule", receipt.scheduleUrl),
     ...htmlUrlBlock("Read the activator help page", receipt.helpUrl),
     "<p>73,<br>RI POTA</p>",
@@ -315,7 +367,9 @@ type EmailKind =
   | "activator-plan-cancelled"
   | "activator-secure-links-replaced"
   | "admin-activity"
-  | "admin-pending-plan";
+  | "admin-pending-plan"
+  | "auth-email-login"
+  | "auth-passkey-reset";
 
 async function sendEmail(
   env: Env,

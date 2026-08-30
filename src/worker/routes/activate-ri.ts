@@ -4,15 +4,18 @@ import {
   validatePlanSubmission,
 } from "../../lib/activate-ri/validation";
 import { planRowsToPublicStops } from "../../lib/activate-ri/public-export";
-import { requireAccessIdentity } from "../access";
 import {
   activatorSessionCookie,
   clearActivatorSessionCookie,
   createActivatorSession,
-  requireActivatorSession,
   revokeCurrentActivatorSession,
   type ActivatorSessionIdentity,
 } from "../activator-session";
+import { requireActivator, requireAdmin } from "../auth/authorization";
+import { getAuthConfig } from "../auth/config";
+import { createUnifiedActivatorSession } from "../auth/legacy";
+import { getAuthContext } from "../auth/session";
+import { linkActivatorMembership } from "../auth/db";
 import {
   activatorSignupExists,
   approvePlan,
@@ -58,6 +61,7 @@ import { verifyTurnstile } from "../turnstile";
 import { handleActivateRiAdminOpsApi } from "./activate-ri-admin-ops";
 import { handleActivateRiOpsApi } from "./activate-ri-ops";
 import { handleActivateRiOpsSocket } from "./activate-ri-ops-socket";
+import { handleAuthAdminApi } from "./auth-admin";
 import {
   getPotaAdminStatus,
   getPublicPotaParkStatus,
@@ -103,6 +107,10 @@ export async function handleActivateRiApi(
     return handleActivateRiAdminOpsApi(request, env, ctx);
   }
 
+  if (url.pathname.startsWith("/api/activate-ri-2026/admin/accounts")) {
+    return handleAuthAdminApi(request, env);
+  }
+
   if (url.pathname === "/api/activate-ri-2026/ops/socket") {
     return handleActivateRiOpsSocket(request, env);
   }
@@ -115,7 +123,7 @@ export async function handleActivateRiApi(
     request.method === "GET" &&
     url.pathname === "/api/activate-ri-2026/admin/plans"
   ) {
-    const identity = await requireAccessIdentity(request, env);
+    const identity = await requireAdmin(request, env);
     if (identity instanceof Response) {
       return identity;
     }
@@ -127,7 +135,7 @@ export async function handleActivateRiApi(
     request.method === "GET" &&
     url.pathname === "/api/activate-ri-2026/admin/activity"
   ) {
-    const identity = await requireAccessIdentity(request, env);
+    const identity = await requireAdmin(request, env);
     if (identity instanceof Response) {
       return identity;
     }
@@ -139,7 +147,7 @@ export async function handleActivateRiApi(
     request.method === "POST" &&
     url.pathname === "/api/activate-ri-2026/admin/publish"
   ) {
-    const identity = await requireAccessIdentity(request, env);
+    const identity = await requireAdmin(request, env);
     if (identity instanceof Response) {
       return identity;
     }
@@ -172,7 +180,7 @@ export async function handleActivateRiApi(
     request.method === "GET" &&
     url.pathname === "/api/activate-ri-2026/admin/pota-status"
   ) {
-    const identity = await requireAccessIdentity(request, env);
+    const identity = await requireAdmin(request, env);
     if (identity instanceof Response) return identity;
     return privateJson({ ok: true, status: await getPotaAdminStatus(env) });
   }
@@ -181,7 +189,7 @@ export async function handleActivateRiApi(
     request.method === "POST" &&
     url.pathname === "/api/activate-ri-2026/admin/pota-reconcile"
   ) {
-    const identity = await requireAccessIdentity(request, env);
+    const identity = await requireAdmin(request, env);
     if (identity instanceof Response) return identity;
     if (!hasTrustedOrigin(request, env)) {
       return privateJson({ ok: false, error: "Forbidden" }, { status: 403 });
@@ -259,7 +267,7 @@ export async function handleActivateRiApi(
     /^\/api\/activate-ri-2026\/admin\/plans\/([^/]+)\/approve$/,
   );
   if (request.method === "POST" && approveMatch) {
-    const identity = await requireAccessIdentity(request, env);
+    const identity = await requireAdmin(request, env);
     if (identity instanceof Response) {
       return identity;
     }
@@ -474,18 +482,28 @@ async function handleActivatorSession(
       );
     }
 
+    const headers = new Headers();
+    headers.append("set-cookie", activatorSessionCookie(session.sessionToken));
+    if (getAuthConfig(env, request).activatorMode !== "legacy") {
+      try {
+        const unified = await createUnifiedActivatorSession(env, session.identity, "legacy-link");
+        headers.append("set-cookie", unified.cookie);
+      } catch {
+        console.error(JSON.stringify({ event: "legacy-link-unified-upgrade-failed" }));
+      }
+    }
     return privateJson(
       {
         ok: true,
         activator: portalIdentity(session.identity),
         expiresAt: session.identity.expiresAt,
       },
-      { headers: { "set-cookie": activatorSessionCookie(session.sessionToken) } },
+      { headers },
     );
   }
 
   if (request.method === "GET") {
-    const identity = await requireActivatorSession(request, env);
+    const identity = await requireActivator(request, env);
     if (identity instanceof Response) {
       return identity;
     }
@@ -519,7 +537,7 @@ async function handleActivatorPlansLookup(
   request: Request,
   env: Env,
 ): Promise<Response> {
-  const identity = await requireActivatorSession(request, env);
+  const identity = await requireActivator(request, env);
   if (identity instanceof Response) {
     return identity;
   }
@@ -790,7 +808,7 @@ async function requireMutationSession(
     return privateJson({ ok: false, error: "Forbidden" }, { status: 403 });
   }
 
-  return requireActivatorSession(request, env);
+  return requireActivator(request, env);
 }
 
 async function sendPlanUpdateNotifications(
@@ -1031,6 +1049,17 @@ async function handlePlanSubmission(
   }
 
   const result = await insertPendingPlan(env, validation.value);
+  const signedIn = await getAuthContext(request, env);
+  if (
+    signedIn?.session.purpose === "authenticated" &&
+    signedIn.user.primaryEmail === validation.value.submitterEmail.trim().toLowerCase()
+  ) {
+    try {
+      await linkActivatorMembership(env, signedIn.user.id, result.activatorId);
+    } catch {
+      console.error(JSON.stringify({ event: "signed-in-volunteer-link-failed" }));
+    }
+  }
   const editUrl = absoluteEditUrl(request, env, result.editToken);
   const savedPlan = await getPlanById(env, result.planId);
   const emailResult = await sendActivatorEditLinkEmail(

@@ -1,0 +1,38 @@
+---
+import Footer from "../../../components/Footer.astro";
+import Notice from "../../../components/Notice.astro";
+import SiteHeader from "../../../components/SiteHeader.astro";
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="Administrator recovery" description="RI POTA administrator passkey recovery." privatePage>
+  <SiteHeader variant="solid" showEventLink />
+  <main id="main">
+    <section class="section event-page" aria-labelledby="recovery-title">
+      <div class="container form-card">
+        <p class="eyebrow">Access-protected break glass</p>
+        <h1 id="recovery-title">Administrator passkey enrollment</h1>
+        <p>Cloudflare Access verifies the bootstrap identity. Normal administrator access begins only after a passkey is registered.</p>
+        <button class="button" data-variant="primary" type="button" data-admin-bootstrap>Continue to passkey setup</button>
+        <p class="form-status" data-admin-bootstrap-status aria-live="polite"></p>
+      </div>
+    </section>
+    <Notice />
+  </main>
+  <Footer />
+</BaseLayout>
+
+<script>
+  const button = document.querySelector<HTMLButtonElement>("[data-admin-bootstrap]");
+  const status = document.querySelector<HTMLElement>("[data-admin-bootstrap-status]");
+  button?.addEventListener("click", async () => {
+    button.disabled = true;
+    const response = await fetch("/api/auth/access-bootstrap/start", { method: "POST" });
+    if (response.ok) {
+      window.location.assign("/account/security/");
+    } else {
+      status?.replaceChildren("This Access identity is not authorized for administrator recovery.");
+      button.disabled = false;
+    }
+  });
+</script>

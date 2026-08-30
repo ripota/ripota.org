@@ -15,8 +15,12 @@ export type AuthConfig = {
 };
 
 export function getAuthConfig(env: Env, request?: Request): AuthConfig {
-  const adminMode = env.AUTH_ADMIN_MODE ?? "access";
-  const activatorMode = env.AUTH_ACTIVATOR_MODE ?? "legacy";
+  const adminMode = env.AUTH_ADMIN_MODE === "dual" || env.AUTH_ADMIN_MODE === "passkey"
+    ? env.AUTH_ADMIN_MODE
+    : "access";
+  const activatorMode = env.AUTH_ACTIVATOR_MODE === "dual" || env.AUTH_ACTIVATOR_MODE === "unified"
+    ? env.AUTH_ACTIVATOR_MODE
+    : "legacy";
   const emailLoginEnabled = env.AUTH_EMAIL_LOGIN_ENABLED === "true";
   const adminReauthSeconds = positiveInteger(
     env.AUTH_ADMIN_REAUTH_SECONDS,

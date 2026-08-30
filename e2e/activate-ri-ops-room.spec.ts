@@ -73,6 +73,7 @@ test("approved activators acknowledge rules and exchange a live room message", a
     await expect(first.locator("[data-ops-connection-label]")).toHaveText("Live");
 
     await second.goto(submitBody.editUrl);
+    await expect(second).toHaveURL(`${server.origin}/activate-ri-2026/activator/plan/`);
     await second.goto(`${server.origin}/activate-ri-2026/activator/`);
     await expect(second.locator("[data-ops-connection-label]")).toHaveText("Live");
 
@@ -132,15 +133,17 @@ test("approved activators acknowledge rules and exchange a live room message", a
     await first.getByRole("button", { name: "Sign out", exact: true }).click();
     const signoutDialog = first.getByRole("dialog", { name: "Sign out of this browser?" });
     await expect(signoutDialog).toBeVisible();
-    await expect(signoutDialog).toContainText("You’ll need your private email link to get back in.");
+    await expect(signoutDialog).toContainText("a passkey, an email sign-in link, or your existing private link");
     await signoutDialog.getByRole("button", { name: "Cancel" }).click();
     await expect(signoutDialog).toBeHidden();
     await expect(first).toHaveURL(`${server.origin}/activate-ri-2026/activator/`);
 
     await first.getByRole("button", { name: "Sign out", exact: true }).click();
     await signoutDialog.getByRole("button", { name: "Sign out", exact: true }).click();
-    await expect(first).toHaveURL(`${server.origin}/activate-ri-2026/access/`);
-    await expect(first.getByText("No active activator session was found in this browser.")).toBeVisible();
+    await expect(first).toHaveURL(
+      `${server.origin}/account/sign-in/?returnTo=%2Factivate-ri-2026%2Factivator%2F`,
+    );
+    await expect(first.getByRole("heading", { name: "Sign in" })).toBeVisible();
   } finally {
     await firstContext.close();
     await secondContext.close();

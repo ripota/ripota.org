@@ -21,7 +21,8 @@ describe("activate-ri private activator pages", () => {
     expect(eventNavSource).toContain('"/activate-ri-2026/access/"');
     expect(eventNavSource).toContain('"/activate-ri-2026/volunteer/"');
     expect(accessPageSource).toContain("EditLinkResendForm");
-    expect(accessPageSource).toContain("authorize this browser for 14 days");
+    expect(accessPageSource).toContain("Previously issued private links still work");
+    expect(accessPageSource).toContain("Passkey or email sign-in");
     expect(accessPageSource).toContain("No active activator session was found");
     expect(accessPageSource).toContain("Plan an activation");
   });

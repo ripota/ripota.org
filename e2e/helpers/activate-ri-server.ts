@@ -39,7 +39,7 @@ export async function startActivateRiServer(): Promise<ActivateRiServer> {
     },
   );
 
-  const origin = `http://127.0.0.1:${port}`;
+  const origin = `http://localhost:${port}`;
   try {
     await waitForServerReady(child, origin);
   } catch (error) {

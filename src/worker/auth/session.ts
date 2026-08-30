@@ -5,6 +5,7 @@ import type { AuthContext, AuthMethod, AuthSessionPurpose } from "./types";
 
 export const authSessionCookieName = "__Host-ripota-session";
 export const authSessionLifetimeSeconds = 14 * 24 * 60 * 60;
+export const privilegedSessionLifetimeSeconds = 30 * 60;
 
 export async function createAuthSession(
   env: Env,
@@ -19,7 +20,11 @@ export async function createAuthSession(
   const id = crypto.randomUUID();
   const token = generateEditToken();
   const createdAt = now.toISOString();
-  const expiresAt = new Date(now.getTime() + authSessionLifetimeSeconds * 1000).toISOString();
+  const purpose = input.purpose ?? "authenticated";
+  const lifetimeSeconds = purpose === "authenticated"
+    ? authSessionLifetimeSeconds
+    : privilegedSessionLifetimeSeconds;
+  const expiresAt = new Date(now.getTime() + lifetimeSeconds * 1000).toISOString();
   await env.DB.prepare(
     `INSERT INTO auth_sessions (
        id, token_hash, user_id, purpose, authentication_method,
@@ -29,7 +34,7 @@ export async function createAuthSession(
     id,
     await tokenHash(token),
     input.userId,
-    input.purpose ?? "authenticated",
+    purpose,
     input.authenticationMethod,
     createdAt,
     input.passkeyVerified ? createdAt : null,
@@ -80,14 +85,17 @@ export async function revokeCurrentAuthSession(
   ).bind(now, await tokenHash(token)).run();
 }
 
-export function authSessionCookie(token: string): string {
+export function authSessionCookie(
+  token: string,
+  maxAgeSeconds = authSessionLifetimeSeconds,
+): string {
   return [
     `${authSessionCookieName}=${token}`,
     "Secure",
     "HttpOnly",
     "SameSite=Strict",
     "Path=/",
-    `Max-Age=${authSessionLifetimeSeconds}`,
+    `Max-Age=${maxAgeSeconds}`,
   ].join("; ");
 }
 

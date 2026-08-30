@@ -6,6 +6,7 @@ const currentPath = Astro.url.pathname.endsWith("/")
 const links = [
   ["Ops Room", "/activate-ri-2026/activator/"],
   ["My Plan", "/activate-ri-2026/activator/plan/"],
+  ["Account security", "/account/security/"],
 ];
 ---
 
@@ -23,6 +24,13 @@ const links = [
   </button>
 </nav>
 
+<aside class="event-guidance event-guidance--compact" data-passkey-enrollment-prompt hidden>
+  <p><strong>Make your next sign-in faster.</strong> Add a passkey, or keep using email and your existing private link.</p>
+  <div class="button-row">
+    <button class="button" data-variant="primary" type="button" data-upgrade-account>Set up a passkey</button>
+  </div>
+</aside>
+
 <dialog
   class="form-confirmation"
   data-activator-signout-dialog
@@ -31,7 +39,7 @@ const links = [
   <form class="form-confirmation__body" method="dialog">
     <p class="eyebrow">Private activator access</p>
     <h2 id="activator-signout-title">Sign out of this browser?</h2>
-    <p>You’ll need your private email link to get back in.</p>
+    <p>You can return with a passkey, an email sign-in link, or your existing private link.</p>
     <p class="form-status" data-activator-signout-status aria-live="polite"></p>
     <div class="form-actions">
       <button class="button" data-variant="light" type="submit" value="cancel">
@@ -48,6 +56,10 @@ const links = [
   const signoutDialog = document.querySelector<HTMLDialogElement>("[data-activator-signout-dialog]");
   const signoutConfirm = document.querySelector<HTMLButtonElement>("[data-activator-signout-confirm]");
   const signoutStatus = document.querySelector<HTMLElement>("[data-activator-signout-status]");
+  const enrollmentPrompt = document.querySelector<HTMLElement>("[data-passkey-enrollment-prompt]");
+  const upgradeAccount = document.querySelector<HTMLButtonElement>("[data-upgrade-account]");
+
+  void showEnrollmentPrompt();
 
   document.querySelector<HTMLButtonElement>("[data-activator-logout]")
     ?.addEventListener("click", () => {
@@ -59,8 +71,8 @@ const links = [
     signoutConfirm.disabled = true;
     signoutStatus?.replaceChildren("Signing out…");
     try {
-      const response = await fetch("/api/activate-ri-2026/activator/session", {
-        method: "DELETE",
+      const response = await fetch("/api/auth/logout", {
+        method: "POST",
         headers: { accept: "application/json" },
       });
       if (!response.ok) {
@@ -68,10 +80,35 @@ const links = [
       }
 
       window.dispatchEvent(new Event("activate-ri:logout"));
-      window.location.replace("/activate-ri-2026/access/");
+      window.location.replace("/account/sign-in/?returnTo=%2Factivate-ri-2026%2Factivator%2F");
     } catch {
       signoutStatus?.replaceChildren("Unable to sign out. Please try again.");
       signoutConfirm.disabled = false;
     }
   });
+
+  upgradeAccount?.addEventListener("click", async () => {
+    const response = await fetch("/api/auth/legacy/upgrade-session", { method: "POST" });
+    window.location.assign(response.ok
+      ? "/account/security/"
+      : "/account/sign-in/?returnTo=%2Faccount%2Fsecurity%2F");
+  });
+
+  async function showEnrollmentPrompt(): Promise<void> {
+    const session = await fetch("/api/auth/session");
+    const sessionBody = await session.json();
+    if (!isRecord(sessionBody) || sessionBody.signedIn !== true) {
+      enrollmentPrompt?.removeAttribute("hidden");
+      return;
+    }
+    const passkeys = await fetch("/api/auth/passkeys");
+    const passkeyBody = await passkeys.json();
+    if (isRecord(passkeyBody) && Array.isArray(passkeyBody.passkeys) && passkeyBody.passkeys.length === 0) {
+      enrollmentPrompt?.removeAttribute("hidden");
+    }
+  }
+
+  function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+  }
 </script>

@@ -19,6 +19,7 @@ import {
   getUserById,
   insertPasskey,
   listPasskeys,
+  replacePasskeysForRecovery,
   updatePasskeyUse,
 } from "./db";
 import { authSessionCookie, createAuthSession, getAuthContext } from "./session";
@@ -173,16 +174,21 @@ export async function verifyRegistration(
   if (!await consumeChallenge(env, challenge.id)) {
     throw new PasskeyError("Registration failed.");
   }
-  await insertPasskey(env, {
+  const credentialInput = {
     userId: context.user.id,
     credential: verification.registrationInfo.credential,
     deviceType: verification.registrationInfo.credentialDeviceType,
     backedUp: verification.registrationInfo.credentialBackedUp,
     label: input.label,
-  });
-  await env.DB.prepare(
-    `UPDATE auth_sessions SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL`,
-  ).bind(new Date().toISOString(), context.session.id).run();
+  };
+  if (context.session.purpose === "recovery") {
+    await replacePasskeysForRecovery(env, credentialInput);
+  } else {
+    await insertPasskey(env, credentialInput);
+    await env.DB.prepare(
+      `UPDATE auth_sessions SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL`,
+    ).bind(new Date().toISOString(), context.session.id).run();
+  }
   const session = await createAuthSession(env, {
     userId: context.user.id,
     authenticationMethod: "passkey",

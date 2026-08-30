@@ -335,6 +335,55 @@ export async function insertPasskey(
   return id;
 }
 
+export async function replacePasskeysForRecovery(
+  env: Env,
+  input: {
+    userId: string;
+    credential: WebAuthnCredential;
+    deviceType: StoredPasskey["deviceType"];
+    backedUp: boolean;
+    label?: string;
+  },
+  now = new Date().toISOString(),
+): Promise<string> {
+  const id = crypto.randomUUID();
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO auth_passkey_credentials (
+         id, credential_id, user_id, public_key, counter, device_type,
+         backed_up, transports_json, label, created_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      id,
+      input.credential.id,
+      input.userId,
+      input.credential.publicKey,
+      input.credential.counter,
+      input.deviceType,
+      input.backedUp ? 1 : 0,
+      JSON.stringify(input.credential.transports ?? []),
+      (input.label ?? "Replacement passkey").trim(),
+      now,
+    ),
+    env.DB.prepare(
+      `UPDATE auth_passkey_credentials SET revoked_at = ?
+       WHERE user_id = ? AND id <> ? AND revoked_at IS NULL`,
+    ).bind(now, input.userId, id),
+    env.DB.prepare(
+      `UPDATE auth_sessions SET revoked_at = ?
+       WHERE user_id = ? AND revoked_at IS NULL`,
+    ).bind(now, input.userId),
+    authAuditStatement(env, {
+      action: "passkey-reset-completed",
+      summary: "Installed a replacement passkey and revoked prior credentials and sessions.",
+      actorUserId: input.userId,
+      subjectUserId: input.userId,
+      createdAt: now,
+    }),
+  ]);
+  return id;
+}
+
 export async function updatePasskeyUse(
   env: Env,
   managementId: string,

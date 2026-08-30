@@ -50,19 +50,21 @@ export async function requireAdmin(
   options: { navigation?: boolean; now?: Date } = {},
 ): Promise<AdminIdentity | Response> {
   const config = getAuthConfig(env, request);
-  if (config.adminMode !== "access") {
-    const context = await getAuthContext(request, env, options.now);
-    const failure = evaluateAdminAuthorization(context, config, options.now);
-    if (!failure && context) {
-      return {
-        email: context.user.primaryEmail ?? "verified-user",
-        userId: context.user.id,
-        authentication: "passkey",
-      };
-    }
-    if (config.adminMode === "passkey") {
-      return adminFailureResponse(request, failure, options.navigation);
-    }
+  if (config.adminMode === "access") {
+    const access = await requireAccessIdentity(request, env);
+    return access instanceof Response ? access : { ...access, authentication: "access" };
+  }
+  const context = await getAuthContext(request, env, options.now);
+  const failure = evaluateAdminAuthorization(context, config, options.now);
+  if (!failure && context) {
+    return {
+      email: context.user.primaryEmail ?? "verified-user",
+      userId: context.user.id,
+      authentication: "passkey",
+    };
+  }
+  if (config.adminMode === "passkey") {
+    return adminFailureResponse(request, failure, options.navigation);
   }
 
   const access = await requireAccessIdentity(request, env);

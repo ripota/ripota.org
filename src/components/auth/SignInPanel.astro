@@ -1,3 +1,9 @@
+---
+const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY;
+---
+
+<script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+
 <section class="form-card" aria-labelledby="passkey-sign-in-title">
   <p class="eyebrow">RI POTA account</p>
   <h1 id="passkey-sign-in-title">Sign in</h1>
@@ -19,7 +25,12 @@
         Email address
         <input name="email" type="email" autocomplete="email" required />
       </label>
-      <input name="turnstileToken" type="hidden" value="" />
+      <div
+        class="cf-turnstile"
+        data-sitekey={turnstileSiteKey}
+        data-action="auth-email-login"
+        data-theme="auto"
+      ></div>
       <button class="button" data-variant="light" type="submit">Send sign-in link</button>
       <p class="form-status" data-email-status aria-live="polite"></p>
     </form>
@@ -76,7 +87,7 @@
         headers: { accept: "application/json", "content-type": "application/json" },
         body: JSON.stringify({
           email: data.get("email"),
-          turnstileToken: data.get("turnstileToken"),
+          turnstileToken: data.get("cf-turnstile-response"),
         }),
       });
       const body = await response.json();

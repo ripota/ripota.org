@@ -1,5 +1,4 @@
-import { requireAccessIdentity } from "../access";
-import { getActivatorSession } from "../activator-session";
+import { requireActivator, requireAdmin } from "../auth/authorization";
 import { tokenHash } from "../edit-token";
 import type { Env } from "../env";
 import { json } from "../http";
@@ -19,9 +18,9 @@ export async function handleActivateRiOpsSocket(
     return privateJson({ ok: false, error: "Forbidden" }, { status: 403 });
   }
 
-  const activator = await getActivatorSession(request, env);
+  const activator = await requireActivator(request, env);
   let headers: Headers;
-  if (activator) {
+  if (!(activator instanceof Response)) {
     const access = await getOpsAccess(env, activator.activatorId);
     if (!access || access.membership.status === "banned") {
       return privateJson({ ok: false, error: "Ops Room access unavailable" }, { status: 403 });
@@ -37,7 +36,7 @@ export async function handleActivateRiOpsSocket(
     headers.set("x-ops-membership-status", access.membership.status);
     headers.set("x-ops-room-mode", access.effectiveRoomMode);
   } else {
-    const admin = await requireAccessIdentity(request, env);
+    const admin = await requireAdmin(request, env);
     if (admin instanceof Response) {
       return withPrivateHeaders(admin);
     }

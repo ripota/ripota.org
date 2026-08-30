@@ -22,7 +22,7 @@ export function withPrivateHeaders(
   headers.set("x-content-type-options", "nosniff");
   headers.set(
     "permissions-policy",
-    "camera=(), microphone=(), geolocation=()",
+    "camera=(), microphone=(), geolocation=(), publickey-credentials-get=(self), publickey-credentials-create=(self)",
   );
   headers.set("content-security-policy", contentSecurityPolicy(kind));
 

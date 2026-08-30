@@ -15,6 +15,17 @@ describe("auth configuration", () => {
     });
   });
 
+  it("treats unknown mode values as the rollback-safe modes", () => {
+    expect(getAuthConfig(baseEnv({
+      AUTH_ADMIN_MODE: "typo" as Env["AUTH_ADMIN_MODE"],
+      AUTH_ACTIVATOR_MODE: "typo" as Env["AUTH_ACTIVATOR_MODE"],
+    }))).toMatchObject({
+      adminMode: "access",
+      activatorMode: "legacy",
+      passkeyEnabled: false,
+    });
+  });
+
   it("derives production WebAuthn identity only from SITE_ORIGIN", () => {
     const env = baseEnv({ SITE_ORIGIN: "https://auth.ripota.org" });
     const request = new Request("https://attacker.example/account/sign-in", {

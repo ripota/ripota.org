@@ -7,6 +7,7 @@ import {
   authSessionLifetimeSeconds,
   createAuthSession,
   getAuthContext,
+  privilegedSessionLifetimeSeconds,
   revokeCurrentAuthSession,
 } from "./session";
 
@@ -52,5 +53,20 @@ describe("unified auth sessions", () => {
     });
     await revokeCurrentAuthSession(request, env, now.toISOString());
     await expect(getAuthContext(request, env, now)).resolves.toBeNull();
+  });
+
+  it("limits enrollment and recovery sessions to thirty minutes", async () => {
+    const now = new Date("2026-08-30T12:00:00.000Z");
+    const user = await createUserWithVerifiedEmail(env, "admin@example.com", "Admin", now.toISOString());
+    for (const purpose of ["enrollment", "recovery"] as const) {
+      const session = await createAuthSession(env, {
+        userId: user.id,
+        purpose,
+        authenticationMethod: purpose === "enrollment" ? "access-bootstrap" : "email",
+      }, now);
+      expect(session.expiresAt).toBe(
+        new Date(now.getTime() + privilegedSessionLifetimeSeconds * 1000).toISOString(),
+      );
+    }
   });
 });

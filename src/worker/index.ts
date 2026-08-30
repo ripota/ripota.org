@@ -2,9 +2,7 @@ import type { Env } from "./env";
 import {
   activatorSessionCookie,
   createActivatorSession,
-  getActivatorSession,
 } from "./activator-session";
-import { requireAccessIdentity } from "./access";
 import { trustedSiteUrl } from "./origin";
 import { withPrivateHeaders } from "./private-response";
 import { json } from "./http";
@@ -25,13 +23,20 @@ import {
 } from "./pota-event";
 import { getRiPotaSpotsSnapshot } from "./routes/pota";
 import { handleAuthApi } from "./routes/auth";
+import { requireActivator, requireAdmin } from "./auth/authorization";
+import { getAuthConfig } from "./auth/config";
+import { createUnifiedActivatorSession } from "./auth/legacy";
+import { cleanupAuthData } from "./auth/cleanup";
+import { requireAccessIdentity } from "./access";
 
 export { ActivateRiOpsRoom };
 
 const activateRiAdminPathPattern = /^\/activate-ri-2026\/admin\/?$/;
+const activateRiAdminRecoveryPathPattern = /^\/activate-ri-2026\/admin\/recovery\/?$/;
 const activateRiEditPathPattern = /^\/activate-ri-2026\/edit\/([^/]+)\/?$/;
 const activateRiAccessPathPattern = /^\/activate-ri-2026\/access\/?$/;
 const activateRiPortalPathPattern = /^\/activate-ri-2026\/activator(?:\/plan)?\/?$/;
+const accountPathPattern = /^\/account\/(?:sign-in|access|security)\/?$/;
 
 export default {
   async fetch(
@@ -70,9 +75,25 @@ export default {
 
     if (
       (request.method === "GET" || request.method === "HEAD") &&
-      activateRiAdminPathPattern.test(url.pathname)
+      accountPathPattern.test(url.pathname)
+    ) {
+      return withPrivateHeaders(await env.ASSETS.fetch(request), "editor");
+    }
+
+    if (
+      (request.method === "GET" || request.method === "HEAD") &&
+      activateRiAdminRecoveryPathPattern.test(url.pathname)
     ) {
       const identity = await requireAccessIdentity(request, env);
+      if (identity instanceof Response) return identity;
+      return withPrivateHeaders(await env.ASSETS.fetch(request), "editor");
+    }
+
+    if (
+      (request.method === "GET" || request.method === "HEAD") &&
+      activateRiAdminPathPattern.test(url.pathname)
+    ) {
+      const identity = await requireAdmin(request, env, { navigation: true });
       if (identity instanceof Response) {
         return identity;
       }
@@ -99,13 +120,20 @@ export default {
         env,
         "/activate-ri-2026/activator/plan/",
       ).href;
+      const headers = new Headers({ location });
+      headers.append("set-cookie", activatorSessionCookie(session.sessionToken));
+      if (getAuthConfig(env, request).activatorMode !== "legacy") {
+        try {
+          const unified = await createUnifiedActivatorSession(env, session.identity, "legacy-link");
+          headers.append("set-cookie", unified.cookie);
+        } catch {
+          console.error(JSON.stringify({ event: "legacy-edit-route-unified-upgrade-failed" }));
+        }
+      }
       return withPrivateHeaders(
         new Response(null, {
           status: 303,
-          headers: {
-            location,
-            "set-cookie": activatorSessionCookie(session.sessionToken),
-          },
+          headers,
         }),
         "editor",
       );
@@ -122,8 +150,11 @@ export default {
       (request.method === "GET" || request.method === "HEAD") &&
       activateRiPortalPathPattern.test(url.pathname)
     ) {
-      const identity = await getActivatorSession(request, env);
-      if (!identity) {
+      const identity = await requireActivator(request, env);
+      if (identity instanceof Response) {
+        const accessPath = getAuthConfig(env, request).activatorMode === "legacy"
+          ? "/activate-ri-2026/access/"
+          : "/account/sign-in/?returnTo=%2Factivate-ri-2026%2Factivator%2F";
         return withPrivateHeaders(
           new Response(null, {
             status: 303,
@@ -131,7 +162,7 @@ export default {
               location: trustedSiteUrl(
                 request,
                 env,
-                "/activate-ri-2026/access/",
+                accessPath,
               ).href,
             },
           }),
@@ -154,6 +185,11 @@ export default {
     ctx: ExecutionContext,
   ): void {
     ctx.waitUntil(runActivateRiPotaSchedule(controller, env));
+    ctx.waitUntil(cleanupAuthData(env).then((result) => {
+      console.log(JSON.stringify({ event: "auth-cleanup", ...result }));
+    }).catch(() => {
+      console.error(JSON.stringify({ event: "auth-cleanup-failed", category: "database" }));
+    }));
   },
 };
 
