@@ -1,12 +1,10 @@
 ---
 const links = [
   ["Overview", "/activate-ri-2026/"],
-  ["Volunteer", "/activate-ri-2026/volunteer/"],
-  ["Activator", "/activate-ri-2026/activators/"],
   ["Schedule", "/activate-ri-2026/schedule/"],
   ["Parks", "/activate-ri-2026/parks/"],
   ["Hunter", "/activate-ri-2026/hunter/"],
-  ["Help", "/activate-ri-2026/help/"],
+  ["Activator", "/activate-ri-2026/activators/"],
 ];
 
 const currentPath = Astro.url.pathname.endsWith("/")
@@ -15,7 +13,10 @@ const currentPath = Astro.url.pathname.endsWith("/")
 
 function isCurrent(href: string): boolean {
   if (href === "/activate-ri-2026/activators/") {
-    return currentPath.startsWith(href) || currentPath === "/activate-ri-2026/access/";
+    return currentPath.startsWith(href) || [
+      "/activate-ri-2026/access/",
+      "/activate-ri-2026/volunteer/",
+    ].includes(currentPath);
   }
 
   return currentPath === href;

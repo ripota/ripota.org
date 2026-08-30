@@ -157,6 +157,11 @@ export const footerLinkGroups: FooterLinkGroup[] = [
     links: [
       onAirLink,
       {
+        label: "Activate All RI help",
+        href: "/activate-ri-2026/help/",
+        description: "Get help with event plans, schedules, and private activator access.",
+      },
+      {
         label: "Assets",
         href: "/assets/",
         description: "Download Rhode Island POTA community logo assets.",

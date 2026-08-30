@@ -28,7 +28,20 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
             or request a fresh link below.
           </p>
         </div>
-        <div data-access-recovery hidden>
+        <div class="event-guidance event-guidance--compact" data-access-recovery hidden>
+          <section class="event-guidance__item" aria-labelledby="new-activator-title">
+            <p class="eyebrow">New activator</p>
+            <h2 id="new-activator-title">Volunteer to activate</h2>
+            <p>
+              Submit one park or a multi-park route for organizer review. You do not
+              need a private link to get started.
+            </p>
+            <div class="button-row">
+              <a class="button" data-variant="primary" href="/activate-ri-2026/volunteer/">
+                Plan an activation
+              </a>
+            </div>
+          </section>
           <EditLinkResendForm />
         </div>
       </div>
