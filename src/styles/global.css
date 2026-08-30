@@ -2030,6 +2030,11 @@ p {
   font-weight: 800;
 }
 
+.ops-filters legend.sr-only {
+  width: 1px;
+  max-width: 1px;
+}
+
 .ops-filters label {
   display: inline-flex;
   align-items: center;
@@ -3669,8 +3674,16 @@ p {
   grid-template-rows: auto auto minmax(12rem, 1fr);
 }
 
+.ops-feed-card > *,
+.ops-message > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
 .ops-filters {
   flex-wrap: nowrap;
+  width: 100%;
+  min-inline-size: 0;
   gap: 0.45rem;
   padding-bottom: 0.15rem;
   overflow-x: auto;
@@ -3709,6 +3722,8 @@ p {
 
 .ops-feed {
   align-content: start;
+  width: 100%;
+  min-width: 0;
   max-height: min(52dvh, 36rem);
   padding: 0.15rem 0.25rem 0.35rem 0;
   scroll-padding-block: 0.75rem;
@@ -4157,6 +4172,10 @@ p {
   .ops-message--announcement,
   .ops-message--system {
     width: 100%;
+  }
+
+  .ops-message__actions .button {
+    width: auto;
   }
 
   .ops-message__header {
