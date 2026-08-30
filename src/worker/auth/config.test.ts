@@ -11,6 +11,7 @@ describe("auth configuration", () => {
       adminReauthSeconds: defaultAdminReauthSeconds,
       expectedOrigin: "https://ripota.org",
       rpId: "ripota.org",
+      passkeyEnabled: false,
     });
   });
 

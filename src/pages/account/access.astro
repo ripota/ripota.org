@@ -1,0 +1,46 @@
+---
+import Footer from "../../components/Footer.astro";
+import Notice from "../../components/Notice.astro";
+import SiteHeader from "../../components/SiteHeader.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="Account access" description="Complete RI POTA account access." privatePage>
+  <SiteHeader variant="solid" showEventLink />
+  <main id="main">
+    <section class="section event-page" aria-labelledby="access-title">
+      <div class="container form-card">
+        <p class="eyebrow">RI POTA account</p>
+        <h1 id="access-title">Opening your account</h1>
+        <p data-account-access-status aria-live="polite">Checking this access link…</p>
+        <p><a href="/account/sign-in/">Return to sign in</a></p>
+      </div>
+    </section>
+    <Notice />
+  </main>
+  <Footer />
+</BaseLayout>
+
+<script>
+  const status = document.querySelector<HTMLElement>("[data-account-access-status]");
+  const token = decodeURIComponent(window.location.hash.slice(1));
+  window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+  void consume();
+  async function consume(): Promise<void> {
+    if (!token) {
+      status?.replaceChildren("This access link is missing or expired.");
+      return;
+    }
+    try {
+      const response = await fetch("/api/auth/email-login/consume", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+      if (!response.ok) throw new Error("invalid");
+      window.location.replace("/account/security/");
+    } catch {
+      status?.replaceChildren("This access link is invalid, expired, or already used.");
+    }
+  }
+</script>

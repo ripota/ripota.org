@@ -11,6 +11,7 @@ export type AuthConfig = {
   expectedOrigin: string | null;
   rpId: string | null;
   rpName: "RI POTA";
+  passkeyEnabled: boolean;
 };
 
 export function getAuthConfig(env: Env, request?: Request): AuthConfig {
@@ -42,6 +43,7 @@ export function getAuthConfig(env: Env, request?: Request): AuthConfig {
     expectedOrigin,
     rpId,
     rpName: "RI POTA",
+    passkeyEnabled,
   };
 }
 

@@ -1,0 +1,16 @@
+---
+import SignInPanel from "../../components/auth/SignInPanel.astro";
+import Footer from "../../components/Footer.astro";
+import Notice from "../../components/Notice.astro";
+import SiteHeader from "../../components/SiteHeader.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="Sign in" description="Sign in to RI POTA." privatePage>
+  <SiteHeader variant="solid" showEventLink />
+  <main id="main">
+    <section class="section event-page"><div class="container"><SignInPanel /></div></section>
+    <Notice />
+  </main>
+  <Footer />
+</BaseLayout>

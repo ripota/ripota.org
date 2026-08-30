@@ -348,6 +348,120 @@ export async function updatePasskeyUse(
   ).bind(counter, now, managementId).run();
 }
 
+export async function renamePasskey(
+  env: Env,
+  userId: string,
+  managementId: string,
+  label: string,
+  now = new Date().toISOString(),
+): Promise<boolean> {
+  const result = await env.DB.prepare(
+    `UPDATE auth_passkey_credentials
+     SET label = ?
+     WHERE id = ? AND user_id = ? AND revoked_at IS NULL`,
+  ).bind(label.trim().slice(0, 80), managementId, userId).run();
+  if ((result.meta.changes ?? 0) !== 1) {
+    return false;
+  }
+  await authAuditStatement(env, {
+    action: "passkey-renamed",
+    summary: "Renamed a passkey.",
+    actorUserId: userId,
+    subjectUserId: userId,
+    createdAt: now,
+  }).run();
+  return true;
+}
+
+export async function revokePasskey(
+  env: Env,
+  userId: string,
+  managementId: string,
+  now = new Date().toISOString(),
+): Promise<"revoked" | "last-passkey" | "not-found"> {
+  const count = await env.DB.prepare(
+    `SELECT COUNT(*) AS count FROM auth_passkey_credentials
+     WHERE user_id = ? AND revoked_at IS NULL`,
+  ).bind(userId).first<{ count: number }>();
+  if (!count || count.count <= 1) {
+    return "last-passkey";
+  }
+  const result = await env.DB.prepare(
+    `UPDATE auth_passkey_credentials SET revoked_at = ?
+     WHERE id = ? AND user_id = ? AND revoked_at IS NULL`,
+  ).bind(now, managementId, userId).run();
+  if ((result.meta.changes ?? 0) !== 1) {
+    return "not-found";
+  }
+  await authAuditStatement(env, {
+    action: "passkey-revoked",
+    summary: "Revoked a passkey.",
+    actorUserId: userId,
+    subjectUserId: userId,
+    createdAt: now,
+  }).run();
+  return "revoked";
+}
+
+export type SafeSession = {
+  id: string;
+  authenticationMethod: AuthMethod;
+  authenticatedAt: string;
+  createdAt: string;
+  expiresAt: string;
+  lastUsedAt: string | null;
+};
+
+export async function listUserSessions(env: Env, userId: string, now = new Date()): Promise<SafeSession[]> {
+  const result = await env.DB.prepare(
+    `SELECT id, authentication_method, authenticated_at, created_at, expires_at, last_used_at
+     FROM auth_sessions
+     WHERE user_id = ? AND revoked_at IS NULL AND expires_at > ?
+     ORDER BY last_used_at DESC, created_at DESC`,
+  ).bind(userId, now.toISOString()).all<{
+    id: string;
+    authentication_method: AuthMethod;
+    authenticated_at: string;
+    created_at: string;
+    expires_at: string;
+    last_used_at: string | null;
+  }>();
+  return (result.results ?? []).map((row) => ({
+    id: row.id,
+    authenticationMethod: row.authentication_method,
+    authenticatedAt: row.authenticated_at,
+    createdAt: row.created_at,
+    expiresAt: row.expires_at,
+    lastUsedAt: row.last_used_at,
+  }));
+}
+
+export async function revokeUserSession(
+  env: Env,
+  userId: string,
+  sessionId: string,
+  now = new Date().toISOString(),
+): Promise<boolean> {
+  const result = await env.DB.prepare(
+    `UPDATE auth_sessions SET revoked_at = ?
+     WHERE id = ? AND user_id = ? AND revoked_at IS NULL`,
+  ).bind(now, sessionId, userId).run();
+  return (result.meta.changes ?? 0) === 1;
+}
+
+export async function revokeOtherUserSessions(
+  env: Env,
+  userId: string,
+  currentSessionId: string,
+  now = new Date().toISOString(),
+): Promise<number> {
+  const result = await env.DB.prepare(
+    `UPDATE auth_sessions SET revoked_at = ?
+     WHERE user_id = ? AND id <> ? AND revoked_at IS NULL`,
+  ).bind(now, userId, currentSessionId).run();
+  return result.meta.changes ?? 0;
+}
+
 export async function createChallenge(
   env: Env,
   input: {
@@ -388,6 +502,28 @@ export async function getActiveChallenge(
      WHERE challenge = ? AND ceremony = ? AND used_at IS NULL AND expires_at > ?
      LIMIT 1`,
   ).bind(challenge, ceremony, now.toISOString()).first<ChallengeRow>();
+  return row ? {
+    id: row.id,
+    challenge: row.challenge,
+    ceremony: row.ceremony,
+    userId: row.user_id,
+    sessionId: row.session_id,
+    expiresAt: row.expires_at,
+  } : null;
+}
+
+export async function getActiveChallengeById(
+  env: Env,
+  id: string,
+  ceremony: StoredChallenge["ceremony"],
+  now = new Date(),
+): Promise<StoredChallenge | null> {
+  const row = await env.DB.prepare(
+    `SELECT id, challenge, ceremony, user_id, session_id, expires_at
+     FROM auth_webauthn_challenges
+     WHERE id = ? AND ceremony = ? AND used_at IS NULL AND expires_at > ?
+     LIMIT 1`,
+  ).bind(id, ceremony, now.toISOString()).first<ChallengeRow>();
   return row ? {
     id: row.id,
     challenge: row.challenge,

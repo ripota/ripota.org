@@ -1,0 +1,27 @@
+---
+import PasskeyManager from "../../components/auth/PasskeyManager.astro";
+import SessionManager from "../../components/auth/SessionManager.astro";
+import Footer from "../../components/Footer.astro";
+import Notice from "../../components/Notice.astro";
+import SiteHeader from "../../components/SiteHeader.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="Account security" description="Manage RI POTA account security." privatePage>
+  <SiteHeader variant="solid" showEventLink />
+  <main id="main">
+    <section class="section event-page" aria-labelledby="security-title">
+      <div class="container stack">
+        <div class="section-header">
+          <p class="eyebrow">RI POTA account</p>
+          <h1 id="security-title">Account security</h1>
+          <p>Email sign-in can open activator tools, but administrator actions always require a passkey.</p>
+        </div>
+        <PasskeyManager />
+        <SessionManager />
+      </div>
+    </section>
+    <Notice />
+  </main>
+  <Footer />
+</BaseLayout>

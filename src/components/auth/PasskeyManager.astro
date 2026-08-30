@@ -1,0 +1,83 @@
+<section class="form-card" aria-labelledby="passkeys-title">
+  <h2 id="passkeys-title">Passkeys</h2>
+  <p>Add at least two recovery-capable passkeys when possible.</p>
+  <ul data-passkey-list><li>Loading passkeys…</li></ul>
+  <button class="button" data-variant="primary" type="button" data-add-passkey>
+    Add another passkey
+  </button>
+  <p class="form-status" data-passkey-status aria-live="polite"></p>
+</section>
+
+<script>
+  import { startRegistration } from "@simplewebauthn/browser";
+  import type { PublicKeyCredentialCreationOptionsJSON } from "@simplewebauthn/browser";
+
+  const list = document.querySelector<HTMLElement>("[data-passkey-list]");
+  const status = document.querySelector<HTMLElement>("[data-passkey-status]");
+  const add = document.querySelector<HTMLButtonElement>("[data-add-passkey]");
+
+  void loadPasskeys();
+
+  add?.addEventListener("click", async () => {
+    add.disabled = true;
+    status?.replaceChildren("Waiting for your authenticator…");
+    try {
+      const optionsResponse = await fetch("/api/auth/passkeys/registration/options", { method: "POST" });
+      const options = await optionsResponse.json();
+      if (!optionsResponse.ok || !isRegistrationOptionsBody(options)) throw new Error("options");
+      const response = await startRegistration({ optionsJSON: options.options });
+      const verifyResponse = await fetch("/api/auth/passkeys/registration/verify", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ challengeId: options.challengeId, response, label: "Passkey" }),
+      });
+      if (!verifyResponse.ok) throw new Error("verify");
+      status?.replaceChildren("Passkey added.");
+      await loadPasskeys();
+    } catch {
+      status?.replaceChildren("The passkey was not added. You can try again.");
+    } finally {
+      add.disabled = false;
+    }
+  });
+
+  async function loadPasskeys(): Promise<void> {
+    const response = await fetch("/api/auth/passkeys", { headers: { accept: "application/json" } });
+    if (!response.ok) {
+      window.location.replace(`/account/sign-in/?returnTo=${encodeURIComponent(window.location.pathname)}`);
+      return;
+    }
+    const body = await response.json();
+    if (!isRecord(body) || !Array.isArray(body.passkeys)) return;
+    const passkeys = body.passkeys.filter(isPasskey);
+    list?.replaceChildren(...passkeys.map((passkey) => {
+      const item = document.createElement("li");
+      const label = document.createElement("strong");
+      label.textContent = passkey.label || "Passkey";
+      item.appendChild(label);
+      item.appendChild(document.createTextNode(` — ${passkey.backedUp ? "backed up" : "single device"}; added ${new Date(passkey.createdAt).toLocaleDateString()}`));
+      return item;
+    }));
+  }
+
+  function isRegistrationOptionsBody(value: unknown): value is {
+    challengeId: string;
+    options: PublicKeyCredentialCreationOptionsJSON;
+  } {
+    return isRecord(value) && typeof value.challengeId === "string" &&
+      isRecord(value.options) && typeof value.options.challenge === "string" &&
+      isRecord(value.options.rp) && isRecord(value.options.user);
+  }
+
+  function isPasskey(value: unknown): value is {
+    id: string; label: string; backedUp: boolean; createdAt: string; lastUsedAt: string | null;
+  } {
+    return isRecord(value) && typeof value.id === "string" && typeof value.label === "string" &&
+      typeof value.backedUp === "boolean" && typeof value.createdAt === "string" &&
+      (value.lastUsedAt === null || typeof value.lastUsedAt === "string");
+  }
+
+  function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+  }
+</script>

@@ -12,6 +12,7 @@
     "binding": "ASSETS",
     "run_worker_first": [
       "/api/*",
+      "/account/*",
       "/embed/*",
       "/activate-ri-2026/admin*",
       "/activate-ri-2026/edit/*",
@@ -50,6 +51,16 @@
       "name": "OPS_RATE_LIMIT_SUSTAINED",
       "namespace_id": "1002",
       "simple": { "limit": 20, "period": 60 }
+    },
+    {
+      "name": "AUTH_RATE_LIMIT_BURST",
+      "namespace_id": "1003",
+      "simple": { "limit": 10, "period": 10 }
+    },
+    {
+      "name": "AUTH_EMAIL_RATE_LIMIT",
+      "namespace_id": "1004",
+      "simple": { "limit": 5, "period": 60 }
     }
   ],
   "send_email": [
@@ -62,7 +73,10 @@
     "ACTIVATE_RI_EMAIL_FROM": "activate-ri-2026@ripota.org",
     "ACTIVATE_RI_EMAIL_FROM_NAME": "RI POTA",
     "SITE_ORIGIN": "https://ripota.org",
-    "TURNSTILE_REQUIRED": "true"
+    "TURNSTILE_REQUIRED": "true",
+    "AUTH_ADMIN_MODE": "access",
+    "AUTH_ACTIVATOR_MODE": "legacy",
+    "AUTH_EMAIL_LOGIN_ENABLED": "false"
   },
   "env": {
     "local": {
@@ -99,6 +113,16 @@
           "name": "OPS_RATE_LIMIT_SUSTAINED",
           "namespace_id": "1002",
           "simple": { "limit": 20, "period": 60 }
+        },
+        {
+          "name": "AUTH_RATE_LIMIT_BURST",
+          "namespace_id": "1003",
+          "simple": { "limit": 10, "period": 10 }
+        },
+        {
+          "name": "AUTH_EMAIL_RATE_LIMIT",
+          "namespace_id": "1004",
+          "simple": { "limit": 5, "period": 60 }
         }
       ],
       "vars": {
@@ -108,7 +132,10 @@
         "ACTIVATE_RI_EMAIL_FROM_NAME": "RI POTA",
         "LOCAL_ADMIN_EMAIL": "local-admin@ripota.org",
         "PUBLIC_TURNSTILE_SITE_KEY": "1x00000000000000000000AA",
-        "TURNSTILE_REQUIRED": "false"
+        "TURNSTILE_REQUIRED": "false",
+        "AUTH_ADMIN_MODE": "dual",
+        "AUTH_ACTIVATOR_MODE": "dual",
+        "AUTH_EMAIL_LOGIN_ENABLED": "true"
       }
     },
     "production-data": {
@@ -146,6 +173,16 @@
           "name": "OPS_RATE_LIMIT_SUSTAINED",
           "namespace_id": "1002",
           "simple": { "limit": 20, "period": 60 }
+        },
+        {
+          "name": "AUTH_RATE_LIMIT_BURST",
+          "namespace_id": "1003",
+          "simple": { "limit": 10, "period": 10 }
+        },
+        {
+          "name": "AUTH_EMAIL_RATE_LIMIT",
+          "namespace_id": "1004",
+          "simple": { "limit": 5, "period": 60 }
         }
       ],
       "vars": {
@@ -156,7 +193,10 @@
         "LOCAL_ADMIN_EMAIL": "local-admin@ripota.org",
         "PUBLIC_TURNSTILE_SITE_KEY": "1x00000000000000000000AA",
         "REMOTE_DATA_READ_ONLY": "true",
-        "TURNSTILE_REQUIRED": "false"
+        "TURNSTILE_REQUIRED": "false",
+        "AUTH_ADMIN_MODE": "dual",
+        "AUTH_ACTIVATOR_MODE": "dual",
+        "AUTH_EMAIL_LOGIN_ENABLED": "false"
       }
     }
   },

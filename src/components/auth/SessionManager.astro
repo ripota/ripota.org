@@ -1,0 +1,47 @@
+<section class="form-card" aria-labelledby="sessions-title">
+  <h2 id="sessions-title">Signed-in browsers</h2>
+  <ul data-session-list><li>Loading sessions…</li></ul>
+  <button class="button" data-variant="light" type="button" data-revoke-other-sessions>
+    Sign out other browsers
+  </button>
+  <p class="form-status" data-session-status aria-live="polite"></p>
+</section>
+
+<script>
+  const list = document.querySelector<HTMLElement>("[data-session-list]");
+  const status = document.querySelector<HTMLElement>("[data-session-status]");
+  const revoke = document.querySelector<HTMLButtonElement>("[data-revoke-other-sessions]");
+  void loadSessions();
+  revoke?.addEventListener("click", async () => {
+    revoke.disabled = true;
+    const response = await fetch("/api/auth/sessions/revoke-others", { method: "POST" });
+    status?.replaceChildren(response.ok ? "Other browsers were signed out." : "Passkey reauthentication is required.");
+    revoke.disabled = false;
+    if (response.ok) await loadSessions();
+  });
+
+  async function loadSessions(): Promise<void> {
+    const response = await fetch("/api/auth/sessions");
+    if (!response.ok) return;
+    const body = await response.json();
+    if (!isRecord(body) || !Array.isArray(body.sessions)) return;
+    const sessions = body.sessions.filter(isSession);
+    list?.replaceChildren(...sessions.map((session) => {
+      const item = document.createElement("li");
+      item.textContent = `${session.current ? "This browser" : "Browser session"} — ${session.authenticationMethod}; last used ${new Date(session.lastUsedAt ?? session.createdAt).toLocaleString()}`;
+      return item;
+    }));
+  }
+
+  function isSession(value: unknown): value is {
+    authenticationMethod: string; current: boolean; lastUsedAt: string | null; createdAt: string;
+  } {
+    return isRecord(value) && typeof value.authenticationMethod === "string" &&
+      typeof value.current === "boolean" && typeof value.createdAt === "string" &&
+      (value.lastUsedAt === null || typeof value.lastUsedAt === "string");
+  }
+
+  function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+  }
+</script>

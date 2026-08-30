@@ -1,0 +1,109 @@
+<section class="form-card" aria-labelledby="passkey-sign-in-title">
+  <p class="eyebrow">RI POTA account</p>
+  <h1 id="passkey-sign-in-title">Sign in</h1>
+  <p>
+    Use a passkey saved to this device, your password manager, or a security key.
+    Android users can approve the device passkey or fingerprint prompt—no app is required.
+  </p>
+  <div class="form-actions">
+    <button class="button" data-variant="primary" type="button" data-passkey-sign-in>
+      Sign in with a passkey
+    </button>
+  </div>
+  <p class="form-status" data-sign-in-status aria-live="polite"></p>
+
+  <details>
+    <summary>Email me a sign-in link</summary>
+    <form class="stack" data-email-sign-in>
+      <label>
+        Email address
+        <input name="email" type="email" autocomplete="email" required />
+      </label>
+      <input name="turnstileToken" type="hidden" value="" />
+      <button class="button" data-variant="light" type="submit">Send sign-in link</button>
+      <p class="form-status" data-email-status aria-live="polite"></p>
+    </form>
+  </details>
+</section>
+
+<script>
+  import { startAuthentication } from "@simplewebauthn/browser";
+  import type { PublicKeyCredentialRequestOptionsJSON } from "@simplewebauthn/browser";
+
+  const button = document.querySelector<HTMLButtonElement>("[data-passkey-sign-in]");
+  const status = document.querySelector<HTMLElement>("[data-sign-in-status]");
+  const emailForm = document.querySelector<HTMLFormElement>("[data-email-sign-in]");
+  const emailStatus = document.querySelector<HTMLElement>("[data-email-status]");
+
+  button?.addEventListener("click", async () => {
+    button.disabled = true;
+    status?.replaceChildren("Waiting for your passkey…");
+    try {
+      const optionsResponse = await fetch("/api/auth/passkey/authentication/options", {
+        method: "POST",
+        headers: { accept: "application/json" },
+      });
+      const body = await optionsResponse.json();
+      if (!optionsResponse.ok || !isOptionsBody(body)) {
+        throw new Error("Passkey sign-in is unavailable.");
+      }
+      const response = await startAuthentication({ optionsJSON: body.options });
+      const verifyResponse = await fetch("/api/auth/passkey/authentication/verify", {
+        method: "POST",
+        headers: { accept: "application/json", "content-type": "application/json" },
+        body: JSON.stringify({ challengeId: body.challengeId, response }),
+      });
+      if (!verifyResponse.ok) {
+        throw new Error("Passkey sign-in failed.");
+      }
+      window.location.replace(safeReturnPath());
+    } catch (error) {
+      const cancelled = error instanceof Error && (error.name === "NotAllowedError" || /cancel/i.test(error.message));
+      status?.replaceChildren(cancelled
+        ? "The passkey prompt was cancelled. You can try again."
+        : "We could not verify that passkey. Try again or use email sign-in.");
+      button.disabled = false;
+    }
+  });
+
+  emailForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    emailStatus?.replaceChildren("Requesting a sign-in link…");
+    const data = new FormData(emailForm);
+    try {
+      const response = await fetch("/api/auth/email-login", {
+        method: "POST",
+        headers: { accept: "application/json", "content-type": "application/json" },
+        body: JSON.stringify({
+          email: data.get("email"),
+          turnstileToken: data.get("turnstileToken"),
+        }),
+      });
+      const body = await response.json();
+      emailStatus?.replaceChildren(isRecord(body) && typeof body.message === "string"
+        ? body.message
+        : "If this account can use email sign-in, we sent a link.");
+    } catch {
+      emailStatus?.replaceChildren("Email sign-in is temporarily unavailable. Please try again.");
+    }
+  });
+
+  function safeReturnPath(): string {
+    const requested = new URLSearchParams(window.location.search).get("returnTo");
+    return requested && requested.startsWith("/") && !requested.startsWith("//")
+      ? requested
+      : "/account/security/";
+  }
+
+  function isOptionsBody(value: unknown): value is {
+    challengeId: string;
+    options: PublicKeyCredentialRequestOptionsJSON;
+  } {
+    return isRecord(value) && typeof value.challengeId === "string" &&
+      isRecord(value.options) && typeof value.options.challenge === "string";
+  }
+
+  function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+  }
+</script>

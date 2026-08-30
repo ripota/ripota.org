@@ -24,6 +24,7 @@ import {
   runPotaHistoryReconciliation,
 } from "./pota-event";
 import { getRiPotaSpotsSnapshot } from "./routes/pota";
+import { handleAuthApi } from "./routes/auth";
 
 export { ActivateRiOpsRoom };
 
@@ -42,6 +43,10 @@ export default {
 
     if (url.pathname === "/api/activate-ri-2026/health") {
       return json({ ok: true, eventId: env.ACTIVATE_RI_EVENT_ID });
+    }
+
+    if (url.pathname.startsWith("/api/auth/")) {
+      return handleAuthApi(request, env);
     }
 
     if (url.pathname.startsWith("/api/activate-ri-2026/")) {
