@@ -23,7 +23,8 @@ editing, and the public schedule operate independently of the room.
 
 ## Prelaunch sequence
 
-1. Deploy with the D1 room mode `off` and the deployment hard-disable enabled.
+1. Deploy with the D1 room mode `off`. Keep the deployment hard-disable
+   available as the last-resort brake rather than the normal launch control.
 2. Confirm `SITE_ORIGIN`, Cloudflare Access coverage for admin routes, the D1,
    Durable Object, assets, rate-limit, and email bindings, and current secrets.
 3. Verify fragment-link exchange and the legacy edit-link bootstrap without
@@ -34,8 +35,7 @@ editing, and the public schedule operate independently of the room.
    pin, remove, mute, ban, session revoke, and secure-link replacement.
 7. Test one explicit announcement email, its recipient count, BCC batching, and
    failed-recipient retry.
-8. Disable the deployment hard-disable and move to `announcements` or `full`
-   only after the soft launch succeeds.
+8. Move to `announcements` or `full` only after the soft launch succeeds.
 
 ## Incident controls
 
