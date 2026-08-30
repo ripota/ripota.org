@@ -168,6 +168,12 @@ Do not log raw edit tokens, Access JWTs, Turnstile secrets, phone numbers,
 full recipient email addresses, request bodies, or admin email lists. Prefer
 stable IDs, counts, statuses, and hashed values.
 
+For Ops Room diagnostics, also exclude message bodies, local drafts, cookies,
+raw credentials, and full WebSocket URLs. Log only opaque identifiers, durable
+sequence numbers, results, durations, and sanitized errors. The broadcast and
+recipient tables are authoritative for delivery state; retry only failed
+recipients and never paste a raw recipient list into logs or incident notes.
+
 Keep D1 activity events for durable business history. Use Workers Logs for
 request-level diagnostics and transient debugging context.
 

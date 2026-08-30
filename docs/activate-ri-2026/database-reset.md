@@ -168,6 +168,36 @@ Cloudflare documents Time Travel restore as destructive because it overwrites
 the database in place and cancels in-flight queries. Use it only when the full
 database should return to the captured point in time.
 
+## Ops Room retention purge
+
+Ops Room content is retained through the event and for 90 days afterward. The
+retention cutoff for this event is `2026-12-13T05:00:00.000Z`. The maintenance
+task clears retained message bodies and deletes expired activator sessions; it
+keeps message/event IDs and moderation/broadcast audit metadata.
+
+Preview local candidate counts without changing data:
+
+```bash
+mise run activate-ri-2026:purge-ops-room
+```
+
+Preview production candidate counts:
+
+```bash
+mise run activate-ri-2026:purge-ops-room -- --remote
+```
+
+After reviewing the printed counts and only after the cutoff, run:
+
+```bash
+mise run activate-ri-2026:purge-ops-room -- --remote --confirm
+```
+
+The confirmed remote task refuses to run before the cutoff, creates a production
+backup first, prints counts before mutation, performs the purge, and prints the
+remaining counts. SQL exports/backups contain private room message bodies until
+this purge, so keep them under the same restricted retention policy.
+
 ## References
 
 - Cloudflare D1 Wrangler commands:

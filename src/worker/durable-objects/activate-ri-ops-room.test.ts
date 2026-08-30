@@ -3,6 +3,7 @@ import type { Env } from "../env";
 import { tokenHash } from "../edit-token";
 import { createMigratedSqliteD1 } from "../test-utils/sqlite-d1";
 import { ActivateRiOpsRoom } from "./activate-ri-ops-room";
+import { listOpsEvents } from "../ops-db";
 
 type FakeSocket = {
   tags: string[];
@@ -160,6 +161,112 @@ describe("ActivateRiOpsRoom", () => {
 
   it("derives admin actor keys without exposing the email", async () => {
     expect(await tokenHash("organizer@example.com")).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it("does not broadcast when the authoritative D1 commit fails", async () => {
+    const socket = fakeSocket(["role:activator", "member:activator-1"]);
+    sockets.push(socket);
+    const failingEnv = {
+      ...env,
+      DB: {
+        prepare() {
+          throw new Error("Injected D1 failure");
+        },
+      } as unknown as D1Database,
+    };
+    const failingState = {
+      getWebSockets: () => [socket as unknown as WebSocket],
+    } as unknown as DurableObjectState;
+    const failingRoom = new ActivateRiOpsRoom(failingState, failingEnv);
+
+    await expect(failingRoom.fetch(internalRequest("https://ops.internal/messages", {
+      method: "POST",
+      headers: activatorHeaders(),
+      body: JSON.stringify({
+        clientNonce: "5c6a5518-0a13-46d0-9bca-d5897ea8c198",
+        kind: "chat",
+        body: "This must not broadcast.",
+        context: null,
+      }),
+    }))).rejects.toThrow("Injected D1 failure");
+    expect(socket.send).not.toHaveBeenCalled();
+  });
+
+  it("delivers a burst, pin, mode change, and targeted ban to 75 clients", async () => {
+    for (let index = 0; index < 75; index += 1) {
+      sockets.push(fakeSocket(["role:activator", `member:activator-${index + 1}`]));
+    }
+    let firstEvent: unknown;
+    for (let index = 0; index < 20; index += 1) {
+      const response = await room.fetch(internalRequest("https://ops.internal/messages", {
+        method: "POST",
+        headers: activatorHeaders(),
+        body: JSON.stringify({
+          clientNonce: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+          kind: "chat",
+          body: `Burst message ${index + 1}`,
+          context: null,
+        }),
+      }));
+      const body = await response.json() as { event: unknown };
+      if (index === 0) firstEvent = body.event;
+    }
+    const retry = await room.fetch(internalRequest("https://ops.internal/messages", {
+      method: "POST",
+      headers: activatorHeaders(),
+      body: JSON.stringify({
+        clientNonce: "00000000-0000-4000-8000-000000000000",
+        kind: "chat",
+        body: "Burst message 1",
+        context: null,
+      }),
+    }));
+    await expect(retry.json()).resolves.toMatchObject({ event: firstEvent });
+
+    await room.fetch(internalRequest("https://ops.internal/announcements", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-ops-actor-type": "admin",
+        "x-ops-admin-key": "admin:test",
+        "x-ops-admin-email": "organizer@example.com",
+        "x-ops-label": "Organizer",
+      },
+      body: JSON.stringify({
+        clientNonce: "10000000-0000-4000-8000-000000000000",
+        body: "Pinned test announcement.",
+        context: null,
+        pin: true,
+      }),
+    }));
+    await room.fetch(internalRequest("https://ops.internal/settings", {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+        "x-ops-actor-type": "admin",
+        "x-ops-admin-email": "organizer@example.com",
+        "x-ops-label": "Organizer",
+      },
+      body: JSON.stringify({ roomMode: "announcements" }),
+    }));
+
+    const rawCounts = await env.DB.prepare(
+      `SELECT event_type, COUNT(*) AS count FROM activate_ri_ops_events GROUP BY event_type`,
+    ).all<{ event_type: string; count: number }>();
+    expect(rawCounts.results).toEqual([
+      { event_type: "message-created", count: 21 },
+      { event_type: "pin-changed", count: 1 },
+      { event_type: "room-mode-changed", count: 1 },
+    ]);
+    const highWater = await env.DB.prepare(
+      `SELECT MAX(sequence) AS cursor FROM activate_ri_ops_events`,
+    ).first<{ cursor: number }>();
+    const events = await listOpsEvents(env, 0, highWater?.cursor ?? 0, 250);
+    expect(events.events).toHaveLength(23);
+    expect(events.hasMore).toBe(false);
+    for (const socket of sockets) {
+      expect(socket.send).toHaveBeenCalledTimes(24);
+    }
   });
 });
 

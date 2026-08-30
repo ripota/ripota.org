@@ -182,6 +182,9 @@ const parkNames = Object.fromEntries(
   }
 
   function connectSocket(): void {
+    if (socket && (socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING)) {
+      socket = null;
+    }
     if (document.hidden || !navigator.onLine || socket || roomMode === "off") {
       return;
     }
@@ -541,7 +544,10 @@ const parkNames = Object.fromEntries(
     }
   });
   window.addEventListener("offline", () => setConnection("offline", offlineLabel()));
-  window.addEventListener("online", connectSocket);
+  window.addEventListener("online", () => {
+    closeSocket(true);
+    connectSocket();
+  });
   window.addEventListener("beforeunload", () => closeSocket(true));
   window.addEventListener("activate-ri:logout", () => {
     localStorage.removeItem(cursorKey);

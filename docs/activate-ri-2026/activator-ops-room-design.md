@@ -1,6 +1,6 @@
 # Activate RI 2026 Activator Ops Room — Final Implementation Plan
 
-**Status:** Implementation-ready handoff  
+**Status:** Implemented; room remains off pending operational rollout  
 **Tracking issue:** `ripota/ripota.org#6`  
 **Proposed design document:** `docs/activate-ri-2026/activator-ops-room-design.md`
 

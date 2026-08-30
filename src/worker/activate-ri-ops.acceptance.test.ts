@@ -224,6 +224,17 @@ describe("Activate RI Ops Room D1 flow", () => {
       }),
       env,
     );
+    const crossOriginSocket = await handleActivateRiApi(
+      new Request("https://ripota.org/api/activate-ri-2026/ops/socket", {
+        headers: {
+          cookie,
+          origin: "https://attacker.example",
+          upgrade: "websocket",
+        },
+      }),
+      env,
+    );
+    expect(crossOriginSocket.status).toBe(403);
     env.ACTIVATE_RI_OPS_HARD_DISABLED = "true";
     const bootstrap = await handleActivateRiApi(
       sessionRequest("/api/activate-ri-2026/ops/bootstrap", cookie),

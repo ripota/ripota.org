@@ -175,6 +175,15 @@ participant-facing effective mode to `off` without changing D1. Access-protected
 admins can inspect state and set `full`, `announcements`, or `off`; each mode
 change writes both an Ops cursor event and the existing admin activity log.
 
+Organizers can create announcements, optionally pin them, and explicitly send
+an announcement by email. Email is never implicit for ordinary room messages.
+The send operation snapshots eligible active or muted members, excludes banned
+members, records the recipient count before sending, and uses blind-copy batches
+of at most 49 recipients with the configured sender in `To`. Per-recipient state
+makes a retry target only failed recipients. Message removal clears the body in
+D1. Room moderation, active-socket disconnect, portal-session revocation, and
+secure-link replacement remain distinct controls.
+
 Participant message/removal/resolution HTTP mutations and admin room-mode
 changes are routed through the event Durable Object. The object serializes the
 mutation, commits the authoritative message/change event to D1, and only then

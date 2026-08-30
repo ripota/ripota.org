@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; -*-
+#MISE description="Dry-run or purge retained Activate RI Ops Room bodies and expired sessions"
+#MISE raw=true
+#USAGE flag "--remote" help="Target the deployed D1 database instead of local Wrangler state"
+#USAGE flag "--confirm" help="Perform the purge after printing candidate counts"
+
+set -euo pipefail
+
+database_name="ripota-org"
+retention_cutoff="2026-12-13T05:00:00.000Z"
+target_args=(--local --env local)
+
+if [[ "${usage_remote:-false}" == "true" ]]; then
+  target_args=(--remote --env "")
+fi
+
+counts_sql="
+SELECT 'message_bodies' AS item, COUNT(*) AS candidate_count
+FROM activate_ri_ops_messages
+WHERE event_id = 'activate-ri-2026'
+  AND body <> ''
+  AND created_at < '${retention_cutoff}'
+UNION ALL
+SELECT 'expired_sessions', COUNT(*)
+FROM activate_ri_activator_sessions
+WHERE event_id = 'activate-ri-2026'
+  AND expires_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now');
+"
+
+purge_sql="
+UPDATE activate_ri_ops_messages
+SET body = '',
+    removed_at = COALESCE(removed_at, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    removed_by = CASE WHEN removed_by = '' THEN 'retention' ELSE removed_by END,
+    removal_reason = CASE
+      WHEN removal_reason = '' THEN 'Purged after the event retention period.'
+      ELSE removal_reason
+    END
+WHERE event_id = 'activate-ri-2026'
+  AND body <> ''
+  AND created_at < '${retention_cutoff}';
+
+DELETE FROM activate_ri_activator_sessions
+WHERE event_id = 'activate-ri-2026'
+  AND expires_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now');
+"
+
+echo "Ops Room retention cutoff: ${retention_cutoff}"
+echo "Candidate counts before purge:"
+npx wrangler d1 execute "${database_name}" "${target_args[@]}" --command="${counts_sql}"
+
+if [[ "${usage_confirm:-false}" != "true" ]]; then
+  echo "Dry run only. Add --confirm to purge these rows."
+  exit 0
+fi
+
+current_epoch="$(date -u +%s)"
+cutoff_epoch="$(date -u -j -f '%Y-%m-%dT%H:%M:%S.000Z' "${retention_cutoff}" +%s 2>/dev/null || date -u -d "${retention_cutoff}" +%s)"
+if (( current_epoch < cutoff_epoch )); then
+  echo "Refusing to purge before the retention cutoff." >&2
+  exit 65
+fi
+
+if [[ "${usage_remote:-false}" == "true" ]]; then
+  mise run backup-production
+fi
+
+echo "Purging retained Ops Room bodies and expired sessions."
+npx wrangler d1 execute "${database_name}" "${target_args[@]}" --command="${purge_sql}"
+
+echo "Candidate counts after purge:"
+npx wrangler d1 execute "${database_name}" "${target_args[@]}" --command="${counts_sql}"

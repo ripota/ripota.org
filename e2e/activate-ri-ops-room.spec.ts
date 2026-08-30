@@ -11,7 +11,9 @@ test("approved activators acknowledge rules and exchange a live room message", a
   const callsign = randomCallsign();
   const email = `${callsign.toLowerCase()}@example.com`;
   const firstContext = await browser.newContext();
-  const secondContext = await browser.newContext();
+  const secondContext = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+  });
   const adminContext = await browser.newContext();
   const first = await firstContext.newPage();
   const second = await secondContext.newPage();
@@ -83,6 +85,16 @@ test("approved activators acknowledge rules and exchange a live room message", a
       "Checking in from Beavertail.",
     );
     await expect(second.locator("[data-ops-feed]")).toContainText("US-2868");
+
+    await firstContext.setOffline(true);
+    await first.locator("[data-ops-body]").fill("Drafted while offline.");
+    await first.getByRole("button", { name: "Send", exact: true }).click();
+    await expect(first.locator("[data-ops-unsent]")).toBeVisible();
+    await firstContext.setOffline(false);
+    await expect(first.locator("[data-ops-connection-label]")).toHaveText("Live");
+    await expect(second.locator("[data-ops-feed]")).not.toContainText("Drafted while offline.");
+    await first.getByRole("button", { name: "Send", exact: true }).click();
+    await expect(second.locator("[data-ops-feed]")).toContainText("Drafted while offline.");
 
     await admin.goto(`${server.origin}/activate-ri-2026/admin/`);
     await expect(admin.locator("[data-admin-ops-status]")).toHaveText(
