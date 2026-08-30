@@ -2,6 +2,7 @@
 const links = [
   ["Overview", "/activate-ri-2026/"],
   ["Volunteer", "/activate-ri-2026/volunteer/"],
+  ["Activator", "/activate-ri-2026/activators/"],
   ["Schedule", "/activate-ri-2026/schedule/"],
   ["Parks", "/activate-ri-2026/parks/"],
   ["Hunter", "/activate-ri-2026/hunter/"],
@@ -11,12 +12,20 @@ const links = [
 const currentPath = Astro.url.pathname.endsWith("/")
   ? Astro.url.pathname
   : `${Astro.url.pathname}/`;
+
+function isCurrent(href: string): boolean {
+  if (href === "/activate-ri-2026/activators/") {
+    return currentPath.startsWith(href) || currentPath === "/activate-ri-2026/access/";
+  }
+
+  return currentPath === href;
+}
 ---
 
 <nav class="event-nav" aria-label="Activate All RI navigation">
   {
     links.map(([label, href]) => (
-      <a href={href} aria-current={currentPath === href ? "page" : undefined}>
+      <a href={href} aria-current={isCurrent(href) ? "page" : undefined}>
         {label}
       </a>
     ))

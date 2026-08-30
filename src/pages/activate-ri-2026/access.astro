@@ -1,4 +1,6 @@
 ---
+import EditLinkResendForm from "../../components/activate-ri/EditLinkResendForm.astro";
+import EventNav from "../../components/activate-ri/EventNav.astro";
 import Footer from "../../components/Footer.astro";
 import Notice from "../../components/Notice.astro";
 import SiteHeader from "../../components/SiteHeader.astro";
@@ -14,16 +16,20 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
   <main id="main">
     <section class="section event-page" aria-labelledby="access-title">
       <div class="container">
+        <EventNav />
         <div class="section-header">
           <p class="eyebrow">Private activator access</p>
-          <h1 id="access-title">Opening your activator portal</h1>
+          <h1 id="access-title">Activator portal access</h1>
           <p class="lead" data-access-status aria-live="polite">
-            Verifying your private link…
+            Checking this browser for an active activator session…
           </p>
           <p data-access-help hidden>
-            Reopen the private link in your signup email, or request another
-            link from the <a href="/activate-ri-2026/volunteer/">volunteer page</a>.
+            Open the private link from your signup email to authorize this browser for 14 days,
+            or request a fresh link below.
           </p>
+        </div>
+        <div data-access-recovery hidden>
+          <EditLinkResendForm />
         </div>
       </div>
     </section>
@@ -51,7 +57,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
           return;
         }
 
-        showFailure("This page is missing its private access token.");
+        showFailure("No active activator session was found in this browser.");
         return;
       }
 
@@ -77,5 +83,6 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
   function showFailure(message: string): void {
     status?.replaceChildren(message);
     help?.removeAttribute("hidden");
+    document.querySelector("[data-access-recovery]")?.removeAttribute("hidden");
   }
 </script>
