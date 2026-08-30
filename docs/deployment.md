@@ -50,8 +50,9 @@ Worker version.
 - `main`: `src/worker/index.ts`
 - `assets.directory`: `./dist`
 - `assets.binding`: `ASSETS`
-- `assets.run_worker_first`: `/api/*`, `/activate-ri-2026/admin*`,
-  `/activate-ri-2026/edit/*`
+- `assets.run_worker_first`: `/api/*`, `/account/*`,
+  `/activate-ri-2026/admin*`, `/activate-ri-2026/edit/*`, access, and activator
+  portal routes
 - D1 binding: `DB`, database `ripota-org`
 - Email binding: `EMAIL`
 - Observability: enabled
@@ -86,11 +87,26 @@ npx wrangler secret put TURNSTILE_SECRET_KEY
 npx wrangler secret put ACTIVATE_RI_ADMIN_EMAILS
 npx wrangler secret put CF_ACCESS_TEAM_DOMAIN
 npx wrangler secret put CF_ACCESS_AUD
+npx wrangler secret put AUTH_BOOTSTRAP_ADMIN_EMAILS
 ```
 
 `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` are required for the Worker to
 validate Cloudflare Access JWTs on admin requests. See
 `docs/cloudflare-access.md`.
+
+The top-level authentication vars intentionally deploy in rollback-safe mode:
+
+```text
+AUTH_ADMIN_MODE=access
+AUTH_ACTIVATOR_MODE=legacy
+AUTH_EMAIL_LOGIN_ENABLED=false
+```
+
+Do not change those values as part of the first migration/code deployment.
+Follow the enrollment, dual-mode, email, and final-mode gates in
+`docs/activate-ri-2026/authentication.md`. In particular, do not narrow
+Cloudflare Access until two administrator passkeys and break-glass recovery
+have been exercised successfully.
 
 ## Migrations
 
@@ -162,8 +178,16 @@ After deployment:
 7. If email-related changes shipped, confirm the activator edit-link email and
    admin notification email flow. See
    `docs/activate-ri-2026/email-flow-and-setup.md`.
+8. For the unified-auth dormant deployment, confirm existing admin Access,
+   existing private links, and existing legacy browser sessions before changing
+   any auth feature flag.
 
 ## Rollback
+
+For an authentication incident, first restore the safe vars
+`access` / `legacy` / `false` and deploy. This preserves old Access, links, and
+sessions without deleting the additive authentication schema. Full details are
+in `docs/activate-ri-2026/authentication.md`.
 
 List recent Worker deployments or versions:
 

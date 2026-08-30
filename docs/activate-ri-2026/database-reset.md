@@ -19,6 +19,8 @@ moderation, broadcast, and activity/audit rows:
 - `activate_ri_ops_memberships`
 - `activate_ri_activator_sessions`
 - `activate_ri_edit_tokens`
+- unified authentication users, emails, passkeys, sessions, challenges,
+  email/recovery tokens, event roles, activator memberships, and audit events
 - `activate_ri_activity_events`
 - `activate_ri_audit_events`
 - `activate_ri_stops`
@@ -68,6 +70,15 @@ DELETE FROM activate_ri_ops_memberships;
 UPDATE activate_ri_ops_settings SET room_mode = 'off', pinned_message_id = NULL;
 DELETE FROM activate_ri_activator_sessions;
 DELETE FROM activate_ri_edit_tokens;
+DELETE FROM auth_audit_events;
+DELETE FROM auth_webauthn_challenges;
+DELETE FROM auth_email_tokens;
+DELETE FROM auth_sessions;
+DELETE FROM auth_passkey_credentials;
+DELETE FROM auth_activator_memberships;
+DELETE FROM auth_event_roles;
+DELETE FROM auth_user_emails;
+DELETE FROM auth_users;
 DELETE FROM activate_ri_activity_events;
 DELETE FROM activate_ri_audit_events;
 DELETE FROM activate_ri_stops;
@@ -104,6 +115,12 @@ SELECT 'edit_tokens' AS table_name, COUNT(*) AS row_count FROM activate_ri_edit_
 UNION ALL
 SELECT 'activator_sessions', COUNT(*) FROM activate_ri_activator_sessions
 UNION ALL
+SELECT 'auth_users', COUNT(*) FROM auth_users
+UNION ALL
+SELECT 'auth_passkeys', COUNT(*) FROM auth_passkey_credentials
+UNION ALL
+SELECT 'auth_sessions', COUNT(*) FROM auth_sessions
+UNION ALL
 SELECT 'ops_memberships', COUNT(*) FROM activate_ri_ops_memberships
 UNION ALL
 SELECT 'ops_messages', COUNT(*) FROM activate_ri_ops_messages
@@ -131,6 +148,12 @@ npx wrangler d1 execute ripota-org --remote --command="
 SELECT 'edit_tokens' AS table_name, COUNT(*) AS row_count FROM activate_ri_edit_tokens
 UNION ALL
 SELECT 'activator_sessions', COUNT(*) FROM activate_ri_activator_sessions
+UNION ALL
+SELECT 'auth_users', COUNT(*) FROM auth_users
+UNION ALL
+SELECT 'auth_passkeys', COUNT(*) FROM auth_passkey_credentials
+UNION ALL
+SELECT 'auth_sessions', COUNT(*) FROM auth_sessions
 UNION ALL
 SELECT 'ops_memberships', COUNT(*) FROM activate_ri_ops_memberships
 UNION ALL

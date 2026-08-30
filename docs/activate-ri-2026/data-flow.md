@@ -17,10 +17,16 @@ Primary runtime bindings:
 - `ACTIVATE_RI_OPS_ROOM`: one SQLite-backed Durable Object for the event room.
 - `OPS_RATE_LIMIT_BURST` and `OPS_RATE_LIMIT_SUSTAINED`: actor-keyed mutation
   limits (5/10 seconds and 20/60 seconds).
+- `AUTH_RATE_LIMIT_BURST` and `AUTH_EMAIL_RATE_LIMIT`: passkey-ceremony and
+  email-fallback limits.
 
 Relevant Worker routing is in `src/worker/index.ts`:
 
 - `/api/activate-ri-2026/*` routes to the Activate RI API handler.
+- `/api/auth/*` handles unified sessions, passkeys, email fallback, legacy
+  upgrades, and Access bootstrap.
+- `/account/sign-in/`, `/account/access/`, and `/account/security/` are
+  private/no-store account surfaces.
 - `/activate-ri-2026/admin/` runs through Cloudflare Access before serving the
   static admin page.
 - `/activate-ri-2026/access/` exchanges fragment credentials for a session.
@@ -35,6 +41,10 @@ D1 is the source of truth for operational event data:
 - activators
 - private edit-token hashes
 - hashed 14-day activator sessions
+- unified users, verified emails, passkeys, hashed sessions, event roles, and
+  activator memberships
+- single-use passkey challenges and email/recovery token hashes
+- authentication audit events
 - submitted plans
 - activation stops
 - approval state
@@ -141,7 +151,9 @@ static JSON files.
 
 1. The activator opens an emailed `/activate-ri-2026/access/#<token>` link.
 2. The access page removes the fragment and exchanges it for a hashed 14-day
-   HttpOnly session cookie. Legacy `/edit/<token>/` links do the same in the Worker.
+   HttpOnly legacy session cookie. Legacy `/edit/<token>/` links do the same in
+   the Worker. In dual/unified authentication mode, the credential also creates
+   a unified account session without consuming or rotating the link.
 3. The browser lands on the tokenless `/activate-ri-2026/activator/plan/` page.
 4. The editor reads and mutates `/api/activate-ri-2026/activator/*` routes with
    the session cookie. State changes also require the exact configured Origin.
@@ -153,6 +165,29 @@ stop is already `completed`.
 
 High-impact approved-plan changes attempt to notify admins by email. Those
 notifications are best-effort and do not roll back accepted edits.
+
+## Unified Authentication Flow
+
+Passkey sign-in uses a server-stored, expiring, single-use challenge and a
+discoverable WebAuthn credential. Verification requires the exact configured
+origin, RP ID, and user verification. Successful sign-in updates the signature
+counter and creates a hashed unified session. Unified authorization then reads
+event-scoped admin roles and activator memberships from D1; a single account can
+hold both.
+
+An eligible activator may request a 15-minute email sign-in link. The public
+response does not reveal whether an address exists. Turnstile and independent
+rate-limit bindings protect the request. Only the token hash is stored and the
+secret is carried in the URL fragment. Consumption verifies the primary email,
+links the matching event activator, and creates an email-authenticated session
+that can enroll a passkey.
+
+Administrator bootstrap starts only from a Worker-validated Cloudflare Access
+identity that is already an event admin or is explicitly allowlisted outside
+the repository. Admin recovery creates a short replacement session; completing
+passkey registration revokes previous passkeys and sessions. Account disable,
+session revocation, recovery delivery, and passkey events are independently
+audited. See `authentication.md` for rollout and rollback controls.
 
 ## Ops Room Durable Data Flow
 

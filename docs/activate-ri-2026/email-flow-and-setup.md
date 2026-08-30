@@ -88,6 +88,27 @@ reference, and park name:
    and logs the resend event. Public recovery does not revoke older links or
    sessions, which prevents unauthenticated denial of access.
 
+### Unified sign-in and passkey reset
+
+The shared sign-in page can send an eligible activator a 15-minute access link
+when `AUTH_EMAIL_LOGIN_ENABLED=true`. The endpoint always returns the same
+message for known, unknown, disabled, and ineligible addresses. Turnstile plus
+auth-specific network/email limits protect the request. The database stores
+only a token hash; the raw token is placed after `#` in the account-access URL,
+is consumed once, and is invalidated if delivery fails.
+
+A passkey-authenticated administrator can send a 30-minute passkey replacement
+link from the admin Account security tab. Completing registration revokes the
+account's previous passkeys and sessions. Reset delivery failure invalidates the
+token and leaves existing credentials unchanged. Re-enabling a disabled account
+does not restore a credential; the administrator must explicitly send a reset
+link afterward.
+
+Both messages state that RI POTA is unofficial, point to official POTA resources
+as the source of truth, and never request an RI POTA or POTA password. Existing
+private activator links continue to work and are not revoked by email sign-in or
+passkey reset.
+
 ### Organizer security replacement
 
 The admin panel exposes two distinct operations:
@@ -126,6 +147,8 @@ Relevant config:
 - `ACTIVATE_RI_EMAIL_FROM` defaults to `activate-ri-2026@ripota.org`.
 - `ACTIVATE_RI_EMAIL_FROM_NAME` defaults to `RI POTA`.
 - `ACTIVATE_RI_ADMIN_EMAILS` must be configured outside the repository.
+- `AUTH_EMAIL_LOGIN_ENABLED` gates activator email fallback; it is `false` in
+  the safe production configuration.
 
 Cloudflare docs:
 
@@ -197,6 +220,7 @@ current private-session and Ops Room migrations are:
 ```text
 migrations/0009_activator_sessions.sql
 migrations/0010_activator_ops_room.sql
+migrations/0012_unified_auth.sql
 ```
 
 ### 4. Enable Email Sending for `ripota.org`

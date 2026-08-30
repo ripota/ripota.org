@@ -39,6 +39,11 @@ Activate RI has a real-SQL API acceptance test in the normal Vitest suite. It
 applies the checked-in D1 migrations to a temporary SQLite database, submits a
 volunteer plan, approves it, and verifies the public stops API.
 
+The unified-authentication acceptance tests use the same real migration stack
+to cover legacy-link account claiming, email fallback, unified sessions, and
+passkey-only account recovery controls. A browser test uses a virtual WebAuthn
+authenticator for enrollment and discoverable sign-in.
+
 Run it directly with:
 
 ```bash
@@ -77,6 +82,9 @@ Activate RI admin routes require Cloudflare Access in production. See [docs/clou
 Activate RI D1 setup/reset notes live under `docs/activate-ri-2026/`, including
 the [data-flow overview](docs/activate-ri-2026/data-flow.md) and
 [database reset runbook](docs/activate-ri-2026/database-reset.md).
+The [authentication runbook](docs/activate-ri-2026/authentication.md) documents
+passkeys, email/legacy compatibility, staged feature flags, safety gates, and
+rollback.
 
 ## Content Notes
 

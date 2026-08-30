@@ -22,6 +22,15 @@ SET room_mode = 'off', pinned_message_id = NULL,
     updated_by = 'database-reset';
 DELETE FROM activate_ri_activator_sessions;
 DELETE FROM activate_ri_edit_tokens;
+DELETE FROM auth_audit_events;
+DELETE FROM auth_webauthn_challenges;
+DELETE FROM auth_email_tokens;
+DELETE FROM auth_sessions;
+DELETE FROM auth_passkey_credentials;
+DELETE FROM auth_activator_memberships;
+DELETE FROM auth_event_roles;
+DELETE FROM auth_user_emails;
+DELETE FROM auth_users;
 DELETE FROM activate_ri_activity_events;
 DELETE FROM activate_ri_audit_events;
 DELETE FROM activate_ri_stops;
@@ -42,6 +51,22 @@ UNION ALL
 SELECT 'activator_sessions', COUNT(*) FROM activate_ri_activator_sessions
 UNION ALL
 SELECT 'edit_tokens', COUNT(*) FROM activate_ri_edit_tokens
+UNION ALL
+SELECT 'auth_audit_events', COUNT(*) FROM auth_audit_events
+UNION ALL
+SELECT 'auth_challenges', COUNT(*) FROM auth_webauthn_challenges
+UNION ALL
+SELECT 'auth_email_tokens', COUNT(*) FROM auth_email_tokens
+UNION ALL
+SELECT 'auth_sessions', COUNT(*) FROM auth_sessions
+UNION ALL
+SELECT 'auth_passkeys', COUNT(*) FROM auth_passkey_credentials
+UNION ALL
+SELECT 'auth_memberships', COUNT(*) FROM auth_activator_memberships
+UNION ALL
+SELECT 'auth_roles', COUNT(*) FROM auth_event_roles
+UNION ALL
+SELECT 'auth_users', COUNT(*) FROM auth_users
 UNION ALL
 SELECT 'activity_events', COUNT(*) FROM activate_ri_activity_events
 UNION ALL
