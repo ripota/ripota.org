@@ -6,6 +6,7 @@ export type Env = {
   OPS_RATE_LIMIT_SUSTAINED?: RateLimit;
   AUTH_RATE_LIMIT_BURST?: RateLimit;
   AUTH_EMAIL_RATE_LIMIT?: RateLimit;
+  CLIENT_ERROR_RATE_LIMIT?: RateLimit;
   EMAIL?: SendEmail;
   ACTIVATE_RI_EVENT_ID: "activate-ri-2026";
   TURNSTILE_REQUIRED?: "true" | "false";

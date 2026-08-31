@@ -28,6 +28,7 @@ import { getAuthConfig } from "./auth/config";
 import { createUnifiedActivatorSession } from "./auth/legacy";
 import { cleanupAuthData } from "./auth/cleanup";
 import { requireAccessIdentity } from "./access";
+import { handleClientErrorReport } from "./routes/client-errors";
 
 export { ActivateRiOpsRoom };
 
@@ -48,6 +49,10 @@ export default {
 
     if (url.pathname === "/api/activate-ri-2026/health") {
       return json({ ok: true, eventId: env.ACTIVATE_RI_EVENT_ID });
+    }
+
+    if (url.pathname === "/api/client-errors") {
+      return handleClientErrorReport(request, env);
     }
 
     if (
