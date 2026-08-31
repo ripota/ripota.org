@@ -55,6 +55,8 @@ Worker version.
   portal routes
 - D1 binding: `DB`, database `ripota-org`
 - Email binding: `EMAIL`
+- Client error rate-limit binding: `CLIENT_ERROR_RATE_LIMIT`, 20 reports per
+  network key per minute
 - Observability: enabled
 - Worker source maps: uploaded by Wrangler for deobfuscated Worker stack traces
 
@@ -64,7 +66,10 @@ storage.
 
 `upload_source_maps` applies to the Wrangler-built Worker script at
 `src/worker/index.ts`. Astro/Vite also emits client-side `.map` assets for the
-static browser bundle.
+static browser bundle. Browser failures are reported through
+`POST /api/client-errors`; see
+`docs/activate-ri-2026/worker-logging-debugging.md` for the payload limits,
+privacy controls, and Workers Logs workflow.
 
 ## Required Local State
 

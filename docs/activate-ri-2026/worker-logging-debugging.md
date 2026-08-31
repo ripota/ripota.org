@@ -13,9 +13,12 @@ Cloudflare Worker observability is enabled in `wrangler.jsonc`:
 }
 ```
 
-That means deployed Worker invocations and `console.log` output are persisted
-in Cloudflare Workers Logs after deploy. The Worker writes structured email
-attempt logs from `src/worker/email.ts` with this shape:
+That means deployed Worker invocations, uncaught Worker exceptions, and
+`console.log`/`console.error` output are persisted in Cloudflare Workers Logs
+after deploy. Caught operational failures use structured error entries with an
+`event`, a bounded `errorName`/`errorMessage`, and safe diagnostic fields. The
+Worker writes structured email attempt logs from `src/worker/email.ts` with
+this shape:
 
 ```json
 {
@@ -40,6 +43,37 @@ Email-related activity entries include `details.emailAttemptId` so D1 activity
 can be correlated with Workers Logs. Recipient email addresses are not written
 to logs; the Worker records counts and SHA-256 hashes instead.
 
+## Browser Error Reports
+
+Pages using `BaseLayout.astro` install a small error reporter in the document
+head. It reports these otherwise browser-only failures:
+
+- uncaught JavaScript errors;
+- unhandled promise rejections, using message and stack details only when the
+  reason is an `Error`; and
+- failed same-origin script or stylesheet loads.
+
+Reports are posted to `POST /api/client-errors`. The Worker validates and
+bounds the payload, then emits a structured Workers Logs entry with
+`event = "client-error"`. Search or filter on that event, then use `kind`,
+`route`, `errorName`, `message`, `source`, and `cfRay` to group related
+failures. Browser bundle source maps are emitted by Astro/Vite, so the logged
+bundle location can be resolved against the matching deployment artifact.
+
+The reporter is intentionally best-effort. It deduplicates identical errors,
+sends at most five reports per page load, and the Worker accepts at most 20
+reports per network key per minute. Reporting failures never affect the page.
+Handled UI errors are not reported; their API requests and corresponding
+Worker logs remain the source of truth.
+
+Client reports exclude cookies, form values, request bodies, user-agent and IP
+addresses, URL query strings and fragments, and non-`Error` promise rejection
+values. Email addresses, bearer/JWT credentials, sensitive query parameters,
+and private edit-link tokens are redacted. The endpoint only accepts trusted
+same-origin requests and bodies no larger than 8 KiB. Cloudflare uses the
+connecting IP only inside the rate-limit binding; the application does not
+write it to logs.
+
 ## Where To Look
 
 Use the admin activity log first when debugging Activate RI behavior. It is the
@@ -47,8 +81,8 @@ highest-signal event history for submissions, approvals, edits, cancellations,
 and email outcomes.
 
 Use Workers Logs when you need request-level detail, structured
-`email_send_attempt` entries, uncaught exceptions, or Cloudflare invocation
-metadata.
+`email_send_attempt` or `client-error` entries, caught operational failures,
+uncaught exceptions, or Cloudflare invocation metadata.
 
 Use Cloudflare Email Service logs when the Worker says an email was sent but
 you need to confirm whether Cloudflare accepted, rejected, delivered, or failed
@@ -67,6 +101,13 @@ If you only care about email attempts, pipe the stream through `jq`:
 ```bash
 npx wrangler tail ripota-org \
   | jq '.. | objects | select(.event? == "email_send_attempt")'
+```
+
+For browser failures, filter on the client event instead:
+
+```bash
+npx wrangler tail ripota-org \
+  | jq '.. | objects | select(.event? == "client-error")'
 ```
 
 For high-volume debugging, prefer narrower filters in the Cloudflare dashboard
@@ -154,13 +195,13 @@ for the edit/approval request.
 
 ## Logging Guidelines
 
-Use structured object logs for new Worker diagnostics:
+Use `logWorkerError` for caught failures so errors are consistently structured,
+bounded, and redacted:
 
 ```ts
-console.log({
-  event: "activate_ri_some_event",
+logWorkerError("activate-ri-some-operation-failed", error, {
   planId,
-  status: "started",
+  category: "database",
 });
 ```
 
