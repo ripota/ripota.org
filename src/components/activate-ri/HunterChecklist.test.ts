@@ -24,6 +24,7 @@ describe("hunter checklist surface", () => {
     expect(component).toContain("<progress");
     expect(component).toContain("data-hunter-search");
     expect(component).toContain("data-hunter-filter");
+    expect(component).toContain("formatHunterImportSummary(parsed)");
     expect(component).toContain("Reset manual changes");
     expect(component).toContain("Clear my checklist data");
   });

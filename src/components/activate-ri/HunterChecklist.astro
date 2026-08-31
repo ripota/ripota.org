@@ -113,6 +113,7 @@ const references = riReferences.map(({ reference, name, potaUrl }) => ({
     applyHunterImport,
     effectiveHuntedReferences,
     emptyHunterChecklistState,
+    formatHunterImportSummary,
     normalizeHunterChecklistState,
     parseHunterParksCsv,
     type HunterChecklistState,
@@ -190,12 +191,7 @@ const references = riReferences.map(({ reference, name, potaUrl }) => ({
         const parsed = parseHunterParksCsv(await file.text(), references);
         state = applyHunterImport(state, parsed);
         persistState();
-        const unmatched = parsed.unmatchedRiReferenceIds.length > 0
-          ? ` ${parsed.unmatchedRiReferenceIds.length} Rhode Island reference ID${parsed.unmatchedRiReferenceIds.length === 1 ? " was" : "s were"} not in the current RI list: ${parsed.unmatchedRiReferenceIds.join(", ")}.`
-          : "";
-        announce(
-          `Import complete: examined ${parsed.examinedRows} row${parsed.examinedRows === 1 ? "" : "s"}, found ${parsed.importedReferenceIds.length} current Rhode Island park${parsed.importedReferenceIds.length === 1 ? "" : "s"}, and ignored ${parsed.ignoredNonRiRows} non-Rhode Island row${parsed.ignoredNonRiRows === 1 ? "" : "s"}.${unmatched}`,
-        );
+        announce(formatHunterImportSummary(parsed));
         render();
       } catch (caught) {
         showError(caught instanceof Error ? caught.message : "The CSV could not be imported.");

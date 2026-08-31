@@ -76,6 +76,22 @@ test("hunter accepts a dropped zero-match export and reports invalid input", asy
     await page.getByLabel("Choose CSV file").setInputFiles({
       name: "hunter_parks.csv",
       mimeType: "text/csv",
+      buffer: Buffer.from([
+        '"DX Entity","Location","HASC","Reference","Park Name","First QSO Date","QSOs"',
+        '"United States","US-UT","US.UT","US-13488","Pando - "I Spread" - Aspen Clone Site","2026-01-01",1',
+        '"Unreadable row',
+        '"United States","US-RI","US.RI","US-0513","Synthetic Island","2026-01-02",2',
+      ].join("\n")),
+    });
+    await expect(page.getByRole("status")).toContainText("Import complete with warnings");
+    await expect(page.getByRole("status")).toContainText("Recovered 1 malformed row");
+    await expect(page.getByRole("status")).toContainText("Skipped 1 unreadable row");
+    await expect(page.getByRole("status")).toContainText("may be incomplete");
+    await expect(page.getByRole("heading", { name: /1 of 61 Rhode Island parks hunted/ })).toBeVisible();
+
+    await page.getByLabel("Choose CSV file").setInputFiles({
+      name: "hunter_parks.csv",
+      mimeType: "text/csv",
       buffer: Buffer.from('"Park Name"\n"No Reference"'),
     });
     await expect(page.getByRole("alert")).toContainText("Reference");

@@ -3,6 +3,7 @@ import {
   applyHunterImport,
   effectiveHuntedReferences,
   emptyHunterChecklistState,
+  formatHunterImportSummary,
   normalizeHunterChecklistState,
   parseHunterParksCsv,
   type HunterReference,
@@ -25,6 +26,9 @@ describe("hunter checklist CSV import", () => {
       unmatchedRiReferenceIds: [],
       examinedRows: 3,
       ignoredNonRiRows: 1,
+      recoveredRows: 0,
+      skippedRows: 0,
+      affectedRowNumbers: [],
     });
   });
 
@@ -37,14 +41,55 @@ describe("hunter checklist CSV import", () => {
       unmatchedRiReferenceIds: ["US-9999"],
       examinedRows: 2,
       ignoredNonRiRows: 1,
+      recoveredRows: 0,
+      skippedRows: 0,
+      affectedRowNumbers: [],
+    });
+  });
+
+  it("recovers POTA rows with unescaped quotes and continues after unreadable rows", () => {
+    const result = parseHunterParksCsv([
+      '"DX Entity","Location","HASC","Reference","Park Name","First QSO Date","QSOs"',
+      '"United States","US-UT","US.UT","US-13488","Pando - "I Spread" - Aspen Clone Site","2026-01-01",1',
+      '"United States","US-RI","US.RI","US-0513","Block Island","2026-01-02",2',
+      '"Unreadable row',
+      '"United States","US-RI","US.RI","US-2872","Colt State Park","2026-01-03",3',
+    ].join("\n"), references);
+
+    expect(result).toEqual({
+      importedReferenceIds: ["US-0513", "US-2872"],
+      unmatchedRiReferenceIds: [],
+      examinedRows: 4,
+      ignoredNonRiRows: 1,
+      recoveredRows: 1,
+      skippedRows: 1,
+      affectedRowNumbers: [2, 4],
+    });
+    expect(formatHunterImportSummary(result)).toBe(
+      "Import complete with warnings: examined 4 rows, found 2 current Rhode Island parks, and ignored 1 non-Rhode Island row. Recovered 1 malformed row. Skipped 1 unreadable row. Your checklist was updated with the records we could read and may be incomplete. Affected rows: 2, 4.",
+    );
+  });
+
+  it("uses a row when required fields are readable even if a later field is unclosed", () => {
+    expect(parseHunterParksCsv(
+      '"Location","Reference","Park Name"\n"US-RI","US-0513","Unclosed name',
+      references,
+    )).toEqual({
+      importedReferenceIds: ["US-0513"],
+      unmatchedRiReferenceIds: [],
+      examinedRows: 1,
+      ignoredNonRiRows: 0,
+      recoveredRows: 1,
+      skippedRows: 0,
+      affectedRowNumbers: [2],
     });
   });
 
   it.each([
     ["missing header", '"Location","Park Name"\n"US-RI","Somewhere"', /Reference/],
     ["empty", '"Reference","Park Name"\n', /empty/i],
-    ["unclosed quote", '"Reference","Park Name"\n"US-0513","Somewhere', /opening quote/i],
-    ["bad column count", '"Reference","Park Name"\n"US-0513"', /column count/i],
+    ["malformed header", '"Reference","Park Name\n"US-0513","Somewhere"', /header/i],
+    ["no usable rows", '"Reference","Park Name"\n"Unreadable row', /usable park rows/i],
     ["unsupported text", '"Reference"\n"US-0513\uFFFD"', /UTF-8/i],
   ])("rejects %s CSV", (_name, csv, expected) => {
     expect(() => parseHunterParksCsv(csv, references)).toThrow(expected);
@@ -63,6 +108,9 @@ describe("hunter checklist state", () => {
       unmatchedRiReferenceIds: [],
       examinedRows: 1,
       ignoredNonRiRows: 0,
+      recoveredRows: 0,
+      skippedRows: 0,
+      affectedRowNumbers: [],
     }, "2026-08-30T00:00:00.000Z");
 
     expect(next.importedReferenceIds).toEqual(["US-2872"]);

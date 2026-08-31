@@ -20,7 +20,12 @@ export type HunterCsvResult = {
   unmatchedRiReferenceIds: string[];
   examinedRows: number;
   ignoredNonRiRows: number;
+  recoveredRows: number;
+  skippedRows: number;
+  affectedRowNumbers: number[];
 };
+
+const MAX_REPORTED_AFFECTED_ROWS = 5;
 
 export function emptyHunterChecklistState(): HunterChecklistState {
   return {
@@ -39,12 +44,18 @@ export function parseHunterParksCsv(
     throw new Error("This file is not supported UTF-8 CSV text.");
   }
 
-  const rows = parseCsvRows(source.replace(/^\uFEFF/, ""));
-  if (rows.length < 2) {
+  const lines = source.replace(/^\uFEFF/, "").split(/\r\n|\n|\r/);
+  const headerLineIndex = lines.findIndex((line) => line.trim() !== "");
+  if (headerLineIndex === -1) {
     throw new Error("This export is empty. Export Hunted Parks from POTA and try again.");
   }
 
-  const headers = rows[0].map((header) => header.trim());
+  const header = parseCsvLine(lines[headerLineIndex]);
+  if (!header.complete) {
+    throw new Error("This CSV has a malformed header row.");
+  }
+
+  const headers = header.fields.map((value) => value.trim());
   const referenceIndex = headers.indexOf("Reference");
   if (referenceIndex === -1) {
     throw new Error('This CSV is missing the required "Reference" column.');
@@ -57,24 +68,38 @@ export function parseHunterParksCsv(
   const unmatchedRi = new Set<string>();
   let examinedRows = 0;
   let ignoredNonRiRows = 0;
+  let usableRows = 0;
+  let recoveredRows = 0;
+  let skippedRows = 0;
+  const affectedRowNumbers: number[] = [];
 
-  for (const row of rows.slice(1)) {
-    if (row.every((value) => value.trim() === "")) continue;
-    if (row.length !== headers.length) {
-      throw new Error(`Malformed CSV row ${examinedRows + 2}: the column count does not match the header.`);
+  for (let lineIndex = headerLineIndex + 1; lineIndex < lines.length; lineIndex += 1) {
+    const line = lines[lineIndex];
+    if (line.trim() === "") continue;
+    examinedRows += 1;
+    const parsed = parseCsvLine(line);
+    const rowNumber = lineIndex + 1;
+    const malformed = parsed.recovered || !parsed.complete || parsed.fields.length !== headers.length;
+    const reference = normalizeReference(parsed.fields[referenceIndex]);
+    if (!reference) {
+      skippedRows += 1;
+      recordAffectedRow(affectedRowNumbers, rowNumber);
+      continue;
     }
 
-    examinedRows += 1;
-    const reference = normalizeReference(row[referenceIndex]);
-    if (!reference) continue;
+    usableRows += 1;
+    if (malformed) {
+      recoveredRows += 1;
+      recordAffectedRow(affectedRowNumbers, rowNumber);
+    }
 
     if (known.has(reference)) {
       imported.add(reference);
       continue;
     }
 
-    const location = normalizeLocation(locationIndex >= 0 ? row[locationIndex] : "");
-    const hasc = normalizeLocation(hascIndex >= 0 ? row[hascIndex] : "");
+    const location = normalizeLocation(locationIndex >= 0 ? parsed.fields[locationIndex] : "");
+    const hasc = normalizeLocation(hascIndex >= 0 ? parsed.fields[hascIndex] : "");
     if (location === "US-RI" || hasc === "US-RI" || hasc === "US.RI") {
       unmatchedRi.add(reference);
     } else {
@@ -85,13 +110,40 @@ export function parseHunterParksCsv(
   if (examinedRows === 0) {
     throw new Error("This export is empty. Export Hunted Parks from POTA and try again.");
   }
+  if (usableRows === 0) {
+    throw new Error("This CSV does not contain any usable park rows.");
+  }
 
   return {
     importedReferenceIds: [...imported].sort(),
     unmatchedRiReferenceIds: [...unmatchedRi].sort(),
     examinedRows,
     ignoredNonRiRows,
+    recoveredRows,
+    skippedRows,
+    affectedRowNumbers,
   };
+}
+
+export function formatHunterImportSummary(result: HunterCsvResult): string {
+  const warnings = result.recoveredRows > 0 || result.skippedRows > 0;
+  const examined = `${result.examinedRows} row${result.examinedRows === 1 ? "" : "s"}`;
+  const found = `${result.importedReferenceIds.length} current Rhode Island park${result.importedReferenceIds.length === 1 ? "" : "s"}`;
+  const ignored = `${result.ignoredNonRiRows} non-Rhode Island row${result.ignoredNonRiRows === 1 ? "" : "s"}`;
+  const unmatched = result.unmatchedRiReferenceIds.length > 0
+    ? ` ${result.unmatchedRiReferenceIds.length} Rhode Island reference ID${result.unmatchedRiReferenceIds.length === 1 ? " was" : "s were"} not in the current RI list: ${result.unmatchedRiReferenceIds.join(", ")}.`
+    : "";
+  const recovered = result.recoveredRows > 0
+    ? ` Recovered ${result.recoveredRows} malformed row${result.recoveredRows === 1 ? "" : "s"}.`
+    : "";
+  const skipped = result.skippedRows > 0
+    ? ` Skipped ${result.skippedRows} unreadable row${result.skippedRows === 1 ? "" : "s"}. Your checklist was updated with the records we could read and may be incomplete.`
+    : "";
+  const affected = result.affectedRowNumbers.length > 0
+    ? ` Affected row${result.affectedRowNumbers.length === 1 ? "" : "s"}: ${result.affectedRowNumbers.join(", ")}${result.recoveredRows + result.skippedRows > result.affectedRowNumbers.length ? ", and others" : ""}.`
+    : "";
+
+  return `Import complete${warnings ? " with warnings" : ""}: examined ${examined}, found ${found}, and ignored ${ignored}.${unmatched}${recovered}${skipped}${affected}`;
 }
 
 export function applyHunterImport(
@@ -147,12 +199,18 @@ export function normalizeHunterChecklistState(
   };
 }
 
-function parseCsvRows(source: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
+type CsvLineResult = {
+  fields: string[];
+  complete: boolean;
+  recovered: boolean;
+};
+
+function parseCsvLine(source: string): CsvLineResult {
+  const fields: string[] = [];
   let field = "";
   let quoted = false;
   let afterQuote = false;
+  let recovered = false;
 
   for (let index = 0; index < source.length; index += 1) {
     const character = source[index];
@@ -161,29 +219,38 @@ function parseCsvRows(source: string): string[][] {
         field += '"';
         index += 1;
       } else if (character === '"') {
-        quoted = false;
-        afterQuote = true;
+        if (canCloseQuotedField(source, index)) {
+          quoted = false;
+          afterQuote = true;
+        } else {
+          field += '"';
+          recovered = true;
+        }
       } else {
         field += character;
       }
       continue;
     }
 
-    if (afterQuote && character !== "," && character !== "\r" && character !== "\n") {
-      throw new Error("Malformed CSV: unexpected text after a quoted field.");
+    if (afterQuote && (character === " " || character === "\t")) {
+      recovered = true;
+      continue;
+    }
+    if (afterQuote && character !== ",") {
+      field += `"${character}`;
+      afterQuote = false;
+      recovered = true;
+      continue;
     }
     if (character === '"') {
-      if (field.length > 0 || afterQuote) throw new Error("Malformed CSV: unexpected quote.");
-      quoted = true;
+      if (field.length > 0 || afterQuote) {
+        field += '"';
+        recovered = true;
+      } else {
+        quoted = true;
+      }
     } else if (character === ",") {
-      row.push(field);
-      field = "";
-      afterQuote = false;
-    } else if (character === "\n" || character === "\r") {
-      if (character === "\r" && source[index + 1] === "\n") index += 1;
-      row.push(field);
-      rows.push(row);
-      row = [];
+      fields.push(field);
       field = "";
       afterQuote = false;
     } else {
@@ -191,12 +258,21 @@ function parseCsvRows(source: string): string[][] {
     }
   }
 
-  if (quoted) throw new Error("Malformed CSV: an opening quote is not closed.");
-  if (field.length > 0 || row.length > 0) {
-    row.push(field);
-    rows.push(row);
+  fields.push(field);
+  return { fields, complete: !quoted, recovered };
+}
+
+function canCloseQuotedField(source: string, quoteIndex: number): boolean {
+  for (let index = quoteIndex + 1; index < source.length; index += 1) {
+    const character = source[index];
+    if (character === " " || character === "\t") continue;
+    return character === ",";
   }
-  return rows;
+  return true;
+}
+
+function recordAffectedRow(rows: number[], rowNumber: number): void {
+  if (rows.length < MAX_REPORTED_AFFECTED_ROWS) rows.push(rowNumber);
 }
 
 function normalizeReference(value: string | undefined): string | null {
