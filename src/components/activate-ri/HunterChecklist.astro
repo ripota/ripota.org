@@ -43,7 +43,7 @@ const references = riReferences.map(({ reference, name, potaUrl }) => ({
   </div>
 
   <p class="hunter-privacy">
-    RI POTA does not upload or retain your CSV, callsign, worldwide history, QSO counts, or dates. Only the RI reference IDs in your latest import, manual checkbox choices, schema version, and import time are saved in this browser. We record coarse, anonymous feature use—such as whether an import succeeded or schedule details were opened—using a random event-specific browser ID. Custom analytics is skipped when Global Privacy Control or Do Not Track is enabled.
+    RI POTA does not upload or retain your CSV, callsign, worldwide history, QSO counts, or dates. Only the RI reference IDs in your latest import, manual checkbox choices, schema version, and import time are saved in this browser. We record coarse, anonymous feature use—such as whether an import succeeded or the personal schedule was opened—using a random event-specific browser ID. Custom analytics is skipped when Global Privacy Control or Do Not Track is enabled.
   </p>
 
   <p class="hunter-message" role="status" aria-live="polite" data-hunter-status>
@@ -64,7 +64,7 @@ const references = riReferences.map(({ reference, name, potaUrl }) => ({
       <div>
         <p class="eyebrow">Plan your event</p>
         <h3 id="hunter-planner-title" data-hunter-planner-title>Your remaining-parks schedule</h3>
-        <p data-hunter-planner-copy>Checking the event schedule for your remaining parks…</p>
+        <p data-hunter-planner-copy aria-live="polite">Checking the event schedule for your remaining parks…</p>
       </div>
       <a class="button" href="/activate-ri-2026/schedule/?scope=remaining" data-hunter-schedule-link>
         View and print my schedule

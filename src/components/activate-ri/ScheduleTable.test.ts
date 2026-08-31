@@ -37,7 +37,11 @@ describe("ScheduleTable markup", () => {
     expect(source).toContain('row.dataset.parkReference = stop.parkReference');
     expect(source).toContain('url.searchParams.set("scope", "remaining")');
     expect(source).toContain('No Hunter checklist has been saved in this browser yet.');
+    expect(source).toContain('Import checklist first');
     expect(source).toContain('Not currently scheduled');
+    expect(source).toContain('data-personal-schedule-copy aria-live="polite"');
+    expect(source).not.toContain('data-personal-schedule-summary aria-live');
+    expect(source).toContain('visibleCount === 1 ? "matches" : "match"');
     expect(source).not.toContain('url.searchParams.set("parks"');
   });
 

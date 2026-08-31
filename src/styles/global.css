@@ -1690,9 +1690,13 @@ p {
 
 .event-filters {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 0.8rem;
   margin-bottom: 1rem;
+}
+
+.event-filters:has([data-hunter-scope]) {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
 }
 
 .schedule-actions {
@@ -3441,10 +3445,19 @@ p {
   }
 
   body:has(.schedule-print-heading) .personal-schedule-unscheduled ul {
-    columns: 4;
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.025in 0.18in;
+    columns: auto;
     margin-top: 0.04in;
     font-size: 6.6pt;
     line-height: 1.2;
+  }
+
+  body:has(.schedule-print-heading) .personal-schedule-unscheduled li {
+    min-width: 0;
+    margin: 0;
+    overflow-wrap: anywhere;
   }
 
   body:has(.schedule-print-heading) .event-table-wrap {
@@ -3455,7 +3468,10 @@ p {
   }
 
   body:has(.schedule-print-heading) .event-table {
+    display: table;
     min-width: 0;
+    border-collapse: collapse;
+    border-spacing: 0;
     background: #fff;
     color: #111;
     font-size: 8pt;
@@ -3465,6 +3481,32 @@ p {
   body:has(.schedule-print-heading) .event-table th,
   body:has(.schedule-print-heading) .event-table td {
     break-inside: avoid;
+  }
+
+  body:has(.schedule-print-heading) .event-table thead {
+    display: table-header-group;
+  }
+
+  body:has(.schedule-print-heading) .event-table tbody {
+    display: table-row-group;
+  }
+
+  body:has(.schedule-print-heading) .event-table tr {
+    display: table-row;
+    border: 0;
+    border-radius: 0;
+    background: #fff;
+    padding: 0;
+  }
+
+  body:has(.schedule-print-heading) .event-table th,
+  body:has(.schedule-print-heading) .event-table td {
+    display: table-cell;
+  }
+
+  body:has(.schedule-print-heading) .event-table th::before,
+  body:has(.schedule-print-heading) .event-table td::before {
+    display: none;
   }
 
   body:has(.schedule-print-heading) .event-table th,

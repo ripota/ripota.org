@@ -56,7 +56,7 @@ test("hunter imports, overrides, filters, persists, resets, and clears a local c
     await page.getByRole("link", { name: "View and print my schedule" }).click();
     await expect(page).toHaveURL(/\/activate-ri-2026\/schedule\/\?scope=remaining/);
     await expect(page.getByRole("heading", { name: "Schedule for your remaining parks" })).toBeVisible();
-    await expect(page.getByText(/1 activation window covering 1 of your 60 remaining parks/)).toBeVisible();
+    await expect(page.getByText("1 activation window covering 1 of your 60 remaining parks matches the current filters.")).toBeVisible();
     await expect(page.getByRole("row").filter({ hasText: "US-0514" })).toBeVisible();
     await expect(page.getByRole("row").filter({ hasText: "US-0513" })).toBeHidden();
     await page.evaluate(() => {
@@ -73,6 +73,21 @@ test("hunter imports, overrides, filters, persists, resets, and clears a local c
     await expect(page.getByRole("row").filter({ hasText: "US-0514" })).toBeVisible();
     await expect(page.getByRole("row").filter({ hasText: "US-0513" })).toBeHidden();
     await expect(page.getByText(/US-0515 Ninigret National Wildlife Refuge/)).toBeVisible();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect.poll(() => page.evaluate(() => {
+      const table = document.querySelector("[data-live-schedule]");
+      return {
+        cell: getComputedStyle(table?.querySelector("td") as Element).display,
+        row: getComputedStyle(table?.querySelector("[data-filter-row]:not([hidden])") as Element).display,
+        tbody: getComputedStyle(table?.querySelector("tbody") as Element).display,
+        thead: getComputedStyle(table?.querySelector("thead") as Element).display,
+      };
+    })).toEqual({
+      cell: "table-cell",
+      row: "table-row",
+      tbody: "table-row-group",
+      thead: "table-header-group",
+    });
     await page.emulateMedia({ media: "screen" });
     await page.evaluate(() => window.dispatchEvent(new Event("afterprint")));
     await page.goBack();

@@ -35,6 +35,8 @@ describe("hunter checklist surface", () => {
     expect(component).toContain("View and print my schedule");
     expect(component).toContain("/activate-ri-2026/schedule/?scope=remaining");
     expect(component).toContain("announced activation window");
+    expect(component).toContain('data-hunter-planner-copy aria-live="polite"');
+    expect(component).toContain("the personal schedule was opened");
     expect(component).not.toContain("Show event schedule");
   });
 });
