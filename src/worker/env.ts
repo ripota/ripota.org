@@ -1,14 +1,22 @@
-export type Env = {
-  ASSETS: Fetcher;
-  DB: D1Database;
-  ACTIVATE_RI_OPS_ROOM?: DurableObjectNamespace;
-  OPS_RATE_LIMIT_BURST?: RateLimit;
-  OPS_RATE_LIMIT_SUSTAINED?: RateLimit;
-  AUTH_RATE_LIMIT_BURST?: RateLimit;
-  AUTH_EMAIL_RATE_LIMIT?: RateLimit;
-  CLIENT_ERROR_RATE_LIMIT?: RateLimit;
-  EMAIL?: SendEmail;
-  ACTIVATE_RI_EVENT_ID: "activate-ri-2026";
+type RequiredBindings = Pick<
+  Cloudflare.Env,
+  "ACTIVATE_RI_EVENT_ID" | "ASSETS" | "DB"
+>;
+
+type OptionalBindings = Partial<Pick<
+  Cloudflare.Env,
+  | "ACTIVATE_RI_OPS_ROOM"
+  | "ANALYTICS"
+  | "AUTH_EMAIL_RATE_LIMIT"
+  | "AUTH_RATE_LIMIT_BURST"
+  | "CLIENT_ERROR_RATE_LIMIT"
+  | "EMAIL"
+  | "OPS_RATE_LIMIT_BURST"
+  | "OPS_RATE_LIMIT_SUSTAINED"
+>>;
+
+export type Env = RequiredBindings & OptionalBindings & {
+  ANALYTICS_HASH_KEY?: string;
   TURNSTILE_REQUIRED?: "true" | "false";
   TURNSTILE_SECRET_KEY?: string;
   ACTIVATE_RI_EMAIL_FROM?: string;

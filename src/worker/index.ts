@@ -30,6 +30,7 @@ import { cleanupAuthData } from "./auth/cleanup";
 import { requireAccessIdentity } from "./access";
 import { handleClientErrorReport } from "./routes/client-errors";
 import { logWorkerError } from "./logging";
+import { handleAnalyticsEvent } from "./routes/analytics";
 
 export { ActivateRiOpsRoom };
 
@@ -61,6 +62,10 @@ export default {
       url.pathname === "/api/activate-ri-2026/admin/auth/access-bootstrap/start"
     ) {
       return handleAuthApi(request, env);
+    }
+
+    if (url.pathname === "/api/analytics/events") {
+      return handleAnalyticsEvent(request, env);
     }
 
     if (url.pathname.startsWith("/api/activate-ri-2026/")) {

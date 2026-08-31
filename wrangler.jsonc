@@ -27,6 +27,12 @@
       "database_id": "5fa75a4d-9387-437d-9f81-ebb06b645747"
     }
   ],
+  "analytics_engine_datasets": [
+    {
+      "binding": "ANALYTICS",
+      "dataset": "ripota_usage"
+    }
+  ],
   "durable_objects": {
     "bindings": [
       {
@@ -101,6 +107,12 @@
           "database_id": "5fa75a4d-9387-437d-9f81-ebb06b645747"
         }
       ],
+      "analytics_engine_datasets": [
+        {
+          "binding": "ANALYTICS",
+          "dataset": "ripota_usage_local"
+        }
+      ],
       "durable_objects": {
         "bindings": [
           {
@@ -165,6 +177,12 @@
           "database_name": "ripota-org",
           "database_id": "5fa75a4d-9387-437d-9f81-ebb06b645747",
           "remote": true
+        }
+      ],
+      "analytics_engine_datasets": [
+        {
+          "binding": "ANALYTICS",
+          "dataset": "ripota_usage_production_data"
         }
       ],
       "durable_objects": {
