@@ -5,16 +5,14 @@ import Notice from "../../components/Notice.astro";
 import SiteHeader from "../../components/SiteHeader.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
 
-const qrzEmbedSnippet = `<p style="margin: 0 auto; max-width: 960px; text-align: center;">
-  <iframe
-    src="https://ripota.org/embed/activate-ri-2026/"
-    title="Activate All RI 2026"
-    width="100%"
-    height="420"
-    frameborder="0"
-    scrolling="no"
-  ></iframe>
-</p>`;
+const qrzEmbedSnippet = `<iframe
+  src="https://ripota.org/embed/activate-ri-2026/"
+  title="Activate All RI 2026"
+  width="100%"
+  height="420"
+  frameborder="0"
+  scrolling="no"
+></iframe>`;
 ---
 
 <BaseLayout
@@ -148,18 +146,21 @@ const qrzEmbedSnippet = `<p style="margin: 0 auto; max-width: 960px; text-align:
               </article>
 
               <article class="event-guidance__item">
-                <h3>How do I add the Activate All RI flyer to my QRZ biography?</h3>
+                <h3>How do I add the Activate All RI widget to my QRZ biography?</h3>
                 <p>
-                  Open the QRZ biography editor, switch to <strong>Source</strong>
-                  mode, and paste the following HTML exactly where you want the
-                  flyer to appear. Then save the biography.
+                  On QRZ, choose <strong>Edit your callsign</strong>, then
+                  <strong>Add or edit your biography text, fonts, etc.</strong>
+                  In the biography editor, choose <strong>Source</strong> and
+                  paste this iframe where you want the event widget to appear.
+                  Choose the disk icon to save, then return to your callsign
+                  listing.
                 </p>
                 <pre class="faq-code"><code>{qrzEmbedSnippet}</code></pre>
                 <p class="faq-note">
-                  Keep <code>max-width: 960px</code> on the wrapper and
-                  <code>width="100%"</code> on the iframe. This is the responsive
-                  layout verified on a real QRZ profile; QRZ may expand the
-                  margin shorthand into equivalent individual margin rules.
+                  Paste the iframe itself—QRZ removes unsupported wrapper
+                  styling when it saves a biography. The iframe above, including
+                  <code>width="100%"</code> and <code>height="420"</code>, is the
+                  version verified on the N1RWJ QRZ profile.
                 </p>
               </article>
 
@@ -175,6 +176,11 @@ const qrzEmbedSnippet = `<p style="margin: 0 auto; max-width: 960px; text-align:
 
               <article class="event-guidance__item">
                 <h3>What if I have a problem or question during the event?</h3>
+                <p>
+                  Approved activators can use the in-app chat in the
+                  <a href="/activate-ri-2026/activator/">Activator Ops Room</a>
+                  for event coordination. You can also call:
+                </p>
                 <ul class="event-help-list">
                   <li>Rob Jackson, N1RWJ, or Brian Swann, N1BS: <a href="tel:+14012625225">401-262-5225</a></li>
                   <li>Brian Maynard, K1NW: <a href="tel:+14014875958">401-487-5958</a></li>
@@ -198,17 +204,22 @@ const qrzEmbedSnippet = `<p style="margin: 0 auto; max-width: 960px; text-align:
                   planned activation windows. The schedule is an estimate, not
                   a guarantee that an activator will be on the air at that time.
                 </p>
+                <p>
+                  You can also open the
+                  <a href="/activate-ri-2026/hunter/">Rhode Island hunter checklist</a>
+                  and import your official POTA <code>hunter_parks.csv</code> to
+                  see which of the 61 references you have already hunted. The
+                  file stays in your browser and is not uploaded.
+                </p>
               </article>
 
               <article class="event-guidance__item">
                 <h3>How can I find participating activators on the air?</h3>
                 <p>
-                  Open <a href="/on-air/">Rhode Island on air</a> for current
-                  official POTA spots at Rhode Island references, refreshed
-                  about once a minute. The event schedule shows planned
-                  activity; use the live page or
-                  <a href="https://pota.app/#/spots">official POTA spots</a> to
-                  see current activity.
+                  Use <a href="/on-air/">Rhode Island on air</a>. It shows
+                  current official POTA spots at Rhode Island references and
+                  refreshes about once a minute. The event schedule is only an
+                  estimate; the on-air page is where to check live activity.
                 </p>
               </article>
 

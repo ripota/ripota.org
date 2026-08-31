@@ -22,19 +22,25 @@ describe("Activate All RI FAQ", () => {
     expect(pageSource).toContain('href="tel:+14014875958"');
   });
 
-  it("includes the QRZ-piloted responsive iframe snippet and editor steps", () => {
-    expect(pageSource).toContain("switch to <strong>Source</strong>");
+  it("includes the QRZ-piloted iframe-only snippet and editor steps", () => {
+    expect(pageSource).toContain("Add or edit your biography text, fonts, etc.");
+    expect(pageSource).toContain("choose <strong>Source</strong>");
     expect(pageSource).toContain('src="https://ripota.org/embed/activate-ri-2026/"');
-    expect(pageSource).toContain("max-width: 960px");
     expect(pageSource).toContain('width="100%"');
     expect(pageSource).toContain('height="420"');
     expect(pageSource).toContain('scrolling="no"');
+    expect(pageSource).toContain("Paste the iframe itself");
+    expect(pageSource).not.toContain("max-width: 960px");
   });
 
-  it("distinguishes planned schedules from current official POTA spots", () => {
+  it("links activators to chat and hunters to the checklist and live route", () => {
     expect(pageSource).toContain("The schedule is an estimate");
+    expect(pageSource).toContain('href="/activate-ri-2026/activator/"');
+    expect(pageSource).toContain("in-app chat");
+    expect(pageSource).toContain('href="/activate-ri-2026/hunter/"');
+    expect(pageSource).toContain("hunter_parks.csv");
     expect(pageSource).toContain('href="/on-air/"');
-    expect(pageSource).toContain('href="https://pota.app/#/spots"');
+    expect(pageSource).toContain("the on-air page is where to check live activity");
     expect(pageSource).toContain('href="https://docs.pota.app/"');
     expect(pageSource).toContain('href="https://pota.app/"');
   });
