@@ -10,4 +10,11 @@ describe("BaseLayout metadata", () => {
       '<link rel="apple-touch-icon" href="/assets/logos/ri-pota-coastal-signal.png" />',
     );
   });
+
+  it("installs the shared client error reporter", () => {
+    expect(baseLayoutSource).toContain(
+      'import { installClientErrorReporter } from "../lib/client-error-reporting";',
+    );
+    expect(baseLayoutSource).toContain("installClientErrorReporter();");
+  });
 });

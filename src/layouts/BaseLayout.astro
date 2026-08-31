@@ -58,6 +58,11 @@ const imageUrl = new URL(image.src, socialImageBaseUrl).toString();
     {!privatePage && <meta name="twitter:image:alt" content={image.alt} />}
     <meta name="theme-color" content="#0f766e" />
     <title>{pageTitle}</title>
+    <script>
+      import { installClientErrorReporter } from "../lib/client-error-reporting";
+
+      installClientErrorReporter();
+    </script>
   </head>
   <body class={bodyClass}>
     <a class="skip-link" href="#main">Skip to content</a>
