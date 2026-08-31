@@ -3,7 +3,15 @@ export const analyticsScopes = ["activate-ri-2026"] as const;
 export type AnalyticsScope = (typeof analyticsScopes)[number];
 
 const sharedPropertyValues = {
-  action: ["add_to_plan", "open_details", "open_popup", "volunteer"],
+  action: [
+    "add_to_plan",
+    "open_details",
+    "open_popup",
+    "primary",
+    "schedule",
+    "secondary",
+    "volunteer",
+  ],
   errorCode: ["empty_file", "invalid_csv", "read_failed", "unsupported_file"],
   feature: [
     "coverage",
@@ -13,7 +21,15 @@ const sharedPropertyValues = {
     "schedule",
     "volunteer_form",
   ],
-  filterCategory: ["coverage", "date", "park", "status", "time"],
+  filterCategory: [
+    "activator",
+    "band",
+    "county",
+    "coverage",
+    "mode",
+    "timeline",
+    "time_zone",
+  ],
   importMethod: ["file_picker", "drop"],
   outcome: ["accepted", "rejected"],
   placement: ["coverage", "hero", "map", "schedule"],

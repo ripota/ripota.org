@@ -1,6 +1,7 @@
 ---
 import "../styles/global.css";
 import { defaultShareImage, siteIdentity } from "../data/site";
+import AnalyticsClient from "../components/AnalyticsClient.astro";
 
 type Props = {
   title?: string;
@@ -67,5 +68,6 @@ const imageUrl = new URL(image.src, socialImageBaseUrl).toString();
   <body class={bodyClass}>
     <a class="skip-link" href="#main">Skip to content</a>
     <slot />
+    {!privatePage && <AnalyticsClient />}
   </body>
 </html>

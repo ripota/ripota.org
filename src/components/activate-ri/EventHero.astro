@@ -87,10 +87,10 @@ function formatDateRange(startDate: string, endDate: string) {
         </div>
       )}
       <div class="button-row" aria-label="Event actions">
-        <a class="button" data-variant="primary" href={ctas.primary.href}>
+        <a class="button" data-variant="primary" href={ctas.primary.href} data-analytics-event="event_cta_clicked" data-analytics-feature="event_hero" data-analytics-placement="hero" data-analytics-action="primary">
           {ctas.primary.label}
         </a>
-        <a class="button" data-variant="light" href={ctas.secondary.href}>
+        <a class="button" data-variant="light" href={ctas.secondary.href} data-analytics-event="event_cta_clicked" data-analytics-feature="event_hero" data-analytics-placement="hero" data-analytics-action="secondary">
           {ctas.secondary.label}
         </a>
       </div>

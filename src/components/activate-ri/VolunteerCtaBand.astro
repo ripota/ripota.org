@@ -12,10 +12,10 @@ import { eventRoute } from "../../lib/activate-ri/paths";
     </p>
   </div>
   <div class="button-row volunteer-cta-band__actions" aria-label="Volunteer actions">
-    <a class="button" data-variant="primary" href={eventRoute("volunteer")}>
+    <a class="button" data-variant="primary" href={eventRoute("volunteer")} data-analytics-event="event_cta_clicked" data-analytics-feature="volunteer_form" data-analytics-action="volunteer">
       Volunteer to Activate
     </a>
-    <a class="button" data-variant="light" href={eventRoute("schedule")}>
+    <a class="button" data-variant="light" href={eventRoute("schedule")} data-analytics-event="event_cta_clicked" data-analytics-feature="schedule" data-analytics-action="schedule">
       See the schedule
     </a>
   </div>

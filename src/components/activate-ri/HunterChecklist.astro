@@ -43,7 +43,7 @@ const references = riReferences.map(({ reference, name, potaUrl }) => ({
   </div>
 
   <p class="hunter-privacy">
-    RI POTA does not upload or retain your CSV, callsign, worldwide history, QSO counts, or dates. Only the RI reference IDs in your latest import, manual checkbox choices, schema version, and import time are saved in this browser.
+    RI POTA does not upload or retain your CSV, callsign, worldwide history, QSO counts, or dates. Only the RI reference IDs in your latest import, manual checkbox choices, schema version, and import time are saved in this browser. We record coarse, anonymous feature use—such as whether an import succeeded or schedule details were opened—using a random event-specific browser ID. Custom analytics is skipped when Global Privacy Control or Do Not Track is enabled.
   </p>
 
   <p class="hunter-message" role="status" aria-live="polite" data-hunter-status>
@@ -122,6 +122,7 @@ const references = riReferences.map(({ reference, name, potaUrl }) => ({
   import { fetchPublicActivationStops } from "../../lib/activate-ri/public-stops-client";
   import { formatActivationDate, formatActivationTimeRange } from "../../lib/activate-ri/time";
   import type { PublicActivationStop } from "../../lib/activate-ri/types";
+  import { trackAnalyticsEvent } from "../../lib/analytics/client";
 
   document.querySelectorAll<HTMLElement>("[data-hunter-checklist]").forEach(setupHunterChecklist);
 
@@ -138,13 +139,17 @@ const references = riReferences.map(({ reference, name, potaUrl }) => ({
     let scheduleState: "loading" | "ready" | "unavailable" = "loading";
     let publicStops: PublicActivationStop[] = [];
     let state = loadState();
+    let manualOverrideTracked = false;
 
     render();
     void loadSchedules();
+    if (state.lastImportedAt) {
+      void trackAnalyticsEvent("activate-ri-2026", "hunter_checklist_resumed");
+    }
 
     fileInput?.addEventListener("change", () => {
       const file = fileInput.files?.[0];
-      if (file) void importFile(file);
+      if (file) void importFile(file, "file_picker");
     });
     for (const eventName of ["dragenter", "dragover"]) {
       dropTarget?.addEventListener(eventName, (event) => {
@@ -160,7 +165,7 @@ const references = riReferences.map(({ reference, name, potaUrl }) => ({
     }
     dropTarget?.addEventListener("drop", (event) => {
       const file = event.dataTransfer?.files[0];
-      if (file) void importFile(file);
+      if (file) void importFile(file, "drop");
     });
     search?.addEventListener("input", renderLists);
     filter?.addEventListener("change", renderLists);
@@ -181,9 +186,10 @@ const references = riReferences.map(({ reference, name, potaUrl }) => ({
       render();
     });
 
-    async function importFile(file: File): Promise<void> {
+    async function importFile(file: File, importMethod: "drop" | "file_picker"): Promise<void> {
       clearError();
       announce(`Importing ${file.name}…`);
+      void trackAnalyticsEvent("activate-ri-2026", "hunter_import_attempted", { importMethod });
       try {
         if (file.size > HUNTER_CSV_MAX_BYTES) {
           throw new Error("This file is larger than the 5 MB import limit.");
@@ -192,8 +198,13 @@ const references = riReferences.map(({ reference, name, potaUrl }) => ({
         state = applyHunterImport(state, parsed);
         persistState();
         announce(formatHunterImportSummary(parsed));
+        void trackAnalyticsEvent("activate-ri-2026", "hunter_import_succeeded", { importMethod });
         render();
       } catch (caught) {
+        void trackAnalyticsEvent("activate-ri-2026", "hunter_import_failed", {
+          importMethod,
+          errorCode: hunterImportErrorCode(caught),
+        });
         showError(caught instanceof Error ? caught.message : "The CSV could not be imported.");
       } finally {
         if (fileInput) fileInput.value = "";
@@ -289,6 +300,10 @@ const references = riReferences.map(({ reference, name, potaUrl }) => ({
       checkbox.checked = checked;
       checkbox.setAttribute("aria-label", `${park.reference} ${park.name} hunted`);
       checkbox.addEventListener("change", () => {
+        if (!manualOverrideTracked) {
+          manualOverrideTracked = true;
+          void trackAnalyticsEvent("activate-ri-2026", "hunter_manual_override_used");
+        }
         state.manualOverrides[park.reference] = checkbox.checked;
         persistState();
         announce(`${park.reference} marked ${checkbox.checked ? "hunted" : "remaining"}.`);
@@ -345,6 +360,11 @@ const references = riReferences.map(({ reference, name, potaUrl }) => ({
       const summary = document.createElement("summary");
       summary.textContent = `Show event schedule (${stops.length})`;
       details.appendChild(summary);
+      details.addEventListener("toggle", () => {
+        if (details.open) {
+          void trackAnalyticsEvent("activate-ri-2026", "hunter_schedule_details_opened");
+        }
+      });
       const list = document.createElement("ul");
       for (const stop of stops) {
         const item = document.createElement("li");
@@ -408,5 +428,17 @@ const references = riReferences.map(({ reference, name, potaUrl }) => ({
     } catch {
       return [];
     }
+  }
+
+  function hunterImportErrorCode(
+    caught: unknown,
+  ): "empty_file" | "invalid_csv" | "read_failed" | "unsupported_file" {
+    if (!(caught instanceof Error)) return "read_failed";
+    if (caught.message.includes("larger than") || caught.message.includes("not supported")) {
+      return "unsupported_file";
+    }
+    if (caught.message.includes("does not contain any usable")) return "empty_file";
+    if (caught.message.includes("CSV") || caught.message.includes("Reference")) return "invalid_csv";
+    return "read_failed";
   }
 </script>

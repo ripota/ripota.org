@@ -175,6 +175,7 @@ const payload = JSON.stringify({
     referenceMapFitBoundsOptions,
     referenceMapLeafletOptions,
   } from "../lib/reference-map";
+  import { trackAnalyticsEvent } from "../lib/analytics/client";
 
   type PublicStop = {
     id: string;
@@ -257,6 +258,14 @@ const payload = JSON.stringify({
     const map = L.map(mapElement, referenceMapLeafletOptions);
     const bounds = L.latLngBounds([]);
     const layersByReference = new Map<string, MapItemLayers>();
+
+    if (payload.variant !== "home") {
+      map.on("popupopen", () => {
+        void trackAnalyticsEvent("activate-ri-2026", "map_action", {
+          action: "open_popup",
+        });
+      });
+    }
 
     L.control.zoom({
       position: "topleft",
@@ -502,6 +511,10 @@ const payload = JSON.stringify({
         return;
       }
 
+      void trackAnalyticsEvent("activate-ri-2026", "map_action", {
+        action: "add_to_plan",
+      });
+
       document.dispatchEvent(
         new CustomEvent("activate-ri:add-park", {
           detail: { reference },
@@ -688,7 +701,7 @@ const payload = JSON.stringify({
     const volunteerAction =
       payload.variant === "volunteer"
         ? `<button class="map-popup__action" type="button" data-map-add-activation data-reference="${escapeHtml(item.reference)}">Add activation</button>`
-        : `<a href="/activate-ri-2026/volunteer/?park=${encodeURIComponent(item.reference)}">Volunteer for this park</a>`;
+        : `<a href="/activate-ri-2026/volunteer/?park=${encodeURIComponent(item.reference)}" data-analytics-event="event_cta_clicked" data-analytics-feature="map" data-analytics-placement="map" data-analytics-action="volunteer">Volunteer for this park</a>`;
 
     return `
       <strong>${escapeHtml(item.reference)}</strong>

@@ -1,0 +1,35 @@
+<script>
+  import { trackAnalyticsEvent } from "../lib/analytics/client";
+  import type {
+    AnalyticsEventName,
+    AnalyticsProperties,
+  } from "../lib/analytics/events";
+
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const tracked = target.closest<HTMLElement>("[data-analytics-event]");
+    const name = tracked?.dataset.analyticsEvent as AnalyticsEventName | undefined;
+    if (!tracked || !name) return;
+
+    const properties: AnalyticsProperties = {};
+    const propertyNames = [
+      "action",
+      "errorCode",
+      "feature",
+      "filterCategory",
+      "importMethod",
+      "outcome",
+      "placement",
+    ] as const;
+    for (const propertyName of propertyNames) {
+      const datasetName = `analytics${propertyName[0].toUpperCase()}${propertyName.slice(1)}`;
+      const value = tracked.dataset[datasetName];
+      if (value) {
+        (properties as Record<string, string>)[propertyName] = value;
+      }
+    }
+
+    void trackAnalyticsEvent("activate-ri-2026", name, properties);
+  });
+</script>

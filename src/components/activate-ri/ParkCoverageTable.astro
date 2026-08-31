@@ -114,7 +114,7 @@ function parkCounties(park: ParkCoverage) {
             <td data-label="Status">
               {!isParkVolunteerActionable(park.status) && (statusLabels[park.status] ?? park.status)}
               {isParkVolunteerActionable(park.status) && (
-                <a class="button event-table-action" data-variant="primary" href={volunteerHref(park.reference)}>
+                <a class="button event-table-action" data-variant="primary" href={volunteerHref(park.reference)} data-analytics-event="event_cta_clicked" data-analytics-feature="coverage" data-analytics-placement="coverage" data-analytics-action="volunteer">
                   Volunteer
                 </a>
               )}
@@ -193,6 +193,7 @@ function parkCounties(park: ParkCoverage) {
     formatActivationDate,
     formatActivationTimeRange,
   } from "../../lib/activate-ri/time";
+  import { trackAnalyticsEvent } from "../../lib/analytics/client";
 
   const volunteerActionableStatuses = new Set(["uncovered", "cancelled-needs-replacement"]);
 
@@ -269,11 +270,22 @@ function parkCounties(park: ParkCoverage) {
       }
     };
 
-    filters.onchange = () => {
+    filters.onchange = (event) => {
       syncCoverageControls();
       updateCoverageUrl(coverageFilter?.checked ?? false);
       applyEasternTime(table);
       applyFilters();
+      const target = event.target;
+      const filterCategory = target instanceof HTMLElement && target.hasAttribute("data-coverage-filter")
+        ? "coverage"
+        : target instanceof HTMLElement
+          ? target.dataset.filter
+          : undefined;
+      if (filterCategory === "coverage" || filterCategory === "mode" || filterCategory === "band" || filterCategory === "timeline" || filterCategory === "county") {
+        void trackAnalyticsEvent("activate-ri-2026", "coverage_filter_used", {
+          filterCategory,
+        });
+      }
     };
     syncCoverageControls();
     applyEasternTime(table);
@@ -439,6 +451,10 @@ function parkCounties(park: ParkCoverage) {
       const link = document.createElement("a");
       link.className = "button event-table-action";
       link.dataset.variant = "primary";
+      link.dataset.analyticsEvent = "event_cta_clicked";
+      link.dataset.analyticsFeature = "coverage";
+      link.dataset.analyticsPlacement = "coverage";
+      link.dataset.analyticsAction = "volunteer";
       link.href = volunteerHref(park.reference);
       link.textContent = "Volunteer";
       cell.appendChild(link);

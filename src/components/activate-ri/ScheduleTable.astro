@@ -95,6 +95,7 @@ const countyOptions = uniqueSortedValues(
     formatActivationTimeRange,
     timeZoneOptionForValue,
   } from "../../lib/activate-ri/time";
+  import { trackAnalyticsEvent } from "../../lib/analytics/client";
 
   document.querySelectorAll<HTMLTableElement>("[data-live-schedule]").forEach(setupLiveSchedule);
 
@@ -133,13 +134,27 @@ const countyOptions = uniqueSortedValues(
       }
     };
 
-    controls.forEach((control) => control.addEventListener("change", applyFilters));
+    controls.forEach((control) => control.addEventListener("change", () => {
+      applyFilters();
+      const filterCategory = control.dataset.filter as
+        | "activator"
+        | "band"
+        | "county"
+        | "mode"
+        | "timeline";
+      void trackAnalyticsEvent("activate-ri-2026", "schedule_filter_used", {
+        filterCategory,
+      });
+    }));
     controls.forEach((control) => control.addEventListener("change", () => {
       updateScheduleUrl(controls, timezone);
     }));
     timezone?.addEventListener("change", () => {
       applySelectedTime(table, timezone.value);
       updateScheduleUrl(controls, timezone);
+      void trackAnalyticsEvent("activate-ri-2026", "schedule_filter_used", {
+        filterCategory: "time_zone",
+      });
     });
     applySelectedTime(table, timezone?.value);
     applyFilters();
@@ -501,6 +516,9 @@ const countyOptions = uniqueSortedValues(
         const pinned = wrapper.dataset.pinned === "true";
         wrapper.dataset.pinned = String(!pinned);
         setActivatorPopoverOpen(wrapper, !pinned);
+        if (!pinned) {
+          void trackAnalyticsEvent("activate-ri-2026", "schedule_detail_opened");
+        }
       });
       wrapper.addEventListener("focusout", (event) => {
         const next = event.relatedTarget;

@@ -9,7 +9,7 @@ describe("ParkCoverageTable markup", () => {
   });
 
   it("uses a single volunteer button instead of repeating needs coverage across uncovered rows", () => {
-    expect(source).toContain('<a class="button event-table-action" data-variant="primary" href={volunteerHref(park.reference)}>');
+    expect(source).toContain('<a class="button event-table-action" data-variant="primary" href={volunteerHref(park.reference)}');
     expect(source).toContain('link.className = "button event-table-action"');
     expect(source).toContain('link.dataset.variant = "primary"');
     expect(source).toContain('!isParkVolunteerActionable(park.status) && (statusLabels[park.status] ?? park.status)');

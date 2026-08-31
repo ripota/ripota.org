@@ -104,6 +104,7 @@ const turnstileSiteKey =
     volunteerRequiredFieldMessage,
     type VolunteerRequiredField,
   } from "../../lib/activate-ri/volunteer-form-validation";
+  import { trackAnalyticsEvent } from "../../lib/analytics/client";
 
   const form = document.querySelector("[data-activate-ri-volunteer]") as HTMLFormElement | null;
   const status = document.querySelector("[data-form-status]") as HTMLOutputElement | null;
@@ -116,6 +117,7 @@ const turnstileSiteKey =
   let isSubmitting = false;
   let existingActivationCheckId = 0;
   let lastExistingActivationLookup = "";
+  let formStartTracked = false;
 
   setupCallsignFields();
   document.addEventListener("activate-ri:coverage-filter-change", syncParkCoverageFilters);
@@ -126,6 +128,12 @@ const turnstileSiteKey =
   void setupParkCoverageFilters();
   prefillParkFromUrl();
   setupDocumentPopupDismissal();
+
+  form?.addEventListener("input", () => {
+    if (formStartTracked) return;
+    formStartTracked = true;
+    void trackAnalyticsEvent("activate-ri-2026", "volunteer_form_started");
+  });
 
   async function setupParkCoverageFilters(): Promise<void> {
     try {
@@ -194,7 +202,9 @@ const turnstileSiteKey =
       return;
     }
 
+    void trackAnalyticsEvent("activate-ri-2026", "volunteer_submit_attempted");
     if (!validateVolunteerForm()) {
+      void trackAnalyticsEvent("activate-ri-2026", "volunteer_validation_failed");
       return;
     }
 
