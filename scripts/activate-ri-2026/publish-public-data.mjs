@@ -3,7 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { createServer } from "vite";
-import references from "../../src/data/ri-references.json" with { type: "json" };
+import references from "@ripota/parks/references.json" with { type: "json" };
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const outputDir = resolve(root, "public/data/activate-ri-2026");

@@ -1,8 +1,8 @@
 import type { ActivityEventInput, EditablePlanDto } from "./db";
 import type { Env } from "./env";
 import { sanitizeLogText } from "./logging";
-import references from "../data/ri-references.json";
 import { formatActivationDateTimeRange } from "../lib/activate-ri/time";
+import { riReferences as references } from "../lib/pota/catalog";
 
 export type SendEmailResult =
   | {

@@ -1,4 +1,4 @@
-import references from "../../data/ri-references.json";
+import { riReferences as references } from "../pota/catalog";
 import { normalizePotaReference } from "../pota/references";
 import { allowedTimeBlockMessage, timeBlockToRange } from "./time-blocks";
 import type {

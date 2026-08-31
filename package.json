@@ -27,6 +27,7 @@
     "wrangler": "latest"
   },
   "dependencies": {
+    "@ripota/parks": "https://github.com/ripota/parks/releases/download/v1.0.0/ripota-parks-1.0.0.tgz",
     "@simplewebauthn/browser": "13.3.0",
     "@simplewebauthn/server": "13.3.3",
     "jose": "^6.2.3"

@@ -66,7 +66,7 @@ export type ReferenceMapItem = {
 export type BuildReferenceMapItemsInput = {
   references: ReferenceMapReference[];
   boundaries: ReferenceBoundaryRecord[];
-  geojsonByPath: Record<string, string>;
+  geojsonByPath: Record<string, string | ReferenceMapGeoJson>;
   parks?: PublicParkSummary[];
   stops?: PublicActivationStop[];
 };
@@ -337,16 +337,18 @@ function visitCoordinates(
 
 function geojsonForBoundary(
   boundary: ReferenceBoundaryRecord | undefined,
-  geojsonByPath: Record<string, string>,
+  geojsonByPath: Record<string, string | ReferenceMapGeoJson>,
 ): ReferenceMapGeoJson | null {
   if (!boundary?.localGeojson || boundary.status !== "available") {
     return null;
   }
 
-  const rawGeojson = geojsonByPath[boundary.localGeojson];
-  if (!rawGeojson) {
+  const geojson = geojsonByPath[boundary.localGeojson];
+  if (!geojson) {
     return null;
   }
 
-  return JSON.parse(rawGeojson) as ReferenceMapGeoJson;
+  return typeof geojson === "string"
+    ? (JSON.parse(geojson) as ReferenceMapGeoJson)
+    : geojson;
 }

@@ -57,6 +57,11 @@ Generated JSON files under `public/data/activate-ri-2026/` are build artifacts
 used by public pages for stable event and park reference data. They are not
 currently updated by normal admin approval or activator edit API requests.
 
+The canonical reference and reviewed geospatial dataset lives in
+[`ripota/parks`](https://github.com/ripota/parks). This site consumes the
+`@ripota/parks` GitHub release pinned in `package.json` and `package-lock.json`;
+it does not maintain a vendored data snapshot or reference/boundary generator.
+
 Official Parks on the Air resources remain the source of truth for POTA rules,
 reference metadata, accounts, spots, and logs.
 
@@ -102,7 +107,7 @@ The source for each generated file is:
 | Generated file | Source data |
 | --- | --- |
 | `event.json` | `src/data/activate-ri-2026/event.ts` |
-| `parks.json` | `src/data/ri-references.json`, projected into the smaller public park shape by the publish script |
+| `parks.json` | The pinned `@ripota/parks` release, projected into the smaller public park shape by the publish script |
 
 This project no longer generates static `schedule.json` or `coverage.json`
 files. Public schedule and coverage state comes from

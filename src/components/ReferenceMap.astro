@@ -2,15 +2,17 @@
 import "leaflet/dist/leaflet.css";
 
 import parks from "../../public/data/activate-ri-2026/parks.json";
-import boundaries from "../data/ri-reference-boundaries.json";
-import references from "../data/ri-references.json";
+import {
+  referenceBoundaries,
+  referenceGeojsonByPath,
+  riReferences,
+} from "../lib/pota/catalog";
 import {
   buildReferenceMapItems,
   coverageStatusLabels,
   displayedReferenceMapLegendItems,
   referenceMapLegendItems,
   referenceMapStatusColors,
-  type ReferenceBoundaryRecord,
   type ReferenceMapVariant,
 } from "../lib/reference-map";
 import type { PublicParkSummary } from "../lib/activate-ri/types";
@@ -38,23 +40,12 @@ const {
   showBoundaries = true,
   resultsMode = false,
 } = Astro.props;
-const rawGeojsonByPath = import.meta.glob("../data/boundaries/*.geojson", {
-  eager: true,
-  query: "?raw",
-  import: "default",
-});
-const geojsonByPath = Object.fromEntries(
-  Object.entries(rawGeojsonByPath).map(([path, value]) => [
-    path.replace("../data/boundaries/", "./boundaries/"),
-    String(value),
-  ]),
-);
 const eventParks = parks as PublicParkSummary[];
 const isEventMap = variant === "coverage" || variant === "volunteer";
 const mapItems = buildReferenceMapItems({
-  references,
-  boundaries: boundaries as ReferenceBoundaryRecord[],
-  geojsonByPath,
+  references: riReferences,
+  boundaries: referenceBoundaries,
+  geojsonByPath: referenceGeojsonByPath,
   parks: isEventMap ? eventParks : undefined,
   stops: isEventMap ? [] : undefined,
 });
