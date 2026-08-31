@@ -39,7 +39,10 @@ beforeEach(() => {
   };
 });
 
-afterEach(() => database.close());
+afterEach(() => {
+  database.close();
+  vi.restoreAllMocks();
+});
 
 describe("unified activator ownership", () => {
   it("rejects claimed email mutation without changes and preserves ordinary edits", async () => {
@@ -190,7 +193,11 @@ describe("unified activator ownership", () => {
     const before = await ownershipCounts();
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
     await expect(consumeEmailLogin(env, sentToken())).resolves.toBeNull();
-    expect(error).toHaveBeenCalledWith(JSON.stringify({ event: "email-login-membership-conflict" }));
+    expect(JSON.parse(String(error.mock.calls[0][0]))).toMatchObject({
+      event: "email-login-membership-conflict",
+      errorName: "ActivatorMembershipConflictError",
+      errorMessage: "Activator ownership conflicts with an existing active membership.",
+    });
     error.mockRestore();
 
     await expect(ownershipCounts()).resolves.toEqual(before);
@@ -239,7 +246,11 @@ describe("unified activator ownership", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
     await expect(consumeEmailLogin(env, rawToken)).resolves.toBeNull();
-    expect(error).toHaveBeenCalledWith(JSON.stringify({ event: "email-login-membership-conflict" }));
+    expect(JSON.parse(String(error.mock.calls[0][0]))).toMatchObject({
+      event: "email-login-membership-conflict",
+      errorName: "Error",
+      errorMessage: expect.stringContaining("UNIQUE constraint failed"),
+    });
     error.mockRestore();
 
     const rows = await baseDb.prepare(
