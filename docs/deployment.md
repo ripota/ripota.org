@@ -93,11 +93,17 @@ npx wrangler secret put ACTIVATE_RI_ADMIN_EMAILS
 npx wrangler secret put CF_ACCESS_TEAM_DOMAIN
 npx wrangler secret put CF_ACCESS_AUD
 npx wrangler secret put AUTH_BOOTSTRAP_ADMIN_EMAILS
+npx wrangler secret put ANALYTICS_HASH_KEY
 ```
 
 `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` are required for the Worker to
 validate Cloudflare Access JWTs on admin requests. See
 `docs/cloudflare-access.md`.
+
+`ANALYTICS_HASH_KEY` HMACs public, event-scoped browser identifiers before they
+reach Workers Analytics Engine. Create it once and do not rotate it until the
+event report is complete. See `docs/analytics.md` for the data contract,
+privacy boundary, verification, and report queries.
 
 The initial authentication rollout starts in rollback-safe mode:
 
@@ -189,6 +195,9 @@ After deployment:
 8. For the unified-auth dormant deployment, confirm existing admin Access,
    existing private links, and existing legacy browser sessions before changing
    any auth feature flag.
+9. Trigger one allowlisted public event, then query the `ripota_usage` Analytics
+   Engine dataset to confirm the event arrived without a raw browser UUID. See
+   `docs/analytics.md`.
 
 ## Rollback
 

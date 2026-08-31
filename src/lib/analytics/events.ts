@@ -55,8 +55,6 @@ const activateRiEventProperties = {
   volunteer_form_started: [],
   volunteer_validation_failed: [],
   volunteer_submit_attempted: [],
-  embed_session_started: [],
-  embed_cta_clicked: ["action"],
 } as const satisfies Record<string, readonly AnalyticsPropertyName[]>;
 
 export const analyticsEventProperties = {
