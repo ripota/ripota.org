@@ -31,6 +31,7 @@ import { requireAccessIdentity } from "./access";
 import { handleClientErrorReport } from "./routes/client-errors";
 import { logWorkerError } from "./logging";
 import { handleAnalyticsEvent } from "./routes/analytics";
+import { captureFeatureUsage, type AuthenticatedFeature } from "./feature-usage";
 
 export { ActivateRiOpsRoom };
 
@@ -184,6 +185,16 @@ export default {
         );
       }
 
+      const feature = authenticatedPortalFeature(url.pathname);
+      if (feature) {
+        await captureFeatureUsage(env, ctx, {
+          scope: env.ACTIVATE_RI_EVENT_ID,
+          subjectType: "activator",
+          subjectId: identity.activatorId,
+          feature,
+        });
+      }
+
       return withPrivateHeaders(
         await fetchAssetWithoutRedirect(env, request),
         url.pathname.endsWith("/plan/") || url.pathname.endsWith("/account/") ? "editor" : "portal",
@@ -257,4 +268,14 @@ function decodePathSegment(value: string): string {
   } catch {
     return "";
   }
+}
+
+function authenticatedPortalFeature(pathname: string): AuthenticatedFeature | null {
+  if (pathname.endsWith("/plan") || pathname.endsWith("/plan/")) {
+    return "plan_editor";
+  }
+  if (pathname.endsWith("/account") || pathname.endsWith("/account/")) {
+    return "account_security";
+  }
+  return null;
 }

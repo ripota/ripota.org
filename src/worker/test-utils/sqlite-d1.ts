@@ -27,6 +27,7 @@ const migrations = [
   "0012_unified_auth.sql",
   "0013_auth_ceremony_sessions.sql",
   "0014_preserve_unified_activator_ownership.sql",
+  "0015_analytics_feature_usage.sql",
 ];
 
 export function createMigratedSqliteD1(): SqliteD1Context {

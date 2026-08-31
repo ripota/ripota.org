@@ -171,6 +171,13 @@ describe("worker routing", () => {
       await expect(response.text()).resolves.toBe("asset shell");
       expect(response.headers.get("cache-control")).toBe("private, no-store");
       expect(testEnv.ASSETS.fetch).toHaveBeenCalledOnce();
+      await expect(database.DB.prepare(
+        `SELECT feature, use_count FROM analytics_feature_usage
+         WHERE scope = ? AND subject_type = 'activator'`,
+      ).bind("activate-ri-2026").first()).resolves.toEqual({
+        feature: "plan_editor",
+        use_count: 1,
+      });
     } finally {
       database.close();
     }

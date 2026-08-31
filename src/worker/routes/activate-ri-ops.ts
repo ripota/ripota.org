@@ -14,10 +14,12 @@ import {
 } from "../ops-room-client";
 import { hasTrustedOrigin } from "../origin";
 import { withPrivateHeaders } from "../private-response";
+import { captureFeatureUsage } from "../feature-usage";
 
 export async function handleActivateRiOpsApi(
   request: Request,
   env: Env,
+  ctx?: ExecutionContext,
 ): Promise<Response> {
   const identity = await requireActivator(request, env);
   if (identity instanceof Response) {
@@ -35,6 +37,14 @@ export async function handleActivateRiOpsApi(
   const url = new URL(request.url);
   if (request.method === "GET" && url.pathname === "/api/activate-ri-2026/ops/bootstrap") {
     const bootstrap = await getOpsBootstrap(env, identity.activatorId);
+    if (bootstrap) {
+      await captureFeatureUsage(env, ctx, {
+        scope: env.ACTIVATE_RI_EVENT_ID,
+        subjectType: "activator",
+        subjectId: identity.activatorId,
+        feature: "ops_room",
+      });
+    }
     return bootstrap
       ? privateJson({ ok: true, ...bootstrap })
       : privateJson({ ok: false, error: "Ops Room access unavailable" }, { status: 403 });

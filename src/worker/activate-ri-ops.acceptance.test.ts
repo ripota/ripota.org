@@ -58,6 +58,14 @@ describe("Activate RI Ops Room D1 flow", () => {
     expect(bootstrapBody.membership.acceptedRulesVersion).toBeUndefined();
     expect(bootstrapBody.upcomingStops[0].parkReference).toBe("US-2868");
     expect(bootstrapBody.cursor).toBe(1);
+    await expect(env.DB.prepare(
+      `SELECT feature, subject_id, use_count FROM analytics_feature_usage
+       WHERE scope = ? AND subject_type = 'activator'`,
+    ).bind("activate-ri-2026").first()).resolves.toEqual({
+      feature: "ops_room",
+      subject_id: activatorId,
+      use_count: 1,
+    });
 
     const acceptResponse = await handleActivateRiApi(
       sessionRequest("/api/activate-ri-2026/ops/rules/accept", cookie, {

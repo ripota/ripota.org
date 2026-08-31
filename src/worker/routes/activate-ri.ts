@@ -118,7 +118,7 @@ export async function handleActivateRiApi(
   }
 
   if (url.pathname.startsWith("/api/activate-ri-2026/ops/")) {
-    return handleActivateRiOpsApi(request, env);
+    return handleActivateRiOpsApi(request, env, ctx);
   }
 
   if (
