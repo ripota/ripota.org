@@ -12,6 +12,7 @@ import {
 } from "../lib/activate-ri/pota-event";
 import type { LivePotaSpot } from "../lib/pota/spots";
 import type { Env } from "./env";
+import { logWorkerError } from "./logging";
 
 const historyBatchSize = 20;
 const historyConcurrency = 5;
@@ -319,7 +320,13 @@ export async function runPotaHistoryReconciliation(
       await storeActivationEvidence(env, parkReference, evidence, completedAt, deep);
       return { ok: true as const, evidenceRows: evidence.length };
     } catch (error) {
-      await recordParkFailure(env, parkReference, now().valueOf(), classifySyncError(error));
+      const category = classifySyncError(error);
+      logWorkerError("pota-history-reconciliation-park-failed", error, {
+        parkReference,
+        category,
+        deep,
+      });
+      await recordParkFailure(env, parkReference, now().valueOf(), category);
       return { ok: false as const, evidenceRows: 0 };
     }
   });

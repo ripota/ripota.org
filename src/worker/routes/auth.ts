@@ -30,6 +30,7 @@ import { clearActivatorSessionCookie } from "../activator-session";
 import { accessBootstrap } from "../auth/bootstrap";
 import { consumePasskeyReset } from "../auth/admin-recovery";
 import { getAuthConfig } from "../auth/config";
+import { logWorkerError } from "../logging";
 
 export async function handleAuthApi(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
@@ -236,7 +237,7 @@ export async function handleAuthApi(request: Request, env: Env): Promise<Respons
     if (error instanceof PasskeyError) {
       return privateJson({ ok: false, error: error.message }, { status: error.status });
     }
-    console.error(JSON.stringify({ event: "auth-route-failed", path: url.pathname }));
+    logWorkerError("auth-route-failed", error, { path: url.pathname });
     return privateJson({ ok: false, error: "Authentication failed" }, { status: 500 });
   }
 }

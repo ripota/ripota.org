@@ -29,6 +29,7 @@ import { createUnifiedActivatorSession } from "./auth/legacy";
 import { cleanupAuthData } from "./auth/cleanup";
 import { requireAccessIdentity } from "./access";
 import { handleClientErrorReport } from "./routes/client-errors";
+import { logWorkerError } from "./logging";
 
 export { ActivateRiOpsRoom };
 
@@ -134,8 +135,8 @@ export default {
         try {
           const unified = await createUnifiedActivatorSession(env, session.identity, "legacy-link");
           headers.append("set-cookie", unified.cookie);
-        } catch {
-          console.error(JSON.stringify({ event: "legacy-edit-route-unified-upgrade-failed" }));
+        } catch (error) {
+          logWorkerError("legacy-edit-route-unified-upgrade-failed", error);
         }
       }
       return withPrivateHeaders(
@@ -195,8 +196,8 @@ export default {
     ctx.waitUntil(runActivateRiPotaSchedule(controller, env));
     ctx.waitUntil(cleanupAuthData(env).then((result) => {
       console.log(JSON.stringify({ event: "auth-cleanup", ...result }));
-    }).catch(() => {
-      console.error(JSON.stringify({ event: "auth-cleanup-failed", category: "database" }));
+    }).catch((error) => {
+      logWorkerError("auth-cleanup-failed", error, { category: "database" });
     }));
   },
 };

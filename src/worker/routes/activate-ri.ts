@@ -69,6 +69,7 @@ import {
   requestDeepPotaReconciliation,
   runPotaHistoryReconciliation,
 } from "../pota-event";
+import { logWorkerError } from "../logging";
 
 const submissionReceivedMessage =
   "Submission received for organizer review.";
@@ -200,7 +201,11 @@ export async function handleActivateRiApi(
     const work = runPotaHistoryReconciliation(env, { force: true });
     if (ctx) {
       ctx.waitUntil(work.then((result) => {
-        console.log(JSON.stringify({ event: "activate-ri-pota-manual-reconciliation", requestedBy: identity.email, ...result }));
+        console.log(JSON.stringify({
+          event: "activate-ri-pota-manual-reconciliation",
+          requestedByRole: "admin",
+          ...result,
+        }));
       }));
     } else {
       await work;
@@ -490,8 +495,8 @@ async function handleActivatorSession(
       try {
         const unified = await createUnifiedActivatorSession(env, session.identity, "legacy-link");
         headers.append("set-cookie", unified.cookie);
-      } catch {
-        console.error(JSON.stringify({ event: "legacy-link-unified-upgrade-failed" }));
+      } catch (error) {
+        logWorkerError("legacy-link-unified-upgrade-failed", error);
       }
     }
     return privateJson(
@@ -1073,7 +1078,7 @@ async function handlePlanSubmission(
     );
   } catch (error) {
     if (linkUserId && isActivatorMembershipConflict(error)) {
-      console.error(JSON.stringify({ event: "signed-in-volunteer-membership-conflict" }));
+      logWorkerError("signed-in-volunteer-membership-conflict", error);
       return privateJson({
         ok: false,
         error: "We couldn't safely associate this submission with your account. Contact an organizer for help.",

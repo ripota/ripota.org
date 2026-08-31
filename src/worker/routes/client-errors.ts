@@ -1,4 +1,5 @@
 import type { Env } from "../env";
+import { sanitizeLogText } from "../logging";
 import { hasTrustedOrigin } from "../origin";
 
 const maximumBodyBytes = 8 * 1024;
@@ -49,10 +50,10 @@ export async function handleClientErrorReport(
     event: "client-error",
     kind: report.kind,
     errorName: report.name,
-    message: redactClientText(report.message),
+    message: sanitizeLogText(report.message, maximumMessageLength),
     route: sanitizeRoute(report.route),
-    source: report.source ? redactClientText(report.source) : undefined,
-    stack: report.stack ? redactClientText(report.stack) : undefined,
+    source: report.source ? sanitizeLogText(report.source, maximumSourceLength) : undefined,
+    stack: report.stack ? sanitizeLogText(report.stack, maximumStackLength) : undefined,
     line: report.line,
     column: report.column,
     cfRay: safeCfRay(request.headers.get("cf-ray")),
@@ -141,17 +142,6 @@ function sanitizeRoute(route: string): string {
     /^(\/activate-ri-2026\/edit\/)[^/]+/,
     "$1[redacted]",
   );
-}
-
-function redactClientText(value: string): string {
-  return value
-    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[redacted-email]")
-    .replace(/\bBearer\s+\S+/gi, "Bearer [redacted]")
-    .replace(/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g, "[redacted-token]")
-    .replace(
-      /([?&](?:access_token|code|key|secret|session|token)=)[^&#\s]+/gi,
-      "$1[redacted]",
-    );
 }
 
 function safeCfRay(value: string | null): string | undefined {

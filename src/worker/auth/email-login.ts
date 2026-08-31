@@ -2,6 +2,7 @@ import { generateEditToken, tokenHash } from "../edit-token";
 import { sendAuthAccessEmail } from "../email";
 import type { SendEmailResult } from "../email";
 import type { Env } from "../env";
+import { logWorkerError } from "../logging";
 import { trustedSiteUrl } from "../origin";
 import { verifyTurnstile } from "../turnstile";
 import { authAuditStatement } from "./audit";
@@ -180,7 +181,7 @@ export async function consumeEmailLogin(
       );
     } catch (error) {
       if (error instanceof ActivatorMembershipConflictError) {
-        console.error(JSON.stringify({ event: "email-login-membership-conflict" }));
+        logWorkerError("email-login-membership-conflict", error);
         return null;
       }
       throw error;
@@ -210,11 +211,12 @@ export async function consumeEmailLogin(
   try {
     await env.DB.batch(statements);
   } catch (error) {
-    console.error(JSON.stringify({
-      event: preparedMembership?.status === "pending" && isActivatorMembershipConflict(error)
+    logWorkerError(
+      preparedMembership?.status === "pending" && isActivatorMembershipConflict(error)
         ? "email-login-membership-conflict"
         : "email-login-consume-transaction-failed",
-    }));
+      error,
+    );
     return null;
   }
   return {

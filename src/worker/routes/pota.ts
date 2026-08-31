@@ -7,6 +7,7 @@ import type { Env } from "../env";
 import { json } from "../http";
 import { isSpotCaptureTime } from "../../lib/activate-ri/pota-event";
 import { persistEventSpotObservations } from "../pota-event";
+import { logWorkerError } from "../logging";
 
 const upstreamSpotsUrl = "https://api.pota.app/spot/activator";
 const cacheId = "ri-live-spots";
@@ -319,12 +320,16 @@ async function refreshSnapshot(
     }
 
     return snapshot;
-  } catch {
+  } catch (error) {
     const failureTime = now().valueOf();
     const retryMilliseconds = Math.min(
       initialRetryMilliseconds * (2 ** lease.consecutiveFailures),
       maximumRetryMilliseconds,
     );
+    logWorkerError("pota-spots-refresh-failed", error, {
+      consecutiveFailures: lease.consecutiveFailures,
+      retryMilliseconds,
+    });
     await env.DB.prepare(
       `UPDATE pota_spots_cache
       SET refresh_lease_token = NULL, refresh_lease_until = 0,

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LivePotaSpot } from "../../lib/pota/spots";
 import { createMigratedSqliteD1 } from "../test-utils/sqlite-d1";
 import { handlePotaSpots } from "./pota";
@@ -61,10 +61,15 @@ async function seedSnapshot(
 }
 
 describe("handlePotaSpots", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+  });
+
   afterEach(() => {
     cleanup?.();
     cleanup = undefined;
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it("fills an empty D1 cache from POTA and reuses it for one minute", async () => {
@@ -228,6 +233,9 @@ describe("handlePotaSpots", () => {
     await expect(winnerResponse.json()).resolves.toMatchObject({ stale: true });
     await expect(waiterResponse.json()).resolves.toMatchObject({ stale: true });
     expect(sleep).toHaveBeenCalledOnce();
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining('"event":"pota-spots-refresh-failed"'),
+    );
 
     const cacheRow = await database.DB.prepare(
       `SELECT refresh_lease_token, refresh_lease_until, retry_after

@@ -367,6 +367,7 @@ async function sha256Hex(value: string): Promise<string> {
 describe("handleActivateRiApi", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it("accepts valid plan submissions for organizer review", async () => {
@@ -981,6 +982,7 @@ describe("handleActivateRiApi", () => {
   });
 
   it("returns sanitized JSON errors when Turnstile verification fetch fails", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => {
@@ -998,6 +1000,9 @@ describe("handleActivateRiApi", () => {
       ok: false,
       errors: ["Turnstile verification failed."],
     });
+    expect(consoleError).toHaveBeenCalledWith(
+      expect.stringContaining('"event":"turnstile-siteverify-failed"'),
+    );
   });
 
   it("returns JSON 404 for unknown Activate RI API plans", async () => {

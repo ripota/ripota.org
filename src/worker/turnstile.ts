@@ -1,4 +1,5 @@
 import type { Env } from "./env";
+import { logWorkerError } from "./logging";
 
 type TurnstileResponse = {
   success?: boolean;
@@ -46,7 +47,8 @@ export async function verifyTurnstile(
     const result = (await response.json()) as TurnstileResponse;
 
     return result.success === true;
-  } catch {
+  } catch (error) {
+    logWorkerError("turnstile-siteverify-failed", error);
     return false;
   }
 }

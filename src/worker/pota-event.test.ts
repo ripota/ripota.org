@@ -14,6 +14,7 @@ let cleanup: (() => void) | undefined;
 afterEach(() => {
   cleanup?.();
   cleanup = undefined;
+  vi.restoreAllMocks();
 });
 
 describe("Activate RI POTA evidence store", () => {
@@ -107,6 +108,7 @@ describe("Activate RI POTA reconciliation", () => {
   });
 
   it("uses leases/backoff and completes organizer-triggered deep reconciliation in batches", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const database = createMigratedSqliteD1();
     cleanup = database.close;
     const env = testEnv(database.DB);
@@ -119,6 +121,10 @@ describe("Activate RI POTA reconciliation", () => {
       force: true,
     });
     expect(failed).toMatchObject({ attempted: 20, succeeded: 0, failed: 20, deep: true });
+    expect(consoleError).toHaveBeenCalledTimes(20);
+    expect(consoleError).toHaveBeenCalledWith(
+      expect.stringContaining('"event":"pota-history-reconciliation-park-failed"'),
+    );
 
     const contended = await runPotaHistoryReconciliation(env, {
       fetcher: malformed as typeof fetch,

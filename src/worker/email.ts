@@ -1,5 +1,6 @@
 import type { ActivityEventInput, EditablePlanDto } from "./db";
 import type { Env } from "./env";
+import { sanitizeLogText } from "./logging";
 import references from "../data/ri-references.json";
 import { formatActivationDateTimeRange } from "../lib/activate-ri/time";
 
@@ -480,17 +481,22 @@ function logEmailOutcome(
     subject?: string;
   },
 ): SendEmailResult {
-  console.log({
+  const entry = JSON.stringify({
     event: "email_send_attempt",
     emailAttemptId: result.attemptId,
     kind: result.kind,
     status: result.status,
     reason: result.status === "skipped" ? result.reason : undefined,
-    error: result.status === "failed" ? result.error : undefined,
+    error: result.status === "failed" ? sanitizeLogText(result.error) : undefined,
     recipientsCount: result.recipientsCount,
     recipientHashes: result.recipientHashes,
     subject: result.subject,
   });
+  if (result.status === "failed") {
+    console.error(entry);
+  } else {
+    console.log(entry);
+  }
 
   const { kind: _kind, subject: _subject, ...sendResult } = result;
   return sendResult;

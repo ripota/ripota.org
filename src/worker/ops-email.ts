@@ -1,5 +1,6 @@
 import type { Env } from "./env";
 import { logActivityEvent } from "./db";
+import { logWorkerError } from "./logging";
 
 type RecipientRow = {
   activator_id: string;
@@ -190,9 +191,16 @@ async function sendAnnouncementBatch(
       text,
       html: `<p><strong>Activate All RI 2026 organizer announcement</strong></p><p>${escapeHtml(announcement).replaceAll("\n", "<br>")}</p><p><a href="${portalUrl}">Open the activator portal</a></p><p>If your session expired, reopen your private signup email link or use the recovery form on the volunteer page.</p><p>This room and email are not monitored emergency services.</p><p>RI POTA is an unofficial community site; official POTA resources remain authoritative.</p>`,
     });
-    console.log({ event: "ops_announcement_email_batch", broadcastId: "redacted", recipientsCount: recipients.length, status: "sent" });
+    console.log(JSON.stringify({
+      event: "ops_announcement_email_batch",
+      recipientsCount: recipients.length,
+      status: "sent",
+    }));
     return { ok: true };
   } catch (error) {
+    logWorkerError("ops-announcement-email-batch-failed", error, {
+      recipientsCount: recipients.length,
+    });
     return { ok: false, error: error instanceof Error ? error.message : "Email send failed." };
   }
 }
