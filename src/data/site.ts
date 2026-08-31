@@ -157,9 +157,9 @@ export const footerLinkGroups: FooterLinkGroup[] = [
     links: [
       onAirLink,
       {
-        label: "Activate All RI help",
+        label: "Activate All RI FAQ",
         href: "/activate-ri-2026/help/",
-        description: "Get help with event plans, schedules, and private activator access.",
+        description: "Read event answers for activators and hunters.",
       },
       {
         label: "Assets",

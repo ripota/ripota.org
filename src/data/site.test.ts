@@ -52,7 +52,7 @@ describe("site content", () => {
         links: [
           expect.objectContaining({ label: "On air now", href: "/on-air/" }),
           expect.objectContaining({
-            label: "Activate All RI help",
+            label: "Activate All RI FAQ",
             href: "/activate-ri-2026/help/",
           }),
           expect.objectContaining({ label: "Assets", href: "/assets/" }),

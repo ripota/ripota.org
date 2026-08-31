@@ -1203,6 +1203,71 @@ p {
   font-weight: 600;
 }
 
+.faq-jump-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-bottom: clamp(2rem, 5vw, 3.5rem);
+}
+
+.faq-jump-links a {
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  padding: 0.55rem 0.85rem;
+  font-family: var(--font-sans);
+  font-size: 0.88rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.faq-jump-links a:hover,
+.faq-jump-links a:focus-visible {
+  border-color: var(--accent);
+}
+
+.faq-groups,
+.faq-group {
+  display: grid;
+  gap: clamp(1.25rem, 3vw, 2rem);
+}
+
+.faq-groups {
+  gap: clamp(3rem, 7vw, 5rem);
+}
+
+.faq-group {
+  scroll-margin-top: 1.5rem;
+}
+
+.faq-group__header {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.faq-group__header h2 {
+  margin: 0;
+}
+
+.faq-code {
+  max-width: 100%;
+  margin: 0.35rem 0;
+  overflow-x: auto;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border-subtle));
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-brand) 96%, black);
+  color: var(--text-on-hero);
+  padding: 1rem;
+  font-size: 0.83rem;
+  line-height: 1.55;
+  white-space: pre;
+}
+
+.event-guidance__item .faq-note {
+  border-left: 3px solid var(--accent);
+  padding-left: 0.85rem;
+}
+
 .hunter-checklist {
   display: grid;
   gap: 1.25rem;
@@ -3045,6 +3110,12 @@ p {
 @media (max-width: 560px) {
   .container {
     width: min(100% - 1.25rem, var(--max-width));
+  }
+
+  .event-nav {
+    width: calc(100% + 1.25rem);
+    margin-inline: -0.625rem;
+    padding-inline: 0.625rem;
   }
 
   .site-header__nav {

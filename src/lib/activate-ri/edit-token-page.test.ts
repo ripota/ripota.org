@@ -34,9 +34,12 @@ describe("activate-ri private activator pages", () => {
     expect(eventNavSource).not.toContain('["Volunteer",');
     expect(eventNavSource).not.toContain('["Help",');
     expect(eventNavSource.indexOf('["Hunter",')).toBeLessThan(
+      eventNavSource.indexOf('["FAQ",'),
+    );
+    expect(eventNavSource.indexOf('["FAQ",')).toBeLessThan(
       eventNavSource.indexOf('["Activator",'),
     );
-    expect(siteDataSource).toContain('label: "Activate All RI help"');
+    expect(siteDataSource).toContain('label: "Activate All RI FAQ"');
   });
 
   it("uses singular Activator page routes", () => {
