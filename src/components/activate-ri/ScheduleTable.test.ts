@@ -41,6 +41,16 @@ describe("ScheduleTable markup", () => {
     expect(source).not.toContain('url.searchParams.set("parks"');
   });
 
+  it("prints the current personalized schedule with human-readable context", () => {
+    expect(source).toContain('data-print-schedule');
+    expect(source).toContain('Print filtered schedule');
+    expect(source).toContain('data-schedule-print-heading');
+    expect(source).toContain('data-schedule-print-summary');
+    expect(source).toContain('window.print()');
+    expect(source).toContain('Activation windows are planned estimates');
+    expect(source).toContain('{siteIdentity.disclaimer}');
+  });
+
   it("offers public activator details and schedule links without private data", () => {
     expect(source).toContain("stop.activatorName?.trim() || stop.activatorCallsign");
     expect(source).toContain("https://www.qrz.com/db/");

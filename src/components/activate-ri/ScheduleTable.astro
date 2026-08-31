@@ -6,12 +6,22 @@ import {
 } from "../../lib/activate-ri/listing";
 import { activationTimeZoneOptions } from "../../lib/activate-ri/time";
 import type { PublicParkSummary } from "../../lib/activate-ri/types";
+import { siteIdentity } from "../../data/site";
 
 const publicParks = parks as PublicParkSummary[];
 const countyOptions = uniqueSortedValues(
   publicParks.map((park) => (park.counties?.length ? park.counties : ["Unknown county"])),
 );
 ---
+
+<header class="schedule-print-heading" data-schedule-print-heading>
+  <p class="eyebrow">Activate All RI 2026</p>
+  <h1 data-schedule-print-title>Event schedule</h1>
+  <p data-schedule-print-summary></p>
+  <p data-schedule-print-generated></p>
+  <p>Activation windows are planned estimates. Confirm live activity with official POTA spots.</p>
+  <p>{siteIdentity.disclaimer}</p>
+</header>
 
 <p class="event-coverage-shortcut">
   <a href="/activate-ri-2026/parks/?coverage=needed" data-coverage-shortcut>
@@ -27,10 +37,10 @@ const countyOptions = uniqueSortedValues(
     Import your official POTA Hunted Parks CSV to build a personal schedule on this device.
     <a href="/activate-ri-2026/hunter/">Open the Hunter checklist</a>
   </p>
-  <div class="personal-schedule-unscheduled" data-personal-schedule-unscheduled hidden>
-    <h3 data-personal-schedule-unscheduled-title></h3>
+  <details class="personal-schedule-unscheduled" data-personal-schedule-unscheduled hidden>
+    <summary data-personal-schedule-unscheduled-title></summary>
     <ul data-personal-schedule-unscheduled-list></ul>
-  </div>
+  </details>
 </section>
 
 <form class="event-filters" data-event-filters aria-label="Schedule filters">
@@ -81,6 +91,13 @@ const countyOptions = uniqueSortedValues(
     </select>
   </label>
 </form>
+
+<div class="schedule-actions">
+  <button class="button" data-variant="light" type="button" data-print-schedule>
+    Print filtered schedule
+  </button>
+  <p>Printing uses the park scope, timezone, and filters shown above.</p>
+</div>
 
 <div class="event-table-wrap" data-schedule-table-wrap>
   <table class="event-table" data-filtered-table data-live-schedule data-parks={JSON.stringify(publicParks)}>
@@ -141,6 +158,9 @@ const countyOptions = uniqueSortedValues(
     ) as unknown as HTMLSelectElement[];
     const timezone = filters.querySelector("[data-timezone]") as HTMLSelectElement | null;
     const hunterScope = filters.querySelector("[data-hunter-scope]") as HTMLSelectElement | null;
+    const printButton = document.querySelector<HTMLButtonElement>("[data-print-schedule]");
+    const unscheduledDisclosure = document.querySelector<HTMLDetailsElement>("[data-personal-schedule-unscheduled]");
+    let unscheduledWasOpen = false;
     let checklistAvailable = false;
     let storageAvailable = true;
     let remainingParks: PublicParkSummary[] = [];
@@ -155,8 +175,8 @@ const countyOptions = uniqueSortedValues(
     const remainingOption = hunterScope?.querySelector<HTMLOptionElement>('option[value="remaining"]');
     if (remainingOption) {
       remainingOption.textContent = checklistAvailable
-        ? `My remaining parks (${remainingParks.length})`
-        : "My remaining parks (import needed)";
+        ? `Remaining parks (${remainingParks.length})`
+        : "Remaining parks (import needed)";
     }
 
     restoreFiltersFromUrl(controls, timezone, hunterScope);
@@ -207,6 +227,17 @@ const countyOptions = uniqueSortedValues(
         visibleCount,
         visibleParkCount: visibleParkIds.size,
       });
+      updatePrintSummary({
+        controls,
+        hunterScope,
+        remainingParkCount: remainingParks.length,
+        timezone,
+        useRemaining,
+        visibleCount,
+      });
+      if (printButton) {
+        printButton.disabled = missingChecklist || !scheduleAvailable;
+      }
     };
 
     controls.forEach((control) => control.addEventListener("change", () => {
@@ -234,6 +265,26 @@ const countyOptions = uniqueSortedValues(
       void trackAnalyticsEvent("activate-ri-2026", "schedule_filter_used", {
         filterCategory: "time_zone",
       });
+    });
+    const preparePrint = () => {
+      const generated = document.querySelector<HTMLElement>("[data-schedule-print-generated]");
+      if (generated) {
+        generated.textContent = `Prepared ${new Intl.DateTimeFormat(undefined, {
+          dateStyle: "medium",
+          timeStyle: "short",
+        }).format(new Date())}`;
+      }
+      if (unscheduledDisclosure && !unscheduledDisclosure.hidden) {
+        unscheduledWasOpen = unscheduledDisclosure.open;
+        unscheduledDisclosure.open = true;
+      }
+    };
+    window.addEventListener("beforeprint", preparePrint);
+    window.addEventListener("afterprint", () => {
+      if (unscheduledDisclosure) unscheduledDisclosure.open = unscheduledWasOpen;
+    });
+    printButton?.addEventListener("click", () => {
+      window.print();
     });
     applySelectedTime(table, timezone?.value);
     applyFilters();
@@ -706,6 +757,42 @@ const countyOptions = uniqueSortedValues(
     visibleCount: number;
     visibleParkCount: number;
   };
+
+  type PrintSummary = {
+    controls: HTMLSelectElement[];
+    hunterScope: HTMLSelectElement | null;
+    remainingParkCount: number;
+    timezone: HTMLSelectElement | null;
+    useRemaining: boolean;
+    visibleCount: number;
+  };
+
+  function updatePrintSummary({
+    controls,
+    hunterScope,
+    remainingParkCount,
+    timezone,
+    useRemaining,
+    visibleCount,
+  }: PrintSummary): void {
+    const title = document.querySelector<HTMLElement>("[data-schedule-print-title]");
+    const summary = document.querySelector<HTMLElement>("[data-schedule-print-summary]");
+    if (title) {
+      title.textContent = useRemaining ? "My remaining-parks schedule" : "Event schedule";
+    }
+    if (!summary) return;
+
+    const activeFilters = controls
+      .filter(({ value }) => value !== "all")
+      .map((control) => control.selectedOptions[0]?.textContent?.trim())
+      .filter((label): label is string => Boolean(label));
+    const scopeLabel = useRemaining
+      ? `${remainingParkCount} remaining park${remainingParkCount === 1 ? "" : "s"}`
+      : hunterScope?.selectedOptions[0]?.textContent?.trim() ?? "All scheduled parks";
+    const timezoneLabel = timezone?.selectedOptions[0]?.textContent?.trim();
+    const details = [scopeLabel, timezoneLabel, ...activeFilters].filter(Boolean).join(" · ");
+    summary.textContent = `${visibleCount} matching activation window${visibleCount === 1 ? "" : "s"} · ${details}`;
+  }
 
   function renderPersonalScheduleSummary({
     checklistAvailable,

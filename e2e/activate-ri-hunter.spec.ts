@@ -59,6 +59,22 @@ test("hunter imports, overrides, filters, persists, resets, and clears a local c
     await expect(page.getByText(/1 activation window covering 1 of your 60 remaining parks/)).toBeVisible();
     await expect(page.getByRole("row").filter({ hasText: "US-0514" })).toBeVisible();
     await expect(page.getByRole("row").filter({ hasText: "US-0513" })).toBeHidden();
+    await page.evaluate(() => {
+      window.print = () => {
+        window.dispatchEvent(new Event("beforeprint"));
+        document.body.setAttribute("data-print-called", "true");
+      };
+    });
+    await page.getByRole("button", { name: "Print filtered schedule" }).click();
+    await expect(page.locator("body")).toHaveAttribute("data-print-called", "true");
+    await page.emulateMedia({ media: "print" });
+    await expect(page.locator("[data-schedule-print-heading]")).toBeVisible();
+    await expect(page.getByRole("form", { name: "Schedule filters" })).toBeHidden();
+    await expect(page.getByRole("row").filter({ hasText: "US-0514" })).toBeVisible();
+    await expect(page.getByRole("row").filter({ hasText: "US-0513" })).toBeHidden();
+    await expect(page.getByText(/US-0515 Ninigret National Wildlife Refuge/)).toBeVisible();
+    await page.emulateMedia({ media: "screen" });
+    await page.evaluate(() => window.dispatchEvent(new Event("afterprint")));
     await page.goBack();
 
     await page.getByLabel(/US-0514 .* hunted/).check();
