@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
   applyHunterImport,
+  clearHunterChecklistState,
   effectiveHuntedReferences,
   emptyHunterChecklistState,
   formatHunterImportSummary,
+  hasHunterChecklistData,
   normalizeHunterChecklistState,
   parseHunterParksCsv,
+  readHunterChecklistState,
+  remainingHunterReferences,
+  writeHunterChecklistState,
   type HunterReference,
 } from "./hunter-checklist";
 
@@ -130,5 +135,40 @@ describe("hunter checklist state", () => {
       manualOverrides: { "US-2872": true },
       lastImportedAt: "2026-08-30T00:00:00.000Z",
     });
+  });
+
+  it("derives remaining references after imported and manual hunter choices", () => {
+    const state = {
+      ...emptyHunterChecklistState(),
+      importedReferenceIds: ["US-0513"],
+      manualOverrides: { "US-0513": false },
+      lastImportedAt: "2026-08-30T00:00:00.000Z",
+    };
+
+    expect(remainingHunterReferences(state, references)).toEqual(references);
+    expect(hasHunterChecklistData(state)).toBe(true);
+    expect(hasHunterChecklistData(emptyHunterChecklistState())).toBe(false);
+  });
+
+  it("reads, writes, and clears normalized browser-local state", () => {
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
+    };
+    const state = {
+      ...emptyHunterChecklistState(),
+      importedReferenceIds: ["US-0513", "US-9999"],
+      lastImportedAt: "2026-08-30T00:00:00.000Z",
+    };
+
+    writeHunterChecklistState(storage, state);
+    expect(readHunterChecklistState(storage, references)).toEqual({
+      ...state,
+      importedReferenceIds: ["US-0513"],
+    });
+    clearHunterChecklistState(storage);
+    expect(readHunterChecklistState(storage, references)).toEqual(emptyHunterChecklistState());
   });
 });

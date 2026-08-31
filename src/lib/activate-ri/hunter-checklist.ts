@@ -8,6 +8,10 @@ export type HunterReference = {
   potaUrl: string;
 };
 
+export type HunterReferenceIdentity = Pick<HunterReference, "reference">;
+
+export type HunterChecklistStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+
 export type HunterChecklistState = {
   version: typeof HUNTER_CHECKLIST_VERSION;
   importedReferenceIds: string[];
@@ -161,7 +165,7 @@ export function applyHunterImport(
 
 export function effectiveHuntedReferences(
   state: HunterChecklistState,
-  references: readonly HunterReference[],
+  references: readonly HunterReferenceIdentity[],
 ): Set<string> {
   const imported = new Set(state.importedReferenceIds);
   return new Set(
@@ -171,9 +175,44 @@ export function effectiveHuntedReferences(
   );
 }
 
+export function remainingHunterReferences<T extends HunterReferenceIdentity>(
+  state: HunterChecklistState,
+  references: readonly T[],
+): T[] {
+  const hunted = effectiveHuntedReferences(state, references);
+  return references.filter(({ reference }) => !hunted.has(reference));
+}
+
+export function hasHunterChecklistData(state: HunterChecklistState): boolean {
+  return state.lastImportedAt !== null || Object.keys(state.manualOverrides).length > 0;
+}
+
+export function readHunterChecklistState(
+  storage: Pick<HunterChecklistStorage, "getItem">,
+  references: readonly HunterReferenceIdentity[],
+): HunterChecklistState {
+  const stored = storage.getItem(HUNTER_CHECKLIST_STORAGE_KEY);
+  return stored
+    ? normalizeHunterChecklistState(JSON.parse(stored), references)
+    : emptyHunterChecklistState();
+}
+
+export function writeHunterChecklistState(
+  storage: Pick<HunterChecklistStorage, "setItem">,
+  state: HunterChecklistState,
+): void {
+  storage.setItem(HUNTER_CHECKLIST_STORAGE_KEY, JSON.stringify(state));
+}
+
+export function clearHunterChecklistState(
+  storage: Pick<HunterChecklistStorage, "removeItem">,
+): void {
+  storage.removeItem(HUNTER_CHECKLIST_STORAGE_KEY);
+}
+
 export function normalizeHunterChecklistState(
   value: unknown,
-  references: readonly HunterReference[],
+  references: readonly HunterReferenceIdentity[],
 ): HunterChecklistState {
   const empty = emptyHunterChecklistState();
   if (!isRecord(value) || value.version !== HUNTER_CHECKLIST_VERSION) return empty;
