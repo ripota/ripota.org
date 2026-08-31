@@ -29,12 +29,12 @@ describe("hunter checklist surface", () => {
     expect(component).toContain("Clear my checklist data");
   });
 
-  it("loads and discloses the public event schedule for each park", () => {
+  it("summarizes visible opportunities and links to the canonical personal schedule", () => {
     expect(component).toContain("fetchPublicActivationStops");
-    expect(component).toContain("Show event schedule");
-    expect(component).toContain("formatActivationDate(stop)");
-    expect(component).toContain("formatActivationTimeRange(stop)");
-    expect(component).toContain("No event stop currently scheduled");
-    expect(component).toContain("planned estimates in Eastern time");
+    expect(component).toContain("scheduleVisibleStops");
+    expect(component).toContain("View and print my schedule");
+    expect(component).toContain("/activate-ri-2026/schedule/?scope=remaining");
+    expect(component).toContain("announced activation window");
+    expect(component).not.toContain("Show event schedule");
   });
 });

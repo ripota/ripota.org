@@ -60,6 +60,17 @@ const references = riReferences.map(({ reference, name, potaUrl }) => ({
       <progress data-hunter-progress max={references.length} value="0">0 of {references.length}</progress>
     </div>
 
+    <section class="hunter-planner" aria-labelledby="hunter-planner-title">
+      <div>
+        <p class="eyebrow">Plan your event</p>
+        <h3 id="hunter-planner-title" data-hunter-planner-title>Your remaining-parks schedule</h3>
+        <p data-hunter-planner-copy>Checking the event schedule for your remaining parks…</p>
+      </div>
+      <a class="button" href="/activate-ri-2026/schedule/?scope=remaining" data-hunter-schedule-link>
+        View and print my schedule
+      </a>
+    </section>
+
     <div class="hunter-checklist-controls">
       <label class="event-filter">
         Search parks
@@ -88,10 +99,6 @@ const references = riReferences.map(({ reference, name, potaUrl }) => ({
       </section>
     </div>
 
-    <p class="hunter-schedule-note" data-hunter-schedule-status aria-live="polite">
-      Loading planned park schedules…
-    </p>
-
     <div class="hunter-local-actions">
       <button class="button" data-variant="light" type="button" data-hunter-reset-overrides>
         Reset manual changes
@@ -108,19 +115,21 @@ const references = riReferences.map(({ reference, name, potaUrl }) => ({
 
 <script>
   import {
-    HUNTER_CHECKLIST_STORAGE_KEY,
     HUNTER_CSV_MAX_BYTES,
     applyHunterImport,
+    clearHunterChecklistState,
     effectiveHuntedReferences,
     emptyHunterChecklistState,
     formatHunterImportSummary,
-    normalizeHunterChecklistState,
+    hasHunterChecklistData,
     parseHunterParksCsv,
+    readHunterChecklistState,
+    writeHunterChecklistState,
     type HunterChecklistState,
     type HunterReference,
   } from "../../lib/activate-ri/hunter-checklist";
+  import { scheduleVisibleStops } from "../../lib/activate-ri/listing";
   import { fetchPublicActivationStops } from "../../lib/activate-ri/public-stops-client";
-  import { formatActivationDate, formatActivationTimeRange } from "../../lib/activate-ri/time";
   import type { PublicActivationStop } from "../../lib/activate-ri/types";
   import { trackAnalyticsEvent } from "../../lib/analytics/client";
 
@@ -178,12 +187,19 @@ const references = riReferences.map(({ reference, name, potaUrl }) => ({
     root.querySelector("[data-hunter-clear]")?.addEventListener("click", () => {
       state = emptyHunterChecklistState();
       try {
-        localStorage.removeItem(HUNTER_CHECKLIST_STORAGE_KEY);
+        clearHunterChecklistState(localStorage);
       } catch {
         storageAvailable = false;
       }
       announce("Checklist data cleared from this browser.");
       render();
+    });
+    root.querySelector("[data-hunter-schedule-link]")?.addEventListener("click", () => {
+      void trackAnalyticsEvent("activate-ri-2026", "event_cta_clicked", {
+        action: "schedule",
+        feature: "hunter_checklist",
+        placement: "schedule",
+      });
     });
 
     async function importFile(file: File, importMethod: "drop" | "file_picker"): Promise<void> {
@@ -213,26 +229,17 @@ const references = riReferences.map(({ reference, name, potaUrl }) => ({
 
     async function loadSchedules(): Promise<void> {
       try {
-        publicStops = await fetchPublicActivationStops();
+        publicStops = scheduleVisibleStops(await fetchPublicActivationStops());
         scheduleState = "ready";
-        setText(
-          "[data-hunter-schedule-status]",
-          "Schedule times are planned estimates in Eastern time. Confirm live activity with official POTA spots.",
-        );
       } catch {
         scheduleState = "unavailable";
-        setText(
-          "[data-hunter-schedule-status]",
-          "Planned schedules are temporarily unavailable here. Use the event Schedule page for the latest information.",
-        );
       }
       renderLists();
     }
 
     function loadState(): HunterChecklistState {
       try {
-        const stored = localStorage.getItem(HUNTER_CHECKLIST_STORAGE_KEY);
-        return stored ? normalizeHunterChecklistState(JSON.parse(stored), references) : emptyHunterChecklistState();
+        return readHunterChecklistState(localStorage, references);
       } catch {
         storageAvailable = false;
         showError("Browser storage is unavailable. You can use the checklist now, but it will not survive a reload.");
@@ -242,7 +249,7 @@ const references = riReferences.map(({ reference, name, potaUrl }) => ({
 
     function persistState(): void {
       try {
-        localStorage.setItem(HUNTER_CHECKLIST_STORAGE_KEY, JSON.stringify(state));
+        writeHunterChecklistState(localStorage, state);
         storageAvailable = true;
       } catch {
         storageAvailable = false;
@@ -251,7 +258,7 @@ const references = riReferences.map(({ reference, name, potaUrl }) => ({
     }
 
     function render(): void {
-      if (results) results.hidden = state.lastImportedAt === null && Object.keys(state.manualOverrides).length === 0;
+      if (results) results.hidden = !hasHunterChecklistData(state);
       renderLists();
       if (!storageAvailable && error?.hidden) {
         showError("Browser storage is unavailable. Your current checklist cannot be saved for the next visit.");
@@ -267,6 +274,7 @@ const references = riReferences.map(({ reference, name, potaUrl }) => ({
       );
       const completed = matching.filter(({ reference }) => hunted.has(reference));
       const remaining = matching.filter(({ reference }) => !hunted.has(reference));
+      const allRemaining = references.filter(({ reference }) => !hunted.has(reference));
       const completedList = root.querySelector("[data-hunter-complete]") as HTMLUListElement | null;
       const remainingList = root.querySelector("[data-hunter-remaining]") as HTMLUListElement | null;
       completedList?.replaceChildren(...completed.map((reference) => parkItem(reference, true)));
@@ -290,6 +298,7 @@ const references = riReferences.map(({ reference, name, potaUrl }) => ({
       const remainingEmpty = root.querySelector("[data-hunter-remaining-empty]") as HTMLElement | null;
       if (completedEmpty) completedEmpty.hidden = completed.length > 0;
       if (remainingEmpty) remainingEmpty.hidden = remaining.length > 0;
+      renderPlanner(allRemaining);
     }
 
     function parkItem(park: HunterReference, checked: boolean): HTMLLIElement {
@@ -325,60 +334,43 @@ const references = riReferences.map(({ reference, name, potaUrl }) => ({
       label.appendChild(copy);
       item.appendChild(label);
       item.appendChild(official);
-      item.appendChild(parkSchedule(park));
       return item;
     }
 
-    function parkSchedule(park: HunterReference): HTMLElement {
-      const container = document.createElement("div");
-      container.className = "hunter-park-schedule";
+    function renderPlanner(remaining: HunterReference[]): void {
+      const title = root.querySelector("[data-hunter-planner-title]") as HTMLElement | null;
+      const copy = root.querySelector("[data-hunter-planner-copy]") as HTMLElement | null;
+      const link = root.querySelector("[data-hunter-schedule-link]") as HTMLAnchorElement | null;
+      if (!title || !copy || !link) return;
 
-      if (scheduleState === "loading") {
-        container.textContent = "Loading event schedule…";
-        return container;
-      }
-
-      if (scheduleState === "unavailable") {
-        const link = document.createElement("a");
+      if (remaining.length === 0) {
+        title.textContent = "Your Rhode Island checklist is complete";
+        copy.textContent = "You can still browse every announced activation window in the event schedule.";
         link.href = "/activate-ri-2026/schedule/";
-        link.textContent = "View the event schedule";
-        container.appendChild(link);
-        return container;
+        link.textContent = "View the full schedule";
+        return;
       }
 
-      const stops = publicStops
-        .filter((stop) => stop.parkReference === park.reference)
-        .sort((left, right) =>
-          `${left.plannedDate}T${left.startTime}`.localeCompare(`${right.plannedDate}T${right.startTime}`),
-        );
-      if (stops.length === 0) {
-        container.textContent = "No event stop currently scheduled";
-        return container;
+      title.textContent = `Plan around your ${remaining.length} remaining park${remaining.length === 1 ? "" : "s"}`;
+      link.href = "/activate-ri-2026/schedule/?scope=remaining";
+      link.textContent = "View and print my schedule";
+      if (scheduleState === "loading") {
+        copy.textContent = "Checking the event schedule for your remaining parks…";
+        return;
+      }
+      if (scheduleState === "unavailable") {
+        copy.textContent = "The schedule summary is temporarily unavailable here. Open your personal schedule to try again.";
+        return;
       }
 
-      const details = document.createElement("details");
-      const summary = document.createElement("summary");
-      summary.textContent = `Show event schedule (${stops.length})`;
-      details.appendChild(summary);
-      details.addEventListener("toggle", () => {
-        if (details.open) {
-          void trackAnalyticsEvent("activate-ri-2026", "hunter_schedule_details_opened");
-        }
-      });
-      const list = document.createElement("ul");
-      for (const stop of stops) {
-        const item = document.createElement("li");
-        const timing = document.createElement("strong");
-        timing.textContent = `${formatActivationDate(stop)} · ${formatActivationTimeRange(stop)}`;
-        const context = document.createElement("span");
-        context.textContent = `${stop.activatorCallsign} · ${stopStatusLabel(stop.status)}`;
-        item.appendChild(timing);
-        item.appendChild(context);
-        list.appendChild(item);
-      }
-      details.appendChild(list);
-      container.appendChild(details);
-      return container;
+      const remainingIds = new Set(remaining.map(({ reference }) => reference));
+      const scheduledIds = new Set(
+        publicStops
+          .filter(({ parkReference }) => remainingIds.has(parkReference))
+          .map(({ parkReference }) => parkReference),
+      );
+      const unscheduledCount = remaining.length - scheduledIds.size;
+      copy.textContent = `There ${scheduledIds.size === 1 ? "is" : "are"} ${scheduledIds.size} remaining park${scheduledIds.size === 1 ? "" : "s"} with an announced activation window; ${unscheduledCount} ${unscheduledCount === 1 ? "does" : "do"} not have one.`;
     }
 
     function setText(selector: string, value: string): void {
@@ -401,16 +393,6 @@ const references = riReferences.map(({ reference, name, potaUrl }) => ({
       error.textContent = "";
       error.hidden = true;
     }
-  }
-
-  function stopStatusLabel(status: PublicActivationStop["status"]): string {
-    return {
-      "pending-review": "Pending review",
-      scheduled: "Scheduled",
-      delayed: "Delayed",
-      cancelled: "Cancelled",
-      completed: "Completed",
-    }[status];
   }
 
   function parseReferences(value: string | undefined): HunterReference[] {

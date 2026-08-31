@@ -23,10 +23,22 @@ describe("ScheduleTable markup", () => {
     expect(source).toContain('data-filter="activator"');
     expect(source).toContain("Any activator");
     expect(source).toContain("row.dataset.activator = stop.activatorCallsign");
-    expect(source).toContain("restoreFiltersFromUrl(controls, timezone)");
+    expect(source).toContain("restoreFiltersFromUrl(controls, timezone, hunterScope)");
     expect(source).toContain("url.searchParams.set(key, control.value)");
     expect(source).toContain('url.searchParams.set("timezone", timezone.value)');
     expect(source).toContain('window.history.replaceState({}, "", url)');
+  });
+
+  it("filters against the browser-local remaining parks without putting park IDs in the URL", () => {
+    expect(source).toContain('data-hunter-scope');
+    expect(source).toContain('My remaining parks');
+    expect(source).toContain('readHunterChecklistState(localStorage, parks)');
+    expect(source).toContain('remainingHunterReferences(state, parks)');
+    expect(source).toContain('row.dataset.parkReference = stop.parkReference');
+    expect(source).toContain('url.searchParams.set("scope", "remaining")');
+    expect(source).toContain('No Hunter checklist has been saved in this browser yet.');
+    expect(source).toContain('Not currently scheduled');
+    expect(source).not.toContain('url.searchParams.set("parks"');
   });
 
   it("offers public activator details and schedule links without private data", () => {

@@ -19,7 +19,28 @@ const countyOptions = uniqueSortedValues(
   </a>
 </p>
 
+<section class="personal-schedule-summary" data-personal-schedule-summary aria-live="polite" hidden>
+  <p class="eyebrow">Your browser-local checklist</p>
+  <h2 data-personal-schedule-title>Schedule for your remaining parks</h2>
+  <p data-personal-schedule-copy></p>
+  <p data-personal-schedule-import hidden>
+    Import your official POTA Hunted Parks CSV to build a personal schedule on this device.
+    <a href="/activate-ri-2026/hunter/">Open the Hunter checklist</a>
+  </p>
+  <div class="personal-schedule-unscheduled" data-personal-schedule-unscheduled hidden>
+    <h3 data-personal-schedule-unscheduled-title></h3>
+    <ul data-personal-schedule-unscheduled-list></ul>
+  </div>
+</section>
+
 <form class="event-filters" data-event-filters aria-label="Schedule filters">
+  <label class="event-filter">
+    Parks
+    <select class="event-filter__control" name="schedule-scope" data-hunter-scope>
+      <option value="all">All scheduled parks</option>
+      <option value="remaining">My remaining parks</option>
+    </select>
+  </label>
   <label class="event-filter">
     Time zone
     <select class="event-filter__control" name="schedule-timezone" data-timezone>
@@ -61,7 +82,7 @@ const countyOptions = uniqueSortedValues(
   </label>
 </form>
 
-<div class="event-table-wrap">
+<div class="event-table-wrap" data-schedule-table-wrap>
   <table class="event-table" data-filtered-table data-live-schedule data-parks={JSON.stringify(publicParks)}>
     <thead>
       <tr>
@@ -88,6 +109,11 @@ const countyOptions = uniqueSortedValues(
 <script>
   import type { PublicParkSummary } from "../../lib/activate-ri/types";
   import { summarizeParkCoverage } from "../../lib/activate-ri/coverage";
+  import {
+    hasHunterChecklistData,
+    readHunterChecklistState,
+    remainingHunterReferences,
+  } from "../../lib/activate-ri/hunter-checklist";
   import { scheduleVisibleStops } from "../../lib/activate-ri/listing";
   import { fetchPublicActivationStops } from "../../lib/activate-ri/public-stops-client";
   import {
@@ -99,26 +125,55 @@ const countyOptions = uniqueSortedValues(
 
   document.querySelectorAll<HTMLTableElement>("[data-live-schedule]").forEach(setupLiveSchedule);
 
-  function setupEventFilters(root: Element): void {
+  function setupEventFilters(
+    root: Element,
+    table: HTMLTableElement,
+    parks: PublicParkSummary[],
+    stops: PublicStop[],
+    scheduleAvailable: boolean,
+  ): void {
     const filters = root as HTMLFormElement;
-    const table = filters.nextElementSibling?.querySelector("[data-filtered-table]");
     const rows = Array.from(table?.querySelectorAll<HTMLElement>("[data-filter-row]") ?? []);
     const empty = table?.querySelector<HTMLElement>("[data-filter-empty]");
+    const tableWrap = table.closest<HTMLElement>("[data-schedule-table-wrap]");
     const controls = Array.from(
       filters.querySelectorAll("[data-filter]"),
     ) as unknown as HTMLSelectElement[];
     const timezone = filters.querySelector("[data-timezone]") as HTMLSelectElement | null;
+    const hunterScope = filters.querySelector("[data-hunter-scope]") as HTMLSelectElement | null;
+    let checklistAvailable = false;
+    let storageAvailable = true;
+    let remainingParks: PublicParkSummary[] = [];
+    try {
+      const state = readHunterChecklistState(localStorage, parks);
+      checklistAvailable = hasHunterChecklistData(state);
+      remainingParks = remainingHunterReferences(state, parks);
+    } catch {
+      storageAvailable = false;
+    }
+    const remainingIds = new Set(remainingParks.map(({ reference }) => reference));
+    const remainingOption = hunterScope?.querySelector<HTMLOptionElement>('option[value="remaining"]');
+    if (remainingOption) {
+      remainingOption.textContent = checklistAvailable
+        ? `My remaining parks (${remainingParks.length})`
+        : "My remaining parks (import needed)";
+    }
 
-    restoreFiltersFromUrl(controls, timezone);
+    restoreFiltersFromUrl(controls, timezone, hunterScope);
 
     const applyFilters = () => {
       const values = Object.fromEntries(
         controls.map((control) => [control.dataset.filter ?? "", control.value]),
       );
       let visibleCount = 0;
+      const visibleParkIds = new Set<string>();
+      const useRemaining = hunterScope?.value === "remaining";
+      const missingChecklist = useRemaining && !checklistAvailable;
 
       for (const row of rows) {
         const isVisible =
+          !missingChecklist &&
+          (!useRemaining || remainingIds.has(row.dataset.parkReference ?? "")) &&
           matchesList(row.dataset.modes, values.mode) &&
           matchesList(row.dataset.activator, values.activator) &&
           matchesList(row.dataset.bands, values.band) &&
@@ -127,11 +182,31 @@ const countyOptions = uniqueSortedValues(
 
         row.hidden = !isVisible;
         visibleCount += isVisible ? 1 : 0;
+        if (isVisible && row.dataset.parkReference) {
+          visibleParkIds.add(row.dataset.parkReference);
+        }
       }
 
+      if (tableWrap) tableWrap.hidden = missingChecklist;
       if (empty) {
         empty.hidden = visibleCount > 0 || rows.length === 0;
+        const emptyCell = empty.querySelector<HTMLElement>("td");
+        if (emptyCell) {
+          emptyCell.textContent = useRemaining
+            ? "No activation windows for your remaining parks match these filters."
+            : "No scheduled activation windows match these filters.";
+        }
       }
+      renderPersonalScheduleSummary({
+        checklistAvailable,
+        remainingParks,
+        scheduleAvailable,
+        storageAvailable,
+        stops,
+        useRemaining,
+        visibleCount,
+        visibleParkCount: visibleParkIds.size,
+      });
     };
 
     controls.forEach((control) => control.addEventListener("change", () => {
@@ -147,18 +222,22 @@ const countyOptions = uniqueSortedValues(
       });
     }));
     controls.forEach((control) => control.addEventListener("change", () => {
-      updateScheduleUrl(controls, timezone);
+      updateScheduleUrl(controls, timezone, hunterScope);
     }));
+    hunterScope?.addEventListener("change", () => {
+      applyFilters();
+      updateScheduleUrl(controls, timezone, hunterScope);
+    });
     timezone?.addEventListener("change", () => {
       applySelectedTime(table, timezone.value);
-      updateScheduleUrl(controls, timezone);
+      updateScheduleUrl(controls, timezone, hunterScope);
       void trackAnalyticsEvent("activate-ri-2026", "schedule_filter_used", {
         filterCategory: "time_zone",
       });
     });
     applySelectedTime(table, timezone?.value);
     applyFilters();
-    updateScheduleUrl(controls, timezone);
+    updateScheduleUrl(controls, timezone, hunterScope);
   }
 
   async function setupLiveSchedule(table: HTMLTableElement): Promise<void> {
@@ -189,13 +268,13 @@ const countyOptions = uniqueSortedValues(
       }
       renderLiveSchedule(body, visibleStops, parks);
       if (filters) {
-        setupEventFilters(filters);
+        setupEventFilters(filters, table, parks, visibleStops, true);
       }
     } catch {
       renderScheduleUnavailable(body);
       const filters = document.querySelector("[data-event-filters]") as HTMLFormElement | null;
       if (filters) {
-        setupEventFilters(filters);
+        setupEventFilters(filters, table, parks, [], false);
       }
     }
   }
@@ -303,6 +382,7 @@ const countyOptions = uniqueSortedValues(
     row.dataset.counties = (park?.counties?.length ? park.counties : ["Unknown county"]).join("|");
     row.dataset.date = stop.plannedDate;
     row.dataset.modes = stop.modes.join("|");
+    row.dataset.parkReference = stop.parkReference;
 
     appendCell(row, "Date", formatActivationDate(stop));
     appendCell(row, "Time", formatActivationTimeRange(stop));
@@ -616,9 +696,87 @@ const countyOptions = uniqueSortedValues(
     return labels[status] ?? status;
   }
 
+  type PersonalScheduleSummary = {
+    checklistAvailable: boolean;
+    remainingParks: PublicParkSummary[];
+    scheduleAvailable: boolean;
+    storageAvailable: boolean;
+    stops: PublicStop[];
+    useRemaining: boolean;
+    visibleCount: number;
+    visibleParkCount: number;
+  };
+
+  function renderPersonalScheduleSummary({
+    checklistAvailable,
+    remainingParks,
+    scheduleAvailable,
+    storageAvailable,
+    stops,
+    useRemaining,
+    visibleCount,
+    visibleParkCount,
+  }: PersonalScheduleSummary): void {
+    const summary = document.querySelector<HTMLElement>("[data-personal-schedule-summary]");
+    if (!summary) return;
+    summary.hidden = !useRemaining;
+    if (!useRemaining) return;
+
+    const title = summary.querySelector<HTMLElement>("[data-personal-schedule-title]");
+    const copy = summary.querySelector<HTMLElement>("[data-personal-schedule-copy]");
+    const importPrompt = summary.querySelector<HTMLElement>("[data-personal-schedule-import]");
+    const unscheduled = summary.querySelector<HTMLElement>("[data-personal-schedule-unscheduled]");
+    const unscheduledTitle = summary.querySelector<HTMLElement>("[data-personal-schedule-unscheduled-title]");
+    const unscheduledList = summary.querySelector<HTMLUListElement>("[data-personal-schedule-unscheduled-list]");
+
+    if (!checklistAvailable) {
+      if (title) title.textContent = "Build your personal schedule";
+      if (copy) {
+        copy.textContent = storageAvailable
+          ? "No Hunter checklist has been saved in this browser yet."
+          : "Browser storage is unavailable, so a personal checklist cannot be loaded on this device.";
+      }
+      if (importPrompt) importPrompt.hidden = false;
+      if (unscheduled) unscheduled.hidden = true;
+      return;
+    }
+
+    if (importPrompt) importPrompt.hidden = true;
+    if (title) title.textContent = "Schedule for your remaining parks";
+    if (!scheduleAvailable) {
+      if (copy) copy.textContent = "The live schedule is temporarily unavailable. Try refreshing this page.";
+      if (unscheduled) unscheduled.hidden = true;
+      return;
+    }
+
+    if (copy) {
+      copy.textContent = `${visibleCount} activation window${visibleCount === 1 ? "" : "s"} covering ${visibleParkCount} of your ${remainingParks.length} remaining park${remainingParks.length === 1 ? "" : "s"} match the current filters.`;
+    }
+    const remainingIds = new Set(remainingParks.map(({ reference }) => reference));
+    const scheduledIds = new Set(
+      stops
+        .filter(({ parkReference }) => remainingIds.has(parkReference))
+        .map(({ parkReference }) => parkReference),
+    );
+    const unscheduledParks = remainingParks.filter(({ reference }) => !scheduledIds.has(reference));
+    if (unscheduled) unscheduled.hidden = unscheduledParks.length === 0;
+    if (unscheduledTitle) {
+      unscheduledTitle.textContent = `Not currently scheduled (${unscheduledParks.length})`;
+    }
+    unscheduledList?.replaceChildren(...unscheduledParks.map((park) => {
+      const item = document.createElement("li");
+      const reference = document.createElement("strong");
+      reference.textContent = park.reference;
+      item.appendChild(reference);
+      item.append(` ${park.name}`);
+      return item;
+    }));
+  }
+
   function restoreFiltersFromUrl(
     controls: HTMLSelectElement[],
     timezone: HTMLSelectElement | null,
+    hunterScope: HTMLSelectElement | null,
   ): void {
     const params = new URL(window.location.href).searchParams;
     for (const control of controls) {
@@ -636,11 +794,15 @@ const countyOptions = uniqueSortedValues(
         ? requestedTimezone
         : "eastern";
     }
+    if (hunterScope) {
+      hunterScope.value = params.get("scope") === "remaining" ? "remaining" : "all";
+    }
   }
 
   function updateScheduleUrl(
     controls: HTMLSelectElement[],
     timezone: HTMLSelectElement | null,
+    hunterScope: HTMLSelectElement | null,
   ): void {
     const url = new URL(window.location.href);
     for (const control of controls) {
@@ -659,6 +821,11 @@ const countyOptions = uniqueSortedValues(
       url.searchParams.set("timezone", timezone.value);
     } else {
       url.searchParams.delete("timezone");
+    }
+    if (hunterScope?.value === "remaining") {
+      url.searchParams.set("scope", "remaining");
+    } else {
+      url.searchParams.delete("scope");
     }
     window.history.replaceState({}, "", url);
   }

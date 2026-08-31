@@ -1368,6 +1368,40 @@ p {
   accent-color: var(--accent-strong);
 }
 
+.hunter-planner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--border-subtle));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface-raised));
+  padding: 1rem;
+}
+
+.hunter-planner > div {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.hunter-planner h3,
+.hunter-planner p {
+  margin: 0;
+}
+
+.hunter-planner h3 {
+  color: var(--surface-ink);
+  font-size: 1.35rem;
+}
+
+.hunter-planner p:not(.eyebrow) {
+  color: var(--text-muted);
+}
+
+.hunter-planner .button {
+  white-space: nowrap;
+}
+
 .hunter-checklist-controls {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1435,46 +1469,6 @@ p {
   color: var(--link);
   font-size: 0.78rem;
   font-weight: 800;
-}
-
-.hunter-park-schedule {
-  grid-column: 1 / -1;
-  color: var(--text-muted);
-  font-size: 0.82rem;
-  font-weight: 700;
-}
-
-.hunter-park-schedule details {
-  border-top: 1px solid var(--border-subtle);
-  padding-top: 0.55rem;
-}
-
-.hunter-park-schedule summary {
-  width: fit-content;
-  color: var(--link);
-  cursor: pointer;
-}
-
-.hunter-park-schedule ul {
-  display: grid;
-  gap: 0.45rem;
-  margin: 0.65rem 0 0;
-  padding-left: 1.15rem;
-}
-
-.hunter-park-schedule li {
-  padding-left: 0.15rem;
-}
-
-.hunter-park-schedule li strong,
-.hunter-park-schedule li span {
-  display: block;
-}
-
-.hunter-schedule-note {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: 0.88rem;
 }
 
 .hunter-list-empty {
@@ -1701,6 +1695,68 @@ p {
   margin: -0.7rem 0 1.25rem;
   color: var(--link);
   font-weight: 800;
+}
+
+.personal-schedule-summary {
+  display: grid;
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 48%, var(--border-subtle));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface-raised));
+  padding: clamp(1rem, 3vw, 1.35rem);
+}
+
+.personal-schedule-summary[hidden] {
+  display: none;
+}
+
+.personal-schedule-summary h2,
+.personal-schedule-summary h3,
+.personal-schedule-summary p {
+  margin: 0;
+}
+
+.personal-schedule-summary h2 {
+  max-width: none;
+  color: var(--surface-ink);
+  font-size: clamp(1.6rem, 3vw, 2.25rem);
+}
+
+.personal-schedule-summary > p:not(.eyebrow) {
+  color: var(--text-muted);
+}
+
+.personal-schedule-summary a {
+  font-weight: 800;
+}
+
+.personal-schedule-unscheduled {
+  display: grid;
+  gap: 0.5rem;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 0.8rem;
+}
+
+.personal-schedule-unscheduled[hidden] {
+  display: none;
+}
+
+.personal-schedule-unscheduled h3 {
+  font-size: 1rem;
+}
+
+.personal-schedule-unscheduled ul {
+  columns: 3 220px;
+  margin: 0;
+  padding-left: 1.2rem;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
+.personal-schedule-unscheduled li {
+  break-inside: avoid;
+  margin-bottom: 0.3rem;
 }
 
 .event-coverage-toggle {
@@ -3093,6 +3149,7 @@ p {
   }
 
   .hunter-import,
+  .hunter-planner,
   .hunter-results__header,
   .hunter-lists {
     grid-template-columns: 1fr;

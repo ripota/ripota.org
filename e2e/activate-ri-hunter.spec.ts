@@ -28,6 +28,17 @@ test("hunter imports, overrides, filters, persists, resets, and clears a local c
             modes: ["SSB"],
             publicNotes: "",
             status: "scheduled",
+          }, {
+            id: "hunter-remaining-schedule-stop",
+            parkReference: "US-0514",
+            plannedDate: "2026-09-13",
+            startTime: "15:00",
+            endTime: "18:00",
+            activatorCallsign: "N1RI",
+            bands: ["40m"],
+            modes: ["CW"],
+            publicNotes: "",
+            status: "scheduled",
           }],
         }),
       });
@@ -40,9 +51,15 @@ test("hunter imports, overrides, filters, persists, resets, and clears a local c
     await page.getByLabel("Choose CSV file").setInputFiles({ name: "hunter_parks.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
     await expect(page.getByRole("status")).toContainText("Import complete");
     await expect(page.getByRole("heading", { name: /1 of 61 Rhode Island parks hunted/ })).toBeVisible();
-    await page.getByText("Show event schedule (1)").click();
-    await expect(page.getByText(/Sep 12, 2026.*09:00-11:00 EDT/)).toBeVisible();
-    await expect(page.getByText("W1AW · Scheduled")).toBeVisible();
+    await expect(page.getByText(/There is 1 remaining park with an announced activation window/)).toBeVisible();
+
+    await page.getByRole("link", { name: "View and print my schedule" }).click();
+    await expect(page).toHaveURL(/\/activate-ri-2026\/schedule\/\?scope=remaining/);
+    await expect(page.getByRole("heading", { name: "Schedule for your remaining parks" })).toBeVisible();
+    await expect(page.getByText(/1 activation window covering 1 of your 60 remaining parks/)).toBeVisible();
+    await expect(page.getByRole("row").filter({ hasText: "US-0514" })).toBeVisible();
+    await expect(page.getByRole("row").filter({ hasText: "US-0513" })).toBeHidden();
+    await page.goBack();
 
     await page.getByLabel(/US-0514 .* hunted/).check();
     await expect(page.getByRole("heading", { name: /2 of 61 Rhode Island parks hunted/ })).toBeVisible();
