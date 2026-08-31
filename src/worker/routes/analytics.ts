@@ -20,6 +20,13 @@ export async function handleAnalyticsEvent(
     return analyticsJson({ ok: false, error: "Forbidden" }, { status: 403 });
   }
 
+  if (!await withinAnalyticsRateLimit(request, env)) {
+    return analyticsJson(
+      { ok: false, error: "Too many requests" },
+      { status: 429, headers: { "retry-after": "60" } },
+    );
+  }
+
   if (!(request.headers.get("content-type") ?? "").includes("application/json")) {
     return analyticsJson(
       { ok: false, error: "Expected application/json" },
@@ -32,8 +39,8 @@ export async function handleAnalyticsEvent(
     return analyticsJson({ ok: false, error: "Payload too large" }, { status: 413 });
   }
 
-  const body = await request.text();
-  if (new TextEncoder().encode(body).byteLength > maxBodyBytes) {
+  const body = await readBoundedBody(request);
+  if (body === null) {
     return analyticsJson({ ok: false, error: "Payload too large" }, { status: 413 });
   }
 
@@ -82,6 +89,55 @@ export async function handleAnalyticsEvent(
   });
 
   return analyticsJson({ ok: true }, { status: 202 });
+}
+
+async function withinAnalyticsRateLimit(
+  request: Request,
+  env: Env,
+): Promise<boolean> {
+  if (!env.ANALYTICS_RATE_LIMIT) {
+    return true;
+  }
+  const networkKey = request.headers.get("CF-Connecting-IP") ?? "unknown";
+  return (await env.ANALYTICS_RATE_LIMIT.limit({
+    key: `analytics:${networkKey}`,
+  })).success;
+}
+
+async function readBoundedBody(request: Request): Promise<string | null> {
+  if (!request.body) {
+    return "";
+  }
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  try {
+    while (true) {
+      const result = await reader.read();
+      if (result.done) break;
+      totalBytes += result.value.byteLength;
+      if (totalBytes > maxBodyBytes) {
+        await reader.cancel();
+        return null;
+      }
+      chunks.push(result.value);
+    }
+  } catch {
+    return "";
+  }
+
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return "";
+  }
 }
 
 async function hashAnonymousId(

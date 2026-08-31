@@ -128,4 +128,18 @@ describe("analytics event route", () => {
     expect(response.status).toBe(413);
     expect(env.ANALYTICS?.writeDataPoint).not.toHaveBeenCalled();
   });
+
+  it("rate limits the anonymous collector before parsing", async () => {
+    const env = testEnv();
+    const limit = vi.fn().mockResolvedValue({ success: false });
+    env.ANALYTICS_RATE_LIMIT = { limit } as unknown as RateLimit;
+    const response = await handleAnalyticsEvent(post({ value: "ignored" }, {
+      "CF-Connecting-IP": "192.0.2.1",
+    }), env);
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("60");
+    expect(limit).toHaveBeenCalledWith({ key: "analytics:192.0.2.1" });
+    expect(env.ANALYTICS?.writeDataPoint).not.toHaveBeenCalled();
+  });
 });

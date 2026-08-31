@@ -7,6 +7,7 @@ type OptionalBindings = Partial<Pick<
   Cloudflare.Env,
   | "ACTIVATE_RI_OPS_ROOM"
   | "ANALYTICS"
+  | "ANALYTICS_RATE_LIMIT"
   | "AUTH_EMAIL_RATE_LIMIT"
   | "AUTH_RATE_LIMIT_BURST"
   | "CLIENT_ERROR_RATE_LIMIT"
