@@ -17,4 +17,10 @@ describe("BaseLayout metadata", () => {
     );
     expect(baseLayoutSource).toContain("installClientErrorReporter();");
   });
+
+  it("supports noindex metadata for public design prototypes", () => {
+    expect(baseLayoutSource).toContain(
+      '{noIndex && <meta name="robots" content="noindex" />}',
+    );
+  });
 });

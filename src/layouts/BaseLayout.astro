@@ -8,6 +8,7 @@ type Props = {
   description?: string;
   canonicalPath?: string;
   privatePage?: boolean;
+  noIndex?: boolean;
   bodyClass?: string;
   image?: {
     src: string;
@@ -23,6 +24,7 @@ const {
   description = siteIdentity.tagline,
   canonicalPath = "/",
   privatePage = false,
+  noIndex = false,
   bodyClass,
   image = defaultShareImage,
 } = Astro.props;
@@ -39,6 +41,7 @@ const imageUrl = new URL(image.src, socialImageBaseUrl).toString();
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="generator" content={Astro.generator} />
     {!privatePage && <meta name="description" content={description} />}
+    {noIndex && <meta name="robots" content="noindex" />}
     {!privatePage && <link rel="canonical" href={canonicalUrl} />}
     <link rel="icon" type="image/svg+xml" href="/assets/logos/ri-pota-coastal-signal.svg" />
     <link rel="apple-touch-icon" href="/assets/logos/ri-pota-coastal-signal.png" />

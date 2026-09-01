@@ -1,0 +1,1062 @@
+---
+import Footer from "../../components/Footer.astro";
+import Notice from "../../components/Notice.astro";
+import ParkDetailMap from "../../components/parks/ParkDetailMap.astro";
+import SiteHeader from "../../components/SiteHeader.astro";
+import { parksCatalog, type ParksCatalogReference } from "../../lib/pota/catalog";
+import {
+  parkGeometryLabel,
+  parkGuidePath,
+  sameGeometryReferences,
+} from "../../lib/parks/directory";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+
+type Props = {
+  park: ParksCatalogReference;
+};
+
+export function getStaticPaths() {
+  return parksCatalog.references.map((park) => ({
+    params: { reference: park.reference.toLowerCase() },
+    props: { park },
+  }));
+}
+
+const { park } = Astro.props;
+const relatedParks = sameGeometryReferences(parksCatalog.references, park.reference);
+const geometryLabel = parkGeometryLabel(park);
+const officialMultipleReferencesUrl =
+  "https://docs.pota.app/docs/activator_reference/activator_guide-english.html#multiple-park-references";
+---
+
+<BaseLayout
+  title={`${park.name} field guide`}
+  description={`A map-derived Rhode Island field guide for ${park.name}, with reviewed geometry, calculated reference relationships, and source-backed planning facts.`}
+  canonicalPath={parkGuidePath(park.reference)}
+  bodyClass="park-page"
+>
+  <SiteHeader variant="overlay" />
+  <main id="main">
+    <section class="park-hero" aria-labelledby="park-title">
+      <ParkDetailMap
+        id={`park-boundary-map-${park.reference.toLowerCase()}`}
+        park={park}
+        relatedParks={relatedParks}
+      />
+
+      <div class="park-hero__content container">
+        <article class="park-identity">
+          <a class="park-identity__breadcrumb" href="/parks/">
+            All Rhode Island parks <span aria-hidden="true">/</span> {park.counties.join(", ")}
+          </a>
+          <div class="park-identity__labels" aria-label="Park page status">
+            <span>{park.reference}</span>
+            <span data-variant="prototype">0 community reports</span>
+          </div>
+          <h1 id="park-title">{park.name}</h1>
+          <p class="park-identity__summary">
+            This field guide starts with reviewed map data and calculated
+            relationships. Local access and operating knowledge comes from
+            attributed community reports.
+          </p>
+          <p class="park-identity__meta">
+            {park.counties.join(" · ")} <span aria-hidden="true">•</span> Grid {park.grid}
+          </p>
+          <div class="park-identity__actions">
+            <a class="button" data-variant="primary" href="#community-notes">Why reports are empty</a>
+            <a
+              class="button park-identity__official-link"
+              data-variant="secondary"
+              href={park.potaUrl}
+              target="_blank"
+              rel="noreferrer"
+            >Official POTA page ↗</a>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <nav class="park-subnav" aria-label="On this park page">
+      <div class="container park-subnav__inner">
+        <span>On this page</span>
+        <a href="#field-notes">Map facts</a>
+        <a href="#overlap">Relationships</a>
+        <a href="#community-notes">Community reports</a>
+        <a href="#sources">Sources</a>
+      </div>
+    </nav>
+
+    <section class="park-snapshot" aria-label="Park planning snapshot">
+      <div class="container park-snapshot__grid">
+        <div>
+          <span>Reference</span>
+          <strong>{park.reference}</strong>
+        </div>
+        <div>
+          <span>County</span>
+          <strong>{park.counties.join(", ")}</strong>
+        </div>
+        <div>
+          <span>Map data</span>
+          <strong>{geometryLabel}</strong>
+        </div>
+        <div>
+          <span>Community reports</span>
+          <strong>0 · be the first</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="park-guide section" id="field-notes" aria-labelledby="field-notes-title">
+      <div class="container park-guide__layout">
+        <aside class="park-guide__aside" aria-labelledby="quick-facts-title">
+          <div class="park-aside-card">
+            <p class="eyebrow">Catalog facts</p>
+            <h2 id="quick-facts-title">What exists now</h2>
+            <dl>
+              <div>
+                <dt>Reference</dt>
+                <dd>{park.reference}</dd>
+              </div>
+              <div>
+                <dt>Grid</dt>
+                <dd>{park.grid}</dd>
+              </div>
+              <div>
+                <dt>Geometry</dt>
+                <dd>{geometryLabel}</dd>
+              </div>
+              <div>
+                <dt>Source</dt>
+                <dd>{park.source.name}</dd>
+              </div>
+            </dl>
+            <a href={park.source.url} target="_blank" rel="noreferrer">
+              Open boundary source ↗
+            </a>
+          </div>
+          <p class="park-guide__freshness">
+            No parking, facility, setup, accessibility, or seasonal-access
+            claims have been contributed yet.
+          </p>
+        </aside>
+
+        <div class="park-guide__main">
+          <header class="park-section-heading">
+            <p class="eyebrow">Honest starting point</p>
+            <h2 id="field-notes-title">Calculated first, contributed second</h2>
+            <p>
+              Every park page can launch with the same reliable shell. The site
+              fills what it can prove from the catalog, then clearly names the
+              local questions that still need a person on the ground.
+            </p>
+          </header>
+
+          <div class="park-planning-grid">
+            <article class="park-planning-card">
+              <span class="park-planning-card__number">01</span>
+              <div>
+                <p class="park-planning-card__status" data-status="official">Catalog derived</p>
+                <h3>{geometryLabel} on the map</h3>
+                <p>
+                  The highlighted geometry comes from the reviewed Rhode Island
+                  parks catalog. It is a planning aid with an inspectable source,
+                  not a local access report or POTA-validity decision.
+                </p>
+                <a href={park.source.url} target="_blank" rel="noreferrer">
+                  Inspect the public geometry source ↗
+                </a>
+              </div>
+            </article>
+
+            <article class="park-planning-card">
+              <span class="park-planning-card__number">02</span>
+              <div>
+                <p class="park-planning-card__status" data-status="official">Calculated relationship</p>
+                <h3>{relatedParks.length > 0 ? "Related references detected" : "No same-geometry match detected"}</h3>
+                <p>
+                  {relatedParks.length > 0
+                    ? `${relatedParks.map(({ reference }) => reference).join(", ")} uses the same reviewed source features. Treat that as a research lead and verify current official requirements.`
+                    : "The current catalog does not contain another reference using this exact set of reviewed source features. Containment, intersection, trail crossings, and nearby relationships can be added as later calculations."}
+                </p>
+                <a href="#overlap">Review relationship details ↓</a>
+              </div>
+            </article>
+
+            <article class="park-planning-card">
+              <span class="park-planning-card__number">03</span>
+              <div>
+                <p class="park-planning-card__status" data-status="community">Community reports</p>
+                <h3>Everything practical is still open</h3>
+                <p>
+                  The page currently makes no claims about parking, picnic
+                  tables, setup locations, accessibility, noise, gates, or
+                  seasonal conditions. Those details need dated, attributed
+                  reports.
+                </p>
+                <a href="#community-notes">Review the read-only report state ↓</a>
+              </div>
+            </article>
+          </div>
+
+          <section class="park-questions" aria-labelledby="open-questions-title">
+            <div>
+              <p class="eyebrow">First-report queue</p>
+              <h3 id="open-questions-title">What should someone report first?</h3>
+            </div>
+            <ul>
+              <li>Where can a visitor legally park, and what is the gear carry?</li>
+              <li>Where is there useful antenna clearance without blocking other visitors?</li>
+              <li>Which areas become crowded, noisy, gated, or inaccessible by season?</li>
+              <li>Are tables, shelters, restrooms, or accessible routes actually present?</li>
+            </ul>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <section class="park-overlap section" id="overlap" aria-labelledby="overlap-title">
+      <div class="container park-overlap__layout">
+        <div class="park-overlap__copy">
+          <p class="eyebrow">Calculated relationship</p>
+          <div class="park-overlap__title-row">
+            <h2 id="overlap-title">
+              {relatedParks.length > 0
+                ? `${relatedParks.length + 1} references share this mapped geometry`
+                : "No same-geometry candidate found"}
+            </h2>
+            <span>{relatedParks.length > 0 ? "Verify before logging" : "Catalog result"}</span>
+          </div>
+          <p class="park-overlap__lead">
+            {relatedParks.length > 0
+              ? `The reviewed catalog currently draws ${park.reference} and ${relatedParks.map(({ reference }) => reference).join(", ")} from the same public source features. That is a planning clue, not an eligibility determination.`
+              : "The current calculation only compares exact reviewed source-feature sets. A future relationship pass can add containment, intersection, trail-zone crossings, and nearby references without presenting them as eligibility decisions."}
+          </p>
+          {relatedParks.length > 0 && (
+            <div class="park-overlap__diagram" role="img" aria-label={`${park.reference} and ${relatedParks[0].reference} use the same reviewed geometry source features`}>
+              <span data-park="state-park">{park.reference}<small>{park.name}</small></span>
+              <span data-park="state-forest">{relatedParks[0].reference}<small>{relatedParks[0].name}</small></span>
+              <strong>same source features</strong>
+            </div>
+          )}
+        </div>
+
+        <aside class="park-overlap__checklist" aria-label="Reference overlap verification checklist">
+          <h3>{relatedParks.length > 0 ? "Before claiming multiple references" : "What the calculation can say"}</h3>
+          {relatedParks.length > 0 ? (
+            <ol>
+              <li>Open every current official POTA reference page.</li>
+              <li>Confirm current boundaries and public-access constraints.</li>
+              <li>Keep the entire station inside the qualifying overlap.</li>
+              <li>Follow current POTA multiple-reference logging guidance.</li>
+            </ol>
+          ) : (
+            <ol>
+              <li>No other reference uses the exact same reviewed feature set.</li>
+              <li>This does not rule out containment, intersection, or a nearby n-fer.</li>
+              <li>Future calculations should remain visible and source-backed.</li>
+              <li>Official POTA guidance still governs every activation claim.</li>
+            </ol>
+          )}
+          <div class="park-overlap__links">
+            {relatedParks.map((relatedPark) => (
+              <a href={relatedPark.potaUrl} target="_blank" rel="noreferrer">Open {relatedPark.reference} in POTA ↗</a>
+            ))}
+            <a href={officialMultipleReferencesUrl} target="_blank" rel="noreferrer">Read official multiple-reference guidance ↗</a>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="community-notes section" id="community-notes" aria-labelledby="community-notes-title">
+      <div class="container">
+        <header class="park-section-heading community-notes__heading">
+          <p class="eyebrow">Community layer · empty at launch</p>
+          <h2 id="community-notes-title">No community reports yet</h2>
+          <p>
+            This read-only release has no park report form, account requirement,
+            or write path. A missing report means only that RI POTA has not
+            published an attributed observation; it does not mean a facility,
+            access route, or operating option is unavailable.
+          </p>
+        </header>
+
+        <article class="community-notes__empty">
+          <p class="eyebrow">Practical topics remain unanswered</p>
+          <h3>Nothing is being inferred from silence</h3>
+          <div class="contribution-topics" aria-label="Unreported practical topics">
+            <span>Parking</span>
+            <span>Setup spot</span>
+            <span>Facilities</span>
+            <span>Accessibility</span>
+            <span>Seasonal access</span>
+            <span>RF conditions</span>
+          </div>
+          <p>
+            Contribution and review workflows belong to a later phase. Until
+            then, use the official and public source links below and verify
+            current conditions with the relevant land manager.
+          </p>
+        </article>
+      </div>
+    </section>
+
+    <section class="park-sources section" id="sources" aria-labelledby="sources-title">
+      <div class="container park-sources__layout">
+        <div>
+          <p class="eyebrow">Receipts, not mystery data</p>
+          <h2 id="sources-title">Sources and freshness</h2>
+          <p>
+            At launch the page has only catalog metadata, reviewed geometry,
+            calculated relationships, and an empty community layer. Official
+            POTA remains the source of truth for the program.
+          </p>
+        </div>
+        <ul>
+          <li>
+            <a href={park.potaUrl} target="_blank" rel="noreferrer">Official POTA reference — {park.reference} ↗</a>
+            <span>Current reference identity and program details; checked live at the official source rather than mirrored here</span>
+          </li>
+          <li>
+            <a href={park.source.url} target="_blank" rel="noreferrer">{park.source.name} ↗</a>
+            <span>Public geometry source used by the reviewed @ripota/parks v1.1.0 catalog snapshot</span>
+          </li>
+          <li>
+            <a href={officialMultipleReferencesUrl} target="_blank" rel="noreferrer">Official POTA activator guide ↗</a>
+            <span>Current multiple-reference guidance; verify the linked official page before every activation</span>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <Notice />
+  </main>
+  <Footer />
+</BaseLayout>
+
+<style>
+  :global(.park-page .site-header) {
+    z-index: 1000;
+  }
+
+  .park-hero {
+    position: relative;
+    z-index: 0;
+    min-height: min(780px, 92svh);
+    isolation: isolate;
+    overflow: hidden;
+    background: var(--surface-brand);
+  }
+
+  .park-hero__content {
+    position: relative;
+    z-index: 800;
+    display: flex;
+    min-height: min(780px, 92svh);
+    align-items: flex-end;
+    padding-bottom: clamp(2.2rem, 5vw, 4.5rem);
+    pointer-events: none;
+  }
+
+  .park-identity {
+    width: min(570px, 100%);
+    border: 1px solid rgba(255, 250, 240, 0.2);
+    border-radius: 10px;
+    background: rgba(18, 39, 37, 0.93);
+    box-shadow: 0 28px 85px rgba(5, 17, 16, 0.38);
+    padding: clamp(1.35rem, 3.5vw, 2.2rem);
+    color: var(--text-on-hero);
+    pointer-events: auto;
+    backdrop-filter: blur(14px);
+  }
+
+  .park-identity__breadcrumb {
+    display: inline-flex;
+    gap: 0.45rem;
+    margin-bottom: 1.1rem;
+    color: color-mix(in srgb, var(--text-on-hero) 76%, transparent);
+    font-size: 0.78rem;
+    font-weight: 750;
+    text-decoration: none;
+  }
+
+  .park-identity__labels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.9rem;
+  }
+
+  .park-identity__labels span {
+    border: 1px solid rgba(255, 250, 240, 0.38);
+    border-radius: 999px;
+    padding: 0.28rem 0.55rem;
+    color: var(--text-on-hero);
+    font-size: 0.67rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .park-identity__labels span[data-variant="prototype"] {
+    border-color: color-mix(in srgb, var(--accent) 72%, white);
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+
+  .park-identity h1 {
+    max-width: 13ch;
+    color: var(--text-on-hero);
+    font-size: clamp(3rem, 6.6vw, 5.25rem);
+    line-height: 0.94;
+  }
+
+  .park-identity__summary {
+    max-width: 44ch;
+    margin-top: 1rem;
+    color: color-mix(in srgb, var(--text-on-hero) 86%, transparent);
+    font-size: 1.05rem;
+  }
+
+  .park-identity__meta {
+    margin-top: 1rem;
+    color: color-mix(in srgb, var(--text-on-hero) 68%, transparent);
+    font-size: 0.83rem;
+    font-weight: 800;
+  }
+
+  .park-identity__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.7rem;
+    margin-top: 1.35rem;
+  }
+
+  .park-identity__official-link {
+    background: rgba(255, 250, 240, 0.08);
+  }
+
+  .park-subnav {
+    position: sticky;
+    z-index: 900;
+    top: 0;
+    border-bottom: 1px solid var(--border-subtle);
+    background: color-mix(in srgb, var(--surface-page) 92%, transparent);
+    backdrop-filter: blur(12px);
+  }
+
+  .park-subnav__inner {
+    display: flex;
+    min-height: 54px;
+    align-items: center;
+    gap: 1.15rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .park-subnav__inner::-webkit-scrollbar {
+    display: none;
+  }
+
+  .park-subnav span,
+  .park-subnav a {
+    flex: 0 0 auto;
+    font-size: 0.76rem;
+    font-weight: 850;
+    white-space: nowrap;
+  }
+
+  .park-subnav span {
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .park-subnav a {
+    color: var(--surface-ink);
+    text-decoration: none;
+  }
+
+  .park-snapshot {
+    border-bottom: 1px solid var(--border-subtle);
+    background: var(--surface-raised);
+  }
+
+  .park-snapshot__grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .park-snapshot__grid > div {
+    display: grid;
+    gap: 0.25rem;
+    border-right: 1px solid var(--border-subtle);
+    padding: 1.2rem 1.1rem;
+  }
+
+  .park-snapshot__grid > div:first-child {
+    border-left: 1px solid var(--border-subtle);
+  }
+
+  .park-snapshot span {
+    color: var(--text-muted);
+    font-size: 0.68rem;
+    font-weight: 850;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .park-snapshot strong {
+    color: var(--surface-ink);
+    font-size: 0.9rem;
+    line-height: 1.3;
+  }
+
+  .park-guide__layout {
+    display: grid;
+    grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+    gap: clamp(2.5rem, 7vw, 6rem);
+  }
+
+  .park-guide__aside {
+    align-self: start;
+  }
+
+  .park-aside-card {
+    display: grid;
+    gap: 1.1rem;
+    border: 1px solid var(--border-subtle);
+    border-top: 4px solid var(--accent);
+    border-radius: 8px;
+    background: var(--surface-raised);
+    box-shadow: var(--shadow-soft);
+    padding: 1.35rem;
+  }
+
+  .park-aside-card .eyebrow {
+    margin: 0;
+  }
+
+  .park-aside-card h2 {
+    font-size: 2rem;
+  }
+
+  .park-aside-card dl {
+    display: grid;
+    gap: 0;
+    margin: 0;
+  }
+
+  .park-aside-card dl > div {
+    display: grid;
+    gap: 0.18rem;
+    border-top: 1px solid var(--border-subtle);
+    padding: 0.75rem 0;
+  }
+
+  .park-aside-card dt {
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    font-weight: 850;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .park-aside-card dd {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 0.88rem;
+    font-weight: 700;
+  }
+
+  .park-aside-card a {
+    color: var(--link-strong);
+    font-size: 0.82rem;
+    font-weight: 850;
+  }
+
+  .park-guide__freshness {
+    margin: 0.9rem 0 0;
+    padding-inline: 0.3rem;
+    color: var(--text-muted);
+    font-size: 0.76rem;
+  }
+
+  .park-guide__main {
+    min-width: 0;
+  }
+
+  .park-section-heading {
+    max-width: 760px;
+  }
+
+  .park-section-heading h2,
+  .park-overlap h2,
+  .park-sources h2 {
+    max-width: 14ch;
+    font-size: clamp(2.4rem, 5vw, 4.3rem);
+  }
+
+  .park-section-heading > p:last-child,
+  .park-sources__layout > div > p:last-child {
+    max-width: 64ch;
+    margin-top: 1rem;
+    color: var(--text-muted);
+    font-size: 1.05rem;
+  }
+
+  .park-planning-grid {
+    display: grid;
+    gap: 0;
+    margin-top: 2.4rem;
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .park-planning-card {
+    display: grid;
+    grid-template-columns: 3.3rem minmax(0, 1fr);
+    gap: 1.1rem;
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 1.5rem 0;
+  }
+
+  .park-planning-card__number {
+    color: var(--accent-strong);
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 1.5rem;
+    font-weight: 800;
+  }
+
+  .park-planning-card > div {
+    display: grid;
+    gap: 0.55rem;
+  }
+
+  .park-planning-card__status {
+    width: fit-content;
+    border-radius: 999px;
+    padding: 0.18rem 0.45rem;
+    font-size: 0.65rem;
+    font-weight: 900;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+  }
+
+  .park-planning-card__status[data-status="official"] {
+    background: color-mix(in srgb, var(--link) 13%, transparent);
+    color: var(--link-strong);
+  }
+
+  .park-planning-card__status[data-status="community"] {
+    background: color-mix(in srgb, var(--accent) 17%, transparent);
+    color: var(--accent-strong);
+  }
+
+  .park-planning-card h3,
+  .park-questions h3,
+  .community-notes h3,
+  .park-overlap__checklist h3 {
+    font-size: clamp(1.45rem, 3vw, 2rem);
+  }
+
+  .park-planning-card p:not(.park-planning-card__status) {
+    max-width: 66ch;
+    color: var(--text-muted);
+  }
+
+  .park-planning-card a {
+    width: fit-content;
+    color: var(--link-strong);
+    font-size: 0.84rem;
+    font-weight: 850;
+  }
+
+  .park-questions {
+    display: grid;
+    grid-template-columns: minmax(180px, 0.72fr) minmax(0, 1.28fr);
+    gap: 1.5rem;
+    margin-top: 2.4rem;
+    border-radius: 8px;
+    background: var(--notice-surface);
+    padding: clamp(1.25rem, 3vw, 2rem);
+  }
+
+  .park-questions ul {
+    display: grid;
+    gap: 0.7rem;
+    margin: 0;
+    padding-left: 1.2rem;
+    color: var(--surface-ink-soft);
+  }
+
+  .park-overlap {
+    border-block: 1px solid color-mix(in srgb, var(--text-on-hero) 12%, transparent);
+    background:
+      radial-gradient(circle at 16% 12%, rgba(168, 115, 56, 0.24), transparent 27rem),
+      var(--surface-brand);
+    color: var(--text-on-hero);
+  }
+
+  .park-overlap__layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
+    gap: clamp(2rem, 7vw, 6rem);
+    align-items: center;
+  }
+
+  .park-overlap .eyebrow {
+    color: color-mix(in srgb, var(--accent) 70%, white);
+  }
+
+  .park-overlap h2,
+  .park-overlap h3 {
+    color: var(--text-on-hero);
+  }
+
+  .park-overlap__title-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .park-overlap__title-row > span {
+    flex: 0 0 auto;
+    border: 1px solid rgba(255, 250, 240, 0.34);
+    border-radius: 999px;
+    padding: 0.3rem 0.55rem;
+    color: color-mix(in srgb, var(--text-on-hero) 80%, transparent);
+    font-size: 0.66rem;
+    font-weight: 900;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .park-overlap__lead {
+    max-width: 62ch;
+    margin-top: 1.2rem;
+    color: color-mix(in srgb, var(--text-on-hero) 82%, transparent);
+    font-size: 1.05rem;
+  }
+
+  .park-overlap__diagram {
+    position: relative;
+    width: min(520px, 100%);
+    height: 175px;
+    margin-top: 2rem;
+  }
+
+  .park-overlap__diagram > span {
+    position: absolute;
+    top: 0;
+    display: grid;
+    width: 190px;
+    height: 150px;
+    place-content: center;
+    border: 2px solid color-mix(in srgb, var(--text-on-hero) 74%, transparent);
+    border-radius: 50%;
+    color: var(--text-on-hero);
+    font-weight: 950;
+    text-align: center;
+  }
+
+  .park-overlap__diagram > span small {
+    margin-top: 0.2rem;
+    color: color-mix(in srgb, var(--text-on-hero) 62%, transparent);
+    font-size: 0.68rem;
+    font-weight: 750;
+  }
+
+  .park-overlap__diagram > span[data-park="state-park"] {
+    left: 11%;
+    border-color: #d39a50;
+    background: rgba(211, 154, 80, 0.14);
+  }
+
+  .park-overlap__diagram > span[data-park="state-forest"] {
+    left: 41%;
+    border-color: #4ba2a8;
+    border-style: dashed;
+    background: rgba(75, 162, 168, 0.12);
+  }
+
+  .park-overlap__diagram > strong {
+    position: absolute;
+    z-index: 1;
+    top: 156px;
+    left: 0;
+    width: 100%;
+    color: color-mix(in srgb, var(--text-on-hero) 68%, transparent);
+    font-size: 0.68rem;
+    line-height: 1.2;
+    text-align: left;
+    text-transform: uppercase;
+  }
+
+  .park-overlap__checklist {
+    border: 1px solid rgba(255, 250, 240, 0.2);
+    border-radius: 8px;
+    background: rgba(255, 250, 240, 0.07);
+    padding: clamp(1.25rem, 3vw, 1.8rem);
+  }
+
+  .park-overlap__checklist ol {
+    display: grid;
+    gap: 0.75rem;
+    margin: 1.2rem 0 0;
+    padding-left: 1.25rem;
+    color: color-mix(in srgb, var(--text-on-hero) 78%, transparent);
+  }
+
+  .park-overlap__links {
+    display: grid;
+    gap: 0.65rem;
+    margin-top: 1.4rem;
+    border-top: 1px solid rgba(255, 250, 240, 0.18);
+    padding-top: 1.1rem;
+  }
+
+  .park-overlap__links a {
+    width: fit-content;
+    color: var(--text-on-hero);
+    font-size: 0.82rem;
+    font-weight: 850;
+  }
+
+  .community-notes {
+    background: var(--surface-raised);
+  }
+
+  .community-notes__heading {
+    margin-bottom: 2rem;
+  }
+
+  .community-notes__empty {
+    display: grid;
+    max-width: 760px;
+    gap: 1rem;
+    border: 1px solid var(--border-subtle);
+    border-left: 4px solid var(--accent);
+    border-radius: 8px;
+    background: var(--surface-page);
+    padding: clamp(1.25rem, 3vw, 1.8rem);
+  }
+
+  .community-notes__empty .eyebrow {
+    margin: 0;
+  }
+
+  .community-notes__empty > p:not(.eyebrow) {
+    color: var(--text-muted);
+  }
+
+  .contribution-topics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+  }
+
+  .contribution-topics span {
+    border: 1px solid var(--border-subtle);
+    border-radius: 999px;
+    background: var(--surface-raised);
+    padding: 0.32rem 0.55rem;
+    color: var(--surface-ink);
+    font-size: 0.7rem;
+    font-weight: 800;
+  }
+
+  .park-sources {
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .park-sources__layout {
+    display: grid;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    gap: clamp(2rem, 7vw, 6rem);
+  }
+
+  .park-sources ul {
+    display: grid;
+    gap: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .park-sources li {
+    display: grid;
+    gap: 0.2rem;
+    border-top: 1px solid var(--border-subtle);
+    padding: 0.9rem 0;
+  }
+
+  .park-sources li:last-child {
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .park-sources li a {
+    color: var(--link-strong);
+    font-weight: 850;
+  }
+
+  .park-sources li span {
+    color: var(--text-muted);
+    font-size: 0.78rem;
+  }
+
+  @media (max-width: 860px) {
+    .park-hero,
+    .park-hero__content {
+      min-height: 760px;
+    }
+
+    .park-hero__content {
+      align-items: flex-end;
+      padding-bottom: 1rem;
+    }
+
+    .park-identity {
+      width: 100%;
+      padding: 1.25rem;
+    }
+
+    .park-identity h1 {
+      max-width: 12ch;
+      font-size: clamp(2.8rem, 12vw, 4rem);
+    }
+
+    .park-identity__summary {
+      font-size: 0.95rem;
+    }
+
+    .park-snapshot__grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .park-snapshot__grid > div:nth-child(odd) {
+      border-left: 1px solid var(--border-subtle);
+    }
+
+    .park-snapshot__grid > div:nth-child(n + 3) {
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .park-guide__layout,
+    .park-overlap__layout,
+    .park-sources__layout {
+      grid-template-columns: 1fr;
+    }
+
+    .park-guide__aside {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(160px, 0.45fr);
+      gap: 1rem;
+      align-items: start;
+    }
+
+    .park-guide__freshness {
+      margin: 0;
+      border-left: 2px solid var(--accent);
+      padding-left: 1rem;
+    }
+
+    .park-questions {
+      grid-template-columns: 1fr;
+    }
+
+    .park-overlap__title-row {
+      display: grid;
+    }
+
+    .park-overlap__title-row > span {
+      width: fit-content;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .park-hero {
+      min-height: 0;
+      overflow: visible;
+    }
+
+    :global(.park-page .park-hero .park-detail-map) {
+      position: relative;
+      inset: auto;
+      height: 430px;
+    }
+
+    .park-hero__content {
+      min-height: 0;
+      margin-top: 0;
+      padding-top: 1rem;
+      padding-bottom: 1rem;
+    }
+
+    .park-identity__breadcrumb {
+      display: none;
+    }
+
+    .park-identity__actions {
+      display: grid;
+    }
+
+    .park-identity__actions .button {
+      width: 100%;
+    }
+
+    .park-subnav__inner {
+      width: 100%;
+      padding-inline: 1rem;
+    }
+
+    .park-snapshot__grid {
+      width: 100%;
+      grid-template-columns: 1fr;
+    }
+
+    .park-snapshot__grid > div,
+    .park-snapshot__grid > div:first-child,
+    .park-snapshot__grid > div:nth-child(odd) {
+      border-right: 0;
+      border-left: 0;
+    }
+
+    .park-snapshot__grid > div + div {
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .park-guide__aside {
+      grid-template-columns: 1fr;
+    }
+
+    .park-planning-card {
+      grid-template-columns: 2.4rem minmax(0, 1fr);
+      gap: 0.6rem;
+    }
+
+    .park-overlap__diagram {
+      height: 145px;
+    }
+
+    .park-overlap__diagram > span {
+      width: 148px;
+      height: 130px;
+    }
+
+    .park-overlap__diagram > span[data-park="state-park"] {
+      left: 0;
+    }
+
+    .park-overlap__diagram > span[data-park="state-forest"] {
+      left: 34%;
+    }
+
+    .park-overlap__diagram > strong {
+      top: 132px;
+      left: 0;
+      width: 100%;
+      font-size: 0.58rem;
+      text-align: left;
+    }
+
+  }
+</style>
