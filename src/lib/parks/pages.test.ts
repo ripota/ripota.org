@@ -40,6 +40,61 @@ describe("park field-guide routes", () => {
     expect(detailPage).not.toContain("Existing account sign-in");
   });
 
+  it("keeps prototype and rollout narration out of public park pages", () => {
+    const publicParkPages = `${detailPage}\n${directoryPage}`;
+    const removedPhrases = [
+      "0 community reports",
+      "0 · be the first",
+      "Why reports are empty",
+      "Catalog facts",
+      "What exists now",
+      "Calculated first, contributed second",
+      "Everything practical is still open",
+      "First-report queue",
+      "park report form",
+      "account requirement",
+      "write path",
+      "Nothing is being inferred from silence",
+      "Receipts, not mystery data",
+      "No same-geometry candidate found",
+      "No same-geometry match detected",
+      "How these pages grow",
+      "Community reports later",
+    ];
+
+    for (const phrase of removedPhrases) {
+      expect(publicParkPages).not.toContain(phrase);
+    }
+  });
+
+  it("renders map facts once and guards the relationship section", () => {
+    expect(detailPage.match(/id="map-facts"/g)).toHaveLength(1);
+    expect(detailPage.match(/id="overlap"/g)).toHaveLength(1);
+    expect(detailPage).toContain("{relatedParks.length > 0 && (");
+    expect(detailPage).toContain("Possible 2-fer");
+    expect(detailPage).toContain("relationshipParks.map");
+    expect(detailPage).toContain("parkGuidePath(relationshipPark.reference)");
+    expect(detailPage).toContain("relationshipPark.potaUrl");
+    expect(detailPage).toContain("keep the entire");
+    expect(detailPage).toContain("station valid for both");
+  });
+
+  it("retains official sources, map attribution, and the site notice", () => {
+    expect(detailPage).toContain("Official POTA page");
+    expect(detailPage).toContain("Official POTA reference");
+    expect(detailPage).toContain("Open map source");
+    expect(detailPage).toContain("park.source.url");
+    expect(detailPage).toContain("<Notice />");
+    expect(directoryPage).toContain("<Notice />");
+  });
+
+  it("hides uniform zero-report counts from the park directory", () => {
+    expect(directoryPage).not.toContain("0 reports");
+    expect(directoryPage).not.toContain("Community reports</dt>");
+    expect(directoryPage).not.toContain('data-variant="empty"');
+    expect(directoryPage).toContain("Activation zones");
+  });
+
   it("includes every park route in the generated sitemap", async () => {
     const paths = sitemapPaths();
     const parkPaths = paths.filter((path) => path.startsWith("/parks/") && path !== "/parks/");

@@ -7,6 +7,7 @@ describe("ParkDetailMap", () => {
     expect(source).toContain('"activation-zone": "activation zone"');
     expect(source).toContain('point: "reference coordinate"');
     expect(source).toContain("Map geometry");
+    expect(source).toContain("`Detailed ${primaryMapLabel} map for ${park.name}`");
   });
 
   it("initializes the map before adding vectors and renders points without a duplicate marker", () => {
