@@ -83,6 +83,26 @@ The authoritative event/property allowlist is
 
 ### Analytics Engine report queries
 
+For the current privacy-safe production summary, run:
+
+```bash
+mise run analytics:report
+```
+
+The command combines Analytics Engine feature events, authenticated D1 feature
+rollups, hunter participation, and Ops Room posting counts. It excludes the
+known initial production ingestion check by default and never prints raw or
+hashed browser identifiers. Use `mise run analytics:report --help` for scope,
+time-window, dataset, and JSON-output options. The JSON form is suitable for a
+future scheduled export:
+
+```bash
+mise run analytics:report --json
+```
+
+The SQL below documents the underlying report contract and remains useful for
+ad hoc investigation.
+
 Use an Account Analytics Read API token with Cloudflare's SQL API. Restrict all
 event reports by both scope and time range.
 
