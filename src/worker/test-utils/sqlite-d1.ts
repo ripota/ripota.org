@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -12,23 +12,15 @@ type SqliteD1Context = {
   close(): void;
 };
 
-const migrations = [
-  "0001_activate_ri_2026.sql",
-  "0002_approval_operation_id.sql",
-  "0003_magic_links_and_audit.sql",
-  "0004_activators_and_plans.sql",
-  "0005_stop_utc_instants.sql",
-  "0006_activator_owned_stops.sql",
-  "0007_activate_ri_edit_tokens.sql",
-  "0008_pota_spots_cache.sql",
-  "0009_activator_sessions.sql",
-  "0010_activator_ops_room.sql",
-  "0011_activate_ri_pota_evidence.sql",
-  "0012_unified_auth.sql",
-  "0013_auth_ceremony_sessions.sql",
-  "0014_preserve_unified_activator_ownership.sql",
-  "0015_analytics_feature_usage.sql",
-];
+const migrationNamePattern = /^\d{4}_[a-z0-9_]+\.sql$/;
+
+export function discoverMigrationFiles(
+  directory = resolve("migrations"),
+): string[] {
+  return readdirSync(directory)
+    .filter((name) => migrationNamePattern.test(name))
+    .sort((left, right) => left.localeCompare(right));
+}
 
 export function createMigratedSqliteD1(): SqliteD1Context {
   const directory = mkdtempSync(join(tmpdir(), "ripota-d1-"));
@@ -36,7 +28,7 @@ export function createMigratedSqliteD1(): SqliteD1Context {
   const sqlite = new DatabaseSync(databasePath);
 
   sqlite.exec("PRAGMA foreign_keys = ON;");
-  for (const migration of migrations) {
+  for (const migration of discoverMigrationFiles()) {
     sqlite.exec(readFileSync(resolve("migrations", migration), "utf8"));
   }
 
