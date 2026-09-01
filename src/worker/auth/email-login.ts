@@ -19,6 +19,7 @@ import {
 import { authSessionCookie, prepareAuthSession } from "./session";
 
 export const genericEmailLoginMessage = "If we found an account that can use email sign-in, we sent a link.";
+export const genericAccountReauthMessage = "If your verified email can receive account links, we sent a fresh reauthentication link.";
 
 type EmailTokenRow = {
   token_hash: string;
@@ -53,6 +54,66 @@ export async function requestEmailLogin(
     rateLimit: true,
   });
   return genericResponse();
+}
+
+export async function requestAccountEmailReauthentication(
+  request: Request,
+  env: Env,
+  user: { id: string; primaryEmail: string | null; disabledAt: string | null },
+): Promise<{ ok: true; message: string }> {
+  const config = getAuthConfig(env, request);
+  if (
+    !config.emailLoginEnabled ||
+    user.disabledAt ||
+    !user.primaryEmail ||
+    !validEmail(user.primaryEmail) ||
+    !await emailLoginRateAllowed(request, env, user.primaryEmail)
+  ) {
+    return { ok: true, message: genericAccountReauthMessage };
+  }
+
+  const rawToken = generateEditToken();
+  const hash = await tokenHash(rawToken);
+  const now = new Date();
+  const createdAt = now.toISOString();
+  const expiresAt = new Date(now.getTime() + 15 * 60 * 1000).toISOString();
+  await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE auth_email_tokens SET used_at = ?
+       WHERE purpose = 'login' AND user_id = ? AND activator_id IS NULL
+         AND used_at IS NULL`,
+    ).bind(createdAt, user.id),
+    env.DB.prepare(
+      `INSERT INTO auth_email_tokens (
+         token_hash, purpose, email_normalized, user_id, activator_id,
+         created_at, expires_at
+       ) VALUES (?, 'login', ?, ?, NULL, ?, ?)`,
+    ).bind(hash, user.primaryEmail, user.id, createdAt, expiresAt),
+  ]);
+
+  const accessUrl = trustedSiteUrl(request, env, "/account/access/");
+  accessUrl.hash = rawToken;
+  const delivery = await sendAuthAccessEmail(env, {
+    to: user.primaryEmail,
+    accessUrl: accessUrl.href,
+    purpose: "login",
+  });
+  if (delivery.status !== "sent") {
+    await env.DB.prepare(
+      `UPDATE auth_email_tokens SET used_at = ? WHERE token_hash = ? AND used_at IS NULL`,
+    ).bind(new Date().toISOString(), hash).run();
+  }
+  await authAuditStatement(env, {
+    action: "community-profile-email-reauth-requested",
+    summary: delivery.status === "sent"
+      ? "Sent a community-profile email reauthentication link."
+      : "Community-profile email reauthentication delivery did not complete.",
+    actorUserId: user.id,
+    subjectUserId: user.id,
+    eventId: null,
+    details: { deliveryStatus: delivery.status },
+  }).run();
+  return { ok: true, message: genericAccountReauthMessage };
 }
 
 export async function issueActivatorEmailLogin(

@@ -24,13 +24,27 @@ import {
   revokePasskey,
   revokeUserSession,
 } from "../auth/db";
-import { consumeEmailLogin, requestEmailLogin } from "../auth/email-login";
+import {
+  consumeEmailLogin,
+  requestAccountEmailReauthentication,
+  requestEmailLogin,
+} from "../auth/email-login";
 import { consumeLegacyEditToken, legacySessionCookie, upgradeLegacySession } from "../auth/legacy";
 import { clearActivatorSessionCookie } from "../activator-session";
 import { accessBootstrap } from "../auth/bootstrap";
 import { consumePasskeyReset } from "../auth/admin-recovery";
 import { getAuthConfig } from "../auth/config";
 import { logWorkerError } from "../logging";
+import {
+  CallsignConflictError,
+  CommunityProfileUserUnavailableError,
+  CommunityProfileValidationError,
+  getActivatorCallsignProposal,
+  getCommunityProfile,
+  hasRecentCommunityProfileReauthentication,
+  normalizeCallsign,
+  saveCommunityProfile,
+} from "../auth/community-profile";
 
 export async function handleAuthApi(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
@@ -67,6 +81,30 @@ export async function handleAuthApi(request: Request, env: Env): Promise<Respons
       } : { ok: true, signedIn: false });
     }
 
+    if (request.method === "GET" && url.pathname === "/api/auth/community-profile") {
+      const context = await getAuthContext(request, env);
+      if (!context) {
+        return privateJson({ ok: false, error: "Unauthorized" }, { status: 401 });
+      }
+      const [profile, proposedCallsign] = await Promise.all([
+        getCommunityProfile(env, context.user.id),
+        getActivatorCallsignProposal(env, context.user.id),
+      ]);
+      return privateJson({
+        ok: true,
+        profile: profile ? {
+          callsign: profile.callsign,
+          publicName: profile.publicName,
+          claimStatus: profile.claimStatus,
+        } : null,
+        proposedCallsign,
+        recentReauthentication: hasRecentCommunityProfileReauthentication(
+          context,
+          getAuthConfig(env, request).adminReauthSeconds,
+        ),
+      });
+    }
+
     if (request.method !== "GET" && !hasTrustedOrigin(request, env)) {
       return privateJson({ ok: false, error: "Forbidden" }, { status: 403 });
     }
@@ -85,6 +123,76 @@ export async function handleAuthApi(request: Request, env: Env): Promise<Respons
         email: input.email,
         turnstileToken: input.turnstileToken,
       }));
+    }
+    if (
+      request.method === "POST" &&
+      url.pathname === "/api/auth/community-profile/email-reauth"
+    ) {
+      const context = await requireAuthenticatedAccount(request, env);
+      if (context instanceof Response) return context;
+      return privateJson(await requestAccountEmailReauthentication(
+        request,
+        env,
+        context.user,
+      ));
+    }
+    if (request.method === "PUT" && url.pathname === "/api/auth/community-profile") {
+      const context = await requireAuthenticatedAccount(request, env);
+      if (context instanceof Response) return context;
+      const payload = await readJson(request);
+      const input = isRecord(payload) ? payload : {};
+      const callsign = typeof input.callsign === "string" ? input.callsign : "";
+      const publicName = typeof input.publicName === "string" ? input.publicName : "";
+      const existing = await getCommunityProfile(env, context.user.id);
+      let callsignChanged = false;
+      try {
+        callsignChanged = Boolean(
+          existing?.claimActive &&
+          existing.callsignNormalized !== normalizeCallsign(callsign),
+        );
+      } catch {
+        callsignChanged = true;
+      }
+      if (
+        callsignChanged &&
+        !hasRecentCommunityProfileReauthentication(
+          context,
+          getAuthConfig(env, request).adminReauthSeconds,
+        )
+      ) {
+        return privateJson({
+          ok: false,
+          error: "Recent passkey or email reauthentication required",
+          reauthenticationRequired: true,
+        }, { status: 401 });
+      }
+      try {
+        const profile = await saveCommunityProfile(env, {
+          userId: context.user.id,
+          actorUserId: context.user.id,
+          callsign,
+          publicName,
+        });
+        return privateJson({
+          ok: true,
+          profile: {
+            callsign: profile.callsign,
+            publicName: profile.publicName,
+            claimStatus: profile.claimStatus,
+          },
+        });
+      } catch (error) {
+        if (error instanceof CallsignConflictError) {
+          return privateJson({ ok: false, error: error.message }, { status: 409 });
+        }
+        if (error instanceof CommunityProfileValidationError) {
+          return privateJson({ ok: false, error: error.message }, { status: 400 });
+        }
+        if (error instanceof CommunityProfileUserUnavailableError) {
+          return privateJson({ ok: false, error: "Account unavailable" }, { status: 403 });
+        }
+        throw error;
+      }
     }
     if (request.method === "POST" && url.pathname === "/api/auth/email-login/consume") {
       const payload = await readJson(request);
@@ -255,6 +363,13 @@ async function requirePasskeyContext(request: Request, env: Env) {
     return privateJson({ ok: false, error: "Passkey reauthentication required", reauthenticationRequired: true }, { status: 401 });
   }
   return context;
+}
+
+async function requireAuthenticatedAccount(request: Request, env: Env) {
+  const context = await getAuthContext(request, env);
+  return context?.session.purpose === "authenticated"
+    ? context
+    : privateJson({ ok: false, error: "Unauthorized" }, { status: 401 });
 }
 
 function privateJson(data: unknown, init?: ResponseInit): Response {

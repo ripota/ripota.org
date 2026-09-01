@@ -21,7 +21,7 @@
     }
     const email = body.user.email ?? "No verified email";
     const roles = body.roles.length > 0 ? body.roles.join(" and ") : "account holder";
-    status?.replaceChildren(`${email} · signed in with ${methodLabel(body.authenticationMethod)} · ${roles}`);
+    status?.replaceChildren(`Verified email (kept private): ${email} · signed in with ${methodLabel(body.authenticationMethod)} · ${roles}`);
     if (prompt) prompt.hidden = body.authenticationMethod !== "email";
   }
 

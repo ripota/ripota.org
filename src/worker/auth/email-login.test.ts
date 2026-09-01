@@ -1,7 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "../env";
 import { createMigratedSqliteD1 } from "../test-utils/sqlite-d1";
-import { consumeEmailLogin, genericEmailLoginMessage, requestEmailLogin } from "./email-login";
+import {
+  consumeEmailLogin,
+  genericAccountReauthMessage,
+  genericEmailLoginMessage,
+  requestAccountEmailReauthentication,
+  requestEmailLogin,
+} from "./email-login";
 import { createUserWithVerifiedEmail } from "./db";
 import { getAuthContext } from "./session";
 
@@ -80,6 +86,30 @@ describe("activator email login", () => {
     });
     expect(result).toEqual({ ok: true, message: genericEmailLoginMessage });
     expect(send).not.toHaveBeenCalled();
+  });
+
+  it("issues a private, single-use reauthentication link for a signed-in existing account", async () => {
+    const user = await createUserWithVerifiedEmail(env, "admin@example.com", "Admin");
+    const response = await requestAccountEmailReauthentication(request(), env, user);
+    expect(response).toEqual({ ok: true, message: genericAccountReauthMessage });
+    expect(send).toHaveBeenCalledOnce();
+    const sent = send.mock.calls[0][0] as { text: string };
+    const accessUrl = sent.text.split("\n").find((line) => line.startsWith("https://ripota.org/account/access/#"));
+    const rawToken = new URL(accessUrl!).hash.slice(1);
+    const stored = await env.DB.prepare(
+      `SELECT activator_id, user_id FROM auth_email_tokens WHERE purpose = 'login'`,
+    ).first<{ activator_id: string | null; user_id: string }>();
+    expect(stored).toEqual({ activator_id: null, user_id: user.id });
+
+    const result = await consumeEmailLogin(env, rawToken);
+    expect(result?.nextPath).toBe("/account/security/");
+    await expect(consumeEmailLogin(env, rawToken)).resolves.toBeNull();
+    const audit = await env.DB.prepare(
+      `SELECT event_id, subject_user_id, details_json FROM auth_audit_events
+       WHERE action = 'community-profile-email-reauth-requested'`,
+    ).first<{ event_id: string | null; subject_user_id: string; details_json: string }>();
+    expect(audit).toMatchObject({ event_id: null, subject_user_id: user.id });
+    expect(audit!.details_json).not.toContain("admin@example.com");
   });
 
   it("uses the generic response for malformed and disabled eligible accounts", async () => {

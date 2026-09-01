@@ -1,5 +1,8 @@
 import type { Env } from "../env";
 import { authAuditStatement } from "./audit";
+import type { AuthContext } from "./types";
+
+export const communityProfileEmailReauthSeconds = 15 * 60;
 
 export type CallsignClaimStatus =
   | "self-asserted"
@@ -86,6 +89,22 @@ export function validatePublicName(value: string): string {
     );
   }
   return publicName;
+}
+
+export function hasRecentCommunityProfileReauthentication(
+  context: AuthContext,
+  passkeyReauthSeconds: number,
+  now = new Date(),
+): boolean {
+  if (context.session.purpose !== "authenticated") return false;
+  const passkeyAge = timestampAge(context.session.passkeyVerifiedAt, now);
+  if (passkeyAge !== null && passkeyAge <= passkeyReauthSeconds * 1000) {
+    return true;
+  }
+  const emailAge = context.session.authenticationMethod === "email"
+    ? timestampAge(context.session.authenticatedAt, now)
+    : null;
+  return emailAge !== null && emailAge <= communityProfileEmailReauthSeconds * 1000;
 }
 
 export async function getCommunityProfile(
@@ -389,6 +408,13 @@ function isActiveSiteRoleConflict(error: unknown): boolean {
   return error instanceof Error &&
     /unique/i.test(error.message) &&
     error.message.includes("auth_site_roles");
+}
+
+function timestampAge(value: string | null, now: Date): number | null {
+  if (!value) return null;
+  const timestamp = new Date(value).getTime();
+  const age = now.getTime() - timestamp;
+  return Number.isFinite(timestamp) && age >= 0 ? age : null;
 }
 
 const profileSelect = `SELECT

@@ -1,0 +1,374 @@
+<section class="form-card community-byline" id="community-byline" aria-labelledby="community-byline-title" data-community-byline>
+  <h2 id="community-byline-title">Community byline</h2>
+  <p>
+    This callsign and optional name will identify future public park contributions.
+    Your verified email stays private and is never part of the byline.
+  </p>
+  <p class="community-byline__proposal" data-callsign-proposal hidden></p>
+  <form class="community-byline__form" data-community-byline-form>
+    <div class="community-byline__fields">
+      <label>
+        Callsign
+        <input
+          class="callsign-input"
+          name="callsign"
+          type="text"
+          autocomplete="off"
+          autocapitalize="characters"
+          minlength="3"
+          maxlength="24"
+          pattern="[A-Za-z0-9]+(/[A-Za-z0-9]+)*"
+          aria-describedby="community-callsign-help"
+          required
+        />
+      </label>
+      <label>
+        Public name <span class="community-byline__optional">(optional)</span>
+        <input name="publicName" type="text" autocomplete="name" maxlength="80" />
+      </label>
+    </div>
+    <p id="community-callsign-help" class="community-byline__help">
+      Use letters, numbers, and portable slashes. Confirming an Activate RI suggestion does not change the event registration.
+    </p>
+    <div class="community-byline__claim">
+      <strong>Claim status:</strong>
+      <span data-claim-status>Not yet saved</span>
+      <span data-claim-explanation>This status describes how the byline was added; it is not official POTA or FCC verification.</span>
+    </div>
+    <div class="community-byline__preview" aria-labelledby="community-preview-label">
+      <strong id="community-preview-label">Public preview</strong>
+      <output data-byline-preview aria-live="polite">Enter a callsign to preview the byline.</output>
+    </div>
+    <div class="form-actions">
+      <button class="button" data-variant="primary" type="submit" data-save-community-byline>
+        Save community byline
+      </button>
+    </div>
+    <p class="form-status" data-community-byline-status aria-live="polite"></p>
+  </form>
+
+  <div class="community-byline__reauth" data-community-reauth hidden>
+    <h3>Confirm it’s still you</h3>
+    <p>
+      Changing an established callsign requires a recent passkey check or a fresh single-use email link.
+      A passkey proves continuity with this account—it does not prove callsign ownership.
+    </p>
+    <div class="form-actions">
+      <button class="button" data-variant="light" type="button" data-community-passkey-reauth>
+        Verify with a passkey
+      </button>
+      <button class="button" data-variant="light" type="button" data-community-email-reauth>
+        Email my reauthentication link
+      </button>
+    </div>
+    <p class="form-status" data-community-reauth-status aria-live="polite"></p>
+  </div>
+</section>
+
+<script>
+  import { startAuthentication } from "@simplewebauthn/browser";
+  import type { PublicKeyCredentialRequestOptionsJSON } from "@simplewebauthn/browser";
+
+  const panel = document.querySelector<HTMLElement>("[data-community-byline]");
+  const form = panel?.querySelector<HTMLFormElement>("[data-community-byline-form]");
+  const callsignInput = form?.elements.namedItem("callsign") as HTMLInputElement | null;
+  const publicNameInput = form?.elements.namedItem("publicName") as HTMLInputElement | null;
+  const preview = panel?.querySelector<HTMLOutputElement>("[data-byline-preview]");
+  const claimStatus = panel?.querySelector<HTMLElement>("[data-claim-status]");
+  const claimExplanation = panel?.querySelector<HTMLElement>("[data-claim-explanation]");
+  const proposal = panel?.querySelector<HTMLElement>("[data-callsign-proposal]");
+  const save = panel?.querySelector<HTMLButtonElement>("[data-save-community-byline]");
+  const status = panel?.querySelector<HTMLElement>("[data-community-byline-status]");
+  const reauth = panel?.querySelector<HTMLElement>("[data-community-reauth]");
+  const reauthStatus = panel?.querySelector<HTMLElement>("[data-community-reauth-status]");
+  const passkeyReauth = panel?.querySelector<HTMLButtonElement>("[data-community-passkey-reauth]");
+  const emailReauth = panel?.querySelector<HTMLButtonElement>("[data-community-email-reauth]");
+  const draftKey = "ripota-community-byline-draft";
+
+  callsignInput?.addEventListener("input", updatePreview);
+  publicNameInput?.addEventListener("input", updatePreview);
+  form?.addEventListener("submit", saveProfile);
+  passkeyReauth?.addEventListener("click", verifyPasskey);
+  emailReauth?.addEventListener("click", requestEmailReauthentication);
+  void loadProfile();
+
+  async function loadProfile(): Promise<void> {
+    const response = await fetch("/api/auth/community-profile", {
+      headers: { accept: "application/json" },
+    });
+    const body = await response.json().catch(() => null);
+    if (response.status === 401) {
+      window.location.replace(`/account/sign-in/?returnTo=${encodeURIComponent(window.location.pathname + window.location.hash)}`);
+      return;
+    }
+    if (!response.ok || !isProfileResponse(body)) {
+      setStatus("Community byline settings are temporarily unavailable.", "error");
+      return;
+    }
+
+    const draft = body.recentReauthentication ? readDraft() : null;
+    if (body.profile) {
+      if (callsignInput) callsignInput.value = draft?.callsign ?? body.profile.callsign;
+      if (publicNameInput) publicNameInput.value = draft?.publicName ?? body.profile.publicName;
+      showClaimStatus(body.profile.claimStatus);
+    } else {
+      if (callsignInput) callsignInput.value = draft?.callsign ?? body.proposedCallsign ?? "";
+      if (publicNameInput && draft) publicNameInput.value = draft.publicName;
+    }
+    if (body.proposedCallsign && proposal) {
+      proposal.hidden = false;
+      proposal.replaceChildren(
+        `Activate RI suggests ${body.proposedCallsign}. It remains private until you save this community byline.`,
+      );
+    }
+    updatePreview();
+  }
+
+  async function saveProfile(event: SubmitEvent): Promise<void> {
+    event.preventDefault();
+    if (!form?.reportValidity() || !callsignInput || !publicNameInput) return;
+    callsignInput.value = callsignInput.value.trim().toUpperCase();
+    saveDraft();
+    save?.setAttribute("disabled", "");
+    setStatus("Saving community byline…");
+    try {
+      const response = await fetch("/api/auth/community-profile", {
+        method: "PUT",
+        headers: { accept: "application/json", "content-type": "application/json" },
+        body: JSON.stringify({
+          callsign: callsignInput.value,
+          publicName: publicNameInput.value,
+        }),
+      });
+      const body = await response.json().catch(() => null);
+      if (response.status === 401 && isRecord(body) && body.reauthenticationRequired === true) {
+        if (reauth) reauth.hidden = false;
+        setStatus("Confirm your account before changing this established callsign.", "error");
+        passkeyReauth?.focus();
+        return;
+      }
+      if (!response.ok || !isSaveResponse(body)) {
+        const message = isRecord(body) && typeof body.error === "string"
+          ? body.error
+          : "The community byline was not saved.";
+        callsignInput.setAttribute("aria-invalid", response.status === 400 || response.status === 409 ? "true" : "false");
+        setStatus(message, "error");
+        return;
+      }
+      callsignInput.removeAttribute("aria-invalid");
+      callsignInput.value = body.profile.callsign;
+      publicNameInput.value = body.profile.publicName;
+      showClaimStatus(body.profile.claimStatus);
+      if (reauth) reauth.hidden = true;
+      sessionStorage.removeItem(draftKey);
+      updatePreview();
+      setStatus("Community byline saved.", "success");
+    } catch {
+      setStatus("The community byline was not saved. Try again.", "error");
+    } finally {
+      save?.removeAttribute("disabled");
+    }
+  }
+
+  async function verifyPasskey(): Promise<void> {
+    if (!passkeyReauth) return;
+    passkeyReauth.disabled = true;
+    reauthStatus?.replaceChildren("Waiting for your passkey…");
+    try {
+      const optionsResponse = await fetch("/api/auth/passkey/authentication/options", {
+        method: "POST",
+        headers: { accept: "application/json" },
+      });
+      const options = await optionsResponse.json();
+      if (!optionsResponse.ok || !isOptionsResponse(options)) throw new Error("options");
+      const credential = await startAuthentication({ optionsJSON: options.options });
+      const verifyResponse = await fetch("/api/auth/passkey/authentication/verify", {
+        method: "POST",
+        headers: { accept: "application/json", "content-type": "application/json" },
+        body: JSON.stringify({ challengeId: options.challengeId, response: credential }),
+      });
+      if (!verifyResponse.ok) throw new Error("verify");
+      reauthStatus?.replaceChildren("Passkey confirmed. Save the byline again to apply the callsign change.");
+      save?.focus();
+    } catch {
+      reauthStatus?.replaceChildren("We could not verify that passkey. Try again or use the email link.");
+    } finally {
+      passkeyReauth.disabled = false;
+    }
+  }
+
+  async function requestEmailReauthentication(): Promise<void> {
+    if (!emailReauth) return;
+    emailReauth.disabled = true;
+    saveDraft();
+    reauthStatus?.replaceChildren("Requesting a fresh account link…");
+    try {
+      const response = await fetch("/api/auth/community-profile/email-reauth", {
+        method: "POST",
+        headers: { accept: "application/json" },
+      });
+      const body = await response.json().catch(() => null);
+      reauthStatus?.replaceChildren(response.ok && isRecord(body) && typeof body.message === "string"
+        ? body.message
+        : "The reauthentication link could not be requested. Try again.");
+    } catch {
+      reauthStatus?.replaceChildren("The reauthentication link could not be requested. Try again.");
+    } finally {
+      emailReauth.disabled = false;
+    }
+  }
+
+  function updatePreview(): void {
+    const callsign = callsignInput?.value.trim().toUpperCase() ?? "";
+    const publicName = publicNameInput?.value.trim().replace(/\s+/g, " ") ?? "";
+    preview?.replaceChildren(callsign
+      ? `${callsign}${publicName ? ` · ${publicName}` : ""}`
+      : "Enter a callsign to preview the byline.");
+  }
+
+  function showClaimStatus(value: ClaimStatus): void {
+    const labels: Record<ClaimStatus, string> = {
+      "self-asserted": "Self-asserted",
+      "event-linked": "Event-linked",
+      "moderator-reviewed": "Moderator-reviewed",
+    };
+    claimStatus?.replaceChildren(labels[value]);
+    claimExplanation?.replaceChildren(value === "event-linked"
+      ? "Matched to your existing Activate RI membership; this is not official POTA or FCC verification."
+      : value === "moderator-reviewed"
+        ? "Reviewed by a site moderator; this is not official POTA or FCC verification."
+        : "Saved by you; this is not official POTA or FCC verification.");
+  }
+
+  function setStatus(message: string, state?: "error" | "success"): void {
+    status?.replaceChildren(message);
+    if (status) status.dataset.status = state ?? "";
+  }
+
+  function saveDraft(): void {
+    if (!callsignInput || !publicNameInput) return;
+    sessionStorage.setItem(draftKey, JSON.stringify({
+      callsign: callsignInput.value.trim().toUpperCase(),
+      publicName: publicNameInput.value.trim(),
+    }));
+  }
+
+  function readDraft(): { callsign: string; publicName: string } | null {
+    try {
+      const value = JSON.parse(sessionStorage.getItem(draftKey) ?? "null") as unknown;
+      return isRecord(value) && typeof value.callsign === "string" && typeof value.publicName === "string"
+        ? { callsign: value.callsign, publicName: value.publicName }
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
+  type ClaimStatus = "self-asserted" | "event-linked" | "moderator-reviewed";
+  type Profile = { callsign: string; publicName: string; claimStatus: ClaimStatus };
+  type ProfileResponse = {
+    profile: Profile | null;
+    proposedCallsign: string | null;
+    recentReauthentication: boolean;
+  };
+  function isProfileResponse(value: unknown): value is ProfileResponse {
+    return isRecord(value) && (value.profile === null || isProfile(value.profile)) &&
+      (value.proposedCallsign === null || typeof value.proposedCallsign === "string") &&
+      typeof value.recentReauthentication === "boolean";
+  }
+  function isSaveResponse(value: unknown): value is { profile: Profile } {
+    return isRecord(value) && isProfile(value.profile);
+  }
+  function isProfile(value: unknown): value is Profile {
+    return isRecord(value) && typeof value.callsign === "string" &&
+      typeof value.publicName === "string" && isClaimStatus(value.claimStatus);
+  }
+  function isClaimStatus(value: unknown): value is ClaimStatus {
+    return value === "self-asserted" || value === "event-linked" || value === "moderator-reviewed";
+  }
+  function isOptionsResponse(value: unknown): value is {
+    challengeId: string;
+    options: PublicKeyCredentialRequestOptionsJSON;
+  } {
+    return isRecord(value) && typeof value.challengeId === "string" &&
+      isRecord(value.options) && typeof value.options.challenge === "string";
+  }
+  function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+  }
+</script>
+
+<style>
+  .community-byline__form,
+  .community-byline__reauth,
+  .community-byline__claim,
+  .community-byline__preview {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .community-byline__fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+
+  .community-byline label {
+    display: grid;
+    gap: 0.35rem;
+    font-weight: 800;
+  }
+
+  .community-byline input {
+    width: 100%;
+    min-width: 0;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    background: var(--surface-raised);
+    color: var(--text-primary);
+    padding: 0.7rem;
+  }
+
+  .community-byline input[aria-invalid="true"] {
+    border-color: #b42318;
+    box-shadow: 0 0 0 3px color-mix(in srgb, #b42318 18%, transparent);
+  }
+
+  .community-byline .callsign-input {
+    text-transform: uppercase;
+  }
+
+  .community-byline__optional,
+  .community-byline__help,
+  .community-byline__claim span:last-child {
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  .community-byline__proposal,
+  .community-byline__claim,
+  .community-byline__preview,
+  .community-byline__reauth {
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--accent) 7%, var(--surface-raised));
+    padding: 1rem;
+  }
+
+  .community-byline__preview output {
+    overflow-wrap: anywhere;
+    font-size: clamp(1.1rem, 3vw, 1.35rem);
+    font-weight: 900;
+  }
+
+  @media (max-width: 560px) {
+    .community-byline__fields {
+      grid-template-columns: 1fr;
+    }
+
+    .community-byline .form-actions,
+    .community-byline .button {
+      width: 100%;
+    }
+  }
+</style>

@@ -2,6 +2,7 @@ import {
   execFileSync,
   spawn,
 } from "node:child_process";
+import { createHash, randomBytes } from "node:crypto";
 import { once } from "node:events";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
@@ -13,15 +14,19 @@ export type ActivateRiServer = {
   output(): string;
   waitForOutput(pattern: RegExp, timeoutMs?: number): Promise<RegExpMatchArray>;
   waitForEmailText(subject: string, timeoutMs?: number): Promise<string>;
+  accountOnlySessionToken?: string;
   stop(): Promise<void>;
 };
 
 export async function startActivateRiServer(
-  options: { legacyLinkIssuanceEnabled?: boolean } = {},
+  options: { legacyLinkIssuanceEnabled?: boolean; seedAccountOnly?: boolean } = {},
 ): Promise<ActivateRiServer> {
   const port = await freePort();
   const persistTo = mkdtempSync(join(tmpdir(), "ripota-e2e-wrangler-"));
   applyLocalMigrations(persistTo);
+  const accountOnlySessionToken = options.seedAccountOnly
+    ? seedAccountOnlySession(persistTo)
+    : undefined;
   const wranglerArgs = [
     "dev",
     "--env",
@@ -66,6 +71,7 @@ export async function startActivateRiServer(
 
   return {
     origin,
+    accountOnlySessionToken,
     output() {
       return logs.value;
     },
@@ -94,6 +100,53 @@ export async function startActivateRiServer(
       rmSync(persistTo, { recursive: true, force: true });
     },
   };
+}
+
+function seedAccountOnlySession(persistTo: string): string {
+  const token = randomBytes(32).toString("hex");
+  const tokenHash = createHash("sha256").update(token).digest("hex");
+  const now = new Date();
+  const createdAt = now.toISOString();
+  const expiresAt = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString();
+  const sql = `
+    INSERT INTO auth_users (
+      id, webauthn_user_id, display_name, created_at, updated_at
+    ) VALUES (
+      'e2e-account-only', 'e2e-webauthn-account-only',
+      'Synthetic account holder', '${createdAt}', '${createdAt}'
+    );
+    INSERT INTO auth_user_emails (
+      user_id, email_normalized, is_primary, verified_at, created_at, updated_at
+    ) VALUES (
+      'e2e-account-only', 'account-only@example.invalid', 1,
+      '${createdAt}', '${createdAt}', '${createdAt}'
+    );
+    INSERT INTO auth_sessions (
+      id, token_hash, user_id, purpose, authentication_method,
+      authenticated_at, passkey_verified_at, created_at, expires_at, last_used_at
+    ) VALUES (
+      'e2e-account-only-session', '${tokenHash}', 'e2e-account-only',
+      'authenticated', 'passkey', '${createdAt}', '${createdAt}',
+      '${createdAt}', '${expiresAt}', '${createdAt}'
+    );
+  `;
+  execFileSync(
+    "./node_modules/.bin/wrangler",
+    [
+      "d1",
+      "execute",
+      "ripota-org",
+      "--local",
+      "--env",
+      "local",
+      "--persist-to",
+      persistTo,
+      "--command",
+      sql,
+    ],
+    { cwd: process.cwd(), env: process.env, stdio: ["ignore", "pipe", "pipe"] },
+  );
+  return token;
 }
 
 async function stopProcess(child: ReturnType<typeof spawn>): Promise<void> {

@@ -1,5 +1,6 @@
 ---
 import AccountIdentity from "./AccountIdentity.astro";
+import CommunityByline from "./CommunityByline.astro";
 import PasskeyManager from "./PasskeyManager.astro";
 import SessionManager from "./SessionManager.astro";
 
@@ -16,5 +17,6 @@ const { eyebrow = "RI POTA account" } = Astro.props;
   <p>Email sign-in can open activator tools, but administrator actions always require a passkey.</p>
 </div>
 <AccountIdentity />
+<CommunityByline />
 <PasskeyManager />
 <SessionManager />

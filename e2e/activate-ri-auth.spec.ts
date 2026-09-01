@@ -51,6 +51,10 @@ test("an Access-bootstrap administrator can enroll and sign in with a passkey", 
     await expect(page).toHaveURL(`${server.origin}/account/security/`);
     await page.getByRole("button", { name: "Add another passkey" }).click();
     await expect(page.getByText("Passkey added.")).toBeVisible();
+    await page.getByLabel("Callsign", { exact: true }).fill("W1ADMIN");
+    await page.getByLabel("Public name (optional)").fill("Admin Operator");
+    await page.getByRole("button", { name: "Save community byline" }).click();
+    await expect(page.getByText("Community byline saved.")).toBeVisible();
 
     await page.request.post(`${server.origin}/api/auth/logout`, { headers: { origin: server.origin } });
     await page.goto(`${server.origin}/account/sign-in/?returnTo=%2Factivate-ri-2026%2Fadmin%2F`);
@@ -107,6 +111,11 @@ test("a dual-role email session cannot use administrator APIs", async ({ page })
     if (!link) throw new Error("Local sign-in email did not contain its fragment link.");
     await page.goto(link);
     await expect(page).toHaveURL(`${server.origin}/activate-ri-2026/activator/plan/`);
+    await page.goto(`${server.origin}/account/security/#community-byline`);
+    await page.getByLabel("Callsign", { exact: true }).fill("N1ADM");
+    await page.getByLabel("Public name (optional)").fill("Dual Operator");
+    await page.getByRole("button", { name: "Save community byline" }).click();
+    await expect(page.getByText("Community byline saved.")).toBeVisible();
     const denied = await page.request.get(`${server.origin}/api/activate-ri-2026/admin/accounts`);
     expect(denied.status()).toBe(401);
   } finally {
