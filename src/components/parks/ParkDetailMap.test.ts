@@ -2,11 +2,12 @@ import { describe, expect, it } from "vitest";
 import source from "./ParkDetailMap.astro?raw";
 
 describe("ParkDetailMap", () => {
-  it("uses honest labels for boundaries, activation zones, and point fallbacks", () => {
-    expect(source).toContain('boundary: "park boundary"');
-    expect(source).toContain('"activation-zone": "activation zone"');
-    expect(source).toContain('point: "reference coordinate"');
-    expect(source).toContain("Map geometry");
+  it("presents both area geometry types with the same public terminology", () => {
+    expect(source).toContain('boundary: "mapped area"');
+    expect(source).toContain('"activation-zone": "mapped area"');
+    expect(source).toContain('point: "reference location"');
+    expect(source).toContain('aria-label="Map key"');
+    expect(source).not.toContain('"activation-zone": "activation zone"');
     expect(source).toContain("`Detailed ${primaryMapLabel} map for ${park.name}`");
   });
 

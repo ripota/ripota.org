@@ -88,11 +88,16 @@ describe("park field-guide routes", () => {
     expect(directoryPage).toContain("<Notice />");
   });
 
-  it("hides uniform zero-report counts from the park directory", () => {
+  it("keeps the park directory focused on finding parks rather than geometry internals", () => {
     expect(directoryPage).not.toContain("0 reports");
     expect(directoryPage).not.toContain("Community reports</dt>");
     expect(directoryPage).not.toContain('data-variant="empty"');
-    expect(directoryPage).toContain("Activation zones");
+    expect(directoryPage).toContain('variant="directory"');
+    expect(directoryPage).toContain("Map of all Rhode Island POTA parks");
+    expect(directoryPage).not.toContain("Activation zones");
+    expect(directoryPage).not.toContain("Point-only records");
+    expect(directoryPage).not.toContain("Mapped boundaries");
+    expect(directoryPage).not.toContain("data-park-filter-geometry");
   });
 
   it("includes every park route in the generated sitemap", async () => {

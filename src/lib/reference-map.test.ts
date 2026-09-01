@@ -127,7 +127,7 @@ describe("buildReferenceMapItems", () => {
     });
   });
 
-  it("uses the official reference coordinate for activation-zone markers", () => {
+  it("keeps an activation-zone marker centered on its displayed mapped area", () => {
     const displayGeojson = JSON.stringify({
       type: "FeatureCollection",
       features: [
@@ -163,7 +163,7 @@ describe("buildReferenceMapItems", () => {
       geojsonByPath: { "./boundaries/us-trail.geojson": displayGeojson },
     });
 
-    expect(item.marker).toEqual({ latitude: 41.312, longitude: -73.9709 });
+    expect(item.marker).toEqual({ latitude: 41.45, longitude: -71.5 });
     expect(item.geojson?.features).toHaveLength(1);
     expect(item.geojson?.features[0]).not.toHaveProperty("properties.bufferPart");
   });

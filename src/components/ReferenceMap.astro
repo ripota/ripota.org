@@ -35,7 +35,7 @@ const {
   title,
   caption,
   phaseFocus = "volunteer",
-  legendPlacement = variant === "home" ? "none" : "overlay",
+  legendPlacement = variant === "home" || variant === "directory" ? "none" : "overlay",
   legendTitle,
   showBoundaries = true,
   resultsMode = false,
@@ -220,7 +220,7 @@ const payload = JSON.stringify({
   };
 
   type MapPayload = {
-    variant: "home" | "coverage" | "volunteer";
+    variant: "home" | "directory" | "coverage" | "volunteer";
     phaseFocus: "volunteer" | "hunter";
     items: MapItem[];
     parks: PublicPark[];
@@ -250,7 +250,7 @@ const payload = JSON.stringify({
     const bounds = L.latLngBounds([]);
     const layersByReference = new Map<string, MapItemLayers>();
 
-    if (payload.variant !== "home") {
+    if (payload.variant === "coverage" || payload.variant === "volunteer") {
       map.on("popupopen", () => {
         void trackAnalyticsEvent("activate-ri-2026", "map_action", {
           action: "open_popup",
@@ -276,7 +276,7 @@ const payload = JSON.stringify({
       layersByReference.set(item.reference, layers);
     }
 
-    fitReferenceBounds(map, bounds);
+    fitReferenceBounds(map, bounds, payload);
     setupPopupActions(mapElement);
     updateMapLegend(mapElement, payload);
     const applyCoverageFilter = setupCoverageFilter(
@@ -304,7 +304,7 @@ const payload = JSON.stringify({
         }
       });
       potaParkStatusStore.start();
-    } else {
+    } else if (payload.variant === "coverage" || payload.variant === "volunteer") {
       refreshLiveCoverage(mapElement, payload, layersByReference, applyCoverageFilter);
     }
   }
@@ -375,6 +375,7 @@ const payload = JSON.stringify({
   }
 
   function itemStyle(payload: MapPayload, item: MapItem) {
+    const isDiscoveryMap = payload.variant === "home" || payload.variant === "directory";
     const isLive = payload.resultsMode
       ? item.potaStatus?.live === true
       : payload.variant === "home" && (item.liveSpots?.length ?? 0) > 0;
@@ -388,16 +389,16 @@ const payload = JSON.stringify({
       ? "#f6bd46"
       : payload.resultsMode
         ? resultColor ?? "#707b78"
-        : payload.variant === "home"
+        : isDiscoveryMap
         ? "#d7913a"
         : color;
 
     return {
       color,
       fillColor,
-      boundaryFillOpacity: payload.variant === "home" ? 0.16 : 0.22,
+      boundaryFillOpacity: isDiscoveryMap ? 0.16 : 0.22,
       markerFillOpacity: 0.95,
-      markerRadius: isLive ? 10 : payload.variant === "home" ? 6 : 7,
+      markerRadius: isLive ? 10 : isDiscoveryMap ? 6 : 7,
       isLive,
     };
   }
@@ -480,9 +481,25 @@ const payload = JSON.stringify({
     updateMapLegend(mapElement, payload);
   }
 
-  function fitReferenceBounds(map: L.Map, bounds: L.LatLngBounds): void {
+  function fitReferenceBounds(
+    map: L.Map,
+    bounds: L.LatLngBounds,
+    payload: MapPayload,
+  ): void {
     if (bounds.isValid()) {
-      map.fitBounds(bounds, referenceMapFitBoundsOptions);
+      const wideDirectoryMap =
+        payload.variant === "directory" &&
+        window.matchMedia("(min-width: 981px)").matches;
+      map.fitBounds(
+        bounds,
+        wideDirectoryMap
+          ? {
+              maxZoom: referenceMapFitBoundsOptions.maxZoom,
+              paddingTopLeft: [Math.min(760, window.innerWidth * 0.52), 32],
+              paddingBottomRight: [32, 32],
+            }
+          : referenceMapFitBoundsOptions,
+      );
       return;
     }
 
@@ -662,13 +679,13 @@ const payload = JSON.stringify({
   }
 
   function popupHtml(payload: MapPayload, item: MapItem): string {
-    if (payload.variant === "home") {
+    if (payload.variant === "home" || payload.variant === "directory") {
       return `
         <strong>${escapeHtml(item.reference)}</strong>
         <span>${escapeHtml(item.name)}</span>
         <em>${escapeHtml(detailLine(item))}</em>
-        ${liveSpotsHtml(item)}
-        <span>Reference data comes from official POTA park data and local public boundary sources.</span>
+        ${payload.variant === "home" ? liveSpotsHtml(item) : ""}
+        <span>Map data comes from official POTA park data and reviewed public sources.</span>
         <span class="map-popup__links">
           ${localFieldGuideLink(item)}
           ${officialLink(item)}

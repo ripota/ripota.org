@@ -70,7 +70,7 @@ describe("@ripota/parks package contract", () => {
       name: "Washington-Rochambeau Revolutionary Route National Historic Trail",
       geometryKind: "activation-zone",
       sourceUrl: expect.stringContaining("Washington_Rochambeau"),
-      marker: { latitude: 41.312, longitude: -73.9709 },
+      marker: { latitude: 41.6475389998586, longitude: -71.52119549967506 },
     });
     expect(items.find((item) => item.reference === "US-6980")).toMatchObject({
       name: "Beach Pond Wildlife Management Area",

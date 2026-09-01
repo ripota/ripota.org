@@ -1,6 +1,6 @@
 import type { ParksCatalogReference } from "../pota/catalog";
 
-export type ParkGeometryLabel = "Activation zone" | "Boundary" | "Point only";
+export type ParkGeometryLabel = "Mapped area" | "Reference location";
 
 export type ParkGuideNavigationItem = {
   href: `#${string}`;
@@ -14,25 +14,19 @@ export function parkGuidePath(reference: string): string {
 export function parkGeometryLabel(
   park: Pick<ParksCatalogReference, "geometryKind">,
 ): ParkGeometryLabel {
-  if (park.geometryKind === "activation-zone") {
-    return "Activation zone";
+  if (park.geometryKind === "activation-zone" || park.geometryKind === "boundary") {
+    return "Mapped area";
   }
-  if (park.geometryKind === "boundary") {
-    return "Boundary";
-  }
-  return "Point only";
+  return "Reference location";
 }
 
 export function parkGeometryDescription(
   park: Pick<ParksCatalogReference, "geometryKind">,
 ): string {
-  if (park.geometryKind === "activation-zone") {
-    return "A locally mapped activation zone is shown. Confirm current POTA requirements before activating.";
+  if (park.geometryKind === "activation-zone" || park.geometryKind === "boundary") {
+    return "The highlighted area is based on the linked public map source. Confirm current POTA requirements before activating.";
   }
-  if (park.geometryKind === "boundary") {
-    return "A mapped boundary is available from the linked public map source.";
-  }
-  return "This record shows a reference coordinate only, not an activation boundary.";
+  return "The map shows the official POTA reference location because a local mapped area is not available.";
 }
 
 export function parkGuideNavigationItems(

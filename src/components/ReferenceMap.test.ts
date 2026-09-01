@@ -68,6 +68,18 @@ describe("homepage live spots map", () => {
   });
 });
 
+describe("park directory map", () => {
+  it("uses a static discovery variant without event coverage or live-spot semantics", () => {
+    expect(referenceMapSource).toContain('payload.variant === "home" || payload.variant === "directory"');
+    expect(referenceMapSource).toContain('payload.variant === "home" ? liveSpotsHtml(item) : ""');
+    expect(referenceMapSource).toContain(
+      'payload.variant === "coverage" || payload.variant === "volunteer"',
+    );
+    expect(referenceMapSource).toContain('payload.variant === "directory"');
+    expect(referenceMapSource).toContain('paddingTopLeft: [Math.min(760, window.innerWidth * 0.52), 32]');
+  });
+});
+
 function expectVolunteerActionLast(popupSource: string): void {
   const volunteerIndex = popupSource.lastIndexOf("${volunteerAction}");
   const localGuideIndex = popupSource.indexOf("${localFieldGuideLink(item)}");

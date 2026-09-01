@@ -23,9 +23,9 @@ const { id, park, relatedParks = [] } = Astro.props;
 const dataId = `${id}-data`;
 const payload = JSON.stringify({ park, relatedParks });
 const primaryMapLabel = {
-  boundary: "park boundary",
-  "activation-zone": "activation zone",
-  point: "reference coordinate",
+  boundary: "mapped area",
+  "activation-zone": "mapped area",
+  point: "reference location",
 }[park.geometryKind];
 ---
 
@@ -41,8 +41,8 @@ const primaryMapLabel = {
     data-map-data-id={dataId}
   ></div>
 
-  <div class="park-detail-map__key" aria-label="Map boundary key">
-    <p>Map geometry</p>
+  <div class="park-detail-map__key" aria-label="Map key">
+    <p>Map</p>
     <span class="park-detail-map__key-row">
       <span
         class="park-detail-map__swatch park-detail-map__swatch--primary"
@@ -119,8 +119,8 @@ const primaryMapLabel = {
     L.control
       .zoom({
         position: "bottomright",
-        zoomInTitle: "Zoom in on the park boundary",
-        zoomOutTitle: "Zoom out from the park boundary",
+        zoomInTitle: "Zoom in on the mapped area",
+        zoomOutTitle: "Zoom out from the mapped area",
       })
       .addTo(map);
 

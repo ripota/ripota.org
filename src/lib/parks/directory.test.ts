@@ -14,21 +14,21 @@ describe("park directory helpers", () => {
     expect(parkGuidePath(" US-2878 ")).toBe("/parks/us-2878/");
   });
 
-  it("formats the three geometry states", () => {
-    expect(parkGeometryLabel(park("US-1", "boundary"))).toBe("Boundary");
-    expect(parkGeometryLabel(park("US-2", "activation-zone"))).toBe("Activation zone");
-    expect(parkGeometryLabel(park("US-3", "point"))).toBe("Point only");
+  it("uses one public label for either kind of mapped area", () => {
+    expect(parkGeometryLabel(park("US-1", "boundary"))).toBe("Mapped area");
+    expect(parkGeometryLabel(park("US-2", "activation-zone"))).toBe("Mapped area");
+    expect(parkGeometryLabel(park("US-3", "point"))).toBe("Reference location");
   });
 
   it("uses short public descriptions for every map state", () => {
     expect(parkGeometryDescription(park("US-1", "boundary"))).toBe(
-      "A mapped boundary is available from the linked public map source.",
+      "The highlighted area is based on the linked public map source. Confirm current POTA requirements before activating.",
     );
     expect(parkGeometryDescription(park("US-2", "point"))).toBe(
-      "This record shows a reference coordinate only, not an activation boundary.",
+      "The map shows the official POTA reference location because a local mapped area is not available.",
     );
     expect(parkGeometryDescription(park("US-3", "activation-zone"))).toBe(
-      "A locally mapped activation zone is shown. Confirm current POTA requirements before activating.",
+      "The highlighted area is based on the linked public map source. Confirm current POTA requirements before activating.",
     );
   });
 

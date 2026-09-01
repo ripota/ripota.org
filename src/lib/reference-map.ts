@@ -5,7 +5,7 @@ import type {
   PublicParkSummary,
 } from "./activate-ri/types";
 
-export type ReferenceMapVariant = "home" | "coverage" | "volunteer";
+export type ReferenceMapVariant = "home" | "directory" | "coverage" | "volunteer";
 
 export type ReferenceMapGeometryKind = "boundary" | "activation-zone" | "point";
 
@@ -160,10 +160,7 @@ export function buildReferenceMapItems({
       grid: reference.grid ?? "",
       locationDesc: reference.locationDesc ?? "",
       potaUrl: reference.potaUrl ?? "",
-      marker:
-        boundary?.geometryKind === "activation-zone"
-          ? markerForReference(reference) ?? markerForGeojson(geojson)
-          : markerForGeojson(geojson) ?? markerForReference(reference),
+      marker: markerForGeojson(geojson) ?? markerForReference(reference),
       geometryKind: boundary?.geometryKind ?? "point",
       boundaryStatus: boundary?.status ?? "unknown",
       sourceName: boundary?.sourceName ?? "Parks on the Air reference coordinate",
