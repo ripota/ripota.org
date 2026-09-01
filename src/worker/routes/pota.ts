@@ -1,8 +1,9 @@
+import { references } from "@ripota/parks";
+
 import {
   normalizeRiPotaSpots,
   type LivePotaSpot,
 } from "../../lib/pota/spots";
-import { riReferences as references } from "../../lib/pota/catalog";
 import type { Env } from "../env";
 import { json } from "../http";
 import { isSpotCaptureTime } from "../../lib/activate-ri/pota-event";

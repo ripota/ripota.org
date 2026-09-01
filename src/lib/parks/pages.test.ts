@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
+import { references } from "@ripota/parks";
 import { describe, expect, it } from "vitest";
 import { GET, sitemapPaths } from "../../pages/sitemap.xml";
-import { parksCatalog } from "../pota/catalog";
 import { parkGuidePath } from "./directory";
 
 const detailPage = readFileSync(
@@ -14,10 +14,10 @@ const directoryPage = readFileSync(
 );
 
 describe("park field-guide routes", () => {
-  it("provides one unique lowercase canonical path for every catalog reference", () => {
-    const paths = parksCatalog.references.map(({ reference }) => parkGuidePath(reference));
+  it("provides one unique lowercase canonical path for every POTA reference", () => {
+    const paths = references.map(({ reference }) => parkGuidePath(reference));
 
-    expect(parksCatalog.referenceCount).toBe(61);
+    expect(references).toHaveLength(61);
     expect(paths).toHaveLength(61);
     expect(new Set(paths).size).toBe(61);
     expect(paths.every((path) => /^\/parks\/us-\d+\/$/.test(path))).toBe(true);

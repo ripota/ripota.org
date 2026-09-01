@@ -1,3 +1,5 @@
+import type { PotaReference } from "@ripota/parks";
+
 export type EventPhase = "planning" | "schedule-live" | "event-live" | "post-event";
 
 export type EventCta = {
@@ -108,15 +110,12 @@ export type ValidationResult<T> =
   | { ok: true; value: T }
   | { ok: false; errors: string[] };
 
-export type PublicParkSummary = {
-  reference: string;
-  name: string;
-  counties: string[];
-  latitude?: number;
-  longitude?: number;
-  grid?: string;
-  potaUrl?: string;
-};
+export type PublicParkSummary = Pick<
+  PotaReference,
+  "reference" | "name" | "counties"
+> & Partial<
+  Pick<PotaReference, "latitude" | "longitude" | "grid" | "potaUrl">
+>;
 
 export type StopExportRow = {
   id: string;

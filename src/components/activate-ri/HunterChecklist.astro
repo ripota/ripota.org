@@ -1,14 +1,14 @@
 ---
-import { riReferences } from "../../lib/pota/catalog";
+import { references } from "@ripota/parks";
 
-const references = riReferences.map(({ reference, name, potaUrl }) => ({
+const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
   reference,
   name,
   potaUrl,
 }));
 ---
 
-<section class="hunter-checklist" data-hunter-checklist data-references={JSON.stringify(references)}>
+<section class="hunter-checklist" data-hunter-checklist data-references={JSON.stringify(hunterReferences)}>
   <div class="hunter-import" aria-labelledby="hunter-import-title">
     <div class="hunter-import__copy">
       <p class="eyebrow">Private browser-local import</p>
@@ -57,7 +57,7 @@ const references = riReferences.map(({ reference, name, potaUrl }) => ({
         <p class="eyebrow">Your browser-local checklist</p>
         <h2 id="hunter-results-title" data-hunter-progress-text>0 of 61 Rhode Island parks hunted</h2>
       </div>
-      <progress data-hunter-progress max={references.length} value="0">0 of {references.length}</progress>
+      <progress data-hunter-progress max={hunterReferences.length} value="0">0 of {hunterReferences.length}</progress>
     </div>
 
     <section class="hunter-planner" aria-labelledby="hunter-planner-title">

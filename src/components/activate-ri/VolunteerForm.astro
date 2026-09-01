@@ -73,7 +73,7 @@ const turnstileSiteKey =
 </dialog>
 
 <script>
-  import { riReferences as references } from "../../lib/pota/catalog";
+  import { references } from "@ripota/parks";
   import { deriveParkCoverage, isParkVolunteerActionable } from "../../lib/activate-ri/coverage";
   import {
     appendBlankStop,
@@ -97,7 +97,6 @@ const turnstileSiteKey =
     type ValidationControl,
   } from "../../lib/activate-ri/form-client";
   import { fetchPublicActivationStops } from "../../lib/activate-ri/public-stops-client";
-  import type { PublicParkSummary } from "../../lib/activate-ri/types";
   import {
     formatVolunteerMissingFieldSummary,
     formatVolunteerProblemFieldSummary,
@@ -139,7 +138,7 @@ const turnstileSiteKey =
     try {
       const stops = await fetchPublicActivationStops();
       const coverage = deriveParkCoverage(
-        references as PublicParkSummary[],
+        references,
         stops.filter((stop) => !stop.id.startsWith("sample-")),
       );
       const parksNeedingCoverage = new Set(

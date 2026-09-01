@@ -1,7 +1,88 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Page, type Response, test } from "@playwright/test";
 import { startActivateRiServer } from "./helpers/activate-ri-server";
 
 test.setTimeout(60_000);
+
+test("volunteer browser graph stays metadata-only on desktop and mobile", async ({
+  browser,
+}) => {
+  const server = await startActivateRiServer();
+
+  try {
+    for (const viewport of [
+      { width: 1280, height: 800 },
+      { width: 390, height: 844 },
+    ]) {
+      const context = await browser.newContext({ viewport });
+      const page = await context.newPage();
+      const browserErrors: string[] = [];
+      const scriptResponses = new Map<string, Response>();
+
+      page.on("console", (message) => {
+        if (message.type() === "error") {
+          const sourceUrl = message.location().url;
+          browserErrors.push(
+            `${message.text()}${sourceUrl ? ` (${sourceUrl})` : ""}`,
+          );
+        }
+      });
+      page.on("pageerror", (error) => browserErrors.push(error.message));
+      page.on("response", (response) => {
+        if (
+          response.url().startsWith(server.origin) &&
+          response.request().resourceType() === "script"
+        ) {
+          scriptResponses.set(response.url(), response);
+        }
+      });
+      await page.route("**/api/activate-ri-2026/public/stops", (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ stops: [] }),
+        })
+      );
+      await page.route("**/api/analytics/events", (route) =>
+        route.fulfill({ status: 204 })
+      );
+
+      await page.goto(`${server.origin}/activate-ri-2026/volunteer/`);
+      await expect(page.locator("[data-activate-ri-volunteer]")).toBeVisible();
+      await expect(page.locator("[data-park-option]")).toHaveCount(61);
+
+      await page.locator("[data-park-input]").fill("US-2868");
+      await page.getByRole("button", { name: "US-2868" }).click();
+      await expect(page.locator("[data-park-reference]")).toHaveValue("US-2868");
+
+      const scripts = await Promise.all(
+        [...scriptResponses.entries()].map(async ([url, response]) => ({
+          url,
+          body: await response.body(),
+        })),
+      );
+      const volunteerEntry = scripts.find(({ url }) =>
+        new URL(url).pathname.split("/").at(-1)?.startsWith("VolunteerForm."),
+      );
+      expect(
+        volunteerEntry,
+        `Missing volunteer entry at ${viewport.width}px`,
+      ).toBeDefined();
+      expect(volunteerEntry?.body.byteLength).toBeLessThan(50_000);
+
+      const browserJavaScript = Buffer.concat(
+        scripts.map(({ body }) => body),
+      ).toString("utf8");
+      expect(browserJavaScript).not.toMatch(
+        /\\?["']geojson\\?["']\s*:\s*\{\\?["']type\\?["']\s*:\s*\\?["']FeatureCollection|\\?["']featureIds\\?["']\s*:\s*\[|\\?["']coordinates\\?["']\s*:\s*\[\s*\[\s*\[/,
+      );
+      expect(browserErrors).toEqual([]);
+
+      await context.close();
+    }
+  } finally {
+    await server.stop();
+  }
+});
 
 test("volunteer can submit a plan that can be approved and shown publicly", async ({
   page,

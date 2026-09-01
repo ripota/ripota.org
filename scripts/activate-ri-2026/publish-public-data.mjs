@@ -2,8 +2,8 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { references } from "@ripota/parks";
 import { createServer } from "vite";
-import references from "@ripota/parks/references.json" with { type: "json" };
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const outputDir = resolve(root, "public/data/activate-ri-2026");

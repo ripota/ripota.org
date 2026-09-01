@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "astro dev",
     "prebuild": "node scripts/guard-turnstile-production.mjs --required",
-    "build": "astro build",
+    "build": "astro build && node scripts/check-volunteer-bundle.mjs",
     "build:local": "node scripts/build-local.mjs",
     "e2e:activate-ri": "playwright test e2e/activate-ri-*.spec.ts",
     "preview": "astro preview",
@@ -27,7 +27,7 @@
     "wrangler": "latest"
   },
   "dependencies": {
-    "@ripota/parks": "https://github.com/ripota/parks/releases/download/v1.1.0/ripota-parks-1.1.0.tgz",
+    "@ripota/parks": "https://github.com/ripota/parks/releases/download/v2.0.0/ripota-parks-2.0.0.tgz",
     "@simplewebauthn/browser": "13.3.0",
     "@simplewebauthn/server": "13.3.3",
     "jose": "^6.2.3"

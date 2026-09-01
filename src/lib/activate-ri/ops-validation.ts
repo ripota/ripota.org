@@ -1,4 +1,4 @@
-import { riReferences as references } from "../pota/catalog";
+import { references } from "@ripota/parks";
 import type {
   CreateOpsMessageInput,
   OpsMessageContext,

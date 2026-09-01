@@ -1,3 +1,5 @@
+import { references } from "@ripota/parks";
+
 import {
   activateRiPotaEndDate,
   activateRiPotaStartDate,
@@ -9,7 +11,6 @@ import {
   type PotaActivationEvidence,
   type PotaSpotObservation,
 } from "../lib/activate-ri/pota-event";
-import { riReferences as references } from "../lib/pota/catalog";
 import type { LivePotaSpot } from "../lib/pota/spots";
 import type { Env } from "./env";
 import { logWorkerError } from "./logging";

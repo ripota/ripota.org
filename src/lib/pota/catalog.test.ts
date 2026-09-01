@@ -1,3 +1,4 @@
+import { references } from "@ripota/parks";
 import { describe, expect, it } from "vitest";
 
 import publicParks from "../../../public/data/activate-ri-2026/parks.json";
@@ -6,20 +7,25 @@ import {
   parksCatalog,
   referenceBoundaries,
   referenceGeojsonByPath,
-  riReferences,
 } from "./catalog";
 
 describe("@ripota/parks package contract", () => {
-  it("loads the pinned v1 catalog and builds every site map item", () => {
+  it("keeps the v2 metadata API byte-for-byte aligned with the catalog", () => {
     expect(parksCatalog).toMatchObject({
       schemaVersion: 1,
       referenceCount: 61,
       featureCount: 690,
     });
-    expect(riReferences).toHaveLength(61);
+    expect(references).toEqual(
+      parksCatalog.references.map(
+        ({ status: _status, geometryKind: _geometryKind, source: _source, geojson: _geojson, ...reference }) =>
+          reference,
+      ),
+    );
+    expect(references).toHaveLength(61);
     expect(referenceBoundaries).toHaveLength(61);
     expect(publicParks).toEqual(
-      riReferences.map(
+      references.map(
         ({ reference, name, counties, latitude, longitude, grid, potaUrl }) => ({
           reference,
           name,
@@ -33,7 +39,7 @@ describe("@ripota/parks package contract", () => {
     );
 
     const items = buildReferenceMapItems({
-      references: riReferences,
+      references,
       boundaries: referenceBoundaries,
       geojsonByPath: referenceGeojsonByPath,
     });

@@ -1,10 +1,10 @@
 import catalogData from "@ripota/parks/catalog.json";
+import { type PotaReference } from "@ripota/parks";
 
 import type {
   ReferenceBoundaryRecord,
   ReferenceMapGeoJson,
 } from "../reference-map";
-import type { PotaReference } from "./references";
 
 export type ParksCatalogReference = PotaReference & {
   status: "available" | "point-only";
@@ -27,11 +27,6 @@ export type ParksCatalog = {
 };
 
 export const parksCatalog = catalogData as unknown as ParksCatalog;
-
-export const riReferences: PotaReference[] = parksCatalog.references.map(
-  ({ status: _status, geometryKind: _geometryKind, source: _source, geojson: _geojson, ...reference }) =>
-    reference,
-);
 
 export const referenceBoundaries: ReferenceBoundaryRecord[] =
   parksCatalog.references.map((record) => ({

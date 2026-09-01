@@ -1,5 +1,6 @@
+import { references } from "@ripota/parks";
+
 import { siteIdentity } from "../data/site";
-import { parksCatalog } from "../lib/pota/catalog";
 import { parkGuidePath } from "../lib/parks/directory";
 
 export const prerender = true;
@@ -20,7 +21,7 @@ export const publicPagePaths = [
 export function sitemapPaths(): string[] {
   return [
     ...publicPagePaths,
-    ...parksCatalog.references.map(({ reference }) => parkGuidePath(reference)),
+    ...references.map(({ reference }) => parkGuidePath(reference)),
   ];
 }
 

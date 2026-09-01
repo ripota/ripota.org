@@ -1,8 +1,8 @@
 import type { ActivityEventInput, EditablePlanDto } from "./db";
+import { references } from "@ripota/parks";
 import type { Env } from "./env";
 import { sanitizeLogText } from "./logging";
 import { formatActivationDateTimeRange } from "../lib/activate-ri/time";
-import { riReferences as references } from "../lib/pota/catalog";
 
 export type SendEmailResult =
   | {
