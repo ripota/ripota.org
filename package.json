@@ -30,6 +30,7 @@
     "@ripota/parks": "https://github.com/ripota/parks/releases/download/v3.0.0/ripota-parks-3.0.0.tgz",
     "@simplewebauthn/browser": "13.3.0",
     "@simplewebauthn/server": "13.3.3",
+    "@turf/point-to-polygon-distance": "^7.4.0",
     "jose": "^6.2.3"
   }
 }

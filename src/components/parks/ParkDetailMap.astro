@@ -21,6 +21,7 @@ type Props = {
 
 const { id, park, relatedParks = [] } = Astro.props;
 const dataId = `${id}-data`;
+const locationStatusId = `${id}-location-status`;
 const payload = JSON.stringify({ park, relatedParks });
 const primaryMapLabel = {
   boundary: "mapped area",
@@ -66,6 +67,38 @@ const primaryMapLabel = {
     <button type="button" data-park-map-reset>Recenter map</button>
   </div>
 
+  <button
+    class="park-detail-map__location-button"
+    type="button"
+    aria-label="Show my location"
+    aria-controls={locationStatusId}
+    aria-pressed="false"
+    data-park-map-location
+  >
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="6"></circle>
+      <circle cx="12" cy="12" r="2"></circle>
+      <path d="M12 2v4M12 18v4M2 12h4M18 12h4"></path>
+    </svg>
+  </button>
+
+  <div
+    id={locationStatusId}
+    class="park-detail-map__location-status"
+    data-park-location-status
+    data-tone="neutral"
+    hidden
+  >
+    <div class="park-detail-map__location-message" role="status" aria-live="polite" aria-atomic="true">
+      <span class="park-detail-map__location-shape" data-location-status-shape aria-hidden="true"></span>
+      <span>
+        <strong data-location-status-primary></strong>
+        <small data-location-status-secondary></small>
+      </span>
+    </div>
+    <button type="button" data-park-location-stop hidden>Stop location</button>
+  </div>
+
   <figcaption class="sr-only">
     The highlighted {primaryMapLabel} is the local map geometry for {park.name}.
     A dashed line marks another reference when it uses the same mapped source
@@ -77,6 +110,18 @@ const primaryMapLabel = {
 
 <script>
   import L from "leaflet";
+  import { classifyLocation } from "../../lib/location/classify";
+  import type {
+    LocationClassification,
+    ReportedLocation,
+  } from "../../lib/location/classify";
+  import {
+    createLocationSession,
+  } from "../../lib/location/session";
+  import type {
+    LocationSessionError,
+    LocationSessionState,
+  } from "../../lib/location/session";
 
   type ParkMapReference = {
     reference: string;
@@ -91,6 +136,48 @@ const primaryMapLabel = {
     park: ParkMapReference;
     relatedParks: ParkMapReference[];
   };
+
+  type StatusTone = "inside" | "outside" | "uncertain" | "neutral";
+
+  type ClassifiedReference = {
+    park: ParkMapReference;
+    result: LocationClassification;
+  };
+
+  function geometrySubject(geometryKind: ParkMapReference["geometryKind"]): string {
+    return geometryKind === "activation-zone"
+      ? "mapped activation zone"
+      : "mapped boundary";
+  }
+
+  function accuracyCopy(accuracy: number): string {
+    return `Accuracy ±${Math.round(accuracy)} m`;
+  }
+
+  function errorCopy(error: LocationSessionError): [string, string] {
+    switch (error) {
+      case "permission-denied":
+        return [
+          "Location access is off",
+          "Enable it in browser settings, then try again.",
+        ];
+      case "timeout":
+        return [
+          "Location took too long",
+          "Move to an open area or try again.",
+        ];
+      case "unsupported":
+        return [
+          "Location is not available in this browser",
+          "The park map and its normal controls still work.",
+        ];
+      default:
+        return [
+          "Your device could not get a location",
+          "Check your signal and try again.",
+        ];
+    }
+  }
 
   document
     .querySelectorAll<HTMLElement>("[data-park-detail-map]")
@@ -187,6 +274,217 @@ const primaryMapLabel = {
 
     const maxFitZoom = payload.park.geometryKind === "point" ? 14 : 18;
 
+    const locationLayers = L.layerGroup().addTo(map);
+    let accuracyLayer: L.Circle | undefined;
+    let locationDot: L.CircleMarker | undefined;
+    let latestLocation: ReportedLocation | undefined;
+    let centeredOnFirstFix = false;
+
+    const locationButton = shell.querySelector<HTMLButtonElement>(
+      "[data-park-map-location]",
+    );
+    const locationStatus = shell.querySelector<HTMLElement>(
+      "[data-park-location-status]",
+    );
+    const locationPrimary = shell.querySelector<HTMLElement>(
+      "[data-location-status-primary]",
+    );
+    const locationSecondary = shell.querySelector<HTMLElement>(
+      "[data-location-status-secondary]",
+    );
+    const stopLocationButton = shell.querySelector<HTMLButtonElement>(
+      "[data-park-location-stop]",
+    );
+
+    const showStatus = (
+      primary: string,
+      secondary: string,
+      tone: StatusTone,
+      canStop: boolean,
+    ): void => {
+      if (!locationStatus || !locationPrimary || !locationSecondary) return;
+
+      locationStatus.hidden = false;
+      locationStatus.dataset.tone = tone;
+      locationPrimary.textContent = primary;
+      locationSecondary.textContent = secondary;
+      if (stopLocationButton) stopLocationButton.hidden = !canStop;
+    };
+
+    const clearLocationLayers = (): void => {
+      locationLayers.clearLayers();
+      accuracyLayer = undefined;
+      locationDot = undefined;
+    };
+
+    const recenterOnLocation = (): void => {
+      if (!latestLocation) return;
+      map.setView(
+        [latestLocation.latitude, latestLocation.longitude],
+        Math.max(map.getZoom(), 16),
+        { animate: true },
+      );
+    };
+
+    const showClassification = (location: ReportedLocation): void => {
+      const references = [payload.park, ...payload.relatedParks];
+      const classified: ClassifiedReference[] = references.map((park) => ({
+        park,
+        result: classifyLocation(location, park.geojson, park.geometryKind),
+      }));
+      const primary = classified[0];
+      if (!primary) return;
+
+      const definiteInside = classified.filter(
+        ({ result }) => result.status === "inside",
+      );
+
+      if (definiteInside.length > 1) {
+        showStatus(
+          `Inside ${definiteInside.length} mapped areas`,
+          `${definiteInside.map(({ park }) => park.reference).join(", ")} · ${accuracyCopy(location.accuracy)}`,
+          "inside",
+          true,
+        );
+        return;
+      }
+
+      if (
+        definiteInside.length === 1 &&
+        definiteInside[0]?.park.reference !== payload.park.reference
+      ) {
+        showStatus(
+          `Inside ${definiteInside[0]?.park.reference} mapped area`,
+          `${payload.park.reference}: ${primary.result.status.replace("near-boundary", "near boundary")} · ${accuracyCopy(location.accuracy)}`,
+          "inside",
+          true,
+        );
+        return;
+      }
+
+      const subject = geometrySubject(payload.park.geometryKind);
+      switch (primary.result.status) {
+        case "inside":
+          showStatus(
+            `Inside ${subject}`,
+            accuracyCopy(location.accuracy),
+            "inside",
+            true,
+          );
+          break;
+        case "outside":
+          showStatus(
+            `Outside ${subject}`,
+            accuracyCopy(location.accuracy),
+            "outside",
+            true,
+          );
+          break;
+        case "near-boundary":
+          showStatus(
+            `Near ${subject}`,
+            `Your ${accuracyCopy(location.accuracy).toLowerCase()} crosses the mapped edge.`,
+            "uncertain",
+            true,
+          );
+          break;
+        case "unavailable":
+          showStatus(
+            "No mapped boundary available",
+            `This park has only a reference coordinate · ${accuracyCopy(location.accuracy)}`,
+            "neutral",
+            true,
+          );
+          break;
+      }
+    };
+
+    const updateLocationLayers = (location: ReportedLocation): void => {
+      const latlng = L.latLng(location.latitude, location.longitude);
+
+      if (!accuracyLayer) {
+        accuracyLayer = L.circle(latlng, {
+          radius: location.accuracy,
+          color: "#1267a5",
+          fillColor: "#4ca7e8",
+          fillOpacity: 0.16,
+          opacity: 0.65,
+          weight: 1.5,
+          interactive: false,
+        }).addTo(locationLayers);
+      } else {
+        accuracyLayer.setLatLng(latlng).setRadius(location.accuracy);
+      }
+
+      if (!locationDot) {
+        locationDot = L.circleMarker(latlng, {
+          radius: 8,
+          color: "#ffffff",
+          fillColor: "#1577c8",
+          fillOpacity: 1,
+          opacity: 1,
+          weight: 3,
+          interactive: false,
+        }).addTo(locationLayers);
+      } else {
+        locationDot.setLatLng(latlng);
+      }
+    };
+
+    const handleSessionState = (state: LocationSessionState): void => {
+      if (locationButton) {
+        const active = state.status === "requesting" || state.status === "active";
+        locationButton.ariaPressed = String(active);
+        locationButton.dataset.state = state.status;
+        locationButton.ariaLabel =
+          state.status === "active"
+            ? "Recenter on my location"
+            : state.status === "requesting"
+              ? "Finding your location"
+              : "Show my location";
+      }
+
+      switch (state.status) {
+        case "requesting":
+          showStatus(
+            "Finding your location…",
+            "Used on this device; not saved or sent to RI POTA. Map tiles load from OpenStreetMap.",
+            "neutral",
+            true,
+          );
+          break;
+        case "stopped":
+          latestLocation = undefined;
+          centeredOnFirstFix = false;
+          clearLocationLayers();
+          showStatus(
+            "Location stopped",
+            "Tap the target to start again.",
+            "neutral",
+            false,
+          );
+          break;
+        case "error": {
+          const [primary, secondary] = errorCopy(state.error);
+          showStatus(primary, secondary, "outside", false);
+          break;
+        }
+      }
+    };
+
+    const locationSession = createLocationSession({
+      onStateChange: handleSessionState,
+      onPosition: (location) => {
+        latestLocation = location;
+        updateLocationLayers(location);
+        showClassification(location);
+        if (!centeredOnFirstFix) {
+          centeredOnFirstFix = true;
+          recenterOnLocation();
+        }
+      },
+    });
+
     const resetView = (): void => {
       const wideLayout = window.matchMedia("(min-width: 861px)").matches;
       map.invalidateSize({ animate: false });
@@ -204,6 +502,27 @@ const primaryMapLabel = {
     shell.querySelector<HTMLButtonElement>("[data-park-map-reset]")?.addEventListener(
       "click",
       resetView,
+    );
+
+    locationButton?.addEventListener("click", () => {
+      if (locationSession.getState().status === "active" && latestLocation) {
+        recenterOnLocation();
+      } else {
+        locationSession.start();
+      }
+    });
+
+    stopLocationButton?.addEventListener("click", () => {
+      locationSession.stop();
+    });
+
+    window.addEventListener(
+      "pagehide",
+      () => {
+        locationSession.destroy();
+        clearLocationLayers();
+      },
+      { once: true },
     );
 
     shell
@@ -330,6 +649,158 @@ const primaryMapLabel = {
     padding: 0.15rem 0;
   }
 
+  .park-detail-map__location-button {
+    position: absolute;
+    z-index: 800;
+    right: max(1rem, calc((100vw - var(--max-width)) / 2));
+    bottom: 7.35rem;
+    display: grid;
+    width: 44px;
+    height: 44px;
+    place-items: center;
+    border: 1px solid rgba(24, 49, 47, 0.24);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 10px 28px rgba(15, 34, 31, 0.18);
+    color: #18312f;
+    cursor: pointer;
+  }
+
+  .park-detail-map__location-button:hover,
+  .park-detail-map__location-button:focus-visible {
+    background: #fffaf0;
+    color: #0b6670;
+  }
+
+  .park-detail-map__location-button:focus-visible {
+    outline: 3px solid #f2ba68;
+    outline-offset: 2px;
+  }
+
+  .park-detail-map__location-button svg {
+    width: 25px;
+    height: 25px;
+    overflow: visible;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-width: 1.9;
+  }
+
+  .park-detail-map__location-button[data-state="requesting"] svg {
+    animation: park-location-pulse 1.2s ease-in-out infinite;
+  }
+
+  .park-detail-map__location-button[aria-pressed="true"] {
+    color: #1267a5;
+  }
+
+  .park-detail-map__location-status {
+    position: absolute;
+    z-index: 800;
+    right: max(4.75rem, calc((100vw - var(--max-width)) / 2 + 3.75rem));
+    bottom: 2rem;
+    display: grid;
+    width: min(355px, calc(100% - 6rem));
+    gap: 0.65rem;
+    border: 1px solid rgba(24, 49, 47, 0.2);
+    border-left: 5px solid #62736f;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--surface-raised) 94%, transparent);
+    box-shadow: 0 14px 38px rgba(15, 34, 31, 0.22);
+    padding: 0.75rem 0.8rem;
+    color: var(--text-primary);
+    backdrop-filter: blur(12px);
+  }
+
+  .park-detail-map__location-status[hidden] {
+    display: none;
+  }
+
+  .park-detail-map__location-status[data-tone="inside"] {
+    border-left-color: #237242;
+  }
+
+  .park-detail-map__location-status[data-tone="outside"] {
+    border-left-color: #9a3c2c;
+  }
+
+  .park-detail-map__location-status[data-tone="uncertain"] {
+    border-left-color: #b56b18;
+  }
+
+  .park-detail-map__location-message {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: 0.6rem;
+  }
+
+  .park-detail-map__location-message strong,
+  .park-detail-map__location-message small {
+    display: block;
+  }
+
+  .park-detail-map__location-message strong {
+    font-size: 0.88rem;
+    line-height: 1.25;
+  }
+
+  .park-detail-map__location-message small {
+    margin-top: 0.18rem;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    line-height: 1.35;
+  }
+
+  .park-detail-map__location-shape {
+    width: 0.75rem;
+    height: 0.75rem;
+    margin-top: 0.12rem;
+    border: 2px solid #62736f;
+    border-radius: 50%;
+  }
+
+  [data-tone="inside"] .park-detail-map__location-shape {
+    border-color: #237242;
+    background: #237242;
+  }
+
+  [data-tone="outside"] .park-detail-map__location-shape {
+    border-color: #9a3c2c;
+    border-radius: 1px;
+    transform: rotate(45deg);
+  }
+
+  [data-tone="uncertain"] .park-detail-map__location-shape {
+    width: 0;
+    height: 0;
+    border: 0;
+    border-right: 0.42rem solid transparent;
+    border-bottom: 0.75rem solid #b56b18;
+    border-left: 0.42rem solid transparent;
+    border-radius: 0;
+  }
+
+  .park-detail-map__location-status > button {
+    width: fit-content;
+    border: 0;
+    border-bottom: 1px solid currentColor;
+    background: transparent;
+    color: var(--link-strong);
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 850;
+    padding: 0.1rem 0;
+  }
+
+  @keyframes park-location-pulse {
+    50% {
+      opacity: 0.42;
+      transform: scale(0.88);
+    }
+  }
+
   .park-detail-map .leaflet-control-zoom {
     margin-right: max(1rem, calc((100vw - var(--max-width)) / 2));
     margin-bottom: 2rem;
@@ -376,6 +847,17 @@ const primaryMapLabel = {
       margin-right: 0.75rem;
       margin-bottom: 1.8rem;
     }
+
+    .park-detail-map__location-button {
+      right: 0.75rem;
+      bottom: 7.15rem;
+    }
+
+    .park-detail-map__location-status {
+      right: 4.65rem;
+      bottom: 1.8rem;
+      width: min(330px, calc(100% - 5.65rem));
+    }
   }
 
   @media (max-width: 480px) {
@@ -386,6 +868,17 @@ const primaryMapLabel = {
     .park-detail-map__key > p,
     .park-detail-map__key button {
       display: none;
+    }
+
+    .park-detail-map__location-status {
+      gap: 0.45rem;
+      padding: 0.65rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .park-detail-map__location-button[data-state="requesting"] svg {
+      animation: none;
     }
   }
 </style>
