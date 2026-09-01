@@ -1,0 +1,163 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; -*-
+#MISE description="Create and hydrate a ready-to-use jj workspace"
+#MISE dir="{{cwd}}"
+#USAGE flag "--name <name>" help="Name for the new Jujutsu workspace (required)"
+#USAGE flag "--parent-workspace <workspace>" help="Workspace to branch from and use as the ignored-state seed (default: current workspace)"
+#USAGE flag "-r --revision <revision>" help="Override the parent revision (default: <parent-workspace>@)"
+#USAGE flag "-d --destination <destination>" help="Workspace directory (defaults beside the parent workspace)"
+#USAGE flag "--with-wrangler-state" help="Also copy local Wrangler state, including local D1 data"
+#USAGE flag "--no-install" help="Skip npm dependency reconciliation after seeding"
+#USAGE flag "-n --dry-run" help="Print the workspace creation plan without changing anything"
+#USAGE complete "parent-workspace" run="jj workspace list -T 'name ++ \"\\n\"'"
+
+set -euo pipefail
+
+WORKSPACE_NAME="${usage_name:-}"
+CURRENT_WORKSPACE="$(jj workspace list --template 'if(target.current_working_copy(), name ++ "\n")')"
+if [[ -z "${CURRENT_WORKSPACE}" ]]; then
+  echo "Error: could not determine the current Jujutsu workspace." >&2
+  exit 1
+fi
+PARENT_WORKSPACE="${usage_parent_workspace:-${CURRENT_WORKSPACE}}"
+REVISION="${usage_revision:-${PARENT_WORKSPACE}@}"
+WITH_WRANGLER_STATE="${usage_with_wrangler_state:-false}"
+NO_INSTALL="${usage_no_install:-false}"
+DRY_RUN="${usage_dry_run:-false}"
+
+if [[ -z "${WORKSPACE_NAME}" ]]; then
+  echo "Error: --name is required." >&2
+  exit 1
+fi
+if [[ ! "${WORKSPACE_NAME}" =~ ^[[:alnum:]][[:alnum:]_.-]*$ ]]; then
+  echo "Error: workspace name must start with a letter or number and contain only letters, numbers, '.', '_', or '-'." >&2
+  exit 1
+fi
+
+SOURCE_ROOT="$(jj workspace root --name "${PARENT_WORKSPACE}")"
+SOURCE_ROOT="$(cd "${SOURCE_ROOT}" && pwd -P)"
+
+if [[ -n "${usage_destination:-}" ]]; then
+  DESTINATION="${usage_destination}"
+  if [[ "${DESTINATION}" != /* ]]; then
+    DESTINATION="$(pwd -P)/${DESTINATION}"
+  fi
+else
+  SOURCE_BASENAME="$(basename "${SOURCE_ROOT}")"
+  if [[ "${SOURCE_BASENAME}" == *-"${PARENT_WORKSPACE}" ]]; then
+    PROJECT_SLUG="${SOURCE_BASENAME:0:${#SOURCE_BASENAME}-${#PARENT_WORKSPACE}-1}"
+  else
+    PROJECT_SLUG="${SOURCE_BASENAME%%.*}"
+  fi
+  DESTINATION="$(dirname "${SOURCE_ROOT}")/${PROJECT_SLUG}-${WORKSPACE_NAME}"
+fi
+
+DESTINATION_PARENT="$(dirname "${DESTINATION}")"
+if [[ ! -d "${DESTINATION_PARENT}" ]]; then
+  echo "Error: destination parent does not exist: ${DESTINATION_PARENT}" >&2
+  exit 1
+fi
+DESTINATION="$(cd "${DESTINATION_PARENT}" && pwd -P)/$(basename "${DESTINATION}")"
+
+copy_seed_path() {
+  local source_path="$1"
+  local destination_path="$2"
+
+  if [[ ! -e "${source_path}" && ! -L "${source_path}" ]]; then
+    return
+  fi
+  if [[ -e "${destination_path}" || -L "${destination_path}" ]]; then
+    echo "Keeping existing $(basename "${destination_path}")"
+    return
+  fi
+
+  echo "Seeding $(basename "${destination_path}")"
+  if [[ "${DRY_RUN}" == "true" ]]; then
+    return
+  fi
+
+  if [[ -d "${source_path}" && ! -L "${source_path}" ]]; then
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+      cp -cR "${source_path}" "${destination_path}"
+    else
+      cp --reflink=auto -a "${source_path}" "${destination_path}"
+    fi
+  else
+    cp -p "${source_path}" "${destination_path}"
+  fi
+}
+
+EXISTING_ROOT="$(jj workspace root --name "${WORKSPACE_NAME}" 2>/dev/null || true)"
+if [[ -n "${EXISTING_ROOT}" ]]; then
+  EXISTING_ROOT="$(cd "${EXISTING_ROOT}" && pwd -P)"
+  if [[ "${EXISTING_ROOT}" != "${DESTINATION}" ]]; then
+    echo "Error: workspace '${WORKSPACE_NAME}' already exists at ${EXISTING_ROOT}" >&2
+    exit 1
+  fi
+  echo "Resuming existing workspace ${WORKSPACE_NAME} at ${DESTINATION}"
+elif [[ -e "${DESTINATION}" ]]; then
+  echo "Error: destination already exists but is not workspace '${WORKSPACE_NAME}': ${DESTINATION}" >&2
+  exit 1
+else
+  echo "Creating workspace ${WORKSPACE_NAME} at ${DESTINATION} from ${REVISION}"
+  if [[ "${DRY_RUN}" != "true" ]]; then
+    # Snapshot the parent workspace so <parent>@ includes its latest filesystem state.
+    jj --repository "${SOURCE_ROOT}" log --no-graph --revision @ --template ''
+    jj workspace add --name "${WORKSPACE_NAME}" --revision "${REVISION}" "${DESTINATION}"
+  fi
+fi
+
+if [[ "${DRY_RUN}" == "true" && ! -d "${DESTINATION}" ]]; then
+  echo "Would seed ignored local state from ${PARENT_WORKSPACE}: ${SOURCE_ROOT}"
+  if [[ "${NO_INSTALL}" != "true" ]]; then
+    echo "Would reconcile npm dependencies"
+  fi
+  if [[ "${WITH_WRANGLER_STATE}" == "true" ]]; then
+    echo "Would also seed .wrangler local state"
+  fi
+  exit 0
+fi
+
+shopt -s nullglob
+for source_path in \
+  "${SOURCE_ROOT}/.env" \
+  "${SOURCE_ROOT}"/.env.* \
+  "${SOURCE_ROOT}/.dev.vars"; do
+  if [[ "$(basename "${source_path}")" == ".env.example" ]]; then
+    continue
+  fi
+  copy_seed_path "${source_path}" "${DESTINATION}/$(basename "${source_path}")"
+done
+shopt -u nullglob
+
+if [[ -d "${SOURCE_ROOT}/node_modules" ]]; then
+  if cmp -s "${SOURCE_ROOT}/package-lock.json" "${DESTINATION}/package-lock.json"; then
+    copy_seed_path "${SOURCE_ROOT}/node_modules" "${DESTINATION}/node_modules"
+  else
+    echo "Skipping node_modules seed because source and destination package-lock.json differ"
+  fi
+fi
+
+if [[ "${WITH_WRANGLER_STATE}" == "true" ]]; then
+  copy_seed_path "${SOURCE_ROOT}/.wrangler" "${DESTINATION}/.wrangler"
+fi
+
+if [[ "${NO_INSTALL}" != "true" ]]; then
+  if [[ "${DRY_RUN}" == "true" ]]; then
+    echo "Would reconcile npm dependencies"
+  else
+    echo "Reconciling npm dependencies"
+    (
+      cd "${DESTINATION}"
+      npm install --prefer-offline --no-audit --no-fund
+    )
+  fi
+fi
+
+echo
+if [[ "${DRY_RUN}" == "true" ]]; then
+  echo "Dry run complete for: ${DESTINATION}"
+else
+  echo "Workspace ready: ${DESTINATION}"
+  printf 'cd %q\n' "${DESTINATION}"
+fi
