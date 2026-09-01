@@ -31,7 +31,7 @@ const primaryMapLabel = {
 
 <figure
   class="park-detail-map"
-  aria-label={`Detailed boundary map for ${park.name}`}
+  aria-label={`Detailed ${primaryMapLabel} map for ${park.name}`}
   data-park-detail-map-shell
 >
   <div
@@ -67,10 +67,9 @@ const primaryMapLabel = {
   </div>
 
   <figcaption class="sr-only">
-    The highlighted {primaryMapLabel} is the reviewed local map geometry for
-    {park.name}. A dashed line shows any related reference using the same or
-    overlapping public-land geometry. Text details and source links follow the
-    map.
+    The highlighted {primaryMapLabel} is the local map geometry for {park.name}.
+    A dashed line marks another reference when it uses the same mapped source
+    features. Text details and source links follow the map.
   </figcaption>
 </figure>
 

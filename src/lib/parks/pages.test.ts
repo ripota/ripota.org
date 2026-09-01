@@ -32,10 +32,11 @@ describe("park field-guide routes", () => {
     expect(detailPage).toContain("canonicalPath={parkGuidePath(park.reference)}");
   });
 
-  it("keeps Phase 1 read-only and explains honest zero-report states", () => {
-    expect(detailPage).toContain("No community reports yet");
-    expect(detailPage).toContain("does not mean a facility");
-    expect(detailPage).toContain("has no park report form, account requirement");
+  it("keeps the interim community state neutral and read-only", () => {
+    expect(detailPage).toContain("No community reports yet.");
+    expect(detailPage.match(/No community reports yet\./g)).toHaveLength(1);
+    expect(detailPage).not.toContain("park report form");
+    expect(detailPage).not.toContain("write path");
     expect(detailPage).not.toContain("Existing account sign-in");
   });
 

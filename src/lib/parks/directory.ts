@@ -2,6 +2,11 @@ import type { ParksCatalogReference } from "../pota/catalog";
 
 export type ParkGeometryLabel = "Activation zone" | "Boundary" | "Point only";
 
+export type ParkGuideNavigationItem = {
+  href: `#${string}`;
+  label: string;
+};
+
 export function parkGuidePath(reference: string): string {
   return `/parks/${reference.trim().toLowerCase()}/`;
 }
@@ -16,6 +21,31 @@ export function parkGeometryLabel(
     return "Boundary";
   }
   return "Point only";
+}
+
+export function parkGeometryDescription(
+  park: Pick<ParksCatalogReference, "geometryKind">,
+): string {
+  if (park.geometryKind === "activation-zone") {
+    return "A locally mapped activation zone is shown. Confirm current POTA requirements before activating.";
+  }
+  if (park.geometryKind === "boundary") {
+    return "A mapped boundary is available from the linked public map source.";
+  }
+  return "This record shows a reference coordinate only, not an activation boundary.";
+}
+
+export function parkGuideNavigationItems(
+  hasRelationship: boolean,
+): ParkGuideNavigationItem[] {
+  return [
+    { href: "#map-facts", label: "Map facts" },
+    ...(hasRelationship
+      ? [{ href: "#overlap", label: "Possible 2-fer" } satisfies ParkGuideNavigationItem]
+      : []),
+    { href: "#community-reports", label: "Community reports" },
+    { href: "#sources", label: "Sources" },
+  ];
 }
 
 export function sameGeometryReferences(
