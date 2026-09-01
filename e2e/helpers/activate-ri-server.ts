@@ -4,7 +4,7 @@ import {
 } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { once } from "node:events";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { cpSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -22,8 +22,9 @@ export async function startActivateRiServer(
   options: { legacyLinkIssuanceEnabled?: boolean; seedAccountOnly?: boolean } = {},
 ): Promise<ActivateRiServer> {
   const port = await freePort();
+  const inspectorPort = await freePort(port);
   const persistTo = mkdtempSync(join(tmpdir(), "ripota-e2e-wrangler-"));
-  applyLocalMigrations(persistTo);
+  prepareLocalDatabase(persistTo);
   const accountOnlySessionToken = options.seedAccountOnly
     ? seedAccountOnlySession(persistTo)
     : undefined;
@@ -33,6 +34,8 @@ export async function startActivateRiServer(
     "local",
     "--port",
     String(port),
+    "--inspector-port",
+    String(inspectorPort),
     "--local",
     "--persist-to",
     persistTo,
@@ -194,6 +197,16 @@ function applyLocalMigrations(persistTo: string): void {
   );
 }
 
+function prepareLocalDatabase(persistTo: string): void {
+  const databaseTemplate = process.env.RIPOTA_E2E_D1_TEMPLATE;
+  if (databaseTemplate) {
+    cpSync(databaseTemplate, persistTo, { recursive: true });
+    return;
+  }
+
+  applyLocalMigrations(persistTo);
+}
+
 async function waitForServerReady(
   child: ReturnType<typeof spawn>,
   origin: string,
@@ -222,7 +235,7 @@ async function waitForServerReady(
   throw new Error(`Timed out waiting for wrangler dev:\n${logs.value}`);
 }
 
-async function freePort(): Promise<number> {
+async function freePort(excludedPort?: number): Promise<number> {
   const server = createServer();
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
@@ -232,6 +245,10 @@ async function freePort(): Promise<number> {
 
   if (!address || typeof address === "string") {
     throw new Error("Could not allocate a local port.");
+  }
+
+  if (address.port === excludedPort) {
+    return freePort(excludedPort);
   }
 
   return address.port;

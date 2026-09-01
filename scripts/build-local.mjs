@@ -5,6 +5,11 @@ import process from "node:process";
 
 const testSiteKey = "1x00000000000000000000AA";
 
+if (process.env.RIPOTA_E2E_BUILD_READY === "1") {
+  console.log("Using the local build prepared by Playwright global setup.");
+  process.exit(0);
+}
+
 const result = spawnSync("npm", ["run", "build", "--", ...process.argv.slice(2)], {
   env: {
     ...process.env,
