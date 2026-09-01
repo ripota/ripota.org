@@ -26,4 +26,10 @@ describe("ParkCoverageTable markup", () => {
     expect(source).toContain('control.disabled = needsCoverage');
     expect(source).toContain('url.searchParams.set("coverage", "needed")');
   });
+
+  it("links park names to their evergreen local field guides", () => {
+    expect(source).toContain('class="event-table-park-link" href={parkGuideHref(park.reference)}');
+    expect(source).toContain('guideLink.href = parkGuideHref(park.reference)');
+    expect(source).toContain('/parks/${encodeURIComponent(reference.toLowerCase())}/');
+  });
 });

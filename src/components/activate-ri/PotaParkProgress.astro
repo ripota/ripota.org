@@ -189,6 +189,11 @@ import { activateRi2026Event } from "../../data/activate-ri-2026/event";
       article.appendChild(details);
     }
 
+    const localGuide = document.createElement("a");
+    localGuide.href = `/parks/${encodeURIComponent(park.reference.toLowerCase())}/`;
+    localGuide.textContent = "Open local field guide";
+    article.appendChild(localGuide);
+
     const official = document.createElement("a");
     official.href = park.potaUrl;
     official.target = "_blank";

@@ -46,6 +46,10 @@ function volunteerHref(reference: string) {
   return `/activate-ri-2026/volunteer/?park=${encodeURIComponent(reference)}`;
 }
 
+function parkGuideHref(reference: string) {
+  return `/parks/${encodeURIComponent(reference.toLowerCase())}/`;
+}
+
 function parkCounties(park: ParkCoverage) {
   const source = publicParks.find((candidate) => candidate.reference === park.reference);
   const counties = source?.counties ?? [];
@@ -107,7 +111,9 @@ function parkCounties(park: ParkCoverage) {
             data-needs-coverage={isParkVolunteerActionable(park.status) ? "true" : "false"}
           >
             <th scope="row" data-label="Park">
-              {park.name}
+              <a class="event-table-park-link" href={parkGuideHref(park.reference)}>
+                {park.name}
+              </a>
               <span>{park.reference}</span>
               <span>{formatList(parkCounties(park))}</span>
             </th>
@@ -421,7 +427,11 @@ function parkCounties(park: ParkCoverage) {
     const heading = document.createElement("th");
     heading.scope = "row";
     heading.dataset.label = "Park";
-    heading.append(park.name);
+    const guideLink = document.createElement("a");
+    guideLink.className = "event-table-park-link";
+    guideLink.href = parkGuideHref(park.reference);
+    guideLink.textContent = park.name;
+    heading.appendChild(guideLink);
     for (const value of [park.reference, countyList(park).join(", ")]) {
       const span = document.createElement("span");
       span.textContent = value;
@@ -439,6 +449,10 @@ function parkCounties(park: ParkCoverage) {
     ]);
 
     return row;
+  }
+
+  function parkGuideHref(reference: string): string {
+    return `/parks/${encodeURIComponent(reference.toLowerCase())}/`;
   }
 
   function appendStatusCell(row: HTMLTableRowElement, park: CoverageRow): void {

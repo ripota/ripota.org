@@ -58,6 +58,14 @@ describe("homepage live spots map", () => {
     expect(referenceMapSource).toContain('"reference-map-marker--live"');
     expect(referenceMapSource).toContain("On air now");
   });
+
+  it("links every park popup to its local field guide", () => {
+    expect(referenceMapSource).toContain("Open local field guide");
+    expect(referenceMapSource).toContain("localFieldGuideLink(item)");
+    expect(referenceMapSource).toContain(
+      '/parks/${encodeURIComponent(item.reference.toLowerCase())}/',
+    );
+  });
 });
 
 function expectVolunteerActionLast(popupSource: string): void {

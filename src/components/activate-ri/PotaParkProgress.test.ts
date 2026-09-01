@@ -20,6 +20,7 @@ describe("Activate RI POTA result surfaces", () => {
     }
     expect(progress).toContain("All POTA event activation rows");
     expect(progress).toContain("Planned event stops");
+    expect(progress).toContain("Open local field guide");
     expect(progress).toContain("Open official POTA park page");
     expect(progress).toContain("Official Parks on the Air");
     expect(progress).toContain("never POTA confirmation");

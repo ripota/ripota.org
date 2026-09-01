@@ -669,7 +669,10 @@ const payload = JSON.stringify({
         <em>${escapeHtml(detailLine(item))}</em>
         ${liveSpotsHtml(item)}
         <span>Reference data comes from official POTA park data and local public boundary sources.</span>
-        ${officialLink(item)}
+        <span class="map-popup__links">
+          ${localFieldGuideLink(item)}
+          ${officialLink(item)}
+        </span>
       `;
     }
 
@@ -684,6 +687,7 @@ const payload = JSON.stringify({
         ${status?.scheduled ? "<span>Planned event coverage is also scheduled; that plan is not POTA confirmation.</span>" : ""}
         <span class="map-popup__links">
           <a href="/activate-ri-2026/parks/">Open full evidence list</a>
+          ${localFieldGuideLink(item)}
           ${officialLink(item)}
         </span>
       `;
@@ -702,6 +706,7 @@ const payload = JSON.stringify({
       ${coverageStopsHtml(item)}
       <span class="map-popup__links">
         <a href="/activate-ri-2026/parks/">Open coverage table</a>
+        ${localFieldGuideLink(item)}
         ${volunteerAction}
       </span>
     `;
@@ -779,6 +784,10 @@ const payload = JSON.stringify({
     }
 
     return `<a href="${escapeHtml(item.potaUrl)}" target="_blank" rel="noreferrer">Open official POTA page</a>`;
+  }
+
+  function localFieldGuideLink(item: MapItem): string {
+    return `<a href="/parks/${encodeURIComponent(item.reference.toLowerCase())}/">Open local field guide</a>`;
   }
 
   function detailLine(item: MapItem): string {

@@ -1,6 +1,9 @@
 ---
 import ReferenceMap from "./ReferenceMap.astro";
 import { resourceIntro, resourceLinks } from "../data/site";
+
+const parkDirectoryLink = resourceLinks.find(({ href }) => href === "/parks/");
+const officialResourceLinks = resourceLinks.filter(({ href }) => href !== "/parks/");
 ---
 
 <div class="resource-layout">
@@ -13,8 +16,13 @@ import { resourceIntro, resourceLinks } from "../data/site";
       {resourceIntro}
     </p>
     <div class="button-row">
+      {parkDirectoryLink && (
+        <a class="button" data-variant="light" href={parkDirectoryLink.href}>
+          {parkDirectoryLink.label}
+        </a>
+      )}
       {
-        resourceLinks.map((link) => (
+        officialResourceLinks.map((link) => (
           <a class="text-link" href={link.href}>{link.label}</a>
         ))
       }

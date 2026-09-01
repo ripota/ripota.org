@@ -4,6 +4,7 @@ import {
   footerLinkGroups,
   onAirLink,
   resourceIntro,
+  resourceLinks,
   officialLinks,
   primaryCallsToAction,
   siteFeedbackLink,
@@ -50,6 +51,7 @@ describe("site content", () => {
         label: "RI POTA",
         variant: "site",
         links: [
+          expect.objectContaining({ label: "Parks", href: "/parks/" }),
           expect.objectContaining({ label: "On air now", href: "/on-air/" }),
           expect.objectContaining({
             label: "Activate All RI FAQ",
@@ -109,6 +111,15 @@ describe("site content", () => {
     expect(resourceIntro).toMatch(/Use the map to get oriented/i);
     expect(resourceIntro).not.toMatch(/preview only|for launch|placeholder/i);
     expect(resourceIntro).not.toMatch(/local convenience|source of truth/i);
+  });
+
+  it("offers the local park directory before linking to official tools", () => {
+    expect(resourceLinks[0]).toEqual(
+      expect.objectContaining({
+        label: "Browse all RI park field guides",
+        href: "/parks/",
+      }),
+    );
   });
 
 });

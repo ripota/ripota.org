@@ -113,6 +113,11 @@ export const pathCards: PathCardContent[] = [
 
 export const resourceLinks: ExternalLink[] = [
   {
+    label: "Browse all RI park field guides",
+    href: "/parks/",
+    description: "Browse every Rhode Island POTA reference and its local field-guide page.",
+  },
+  {
     label: "Search official POTA references",
     href: "https://pota.app/#/map",
     description: "Use the official POTA map and search tools for current park references.",
@@ -155,6 +160,11 @@ export const footerLinkGroups: FooterLinkGroup[] = [
     label: "RI POTA",
     variant: "site",
     links: [
+      {
+        label: "Parks",
+        href: "/parks/",
+        description: "Browse Rhode Island park field guides.",
+      },
       onAirLink,
       {
         label: "Activate All RI FAQ",

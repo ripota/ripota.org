@@ -1865,6 +1865,11 @@ p {
   font-weight: 500;
 }
 
+.event-table-park-link {
+  color: var(--link-strong);
+  text-underline-offset: 0.15em;
+}
+
 .activator-popover {
   display: inline-block;
 }
