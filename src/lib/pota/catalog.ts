@@ -14,15 +14,32 @@ export type ParksCatalogReference = PotaReference & {
     url: string;
     query?: string;
     featureIds: Array<string | number>;
+    artifact: string;
     notes?: string;
   };
-  geojson: ReferenceMapGeoJson;
+  geojson: ReferenceMapGeoJson & {
+    $schema: string;
+    properties: {
+      schemaVersion: 2;
+      geometryRole: "display";
+      geometryKind: "boundary" | "activation-zone" | "point";
+      potaReference: string;
+      potaName: string;
+      sourceName: string;
+      sourceUrl: string;
+      sourceFeatureIds: Array<string | number>;
+      [key: string]: unknown;
+    };
+  };
 };
 
 export type ParksCatalog = {
-  schemaVersion: 1;
+  $schema: string;
+  schemaVersion: 2;
+  geometryRole: "display";
   referenceCount: number;
   featureCount: number;
+  sourceFeatureCount: number;
   references: ParksCatalogReference[];
 };
 

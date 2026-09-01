@@ -50,6 +50,7 @@ describe("park directory helpers", () => {
       park("US-5483", "boundary", [61, 53]),
       park("US-9999", "boundary", [70]),
       park("US-8888", "activation-zone", [53, 61]),
+      park("US-7777", "boundary", [53, 61], "https://example.com/other-geometry"),
     ];
 
     expect(sameGeometryReferences(parks, "US-2878").map(({ reference }) => reference))
@@ -71,6 +72,7 @@ function park(
   reference: string,
   geometryKind: ParksCatalogReference["geometryKind"],
   featureIds: Array<string | number> = [1],
+  sourceUrl = "https://example.com/geometry",
 ): ParksCatalogReference {
   return {
     reference,
@@ -85,11 +87,23 @@ function park(
     geometryKind,
     source: {
       name: "Test source",
-      url: "https://example.com/geometry",
+      url: sourceUrl,
       featureIds,
+      artifact: `source-features/${reference.toLowerCase()}.geojson`,
     },
     geojson: {
+      $schema: "https://ripota.org/schemas/v2/display-geojson.schema.json",
       type: "FeatureCollection",
+      properties: {
+        schemaVersion: 2,
+        geometryRole: "display",
+        geometryKind,
+        potaReference: reference,
+        potaName: reference,
+        sourceName: "Test source",
+        sourceUrl,
+        sourceFeatureIds: featureIds,
+      },
       features: [],
     },
   };
