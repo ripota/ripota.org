@@ -20,4 +20,11 @@ describe("ParkDetailMap", () => {
   it("keeps zoom controls away from the floating identity card", () => {
     expect(source).toContain('position: "bottomright"');
   });
+
+  it("fits mapped areas more tightly than point-only park locations", () => {
+    expect(source).toContain(
+      'const maxFitZoom = payload.park.geometryKind === "point" ? 14 : 18;',
+    );
+    expect(source).toContain("maxZoom: maxFitZoom");
+  });
 });

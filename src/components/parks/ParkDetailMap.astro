@@ -185,18 +185,21 @@ const primaryMapLabel = {
         .addTo(map);
     }
 
+    const maxFitZoom = payload.park.geometryKind === "point" ? 14 : 18;
+
     const resetView = (): void => {
       const wideLayout = window.matchMedia("(min-width: 861px)").matches;
+      map.invalidateSize({ animate: false });
       map.fitBounds(primaryLayer.getBounds(), {
         animate: false,
-        maxZoom: 14,
+        maxZoom: maxFitZoom,
         paddingBottomRight: [48, 48],
         paddingTopLeft: wideLayout ? [Math.min(560, window.innerWidth * 0.43), 128] : [32, 176],
       });
     };
 
     resetView();
-    window.setTimeout(() => map.invalidateSize(), 0);
+    window.requestAnimationFrame(resetView);
 
     shell.querySelector<HTMLButtonElement>("[data-park-map-reset]")?.addEventListener(
       "click",
