@@ -120,6 +120,7 @@ fi
 
 shopt -s nullglob
 for source_path in \
+  "${SOURCE_ROOT}/AGENTS.local.md" \
   "${SOURCE_ROOT}/.env" \
   "${SOURCE_ROOT}"/.env.* \
   "${SOURCE_ROOT}/.dev.vars"; do

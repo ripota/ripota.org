@@ -69,6 +69,7 @@ describe("workspace tasks", () => {
     expect(task).toContain('jj --repository "${SOURCE_ROOT}" log');
     expect(task).toContain('cmp -s "${SOURCE_ROOT}/package-lock.json"');
     expect(task).toContain('cp -cR "${source_path}" "${destination_path}"');
+    expect(task).toContain('"${SOURCE_ROOT}/AGENTS.local.md"');
     expect(task).toContain("npm install --prefer-offline --no-audit --no-fund");
     expect(task).toContain('#USAGE flag "--with-wrangler-state"');
     expect(task).not.toContain('copy_seed_path "${SOURCE_ROOT}/dist"');
