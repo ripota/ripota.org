@@ -20,6 +20,24 @@ describe("ReferenceMap volunteer links", () => {
     expect(referenceMapSource).toContain("map.removeLayer(layer)");
     expect(referenceMapSource).toContain("applyCoverageFilter();");
   });
+
+  it("keeps the event volunteer action last when local field-guide links are added", () => {
+    const popupStart = referenceMapSource.indexOf("const volunteerAction =");
+    const popupEnd = referenceMapSource.indexOf(
+      "function potaStatusLabel",
+      popupStart,
+    );
+    const coveragePopup = referenceMapSource.slice(popupStart, popupEnd);
+
+    expect(coveragePopup).toContain('data-analytics-action="volunteer"');
+    expectVolunteerActionLast(coveragePopup);
+
+    const representativeParkChange = coveragePopup.replace(
+      "${volunteerAction}",
+      "${localFieldGuideLink(item)}\n        ${volunteerAction}",
+    );
+    expectVolunteerActionLast(representativeParkChange);
+  });
 });
 
 describe("Activate All RI maps", () => {
@@ -41,3 +59,13 @@ describe("homepage live spots map", () => {
     expect(referenceMapSource).toContain("On air now");
   });
 });
+
+function expectVolunteerActionLast(popupSource: string): void {
+  const volunteerIndex = popupSource.lastIndexOf("${volunteerAction}");
+  const localGuideIndex = popupSource.indexOf("${localFieldGuideLink(item)}");
+
+  expect(volunteerIndex).toBeGreaterThan(popupSource.indexOf("Open coverage table"));
+  if (localGuideIndex >= 0) {
+    expect(volunteerIndex).toBeGreaterThan(localGuideIndex);
+  }
+}
