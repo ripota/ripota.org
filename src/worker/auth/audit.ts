@@ -18,7 +18,7 @@ export function authAuditStatement(env: Env, input: AuthAuditInput): D1PreparedS
      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   ).bind(
     crypto.randomUUID(),
-    input.eventId ?? env.ACTIVATE_RI_EVENT_ID,
+    input.eventId === undefined ? env.ACTIVATE_RI_EVENT_ID : input.eventId,
     input.actorUserId ?? null,
     input.subjectUserId ?? null,
     input.action,

@@ -9,6 +9,7 @@ type SqliteValue = string | number | bigint | Uint8Array | null;
 
 type SqliteD1Context = {
   DB: D1Database;
+  applyMigrationFile(name: string): void;
   close(): void;
 };
 
@@ -22,18 +23,29 @@ export function discoverMigrationFiles(
     .sort((left, right) => left.localeCompare(right));
 }
 
-export function createMigratedSqliteD1(): SqliteD1Context {
+export function createMigratedSqliteD1(options: { through?: string } = {}): SqliteD1Context {
   const directory = mkdtempSync(join(tmpdir(), "ripota-d1-"));
   const databasePath = join(directory, "test.sqlite");
   const sqlite = new DatabaseSync(databasePath);
 
   sqlite.exec("PRAGMA foreign_keys = ON;");
-  for (const migration of discoverMigrationFiles()) {
+  const migrations = discoverMigrationFiles();
+  const selected = options.through
+    ? migrations.slice(0, migrations.indexOf(options.through) + 1)
+    : migrations;
+  if (options.through && !selected.includes(options.through)) {
+    throw new Error(`Unknown migration: ${options.through}`);
+  }
+  for (const migration of selected) {
     sqlite.exec(readFileSync(resolve("migrations", migration), "utf8"));
   }
 
   return {
     DB: new SqliteD1Database(sqlite) as unknown as D1Database,
+    applyMigrationFile(name: string) {
+      if (!migrations.includes(name)) throw new Error(`Unknown migration: ${name}`);
+      sqlite.exec(readFileSync(resolve("migrations", name), "utf8"));
+    },
     close() {
       sqlite.close();
       rmSync(directory, { recursive: true, force: true });

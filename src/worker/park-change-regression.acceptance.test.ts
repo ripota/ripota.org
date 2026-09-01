@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { requireActivator, requireAdmin } from "./auth/authorization";
+import { hasActiveSiteRole } from "./auth/community-profile";
 import { createAuthSession } from "./auth/session";
 import type { Env } from "./env";
 import {
@@ -52,10 +53,11 @@ describe("park-change migration and authorization gate", () => {
       "0013_auth_ceremony_sessions.sql",
       "0014_preserve_unified_activator_ownership.sql",
       "0015_analytics_feature_usage.sql",
+      "0016_community_profiles.sql",
     ]));
   });
 
-  it("keeps event sessions, roles, and rows intact across an additive future park-role migration", async () => {
+  it("keeps event sessions, roles, and rows intact across the additive site-role migration", async () => {
     await seedEventAccountsAndData();
     const sessions = {
       admin: await createAuthSession(env, {
@@ -75,19 +77,9 @@ describe("park-change migration and authorization gate", () => {
       }, now),
     };
 
-    // This is deliberately synthetic test-only SQL. It represents the additive
-    // boundary future park work must satisfy without choosing #19's schema.
     await database.DB.prepare(
-      `CREATE TABLE future_park_role_assignments (
-         user_id TEXT NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
-         role TEXT NOT NULL CHECK (role IN ('moderator')),
-         created_at TEXT NOT NULL,
-         PRIMARY KEY (user_id, role)
-       )`,
-    ).run();
-    await database.DB.prepare(
-      `INSERT INTO future_park_role_assignments (user_id, role, created_at)
-       VALUES ('park-moderator', 'moderator', ?)`,
+      `INSERT INTO auth_site_roles (id, user_id, role, granted_at)
+       VALUES ('park-moderator-role', 'park-moderator', 'moderator', ?)`,
     ).bind(now.toISOString()).run();
 
     const admin = await requireAdmin(requestFor(sessions.admin.token), env, { now });
@@ -117,6 +109,10 @@ describe("park-change migration and authorization gate", () => {
     );
     expect(moderatorActivator).toBeInstanceOf(Response);
     expect((moderatorActivator as Response).status).toBe(401);
+
+    expect(await hasActiveSiteRole(env, "park-moderator", "moderator")).toBe(true);
+    expect(await hasActiveSiteRole(env, "event-admin", "moderator")).toBe(false);
+    expect(await hasActiveSiteRole(env, "event-activator", "moderator")).toBe(false);
 
     const stop = await database.DB.prepare(
       `SELECT park_reference, status, bands_json, modes_json
