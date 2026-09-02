@@ -14,11 +14,11 @@ import {
 describe("@ripota/parks package contract", () => {
   it("pins the immutable v3 release tarball", () => {
     const releaseUrl =
-      "https://github.com/ripota/parks/releases/download/v3.0.0/ripota-parks-3.0.0.tgz";
+      "https://github.com/ripota/parks/releases/download/v3.0.1/ripota-parks-3.0.1.tgz";
 
     expect(packageManifest.dependencies["@ripota/parks"]).toBe(releaseUrl);
     expect(packageLock.packages["node_modules/@ripota/parks"]).toMatchObject({
-      version: "3.0.0",
+      version: "3.0.1",
       resolved: releaseUrl,
     });
   });
@@ -30,7 +30,7 @@ describe("@ripota/parks package contract", () => {
       geometryRole: "display",
       referenceCount: 61,
       featureCount: 61,
-      sourceFeatureCount: 439,
+      sourceFeatureCount: 446,
     });
     expect(references).toEqual(
       parksCatalog.references.map(
@@ -61,7 +61,7 @@ describe("@ripota/parks package contract", () => {
     });
     expect(items).toHaveLength(61);
     expect(new Set(items.map((item) => item.geometryKind))).toEqual(
-      new Set(["boundary", "activation-zone", "point"]),
+      new Set(["boundary", "activation-zone"]),
     );
     const trail = parksCatalog.references.find(({ reference }) => reference === "US-4582");
     expect(trail?.geojson.features).toHaveLength(1);
@@ -75,8 +75,8 @@ describe("@ripota/parks package contract", () => {
     expect(items.find((item) => item.reference === "US-6980")).toMatchObject({
       name: "Beach Pond Wildlife Management Area",
       counties: ["Washington County"],
-      geometryKind: "point",
-      marker: { latitude: 41.5739, longitude: -71.7864 },
+      geometryKind: "boundary",
+      marker: { latitude: 41.57271847647021, longitude: -71.77973081100671 },
     });
   });
 
