@@ -67,6 +67,7 @@ const visibleLegendLabels = new Set(resultsMode
 const showLegend = legendPlacement !== "none" && legendItems.length > 0;
 const showCaption = caption.trim().length > 0;
 const dataId = `${id}-data`;
+const locationResultsId = `${id}-location-results`;
 const payload = JSON.stringify({
   variant,
   phaseFocus,
@@ -92,7 +93,10 @@ const payload = JSON.stringify({
     "map-preview",
     "reference-map-preview",
     `reference-map-preview--legend-${legendPlacement}`,
-    { "reference-map-preview--has-toolbar": variant === "volunteer" },
+    {
+      "reference-map-preview--has-toolbar": variant === "volunteer",
+      "reference-map-preview--has-location": variant === "directory",
+    },
   ]}
   aria-label={title}
 >
@@ -128,6 +132,76 @@ const payload = JSON.stringify({
     )
   }
   <div id={id} class="ri-reference-map" data-reference-map data-map-data-id={dataId}></div>
+  {
+    variant === "directory" && (
+      <>
+        <button
+          class="reference-map-location-button"
+          type="button"
+          aria-label="Show my location"
+          aria-controls={locationResultsId}
+          aria-pressed="false"
+          data-reference-map-location
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="6"></circle>
+            <circle cx="12" cy="12" r="2"></circle>
+            <path d="M12 2v4M12 18v4M2 12h4M18 12h4"></path>
+          </svg>
+        </button>
+
+        <aside
+          id={locationResultsId}
+          class="reference-map-location-results"
+          aria-label="Parks at and near my location"
+          data-reference-location-results
+          data-tone="neutral"
+          hidden
+        >
+          <header>
+            <div
+              class="reference-map-location-results__status"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              <span class="reference-map-location-results__shape" aria-hidden="true"></span>
+              <span>
+                <strong data-reference-location-primary></strong>
+                <small data-reference-location-secondary></small>
+              </span>
+            </div>
+            <button
+              type="button"
+              aria-label="Hide location results"
+              data-reference-location-hide
+            >
+              <span aria-hidden="true">×</span>
+            </button>
+          </header>
+
+          <section data-reference-location-section="inside" hidden>
+            <h3>Mapped matches</h3>
+            <ul data-reference-location-list></ul>
+          </section>
+          <section data-reference-location-section="uncertain" hidden>
+            <h3>Boundary uncertainty</h3>
+            <ul data-reference-location-list></ul>
+          </section>
+          <section data-reference-location-section="nearby" hidden>
+            <h3>Nearby field guides</h3>
+            <ul data-reference-location-list></ul>
+          </section>
+
+          <footer>
+            <button type="button" data-reference-location-stop hidden>
+              Stop location
+            </button>
+          </footer>
+        </aside>
+      </>
+    )
+  }
   {
     showLegend && legendPlacement === "below" && (
       <div class="map-legend map-legend--below" aria-label={legendTitle ?? "Coverage status legend"}>
@@ -166,6 +240,7 @@ const payload = JSON.stringify({
     referenceMapFitBoundsOptions,
     referenceMapLeafletOptions,
   } from "../lib/reference-map";
+  import type { LocationGeometryKind } from "../lib/location/classify";
   import { trackAnalyticsEvent } from "../lib/analytics/client";
 
   type PublicStop = {
@@ -205,15 +280,11 @@ const payload = JSON.stringify({
       latitude: number;
       longitude: number;
     } | null;
-    geometryKind: string;
+    geometryKind: LocationGeometryKind;
     boundaryStatus: string;
     sourceName: string;
     sourceUrl: string;
-    geojson: {
-      type: "FeatureCollection";
-      features: unknown[];
-      properties?: Record<string, unknown>;
-    } | null;
+    geojson: GeoJSON.FeatureCollection | null;
     coverage: MapCoverage | null;
     liveSpots?: LivePotaSpot[];
     potaStatus?: PublicParkPotaStatus;
@@ -285,6 +356,18 @@ const payload = JSON.stringify({
       payload,
       layersByReference,
     );
+
+    if (payload.variant === "directory") {
+      void import("../lib/location/reference-map-location").then((locationMap) => {
+        locationMap.setupReferenceMapLocation({
+          mapElement,
+          map,
+          items: payload.items,
+          layersByReference,
+          getBaseStyle: (item) => itemStyle(payload, item),
+        });
+      });
+    }
 
     if (payload.variant === "home") {
       livePotaSpotsStore.subscribe((state) => {
@@ -852,3 +935,285 @@ const payload = JSON.stringify({
     });
   }
 </script>
+
+<style is:global>
+  .reference-map-location-button {
+    position: absolute;
+    z-index: 800;
+    top: 1rem;
+    right: 1rem;
+    bottom: auto;
+    display: grid;
+    width: 46px;
+    height: 46px;
+    place-items: center;
+    border: 1px solid rgba(24, 49, 47, 0.24);
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.97);
+    box-shadow: 0 10px 28px rgba(15, 34, 31, 0.22);
+    color: #18312f;
+    cursor: pointer;
+  }
+
+  .reference-map-location-button:hover,
+  .reference-map-location-button:focus-visible {
+    background: #fffaf0;
+    color: #0b6670;
+  }
+
+  .reference-map-location-button:focus-visible {
+    outline: 3px solid #f2ba68;
+    outline-offset: 2px;
+  }
+
+  .reference-map-location-button svg {
+    width: 26px;
+    height: 26px;
+    overflow: visible;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-width: 1.9;
+  }
+
+  .reference-map-location-button[data-state="requesting"] svg {
+    animation: reference-location-pulse 1.2s ease-in-out infinite;
+  }
+
+  .reference-map-location-button[aria-pressed="true"] {
+    color: #1267a5;
+  }
+
+  .reference-map-location-results {
+    position: absolute;
+    z-index: 800;
+    top: 1rem;
+    right: 4.85rem;
+    width: min(390px, calc(100% - 5.85rem));
+    max-height: calc(100% - 2rem);
+    overflow: auto;
+    border: 1px solid rgba(24, 49, 47, 0.2);
+    border-top: 5px solid #62736f;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--surface-raised) 96%, transparent);
+    box-shadow: 0 18px 52px rgba(15, 34, 31, 0.28);
+    color: var(--text-primary);
+    backdrop-filter: blur(14px);
+  }
+
+  .reference-map-location-results[hidden] {
+    display: none;
+  }
+
+  .reference-map-location-results[data-tone="inside"] {
+    border-top-color: #237242;
+  }
+
+  .reference-map-location-results[data-tone="uncertain"] {
+    border-top-color: #b56b18;
+  }
+
+  .reference-map-location-results > header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.75rem;
+    align-items: start;
+    padding: 0.9rem;
+  }
+
+  .reference-map-location-results__status {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.65rem;
+    align-items: start;
+  }
+
+  .reference-map-location-results__status strong,
+  .reference-map-location-results__status small {
+    display: block;
+  }
+
+  .reference-map-location-results__status strong {
+    font-size: 0.94rem;
+    line-height: 1.25;
+  }
+
+  .reference-map-location-results__status small {
+    margin-top: 0.2rem;
+    color: var(--text-muted);
+    font-size: 0.74rem;
+    line-height: 1.4;
+  }
+
+  .reference-map-location-results__shape {
+    width: 0.78rem;
+    height: 0.78rem;
+    margin-top: 0.15rem;
+    border: 2px solid #62736f;
+    border-radius: 50%;
+  }
+
+  [data-tone="inside"] .reference-map-location-results__shape {
+    border-color: #237242;
+    background: #237242;
+  }
+
+  [data-tone="uncertain"] .reference-map-location-results__shape {
+    width: 0;
+    height: 0;
+    border: 0;
+    border-right: 0.43rem solid transparent;
+    border-bottom: 0.78rem solid #b56b18;
+    border-left: 0.43rem solid transparent;
+    border-radius: 0;
+  }
+
+  .reference-map-location-results > header > button {
+    display: grid;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 1.4rem;
+    line-height: 1;
+  }
+
+  .reference-map-location-results > header > button:hover,
+  .reference-map-location-results > header > button:focus-visible {
+    background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+    color: var(--text-primary);
+  }
+
+  .reference-map-location-results > section {
+    border-top: 1px solid var(--border-subtle);
+    padding: 0.75rem 0.9rem 0.85rem;
+  }
+
+  .reference-map-location-results > section[hidden] {
+    display: none;
+  }
+
+  .reference-map-location-results h3 {
+    margin: 0 0 0.45rem;
+    color: var(--text-muted);
+    font-size: 0.68rem;
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .reference-map-location-results ul {
+    display: grid;
+    gap: 0.35rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .reference-map-location-results li a {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.65rem;
+    align-items: center;
+    border-radius: 6px;
+    color: var(--text-primary);
+    padding: 0.45rem 0.5rem;
+    text-decoration: none;
+  }
+
+  .reference-map-location-results li a:hover,
+  .reference-map-location-results li a:focus-visible {
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    outline: none;
+  }
+
+  .reference-map-location-results li a > span:first-child,
+  .reference-map-location-results li a strong,
+  .reference-map-location-results li a small {
+    display: block;
+  }
+
+  .reference-map-location-results li a strong {
+    color: var(--link-strong);
+    font-size: 0.72rem;
+    font-weight: 950;
+    letter-spacing: 0.04em;
+  }
+
+  .reference-map-location-results li a span span {
+    margin-top: 0.05rem;
+    font-size: 0.83rem;
+    font-weight: 850;
+    line-height: 1.2;
+  }
+
+  .reference-map-location-results li a small {
+    margin-top: 0.14rem;
+    color: var(--text-muted);
+    font-size: 0.68rem;
+    line-height: 1.3;
+  }
+
+  .reference-map-location-results li a > span:last-child {
+    color: var(--link-strong);
+    font-weight: 900;
+  }
+
+  .reference-map-location-results > footer {
+    border-top: 1px solid var(--border-subtle);
+    padding: 0.65rem 0.9rem 0.8rem;
+  }
+
+  .reference-map-location-results > footer button {
+    border: 0;
+    border-bottom: 1px solid currentColor;
+    background: transparent;
+    color: var(--link-strong);
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 850;
+    padding: 0.1rem 0;
+  }
+
+  @keyframes reference-location-pulse {
+    50% {
+      opacity: 0.42;
+      transform: scale(0.88);
+    }
+  }
+
+  @media (max-width: 620px) {
+    .reference-map-location-button {
+      top: auto;
+      right: 0.75rem;
+      bottom: 1.8rem;
+    }
+
+    .reference-map-location-results {
+      top: auto;
+      right: 4.6rem;
+      bottom: 1.8rem;
+      width: min(330px, calc(100% - 5.35rem));
+      max-height: calc(100% - 3.6rem);
+      border-top-width: 4px;
+    }
+
+    .reference-map-location-results > header {
+      padding: 0.7rem;
+    }
+
+    .reference-map-location-results > section {
+      padding: 0.6rem 0.7rem 0.65rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .reference-map-location-button[data-state="requesting"] svg {
+      animation: none;
+    }
+  }
+</style>

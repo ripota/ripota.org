@@ -78,6 +78,27 @@ describe("park directory map", () => {
     expect(referenceMapSource).toContain('payload.variant === "directory"');
     expect(referenceMapSource).toContain('paddingTopLeft: [Math.min(760, window.innerWidth * 0.52), 32]');
   });
+
+  it("loads the location experience only for the all-parks directory", () => {
+    expect(referenceMapSource).toContain('variant === "directory" && (');
+    expect(referenceMapSource).toContain('aria-label="Show my location"');
+    expect(referenceMapSource).toContain("data-reference-location-results");
+    expect(referenceMapSource).toContain(
+      'if (payload.variant === "directory")',
+    );
+    expect(referenceMapSource).toContain(
+      'import("../lib/location/reference-map-location")',
+    );
+  });
+
+  it("provides accessible ordered result groups and explicit stop controls", () => {
+    expect(referenceMapSource).toContain('role="status"');
+    expect(referenceMapSource).toContain("Mapped matches");
+    expect(referenceMapSource).toContain("Boundary uncertainty");
+    expect(referenceMapSource).toContain("Nearby field guides");
+    expect(referenceMapSource).toContain("Stop location");
+    expect(referenceMapSource).toContain('aria-label="Hide location results"');
+  });
 });
 
 function expectVolunteerActionLast(popupSource: string): void {
