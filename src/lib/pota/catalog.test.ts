@@ -14,11 +14,11 @@ import {
 describe("@ripota/parks package contract", () => {
   it("pins the immutable v3 release tarball", () => {
     const releaseUrl =
-      "https://github.com/ripota/parks/releases/download/v3.0.1/ripota-parks-3.0.1.tgz";
+      "https://github.com/ripota/parks/releases/download/v3.0.2/ripota-parks-3.0.2.tgz";
 
     expect(packageManifest.dependencies["@ripota/parks"]).toBe(releaseUrl);
     expect(packageLock.packages["node_modules/@ripota/parks"]).toMatchObject({
-      version: "3.0.1",
+      version: "3.0.2",
       resolved: releaseUrl,
     });
   });
@@ -112,6 +112,6 @@ describe("@ripota/parks package contract", () => {
         (holes, polygon) => holes + Math.max(0, polygon.length - 1),
         0,
       ),
-    ).toBe(17);
+    ).toBe(12);
   });
 });
