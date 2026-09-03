@@ -5,6 +5,7 @@ import eventHelpSource from "../pages/activate-ri-2026/help.astro?raw";
 import eventParksSource from "../pages/activate-ri-2026/parks.astro?raw";
 import eventScheduleSource from "../pages/activate-ri-2026/schedule.astro?raw";
 import eventHunterSource from "../pages/activate-ri-2026/hunter.astro?raw";
+import eventActivitySource from "../pages/activate-ri-2026/activity.astro?raw";
 
 describe("shared header Activate All RI contract", () => {
   it("retains the event entry point when site-wide navigation gains additive links", () => {
@@ -21,6 +22,7 @@ describe("shared header Activate All RI contract", () => {
       eventParksSource,
       eventScheduleSource,
       eventHunterSource,
+      eventActivitySource,
     ];
 
     for (const route of routes) {

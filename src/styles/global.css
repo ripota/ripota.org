@@ -1651,6 +1651,32 @@ p {
   font-style: italic;
 }
 
+.pota-activity {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.pota-activity__intro {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.pota-activity .coverage-summary {
+  margin: 0;
+}
+
+.pota-activity__live {
+  display: block;
+  width: fit-content;
+  margin-top: 0.35rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, #b56b00 20%, var(--surface-raised));
+  padding: 0.25rem 0.5rem;
+  color: #7d4d00;
+  font-size: 0.75rem;
+  font-weight: 900;
+}
+
 .coverage-summary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

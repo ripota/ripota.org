@@ -1,0 +1,169 @@
+<section class="pota-activity" data-pota-activity aria-labelledby="pota-activity-title">
+  <div class="pota-activity__intro">
+    <p class="eyebrow">Unofficial spot activity</p>
+    <h2 id="pota-activity-title">How are we doing?</h2>
+    <p data-pota-activity-status role="status" aria-live="polite">
+      Loading collected Rhode Island POTA spots…
+    </p>
+  </div>
+
+  <dl class="coverage-summary" aria-label="Collected POTA spot summary">
+    <div><dt>Parks spotted</dt><dd data-activity-parks>—</dd></div>
+    <div><dt>Activators</dt><dd data-activity-activators>—</dd></div>
+    <div><dt>Modes</dt><dd data-activity-modes>—</dd></div>
+    <div><dt>Bands</dt><dd data-activity-bands>—</dd></div>
+    <div><dt>Spots retained</dt><dd data-activity-spots>—</dd></div>
+  </dl>
+
+  <p class="pota-progress__notice">
+    This is an unofficial RI POTA community summary built from spots observed by this site. Official Parks on the Air spots, logs, rules, references, and activation validity remain the source of truth. A spot is activity evidence, not a confirmed activation.
+  </p>
+
+  <div class="event-table-wrap" data-pota-activity-table hidden>
+    <table class="event-table">
+      <thead>
+        <tr>
+          <th scope="col">Park</th>
+          <th scope="col">First spotted</th>
+          <th scope="col">Last spotted</th>
+          <th scope="col">Activators</th>
+          <th scope="col">Modes</th>
+          <th scope="col">Bands</th>
+          <th scope="col">Spots</th>
+        </tr>
+      </thead>
+      <tbody data-pota-activity-rows></tbody>
+    </table>
+  </div>
+  <p class="pota-progress__empty" data-pota-activity-empty hidden>
+    No Rhode Island spots have been collected in this window yet.
+  </p>
+</section>
+
+<script>
+  type ActivityPark = {
+    reference: string;
+    name: string;
+    potaUrl: string;
+    firstSpottedAt: string;
+    lastSpottedAt: string;
+    live: boolean;
+    spotCount: number;
+    activators: string[];
+    modes: string[];
+    bands: string[];
+  };
+
+  type ActivitySnapshot = {
+    ok: true;
+    scope: "recent" | "event";
+    lastCollectedAt: string | null;
+    summary: { parks: number; activators: number; modes: number; bands: number; spots: number };
+    parks: ActivityPark[];
+  };
+
+  const refreshIntervalMilliseconds = 60_000;
+  document.querySelectorAll<HTMLElement>("[data-pota-activity]").forEach(setupActivity);
+
+  function setupActivity(root: HTMLElement): void {
+    let timer: number | undefined;
+    const refresh = async (): Promise<void> => {
+      try {
+        const response = await fetch("/api/activate-ri-2026/public/spot-activity", {
+          headers: { accept: "application/json" },
+        });
+        if (!response.ok) throw new Error(`Spot activity responded with ${response.status}`);
+        render(root, await response.json() as ActivitySnapshot);
+      } catch {
+        root.querySelector("[data-pota-activity-status]")?.replaceChildren(
+          "Collected spot activity is temporarily unavailable. Try again shortly.",
+        );
+      }
+    };
+    const schedule = (): void => {
+      window.clearInterval(timer);
+      timer = window.setInterval(() => void refresh(), refreshIntervalMilliseconds);
+    };
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) {
+        void refresh();
+        schedule();
+      }
+    });
+    void refresh();
+    schedule();
+  }
+
+  function render(root: HTMLElement, snapshot: ActivitySnapshot): void {
+    setText(root, "[data-activity-parks]", `${snapshot.summary.parks} / 61`);
+    setText(root, "[data-activity-activators]", String(snapshot.summary.activators));
+    setText(root, "[data-activity-modes]", String(snapshot.summary.modes));
+    setText(root, "[data-activity-bands]", String(snapshot.summary.bands));
+    setText(root, "[data-activity-spots]", String(snapshot.summary.spots));
+    const scope = snapshot.scope === "event"
+      ? "Showing spots from the Activate All RI event window"
+      : "Pre-event rehearsal: showing the rolling 14-day collection window";
+    const collected = snapshot.lastCollectedAt
+      ? ` Collector last checked ${formatTimestamp(snapshot.lastCollectedAt)}.`
+      : " The collector has not completed a check yet.";
+    setText(root, "[data-pota-activity-status]", `${scope}.${collected}`);
+
+    const rows = root.querySelector("[data-pota-activity-rows]");
+    rows?.replaceChildren(...snapshot.parks.map(parkRow));
+    const table = root.querySelector<HTMLElement>("[data-pota-activity-table]");
+    const empty = root.querySelector<HTMLElement>("[data-pota-activity-empty]");
+    if (table) table.hidden = snapshot.parks.length === 0;
+    if (empty) empty.hidden = snapshot.parks.length > 0;
+  }
+
+  function parkRow(park: ActivityPark): HTMLTableRowElement {
+    const row = document.createElement("tr");
+    const parkCell = document.createElement("th");
+    parkCell.scope = "row";
+    parkCell.dataset.label = "Park";
+    const link = document.createElement("a");
+    link.className = "event-table-park-link";
+    link.href = park.potaUrl;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = `${park.reference} · ${park.name}`;
+    parkCell.appendChild(link);
+    if (park.live) {
+      const badge = document.createElement("span");
+      badge.className = "pota-activity__live";
+      badge.textContent = "On air now";
+      parkCell.appendChild(badge);
+    }
+    for (const element of [
+      parkCell,
+      cell("First spotted", formatTimestamp(park.firstSpottedAt)),
+      cell("Last spotted", formatTimestamp(park.lastSpottedAt)),
+      cell("Activators", park.activators.join(", ") || "Not provided"),
+      cell("Modes", park.modes.join(", ") || "Not provided"),
+      cell("Bands", park.bands.join(", ") || "Not provided"),
+      cell("Spots", String(park.spotCount)),
+    ]) row.appendChild(element);
+    return row;
+  }
+
+  function cell(label: string, value: string): HTMLTableCellElement {
+    const element = document.createElement("td");
+    element.dataset.label = label;
+    element.textContent = value;
+    return element;
+  }
+
+  function setText(root: HTMLElement, selector: string, value: string): void {
+    root.querySelector(selector)?.replaceChildren(value);
+  }
+
+  function formatTimestamp(value: string): string {
+    const date = new Date(value);
+    return Number.isFinite(date.valueOf())
+      ? new Intl.DateTimeFormat("en-US", {
+          month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+          timeZone: "America/New_York", timeZoneName: "short",
+        }).format(date)
+      : value;
+  }
+</script>

@@ -1,0 +1,33 @@
+---
+import EventNav from "../../components/activate-ri/EventNav.astro";
+import PotaSpotActivity from "../../components/activate-ri/PotaSpotActivity.astro";
+import Footer from "../../components/Footer.astro";
+import Notice from "../../components/Notice.astro";
+import SiteHeader from "../../components/SiteHeader.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+---
+
+<BaseLayout
+  title="Activate All RI 2026 Activity"
+  description="Public spot activity and progress for Activate All RI 2026."
+  canonicalPath="/activate-ri-2026/activity/"
+>
+  <SiteHeader variant="solid" showEventLink />
+  <main id="main">
+    <section class="section event-page" aria-labelledby="activity-title">
+      <div class="container">
+        <EventNav />
+        <div class="section-header">
+          <p class="eyebrow">Event activity</p>
+          <h1 id="activity-title">Rhode Island parks we have seen on the air</h1>
+          <p class="lead">
+            Follow the parks, activators, modes, and bands observed by the RI POTA spot collector. Before the event, this page is also our public collection rehearsal.
+          </p>
+        </div>
+        <PotaSpotActivity />
+      </div>
+    </section>
+    <Notice />
+  </main>
+  <Footer />
+</BaseLayout>
