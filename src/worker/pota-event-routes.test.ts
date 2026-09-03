@@ -9,6 +9,7 @@ let cleanup: (() => void) | undefined;
 afterEach(() => {
   cleanup?.();
   cleanup = undefined;
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -35,6 +36,40 @@ describe("Activate RI POTA API routes", () => {
       env,
     );
     expect(unauthorized.status).toBe(401);
+  });
+
+  it("serves public rolling spot activity without authentication", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-03T15:00:00Z"));
+    const database = createMigratedSqliteD1();
+    cleanup = database.close;
+    const env = testEnv(database.DB);
+    await database.DB.prepare(
+      `INSERT INTO pota_spot_observations (
+        spot_key, source_spot_id, park_reference, park_name, activator_callsign,
+        spot_time, first_observed_at, last_observed_at, reported_expires_at,
+        frequency, mode, source_label
+      ) VALUES ('42', '42', 'US-10542', 'Camp Cronin', 'K1NW', ?, ?, ?, ?, '14315', '', 'POTA')`,
+    ).bind(
+      "2026-09-03T14:45:00.000Z",
+      Date.parse("2026-09-03T14:45:00Z"),
+      Date.now(),
+      Date.now() + 600_000,
+    ).run();
+
+    const response = await handleActivateRiApi(
+      new Request("https://ripota.org/api/activate-ri-2026/public/spot-activity"),
+      env,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toContain("max-age=60");
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      scope: "recent",
+      summary: { parks: 1, activators: 1, modes: 0, bands: 1, spots: 1 },
+      parks: [{ reference: "US-10542", activators: ["K1NW"], bands: ["20m"] }],
+    });
   });
 
   it("starts protected deep reconciliation and leaves work in scheduled batches", async () => {

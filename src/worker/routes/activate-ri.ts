@@ -70,6 +70,7 @@ import {
   runPotaHistoryReconciliation,
 } from "../pota-event";
 import { logWorkerError } from "../logging";
+import { getPublicPotaSpotActivity } from "../pota-spot-activity";
 
 const submissionReceivedMessage =
   "Submission received for organizer review.";
@@ -174,6 +175,16 @@ export async function handleActivateRiApi(
   ) {
     return json(
       await getPublicPotaParkStatus(env),
+      { headers: publicJsonCacheHeaders },
+    );
+  }
+
+  if (
+    request.method === "GET" &&
+    url.pathname === "/api/activate-ri-2026/public/spot-activity"
+  ) {
+    return json(
+      await getPublicPotaSpotActivity(env),
       { headers: publicJsonCacheHeaders },
     );
   }
