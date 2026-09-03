@@ -93,9 +93,7 @@ describe("handlePotaSpots", () => {
     };
 
     expect(firstResponse.status).toBe(200);
-    expect(firstResponse.headers.get("cache-control")).toBe(
-      "public, max-age=30, s-maxage=60",
-    );
+    expect(firstResponse.headers.get("cache-control")).toBe("no-store");
     expect(firstData).toMatchObject({
       generatedAt: "2026-08-19T14:00:00.000Z",
       stale: false,
@@ -109,9 +107,7 @@ describe("handlePotaSpots", () => {
       { fetcher, now: () => new Date(fetchedAt + 30_000) },
     );
     expect(secondResponse.status).toBe(200);
-    expect(secondResponse.headers.get("cache-control")).toBe(
-      "public, max-age=30, s-maxage=30",
-    );
+    expect(secondResponse.headers.get("cache-control")).toBe("no-store");
     expect(fetcher).toHaveBeenCalledOnce();
   });
 
@@ -301,31 +297,24 @@ describe("handlePotaSpots", () => {
     });
   });
 
-  it("does not let client cache headers bypass a fresh edge response", async () => {
-    const cachedResponse = Response.json(
-      {
-        ok: true,
-        generatedAt: new Date(fetchedAt).toISOString(),
-        stale: false,
-        spots: [],
-      },
-      { headers: { "x-ripota-pota-fetched-at": String(fetchedAt) } },
-    );
-    const match = vi.fn(async () => cachedResponse);
+  it("bypasses the Worker Cache API and relies on the shared D1 snapshot", async () => {
+    const database = createMigratedSqliteD1();
+    cleanup = database.close;
+    await seedSnapshot(database.DB, fetchedAt);
+    const match = vi.fn();
     vi.stubGlobal("caches", { default: { match, put: vi.fn() } });
     const fetcher = vi.fn();
-    const DB = { prepare: vi.fn() } as unknown as D1Database;
 
     const response = await handlePotaSpots(
-      request({ "cache-control": "no-cache" }),
-      { DB },
+      request(),
+      database,
       undefined,
       { fetcher, now: () => new Date(fetchedAt + 30_000) },
     );
 
-    expect(response).toBe(cachedResponse);
-    expect(match).toHaveBeenCalledOnce();
-    expect(DB.prepare).not.toHaveBeenCalled();
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    await expect(response.json()).resolves.toMatchObject({ spots: [{ id: "1" }] });
+    expect(match).not.toHaveBeenCalled();
     expect(fetcher).not.toHaveBeenCalled();
   });
 });

@@ -24,6 +24,7 @@ describe("fetchLivePotaSpots", () => {
       stale: false,
     });
     expect(fetcher).toHaveBeenCalledWith("/api/pota/spots", {
+      cache: "no-store",
       headers: { accept: "application/json" },
     });
   });

@@ -16,7 +16,7 @@ export type LivePotaSpotsPollingRuntime = {
   isVisible(): boolean;
 };
 
-const refreshIntervalMilliseconds = 60_000;
+const refreshIntervalMilliseconds = 30_000;
 
 export function createLivePotaSpotsStore(
   fetchSnapshot: () => Promise<LivePotaSpotsSnapshot> = fetchLivePotaSpots,

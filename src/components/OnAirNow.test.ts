@@ -55,7 +55,7 @@ describe("OnAirNow", () => {
   });
 
   it("shares one one-minute poller and gives each surface an appropriate unavailable state", () => {
-    expect(liveSpotsStoreSource).toContain("refreshIntervalMilliseconds = 60_000");
+    expect(liveSpotsStoreSource).toContain("refreshIntervalMilliseconds = 30_000");
     expect(onAirNowSource).toContain("livePotaSpotsStore.subscribe");
     expect(referenceMapSource).toContain("livePotaSpotsStore.subscribe");
     expect(onAirNowSource).toContain("list?.replaceChildren(...spots.map(renderSpot))");

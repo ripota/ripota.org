@@ -22,6 +22,7 @@ export async function fetchLivePotaSpots(
   fetcher: Fetcher = fetch,
 ): Promise<LivePotaSpotsSnapshot> {
   const response = await fetcher(liveSpotsPath, {
+    cache: "no-store",
     headers: { accept: "application/json" },
   });
   if (!response.ok) {

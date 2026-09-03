@@ -26,8 +26,6 @@ const parkLocations = new Map(
   references.map((reference) => [reference.reference, reference.locationDesc]),
 );
 
-type WorkerCacheStorage = CacheStorage & { default?: Cache };
-
 type PotaCacheRow = {
   payload_json: string | null;
   fetched_at: number | null;
@@ -71,23 +69,11 @@ export type RiPotaSpotsSnapshotResult =
     };
 
 export async function handlePotaSpots(
-  request: Request,
+  _request: Request,
   env: Pick<Env, "DB"> & Partial<Pick<Env, "ACTIVATE_RI_EVENT_ID">>,
   ctx?: ExecutionContext,
   options: PotaSpotsHandlerOptions = {},
 ): Promise<Response> {
-  const now = options.now ?? (() => new Date());
-  const requestTime = now().valueOf();
-  const cache = (globalThis.caches as WorkerCacheStorage | undefined)?.default;
-  const cacheKey = potaSpotsCacheKey(request);
-
-  if (cache) {
-    const cachedResponse = await cache.match(cacheKey);
-    if (cachedResponse && cachedResponseIsFresh(cachedResponse, requestTime)) {
-      return cachedResponse;
-    }
-  }
-
   const result = await getRiPotaSpotsSnapshot(env, options);
   if (!result.ok) {
     return unavailableResponse(result.retryAfterSeconds);
@@ -103,12 +89,7 @@ export async function handlePotaSpots(
     else await persistence;
   }
 
-  return cacheResponse(
-    cache,
-    cacheKey,
-    snapshotResponse(result),
-    ctx,
-  );
+  return snapshotResponse(result);
 }
 
 export async function getRiPotaSpotsSnapshot(
@@ -373,9 +354,7 @@ function snapshotResponse(result: Extract<RiPotaSpotsSnapshotResult, { ok: true 
     },
     {
       headers: {
-        "cache-control": result.snapshot.stale
-          ? "no-store"
-          : freshCacheControl(result.fetchedAt, result.observedAt),
+        "cache-control": "no-store",
         "x-content-type-options": "nosniff",
         "x-ripota-pota-fetched-at": String(result.fetchedAt),
       },
@@ -393,51 +372,6 @@ function unexpiredSpots(snapshot: StoredSnapshot, now: number): LivePotaSpot[] {
 
     const expiresInSeconds = spot.expiresInSeconds - elapsedSeconds;
     return expiresInSeconds > 0 ? [{ ...spot, expiresInSeconds }] : [];
-  });
-}
-
-function freshCacheControl(fetchedAt: number, now: number): string {
-  const remainingSeconds = Math.floor(
-    (fetchedAt + freshnessMilliseconds - now) / 1_000,
-  );
-  if (remainingSeconds <= 0) {
-    return "no-store";
-  }
-
-  return `public, max-age=${Math.min(30, remainingSeconds)}, s-maxage=${remainingSeconds}`;
-}
-
-function cachedResponseIsFresh(response: Response, now: number): boolean {
-  const fetchedAt = Number(response.headers.get("x-ripota-pota-fetched-at"));
-  return Number.isFinite(fetchedAt) && now >= fetchedAt &&
-    now - fetchedAt < freshnessMilliseconds;
-}
-
-async function cacheResponse(
-  cache: Cache | undefined,
-  cacheKey: Request,
-  response: Response,
-  ctx?: ExecutionContext,
-): Promise<Response> {
-  if (!cache || response.headers.get("cache-control") === "no-store") {
-    return response;
-  }
-
-  const cachePut = cache.put(cacheKey, response.clone());
-  if (ctx) {
-    ctx.waitUntil(cachePut);
-  } else {
-    await cachePut;
-  }
-
-  return response;
-}
-
-function potaSpotsCacheKey(request: Request): Request {
-  const url = new URL(request.url);
-  url.search = "";
-  return new Request(url.origin + "/api/pota/spots", {
-    headers: { accept: "application/json" },
   });
 }
 
