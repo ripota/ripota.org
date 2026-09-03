@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "./env";
-import { runActivateRiPotaSchedule } from "./index";
+import { runActivateRiPotaSchedule, runPotaSpotCleanupSchedule } from "./index";
 import { handleActivateRiApi } from "./routes/activate-ri";
 import { createMigratedSqliteD1 } from "./test-utils/sqlite-d1";
 
@@ -74,23 +74,63 @@ describe("Activate RI POTA API routes", () => {
 });
 
 describe("Activate RI POTA cron guards", () => {
-  it.each([
-    "2025-09-11T12:00:00Z",
-    "2026-09-09T23:59:59Z",
-    "2026-10-14T00:00:00Z",
-    "2027-09-11T12:00:00Z",
-  ])("does no database or upstream work outside the 2026 collection window: %s", async (value) => {
-    const prepare = vi.fn();
-    const fetcher = vi.fn();
-    vi.stubGlobal("fetch", fetcher);
+  it("collects rolling spot history before the event without creating event evidence", async () => {
+    const database = createMigratedSqliteD1();
+    cleanup = database.close;
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json([upstreamSpot()])))
+    const env = testEnv(database.DB);
     await runActivateRiPotaSchedule(
-      { scheduledTime: Date.parse(value), cron: "* * * * *", noRetry() {} } as ScheduledController,
-      { DB: { prepare } as unknown as D1Database, ACTIVATE_RI_EVENT_ID: "activate-ri-2026" } as Env,
+      scheduledController("2026-09-03T14:45:00Z"),
+      env,
     );
-    expect(prepare).not.toHaveBeenCalled();
-    expect(fetcher).not.toHaveBeenCalled();
+    const rolling = await database.DB.prepare("SELECT COUNT(*) AS count FROM pota_spot_observations")
+      .first<{ count: number }>();
+    const event = await database.DB.prepare("SELECT COUNT(*) AS count FROM activate_ri_pota_spot_observations")
+      .first<{ count: number }>();
+    expect(rolling?.count).toBe(1);
+    expect(event?.count).toBe(0);
+  });
+
+  it("runs rolling-history cleanup independently", async () => {
+    const database = createMigratedSqliteD1();
+    cleanup = database.close;
+    const env = testEnv(database.DB);
+    await database.DB.prepare(
+      `INSERT INTO pota_spot_observations (
+        spot_key, source_spot_id, park_reference, park_name, activator_callsign,
+        spot_time, first_observed_at, last_observed_at
+      ) VALUES ('1', '1', 'US-10542', 'Camp Cronin', 'K1NW', ?, 0, 0)`,
+    ).bind("2026-08-01T12:00:00Z").run();
+
+    await runPotaSpotCleanupSchedule(scheduledController("2026-09-03T05:17:00Z", "17 5 * * *"), env);
+
+    const rolling = await database.DB.prepare("SELECT COUNT(*) AS count FROM pota_spot_observations")
+      .first<{ count: number }>();
+    expect(rolling?.count).toBe(0);
   });
 });
+
+function scheduledController(value: string, cron = "* * * * *"): ScheduledController {
+  return { scheduledTime: Date.parse(value), cron, noRetry() {} } as ScheduledController;
+}
+
+function upstreamSpot(): Record<string, unknown> {
+  return {
+    spotId: 42,
+    activator: "K1NW",
+    frequency: "14315",
+    mode: "",
+    reference: "US-10542",
+    name: "Camp Cronin Fishing Area",
+    spotTime: "2026-09-03T14:45:00",
+    spotter: "K1NW",
+    comments: "",
+    source: "POTA",
+    invalid: null,
+    expire: 600,
+    locationDesc: "US-RI",
+  };
+}
 
 function testEnv(DB: D1Database): Env {
   return {

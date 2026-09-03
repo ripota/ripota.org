@@ -255,6 +255,6 @@
     "enabled": true
   },
   "triggers": {
-    "crons": ["* * * * *"]
+    "crons": ["* * * * *", "17 5 * * *"]
   }
 }

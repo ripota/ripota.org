@@ -32,6 +32,10 @@ import { handleClientErrorReport } from "./routes/client-errors";
 import { logWorkerError } from "./logging";
 import { handleAnalyticsEvent } from "./routes/analytics";
 import { captureFeatureUsage, type AuthenticatedFeature } from "./feature-usage";
+import {
+  cleanupPotaSpotHistory,
+  persistPotaSpotHistory,
+} from "./pota-spot-history";
 
 export { ActivateRiOpsRoom };
 
@@ -41,6 +45,7 @@ const activateRiEditPathPattern = /^\/activate-ri-2026\/edit\/([^/]+)\/?$/;
 const activateRiAccessPathPattern = /^\/activate-ri-2026\/access\/?$/;
 const activateRiPortalPathPattern = /^\/activate-ri-2026\/activator(?:\/(?:plan|account))?\/?$/;
 const accountPathPattern = /^\/account\/(?:sign-in|access|security)\/?$/;
+export const potaSpotCleanupCron = "17 5 * * *";
 
 export default {
   async fetch(
@@ -209,6 +214,10 @@ export default {
     env: Env,
     ctx: ExecutionContext,
   ): void {
+    if (controller.cron === potaSpotCleanupCron) {
+      ctx.waitUntil(runPotaSpotCleanupSchedule(controller, env));
+      return;
+    }
     ctx.waitUntil(runActivateRiPotaSchedule(controller, env));
     ctx.waitUntil(cleanupAuthData(env).then((result) => {
       console.log(JSON.stringify({ event: "auth-cleanup", ...result }));
@@ -227,10 +236,15 @@ export async function runActivateRiPotaSchedule(
     event: "activate-ri-pota-scheduled",
     scheduledAt: now.toISOString(),
   };
-  if (isSpotCaptureTime(now)) {
-    const spots = await getRiPotaSpotsSnapshot(env, { now: () => now });
-    outcome.spotsAvailable = spots.ok;
-    if (spots.ok) {
+  const spots = await getRiPotaSpotsSnapshot(env, { now: () => now });
+  outcome.spotsAvailable = spots.ok;
+  if (spots.ok) {
+    outcome.rollingObservations = await persistPotaSpotHistory(
+      env,
+      spots.snapshot.spots,
+      now,
+    );
+    if (isSpotCaptureTime(now)) {
       outcome.observations = await persistEventSpotObservations(
         env,
         spots.snapshot.spots,
@@ -242,6 +256,19 @@ export async function runActivateRiPotaSchedule(
     outcome.history = await runPotaHistoryReconciliation(env, { now: () => now });
   }
   console.log(JSON.stringify(outcome));
+}
+
+export async function runPotaSpotCleanupSchedule(
+  controller: ScheduledController,
+  env: Env,
+): Promise<void> {
+  const now = new Date(controller.scheduledTime);
+  const result = await cleanupPotaSpotHistory(env, now);
+  console.log(JSON.stringify({
+    event: "pota-spot-history-cleanup",
+    scheduledAt: now.toISOString(),
+    ...result,
+  }));
 }
 
 async function fetchAssetWithoutRedirect(
