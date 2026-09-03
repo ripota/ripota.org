@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; -*-
+#MISE description="Rehearse POTA spot collection, retention, and public activity reporting"
+
+set -euo pipefail
+
+./node_modules/.bin/vitest run \
+  src/lib/pota/spots.test.ts \
+  src/worker/routes/pota.test.ts \
+  src/worker/pota-spot-history.test.ts \
+  src/worker/pota-spot-activity.test.ts \
+  src/worker/pota-event-routes.test.ts \
+  src/components/OnAirNow.test.ts \
+  src/components/activate-ri/PotaSpotActivity.test.ts
+
+npm run check

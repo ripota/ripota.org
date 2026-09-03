@@ -3,6 +3,7 @@ import type { Env } from "./env";
 import { runActivateRiPotaSchedule, runPotaSpotCleanupSchedule } from "./index";
 import { handleActivateRiApi } from "./routes/activate-ri";
 import { createMigratedSqliteD1 } from "./test-utils/sqlite-d1";
+import { getPublicPotaSpotActivity } from "./pota-spot-activity";
 
 let cleanup: (() => void) | undefined;
 
@@ -124,6 +125,12 @@ describe("Activate RI POTA cron guards", () => {
       .first<{ count: number }>();
     expect(rolling?.count).toBe(1);
     expect(event?.count).toBe(0);
+    await expect(getPublicPotaSpotActivity(env, new Date("2026-09-03T14:45:30Z")))
+      .resolves.toMatchObject({
+        scope: "recent",
+        summary: { parks: 1, activators: 1, modes: 0, bands: 1, spots: 1 },
+        parks: [{ reference: "US-10542", activators: ["K1NW"], live: true }],
+      });
   });
 
   it("runs rolling-history cleanup independently", async () => {
