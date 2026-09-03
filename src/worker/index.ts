@@ -45,7 +45,7 @@ const activateRiEditPathPattern = /^\/activate-ri-2026\/edit\/([^/]+)\/?$/;
 const activateRiAccessPathPattern = /^\/activate-ri-2026\/access\/?$/;
 const activateRiPortalPathPattern = /^\/activate-ri-2026\/activator(?:\/(?:plan|account))?\/?$/;
 const accountPathPattern = /^\/account\/(?:sign-in|access|security)\/?$/;
-export const potaSpotCleanupCron = "17 5 * * *";
+const potaSpotCleanupCron = "17 5 * * *";
 
 export default {
   async fetch(
