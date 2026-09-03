@@ -14,11 +14,11 @@ import {
 describe("@ripota/parks package contract", () => {
   it("pins the immutable v3 release tarball", () => {
     const releaseUrl =
-      "https://github.com/ripota/parks/releases/download/v3.0.2/ripota-parks-3.0.2.tgz";
+      "https://github.com/ripota/parks/releases/download/v3.0.3/ripota-parks-3.0.3.tgz";
 
     expect(packageManifest.dependencies["@ripota/parks"]).toBe(releaseUrl);
     expect(packageLock.packages["node_modules/@ripota/parks"]).toMatchObject({
-      version: "3.0.2",
+      version: "3.0.3",
       resolved: releaseUrl,
     });
   });
@@ -34,7 +34,7 @@ describe("@ripota/parks package contract", () => {
     });
     expect(references).toEqual(
       parksCatalog.references.map(
-        ({ status: _status, geometryKind: _geometryKind, source: _source, geojson: _geojson, ...reference }) =>
+        ({ status: _status, geometryKind: _geometryKind, mapPoint: _mapPoint, source: _source, geojson: _geojson, ...reference }) =>
           reference,
       ),
     );

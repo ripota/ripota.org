@@ -51,6 +51,21 @@ type SetupReferenceMapLocationOptions<TItem extends ReferenceLocationMapItem> = 
 
 type StatusTone = "inside" | "uncertain" | "neutral";
 type ResultListKind = "inside" | "uncertain" | "nearby";
+const collapsedNearbyLimit = 3;
+const expandedNearbyLimit = 8;
+const parksMapReturnStateKey = "ripotaParksMapReturn";
+
+type StoredMapView = {
+  center: [number, number];
+  zoom: number;
+};
+
+type ParksMapReturnState = {
+  camera: StoredMapView;
+  browseView?: StoredMapView;
+  scroll: [number, number];
+  resultsScrollTop: number;
+};
 
 export function setupReferenceMapLocation<TItem extends ReferenceLocationMapItem>({
   mapElement,
@@ -72,11 +87,11 @@ export function setupReferenceMapLocation<TItem extends ReferenceLocationMapItem
   const statusSecondary = shell?.querySelector<HTMLElement>(
     "[data-reference-location-secondary]",
   );
-  const hideResultsButton = shell?.querySelector<HTMLButtonElement>(
-    "[data-reference-location-hide]",
-  );
   const stopLocationButton = shell?.querySelector<HTMLButtonElement>(
     "[data-reference-location-stop]",
+  );
+  const moreNearbyButton = shell?.querySelector<HTMLButtonElement>(
+    "[data-reference-location-more]",
   );
 
   if (
@@ -97,25 +112,99 @@ export function setupReferenceMapLocation<TItem extends ReferenceLocationMapItem
 
   const locationLayers = L.layerGroup().addTo(map);
   let accuracyLayer: L.Circle | undefined;
-  let locationDot: L.CircleMarker | undefined;
+  let locationDot: L.Marker | undefined;
   let latestLocation: ReportedLocation | undefined;
+  let latestResults: GlobalLocationResults | undefined;
   let centeredOnFirstFix = false;
-  let resultsHidden = false;
+  let nearbyExpanded = false;
+  let hoveredReference: string | undefined;
+  let locationModeActive = false;
+  let browseView: { center: L.LatLng; zoom: number } | undefined;
+  let pendingResultsScrollTop: number | undefined;
+
+  function historyState(): Record<string, unknown> {
+    const state = window.history.state;
+    return state && typeof state === "object"
+      ? { ...(state as Record<string, unknown>) }
+      : {};
+  }
+
+  function saveReturnState(): void {
+    const center = map.getCenter();
+    const state: ParksMapReturnState = {
+      camera: { center: [center.lat, center.lng], zoom: map.getZoom() },
+      browseView: browseView
+        ? {
+            center: [browseView.center.lat, browseView.center.lng],
+            zoom: browseView.zoom,
+          }
+        : undefined,
+      scroll: [window.scrollX, window.scrollY],
+      resultsScrollTop: sheet.scrollTop,
+    };
+
+    window.history.scrollRestoration = "manual";
+    window.history.replaceState(
+      { ...historyState(), [parksMapReturnStateKey]: state },
+      "",
+      window.location.href,
+    );
+  }
+
+  function clearReturnState(): void {
+    const state = historyState();
+    delete state[parksMapReturnStateKey];
+    window.history.replaceState(state, "", window.location.href);
+    window.history.scrollRestoration = "auto";
+  }
+
+  function afterLayout(callback: () => void): void {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(callback);
+    });
+  }
+
+  function setResultsVisible(visible: boolean): void {
+    sheet.hidden = !visible;
+    locationShell.dataset.locationResults = visible ? "visible" : "hidden";
+  }
+
+  function setLocationMode(active: boolean, restoreView = false): void {
+    const hero = locationShell.closest<HTMLElement>(".parks-directory-hero");
+
+    if (active && !locationModeActive) {
+      browseView = { center: map.getCenter(), zoom: map.getZoom() };
+    }
+
+    locationModeActive = active;
+    if (active) {
+      map.scrollWheelZoom.enable();
+      locationShell.dataset.locationMode = "active";
+      hero?.setAttribute("data-location-mode", "active");
+    } else {
+      map.scrollWheelZoom.disable();
+      delete locationShell.dataset.locationMode;
+      hero?.removeAttribute("data-location-mode");
+    }
+
+    afterLayout(() => {
+      map.invalidateSize({ animate: false });
+      if (!active && restoreView && browseView) {
+        map.setView(browseView.center, browseView.zoom, { animate: false });
+        browseView = undefined;
+      }
+    });
+  }
 
   function showStatus(
     primary: string,
     secondary: string,
     tone: StatusTone,
-    canStop: boolean,
-    forceOpen = false,
   ): void {
     primaryOutput.textContent = primary;
     secondaryOutput.textContent = secondary;
     sheet.dataset.tone = tone;
-    stopLocationButton?.toggleAttribute("hidden", !canStop);
-    if (forceOpen || !resultsHidden) {
-      sheet.hidden = false;
-    }
+    setResultsVisible(true);
   }
 
   function clearLocationLayers(): void {
@@ -142,28 +231,65 @@ export function setupReferenceMapLocation<TItem extends ReferenceLocationMapItem
     }
 
     if (!locationDot) {
-      locationDot = L.circleMarker(latlng, {
-        radius: 8,
-        color: "#ffffff",
-        fillColor: "#1577c8",
-        fillOpacity: 1,
-        opacity: 1,
-        weight: 3,
+      locationDot = L.marker(latlng, {
+        icon: L.divIcon({
+          className: "reference-map-user-location-marker",
+          html: "<span></span>",
+          iconSize: [22, 22],
+          iconAnchor: [11, 11],
+        }),
         interactive: false,
+        keyboard: false,
+        zIndexOffset: 1_000,
       }).addTo(locationLayers);
     } else {
       locationDot.setLatLng(latlng);
     }
   }
 
-  function recenterOnLocation(): void {
+  function fitLocationContext(results: GlobalLocationResults | undefined): void {
     if (!latestLocation) return;
 
-    map.setView(
-      [latestLocation.latitude, latestLocation.longitude],
-      Math.max(map.getZoom(), 14),
-      { animate: true },
-    );
+    afterLayout(() => {
+      if (!latestLocation) return;
+
+      map.invalidateSize({ animate: false });
+      const location = L.latLng(
+        latestLocation.latitude,
+        latestLocation.longitude,
+      );
+      const bounds = accuracyLayer?.getBounds() ?? L.latLngBounds(location, location);
+      const focusMatches = results?.inside.length
+        ? results.inside
+        : results?.uncertain.length
+          ? results.uncertain
+          : results?.nearby.slice(0, 1) ?? [];
+
+      for (const match of focusMatches) {
+        const item = items.find(({ reference }) => reference === match.reference);
+        if (!item) continue;
+
+        if (item.geojson) {
+          const parkBounds = L.geoJSON(item.geojson as GeoJSON.GeoJsonObject).getBounds();
+          if (parkBounds.isValid()) bounds.extend(parkBounds);
+        }
+        if (item.marker) {
+          bounds.extend([item.marker.latitude, item.marker.longitude]);
+        }
+      }
+
+      const resultsOverlap =
+        !sheet.hidden && !window.matchMedia("(min-width: 760px)").matches;
+      const bottomPadding = resultsOverlap
+        ? Math.min(sheet.offsetHeight + 28, map.getSize().y * 0.58)
+        : 40;
+      map.fitBounds(bounds, {
+        animate: true,
+        maxZoom: 16,
+        paddingTopLeft: [40, 40],
+        paddingBottomRight: [40, bottomPadding],
+      });
+    });
   }
 
   function renderResults(
@@ -171,10 +297,21 @@ export function setupReferenceMapLocation<TItem extends ReferenceLocationMapItem
     results: GlobalLocationResults,
   ): void {
     const summary = globalLocationSummary(results, location.accuracy);
-    showStatus(summary.primary, summary.secondary, summary.tone, true);
+    showStatus(summary.primary, summary.secondary, summary.tone);
     renderResultSection(locationShell, "inside", results.inside);
     renderResultSection(locationShell, "uncertain", results.uncertain);
-    renderResultSection(locationShell, "nearby", results.nearby);
+    renderNearbyResultSection(
+      locationShell,
+      results.nearby,
+      nearbyExpanded,
+    );
+    if (pendingResultsScrollTop !== undefined) {
+      const scrollTop = pendingResultsScrollTop;
+      pendingResultsScrollTop = undefined;
+      window.requestAnimationFrame(() => {
+        sheet.scrollTop = scrollTop;
+      });
+    }
   }
 
   function applyHighlights(results?: GlobalLocationResults): void {
@@ -182,6 +319,10 @@ export function setupReferenceMapLocation<TItem extends ReferenceLocationMapItem
     const uncertain = new Set(
       results?.uncertain.map(({ reference }) => reference),
     );
+    const closest =
+      inside.size === 0 && uncertain.size === 0
+        ? results?.nearby[0]?.reference
+        : undefined;
 
     for (const item of items) {
       const layers = layersByReference.get(item.reference);
@@ -190,42 +331,60 @@ export function setupReferenceMapLocation<TItem extends ReferenceLocationMapItem
       const base = getBaseStyle(item);
       const isInside = inside.has(item.reference);
       const isUncertain = uncertain.has(item.reference);
-      const color = isInside
-        ? "#237242"
-        : isUncertain
-          ? "#b56b18"
-          : base.color;
-      const fillColor = isInside
-        ? "#56a36d"
-        : isUncertain
-          ? "#f0b35d"
-          : base.fillColor;
+      const isClosest = item.reference === closest;
+      const isHovered = item.reference === hoveredReference;
+      let color = base.color;
+      let fillColor = base.fillColor;
+      let fillOpacity = base.boundaryFillOpacity;
+
+      if (isClosest) {
+        color = "#6f4618";
+        fillColor = "#f6bd46";
+        fillOpacity = 0.28;
+      }
+      if (isUncertain) {
+        color = "#b56b18";
+        fillColor = "#f0b35d";
+        fillOpacity = 0.26;
+      }
+      if (isInside) {
+        color = "#237242";
+        fillColor = "#56a36d";
+        fillOpacity = 0.34;
+      }
+      if (isHovered) {
+        color = "#0b6670";
+        fillColor = "#71c2c5";
+        fillOpacity = 0.4;
+      }
 
       layers.boundaries.forEach((layer) =>
         layer.setStyle({
           color,
           fillColor,
-          fillOpacity: isInside
-            ? 0.34
-            : isUncertain
-              ? 0.26
-              : base.boundaryFillOpacity,
+          fillOpacity,
           opacity: 1,
-          weight: isInside || isUncertain ? 4 : 2,
-          dashArray: isUncertain ? "6 4" : "",
+          weight: isHovered ? 5 : isInside || isUncertain || isClosest ? 4 : 2,
+          dashArray: !isHovered && isUncertain ? "6 4" : "",
         }),
       );
+      if (isHovered) layers.boundaries.forEach((layer) => layer.bringToFront());
       layers.markers.forEach((marker) => {
         marker.setRadius(
-          isInside || isUncertain ? base.markerRadius + 2 : base.markerRadius,
+          isHovered
+            ? base.markerRadius + 4
+            : isInside || isUncertain || isClosest
+              ? base.markerRadius + 2
+              : base.markerRadius,
         );
         marker.setStyle({
           color,
           fillColor,
           fillOpacity: base.markerFillOpacity,
-          weight: isInside || isUncertain ? 3 : 2,
-          dashArray: isUncertain ? "4 3" : "",
+          weight: isHovered ? 4 : isInside || isUncertain || isClosest ? 3 : 2,
+          dashArray: !isHovered && isUncertain ? "4 3" : "",
         });
+        if (isHovered) marker.bringToFront();
       });
     }
   }
@@ -234,10 +393,14 @@ export function setupReferenceMapLocation<TItem extends ReferenceLocationMapItem
     for (const kind of ["inside", "uncertain", "nearby"] as const) {
       renderResultSection(locationShell, kind, []);
     }
+    if (moreNearbyButton) moreNearbyButton.hidden = true;
   }
 
   function clearActiveLocation(): void {
     latestLocation = undefined;
+    latestResults = undefined;
+    nearbyExpanded = false;
+    hoveredReference = undefined;
     centeredOnFirstFix = false;
     clearLocationLayers();
     applyHighlights();
@@ -257,29 +420,24 @@ export function setupReferenceMapLocation<TItem extends ReferenceLocationMapItem
 
     switch (state.status) {
       case "requesting":
+        setLocationMode(true);
+        nearbyExpanded = false;
         clearResults();
         showStatus(
           "Finding your location…",
           "Used on this device; not saved or sent to RI POTA. Map tiles load from OpenStreetMap.",
           "neutral",
-          true,
-          true,
         );
         break;
       case "stopped":
         clearActiveLocation();
-        showStatus(
-          "Location stopped",
-          "Tap the target to start again.",
-          "neutral",
-          false,
-          true,
-        );
+        setResultsVisible(false);
+        setLocationMode(false, true);
         break;
       case "error": {
         clearActiveLocation();
         const [primary, secondary] = errorCopy(state.error);
-        showStatus(primary, secondary, "neutral", false, true);
+        showStatus(primary, secondary, "neutral");
         break;
       }
     }
@@ -290,44 +448,182 @@ export function setupReferenceMapLocation<TItem extends ReferenceLocationMapItem
     onPosition: (location) => {
       latestLocation = location;
       updateLocationLayers(location);
-      const results = findGlobalLocationMatches(location, items);
+      const results = findGlobalLocationMatches(
+        location,
+        items,
+        expandedNearbyLimit,
+      );
+      latestResults = results;
       renderResults(location, results);
       applyHighlights(results);
 
       if (!centeredOnFirstFix) {
         centeredOnFirstFix = true;
-        recenterOnLocation();
+        fitLocationContext(results);
       }
     },
   });
 
+  function restoreReturnState(): boolean {
+    const stored = parseReturnState(historyState()[parksMapReturnStateKey]);
+    if (!stored) return false;
+
+    window.history.scrollRestoration = "manual";
+    map.setView(stored.camera.center, stored.camera.zoom, { animate: false });
+    setLocationMode(true);
+    browseView = stored.browseView
+      ? {
+          center: L.latLng(stored.browseView.center),
+          zoom: stored.browseView.zoom,
+        }
+      : browseView;
+    centeredOnFirstFix = true;
+    pendingResultsScrollTop = stored.resultsScrollTop;
+    session.start();
+    afterLayout(() => {
+      const restoreScroll = () => {
+        window.scrollTo(stored.scroll[0], stored.scroll[1]);
+        sheet.scrollTop = stored.resultsScrollTop;
+      };
+      restoreScroll();
+      window.setTimeout(restoreScroll, 0);
+      window.setTimeout(restoreScroll, 100);
+    });
+    return true;
+  }
+
   locationControl.addEventListener("click", () => {
     if (session.getState().status === "active" && latestLocation) {
-      resultsHidden = false;
-      sheet.hidden = false;
-      recenterOnLocation();
+      setResultsVisible(true);
+      fitLocationContext(latestResults);
       return;
     }
-
-    resultsHidden = false;
     session.start();
   });
 
-  hideResultsButton?.addEventListener("click", () => {
-    resultsHidden = true;
-    sheet.hidden = true;
+  moreNearbyButton?.addEventListener("click", () => {
+    if (!latestResults) return;
+
+    nearbyExpanded = !nearbyExpanded;
+    renderNearbyResultSection(
+      locationShell,
+      latestResults.nearby,
+      nearbyExpanded,
+    );
   });
 
-  stopLocationButton?.addEventListener("click", () => session.stop());
+  const setHoveredResult = (target: EventTarget | null): void => {
+    const element = target instanceof Element ? target : null;
+    const reference = element
+      ?.closest<HTMLElement>("[data-reference-location-reference]")
+      ?.dataset.referenceLocationReference;
+    if (!reference || reference === hoveredReference) return;
 
-  window.addEventListener(
-    "pagehide",
-    () => {
+    hoveredReference = reference;
+    applyHighlights(latestResults);
+  };
+
+  const clearHoveredResult = (
+    target: EventTarget | null,
+    relatedTarget: EventTarget | null,
+  ): void => {
+    const element = target instanceof Element ? target : null;
+    const result = element?.closest<HTMLElement>(
+      "[data-reference-location-reference]",
+    );
+    if (!result || result.dataset.referenceLocationReference !== hoveredReference) {
+      return;
+    }
+    if (relatedTarget instanceof Node && result.contains(relatedTarget)) return;
+
+    hoveredReference = undefined;
+    applyHighlights(latestResults);
+  };
+
+  sheet.addEventListener("pointerover", (event) => {
+    setHoveredResult(event.target);
+  });
+  sheet.addEventListener("pointerout", (event) => {
+    clearHoveredResult(event.target, event.relatedTarget);
+  });
+  sheet.addEventListener("focusin", (event) => {
+    setHoveredResult(event.target);
+  });
+  sheet.addEventListener("focusout", (event) => {
+    clearHoveredResult(event.target, event.relatedTarget);
+  });
+
+  const preserveLocationNavigation = (event: MouseEvent): void => {
+    if (!locationModeActive || !(event.target instanceof Element)) return;
+
+    const link = event.target.closest<HTMLAnchorElement>('a[href^="/parks/"]');
+    if (!link) return;
+
+    const destination = new URL(link.href, window.location.href);
+    if (
+      destination.origin !== window.location.origin ||
+      !/^\/parks\/[^/]+\/$/.test(destination.pathname)
+    ) {
+      return;
+    }
+
+    saveReturnState();
+    destination.searchParams.set("location", "1");
+    destination.searchParams.set("from", "parks-map");
+    link.href = `${destination.pathname}${destination.search}${destination.hash}`;
+  };
+  document.addEventListener("click", preserveLocationNavigation, true);
+
+  stopLocationButton?.addEventListener("click", () => {
+    session.stop();
+    clearReturnState();
+    const destination = new URL(window.location.href);
+    destination.searchParams.delete("location");
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `${destination.pathname}${destination.search}${destination.hash}`,
+    );
+  });
+
+  if (!restoreReturnState() && new URLSearchParams(window.location.search).get("location") === "1") {
+    session.start();
+  }
+
+  window.addEventListener("pageshow", (event) => {
+    if (event.persisted) restoreReturnState();
+  });
+
+  window.addEventListener("pagehide", (event) => {
+    if (!event.persisted) {
       session.destroy();
       clearLocationLayers();
-    },
-    { once: true },
+      document.removeEventListener("click", preserveLocationNavigation, true);
+    }
+  });
+}
+
+function renderNearbyResultSection(
+  shell: HTMLElement,
+  matches: GlobalLocationMatch[],
+  expanded: boolean,
+): void {
+  const visibleMatches = matches.slice(
+    0,
+    expanded ? expandedNearbyLimit : collapsedNearbyLimit,
   );
+  renderResultSection(shell, "nearby", visibleMatches);
+
+  const button = shell.querySelector<HTMLButtonElement>(
+    "[data-reference-location-more]",
+  );
+  if (!button) return;
+
+  button.hidden = matches.length <= collapsedNearbyLimit;
+  button.ariaExpanded = String(expanded);
+  button.textContent = expanded
+    ? "Show fewer parks"
+    : `Show ${matches.length - collapsedNearbyLimit} more parks`;
 }
 
 function renderResultSection(
@@ -361,12 +657,12 @@ function resultListItem(
   const detail = document.createElement("small");
   const arrow = document.createElement("span");
 
-  link.href = `/parks/${encodeURIComponent(match.reference.toLowerCase())}/`;
+  link.href = `/parks/${encodeURIComponent(match.reference.toLowerCase())}/?location=1&from=parks-map`;
+  link.dataset.referenceLocationReference = match.reference;
   reference.textContent = match.reference;
   name.textContent = match.name;
   detail.textContent = resultDetail(match, kind);
-  arrow.textContent = "→";
-  arrow.ariaHidden = "true";
+  arrow.textContent = "Open guide →";
 
   label.appendChild(reference);
   label.appendChild(name);
@@ -375,6 +671,53 @@ function resultListItem(
   link.appendChild(arrow);
   item.appendChild(link);
   return item;
+}
+
+function parseReturnState(value: unknown): ParksMapReturnState | undefined {
+  if (!value || typeof value !== "object") return undefined;
+
+  const candidate = value as Partial<ParksMapReturnState>;
+  const camera = parseMapView(candidate.camera);
+  const browseView = candidate.browseView === undefined
+    ? undefined
+    : parseMapView(candidate.browseView);
+  const scroll = candidate.scroll;
+  if (
+    !camera ||
+    (candidate.browseView !== undefined && !browseView) ||
+    !Array.isArray(scroll) ||
+    scroll.length !== 2 ||
+    !scroll.every(Number.isFinite) ||
+    !Number.isFinite(candidate.resultsScrollTop)
+  ) {
+    return undefined;
+  }
+
+  return {
+    camera,
+    browseView,
+    scroll: [scroll[0] as number, scroll[1] as number],
+    resultsScrollTop: candidate.resultsScrollTop as number,
+  };
+}
+
+function parseMapView(value: unknown): StoredMapView | undefined {
+  if (!value || typeof value !== "object") return undefined;
+
+  const candidate = value as Partial<StoredMapView>;
+  if (
+    !Array.isArray(candidate.center) ||
+    candidate.center.length !== 2 ||
+    !candidate.center.every(Number.isFinite) ||
+    !Number.isFinite(candidate.zoom)
+  ) {
+    return undefined;
+  }
+
+  return {
+    center: [candidate.center[0] as number, candidate.center[1] as number],
+    zoom: candidate.zoom as number,
+  };
 }
 
 function resultDetail(

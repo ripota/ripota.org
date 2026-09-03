@@ -48,14 +48,51 @@ describe("ParkDetailMap", () => {
     expect(source).toContain('role="status"');
   });
 
+  it("fits the reported accuracy and park geometry in an unobstructed location mode", () => {
+    expect(source).toContain('parkHero?.setAttribute("data-location-mode", "active")');
+    expect(source).toContain("accuracyLayer?.getBounds()");
+    expect(source).toContain("bounds.extend(parkBounds)");
+    expect(source).toContain("map.fitBounds(bounds");
+    expect(source).toContain("afterLayout(resetView)");
+  });
+
   it("never calls a point-only park inside or outside", () => {
     expect(source).toContain("No mapped boundary available");
     expect(source).toContain("This park has only a reference coordinate");
   });
 
   it("stops live updates explicitly and when the page is left", () => {
+    expect(source).toContain("data-park-location-mode-controls");
+    expect(source).toContain("Location mode");
+    expect(source).toContain('href="/parks/?location=1"');
+    expect(source).toContain("Back to all parks");
+    expect(source).toContain("Exit location mode");
     expect(source).toContain("locationSession.stop()");
+    expect(source).toContain('destination.searchParams.delete("location")');
+    expect(source).toContain('destination.searchParams.delete("from")');
+    expect(source).toContain('window.history.scrollRestoration = "auto"');
+    expect(source).toContain("window.history.replaceState(");
     expect(source).toContain('"pagehide"');
     expect(source).toContain("locationSession.destroy()");
+  });
+
+  it("uses browser history when returning to the originating parks map", () => {
+    expect(source).toContain("data-park-location-return");
+    expect(source).toContain('get("from") === "parks-map"');
+    expect(source).toContain('window.history.scrollRestoration = "manual"');
+    expect(source).toContain('referrer.pathname === "/parks/"');
+    expect(source).toContain("window.history.back()");
+  });
+
+  it("uses wheel zoom while location mode is active", () => {
+    expect(source).toContain("map.scrollWheelZoom.enable()");
+    expect(source).toContain("map.scrollWheelZoom.disable()");
+  });
+
+  it("resumes location mode when navigation carries the opt-in", () => {
+    expect(source).toContain(
+      'new URLSearchParams(window.location.search).get("location") === "1"',
+    );
+    expect(source).toContain("locationSession.start()");
   });
 });

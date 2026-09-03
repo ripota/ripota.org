@@ -69,7 +69,7 @@ describe("findGlobalLocationMatches", () => {
     ]);
   });
 
-  it("includes point-only references only as nearby field guides", () => {
+  it("includes point-only references only as nearby park choices", () => {
     const results = findGlobalLocationMatches(location, [
       {
         reference: "US-POINT",
@@ -140,16 +140,18 @@ describe("globalLocationSummary", () => {
       "Near 1 mapped boundary",
     );
     expect(globalLocationSummary(noMatch, 25)).toMatchObject({
-      primary: "No mapped RI park contains this location",
+      primary: "You’re not inside a mapped park",
       secondary: "Accuracy ±25 m",
     });
   });
 });
 
 describe("formatLocationDistance", () => {
-  it("uses readable meter and kilometer labels", () => {
-    expect(formatLocationDistance(321.4)).toBe("321 m away");
-    expect(formatLocationDistance(1_250)).toBe("1.3 km away");
-    expect(formatLocationDistance(12_600)).toBe("13 km away");
+  it("uses readable mile labels", () => {
+    expect(formatLocationDistance(50)).toBe("<0.1 mi away");
+    expect(formatLocationDistance(321.4)).toBe("0.2 mi away");
+    expect(formatLocationDistance(1_250)).toBe("0.8 mi away");
+    expect(formatLocationDistance(12_600)).toBe("7.8 mi away");
+    expect(formatLocationDistance(20_116.8)).toBe("13 mi away");
   });
 });

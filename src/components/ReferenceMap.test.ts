@@ -77,6 +77,8 @@ describe("park directory map", () => {
     );
     expect(referenceMapSource).toContain('payload.variant === "directory"');
     expect(referenceMapSource).toContain('paddingTopLeft: [Math.min(760, window.innerWidth * 0.52), 32]');
+    expect(referenceMapSource).toContain("references: parksCatalog.references");
+    expect(referenceMapSource).toContain("bounds.extend([item.marker.latitude, item.marker.longitude])");
   });
 
   it("loads the location experience only for the all-parks directory", () => {
@@ -89,15 +91,23 @@ describe("park directory map", () => {
     expect(referenceMapSource).toContain(
       'import("../lib/location/reference-map-location")',
     );
+    expect(referenceMapSource).toContain(
+      'markerPlacement: variant === "directory" ? "reference-coordinate" : "geometry-center"',
+    );
   });
 
-  it("provides accessible ordered result groups and explicit stop controls", () => {
+  it("provides accessible ordered result groups and an explicit mode exit", () => {
     expect(referenceMapSource).toContain('role="status"');
     expect(referenceMapSource).toContain("Mapped matches");
     expect(referenceMapSource).toContain("Boundary uncertainty");
-    expect(referenceMapSource).toContain("Nearby field guides");
-    expect(referenceMapSource).toContain("Stop location");
-    expect(referenceMapSource).toContain('aria-label="Hide location results"');
+    expect(referenceMapSource).toContain("Closest parks");
+    expect(referenceMapSource).toContain("data-reference-location-more");
+    expect(referenceMapSource).toContain("Location mode");
+    expect(referenceMapSource).toContain("Exit location mode");
+    expect(referenceMapSource).toContain("data-reference-location-stop");
+    expect(referenceMapSource).toContain("Park map point");
+    expect(referenceMapSource).toContain("Your location");
+    expect(referenceMapSource).not.toContain('aria-label="Hide location results"');
   });
 });
 

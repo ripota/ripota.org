@@ -1,9 +1,8 @@
 ---
 import "leaflet/dist/leaflet.css";
-import { references } from "@ripota/parks";
-
 import parks from "../../public/data/activate-ri-2026/parks.json";
 import {
+  parksCatalog,
   referenceBoundaries,
   referenceGeojsonByPath,
 } from "../lib/pota/catalog";
@@ -43,9 +42,10 @@ const {
 const eventParks = parks as PublicParkSummary[];
 const isEventMap = variant === "coverage" || variant === "volunteer";
 const mapItems = buildReferenceMapItems({
-  references,
+  references: parksCatalog.references,
   boundaries: referenceBoundaries,
   geojsonByPath: referenceGeojsonByPath,
+  markerPlacement: variant === "directory" ? "reference-coordinate" : "geometry-center",
   parks: isEventMap ? eventParks : undefined,
   stops: isEventMap ? [] : undefined,
 });
@@ -159,6 +159,15 @@ const payload = JSON.stringify({
           hidden
         >
           <header>
+            <div class="reference-map-location-results__modebar">
+              <span>
+                <span aria-hidden="true"></span>
+                Location mode
+              </span>
+              <button type="button" data-reference-location-stop>
+                Exit location mode <span aria-hidden="true">×</span>
+              </button>
+            </div>
             <div
               class="reference-map-location-results__status"
               role="status"
@@ -171,13 +180,10 @@ const payload = JSON.stringify({
                 <small data-reference-location-secondary></small>
               </span>
             </div>
-            <button
-              type="button"
-              aria-label="Hide location results"
-              data-reference-location-hide
-            >
-              <span aria-hidden="true">×</span>
-            </button>
+            <div class="reference-map-location-results__key" aria-label="Map key">
+              <span><span data-kind="park" aria-hidden="true"></span>Park map point</span>
+              <span><span data-kind="location" aria-hidden="true"></span>Your location</span>
+            </div>
           </header>
 
           <section data-reference-location-section="inside" hidden>
@@ -189,15 +195,16 @@ const payload = JSON.stringify({
             <ul data-reference-location-list></ul>
           </section>
           <section data-reference-location-section="nearby" hidden>
-            <h3>Nearby field guides</h3>
+            <h3>Closest parks</h3>
             <ul data-reference-location-list></ul>
+            <button
+              class="reference-map-location-results__more"
+              type="button"
+              aria-expanded="false"
+              data-reference-location-more
+              hidden
+            >Show more parks</button>
           </section>
-
-          <footer>
-            <button type="button" data-reference-location-stop hidden>
-              Stop location
-            </button>
-          </footer>
         </aside>
       </>
     )
@@ -984,6 +991,23 @@ const payload = JSON.stringify({
     color: #1267a5;
   }
 
+  .reference-map-user-location-marker {
+    border: 0;
+    background: transparent;
+  }
+
+  .reference-map-user-location-marker > span {
+    display: block;
+    width: 22px;
+    height: 22px;
+    border: 3px solid #ffffff;
+    border-radius: 50%;
+    background: #1577c8;
+    box-shadow:
+      0 0 0 2px rgba(18, 103, 165, 0.42),
+      0 3px 10px rgba(15, 34, 31, 0.38);
+  }
+
   .reference-map-location-results {
     position: absolute;
     z-index: 800;
@@ -999,6 +1023,42 @@ const payload = JSON.stringify({
     box-shadow: 0 18px 52px rgba(15, 34, 31, 0.28);
     color: var(--text-primary);
     backdrop-filter: blur(14px);
+    overscroll-behavior: contain;
+  }
+
+  @media (min-width: 760px) {
+    .reference-map-preview--has-location[data-location-mode="active"][data-location-results="visible"] {
+      --location-results-width: clamp(320px, 27vw, 390px);
+      grid-template-columns: minmax(0, 1fr) var(--location-results-width);
+    }
+
+    .reference-map-preview--has-location[data-location-mode="active"][data-location-results="visible"]
+      > .ri-reference-map {
+      grid-column: 1;
+      grid-row: 1;
+    }
+
+    .reference-map-preview--has-location[data-location-mode="active"][data-location-results="visible"]
+      > .reference-map-location-button {
+      right: calc(var(--location-results-width) + 1rem);
+    }
+
+    .reference-map-preview--has-location[data-location-mode="active"][data-location-results="visible"]
+      > .reference-map-location-results {
+      position: relative;
+      top: auto;
+      right: auto;
+      grid-column: 2;
+      grid-row: 1;
+      width: 100%;
+      height: 100%;
+      max-height: 100%;
+      margin: 0;
+      align-self: stretch;
+      border-width: 5px 0 0 1px;
+      border-radius: 0;
+      box-shadow: -12px 0 34px rgba(15, 34, 31, 0.16);
+    }
   }
 
   .reference-map-location-results[hidden] {
@@ -1015,10 +1075,65 @@ const payload = JSON.stringify({
 
   .reference-map-location-results > header {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .reference-map-location-results__modebar {
+    display: flex;
+    min-height: 3rem;
+    align-items: center;
+    justify-content: space-between;
     gap: 0.75rem;
-    align-items: start;
-    padding: 0.9rem;
+    border-bottom: 1px solid var(--border-subtle);
+    background: color-mix(in srgb, #1267a5 7%, transparent);
+    padding: 0.55rem 0.7rem 0.55rem 0.9rem;
+  }
+
+  .reference-map-location-results__modebar > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: #1267a5;
+    font-size: 0.7rem;
+    font-weight: 950;
+    letter-spacing: 0.075em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .reference-map-location-results__modebar > span > span {
+    width: 0.55rem;
+    height: 0.55rem;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    background: #1577c8;
+    box-shadow: 0 0 0 1px #1267a5;
+  }
+
+  .reference-map-location-results__modebar button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border: 1px solid color-mix(in srgb, var(--link-strong) 38%, transparent);
+    border-radius: 999px;
+    background: var(--surface-raised);
+    color: var(--link-strong);
+    cursor: pointer;
+    font-size: 0.7rem;
+    font-weight: 900;
+    line-height: 1;
+    padding: 0.45rem 0.6rem;
+    white-space: nowrap;
+  }
+
+  .reference-map-location-results__modebar button span {
+    font-size: 1rem;
+    line-height: 0.7;
+  }
+
+  .reference-map-location-results__modebar button:hover,
+  .reference-map-location-results__modebar button:focus-visible {
+    border-color: var(--link-strong);
+    background: color-mix(in srgb, var(--accent) 14%, var(--surface-raised));
   }
 
   .reference-map-location-results__status {
@@ -1026,6 +1141,7 @@ const payload = JSON.stringify({
     grid-template-columns: auto minmax(0, 1fr);
     gap: 0.65rem;
     align-items: start;
+    padding: 0.9rem;
   }
 
   .reference-map-location-results__status strong,
@@ -1043,6 +1159,40 @@ const payload = JSON.stringify({
     color: var(--text-muted);
     font-size: 0.74rem;
     line-height: 1.4;
+  }
+
+  .reference-map-location-results__key {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem 0.85rem;
+    padding: 0 0.9rem 0.8rem 2.35rem;
+    color: var(--text-muted);
+    font-size: 0.65rem;
+    font-weight: 750;
+  }
+
+  .reference-map-location-results__key > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .reference-map-location-results__key [data-kind] {
+    display: inline-block;
+    width: 0.65rem;
+    height: 0.65rem;
+    border: 2px solid #172026;
+    border-radius: 50%;
+  }
+
+  .reference-map-location-results__key [data-kind="park"] {
+    background: #d7913a;
+  }
+
+  .reference-map-location-results__key [data-kind="location"] {
+    border-color: #fff;
+    background: #1577c8;
+    box-shadow: 0 0 0 1px #1267a5;
   }
 
   .reference-map-location-results__shape {
@@ -1066,26 +1216,6 @@ const payload = JSON.stringify({
     border-bottom: 0.78rem solid #b56b18;
     border-left: 0.43rem solid transparent;
     border-radius: 0;
-  }
-
-  .reference-map-location-results > header > button {
-    display: grid;
-    width: 34px;
-    height: 34px;
-    place-items: center;
-    border: 0;
-    border-radius: 5px;
-    background: transparent;
-    color: var(--text-muted);
-    cursor: pointer;
-    font-size: 1.4rem;
-    line-height: 1;
-  }
-
-  .reference-map-location-results > header > button:hover,
-  .reference-map-location-results > header > button:focus-visible {
-    background: color-mix(in srgb, var(--text-primary) 8%, transparent);
-    color: var(--text-primary);
   }
 
   .reference-map-location-results > section {
@@ -1160,21 +1290,20 @@ const payload = JSON.stringify({
 
   .reference-map-location-results li a > span:last-child {
     color: var(--link-strong);
+    font-size: 0.68rem;
     font-weight: 900;
+    white-space: nowrap;
   }
 
-  .reference-map-location-results > footer {
-    border-top: 1px solid var(--border-subtle);
-    padding: 0.65rem 0.9rem 0.8rem;
-  }
-
-  .reference-map-location-results > footer button {
+  .reference-map-location-results__more {
+    width: fit-content;
+    margin: 0.65rem 0.5rem 0.15rem;
     border: 0;
     border-bottom: 1px solid currentColor;
     background: transparent;
     color: var(--link-strong);
     cursor: pointer;
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     font-weight: 850;
     padding: 0.1rem 0;
   }
@@ -1202,12 +1331,32 @@ const payload = JSON.stringify({
       border-top-width: 4px;
     }
 
-    .reference-map-location-results > header {
+    .reference-map-location-results__status {
       padding: 0.7rem;
+    }
+
+    .reference-map-location-results__key {
+      padding: 0 0.7rem 0.65rem 2.15rem;
     }
 
     .reference-map-location-results > section {
       padding: 0.6rem 0.7rem 0.65rem;
+    }
+  }
+
+  @media (max-width: 759px) {
+    .reference-map-location-button {
+      top: 0.75rem;
+      right: 0.75rem;
+      bottom: auto;
+    }
+
+    .reference-map-location-results {
+      top: auto;
+      right: 0.75rem;
+      bottom: 0.75rem;
+      width: calc(100% - 1.5rem);
+      max-height: min(58%, 360px);
     }
   }
 

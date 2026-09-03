@@ -127,6 +127,50 @@ describe("buildReferenceMapItems", () => {
     });
   });
 
+  it("can use the official reference coordinate for directory markers", () => {
+    const items = buildReferenceMapItems({
+      references: [
+        {
+          ...references[0],
+          latitude: 38.9,
+          longitude: -77,
+        },
+      ],
+      boundaries: [boundaries[0]],
+      geojsonByPath,
+      markerPlacement: "reference-coordinate",
+    });
+
+    expect(items[0].marker).toEqual({
+      latitude: 38.9,
+      longitude: -77,
+    });
+  });
+
+  it("uses a reviewed map point instead of an out-of-state reference coordinate", () => {
+    const items = buildReferenceMapItems({
+      references: [
+        {
+          ...references[0],
+          latitude: 41.312,
+          longitude: -73.9709,
+          mapPoint: {
+            latitude: 41.7445710002769,
+            longitude: -71.594458000176,
+          },
+        },
+      ],
+      boundaries: [boundaries[0]],
+      geojsonByPath,
+      markerPlacement: "reference-coordinate",
+    });
+
+    expect(items[0].marker).toEqual({
+      latitude: 41.7445710002769,
+      longitude: -71.594458000176,
+    });
+  });
+
   it("keeps an activation-zone marker centered on its displayed mapped area", () => {
     const displayGeojson = JSON.stringify({
       type: "FeatureCollection",
@@ -226,6 +270,8 @@ describe("buildReferenceMapItems", () => {
 describe("reference map viewport configuration", () => {
   it("allows fitBounds to choose a tighter fractional zoom without clipping points", () => {
     expect(referenceMapLeafletOptions.zoomSnap).toBeLessThan(1);
+    expect(referenceMapLeafletOptions.scrollWheelZoom).toBe(false);
+    expect(referenceMapLeafletOptions.wheelPxPerZoomLevel).toBe(120);
     expect(referenceMapFitBoundsOptions.padding).toEqual([16, 16]);
     expect(referenceMapFitBoundsOptions.maxZoom).toBe(10);
   });

@@ -106,18 +106,17 @@ export function globalLocationSummary(
   }
 
   return {
-    primary: "No mapped RI park contains this location",
+    primary: "You’re not inside a mapped park",
     secondary: accuracy,
     tone: "neutral",
   };
 }
 
 export function formatLocationDistance(distanceMeters: number): string {
-  if (distanceMeters < 1_000) {
-    return `${Math.max(0, Math.round(distanceMeters))} m away`;
-  }
+  const miles = Math.max(0, distanceMeters) / 1_609.344;
+  if (miles < 0.1) return "<0.1 mi away";
 
-  return `${(distanceMeters / 1_000).toFixed(distanceMeters < 10_000 ? 1 : 0)} km away`;
+  return `${miles.toFixed(miles < 10 ? 1 : 0)} mi away`;
 }
 
 function byReference(left: GlobalLocationMatch, right: GlobalLocationMatch): number {

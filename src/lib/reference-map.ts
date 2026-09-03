@@ -24,6 +24,10 @@ export type ReferenceMapReference = {
   counties?: string[];
   locationDesc?: string;
   potaUrl?: string;
+  mapPoint?: {
+    latitude: number;
+    longitude: number;
+  };
 };
 
 export type ReferenceBoundaryRecord = {
@@ -67,6 +71,7 @@ export type BuildReferenceMapItemsInput = {
   references: ReferenceMapReference[];
   boundaries: ReferenceBoundaryRecord[];
   geojsonByPath: Record<string, string | ReferenceMapGeoJson>;
+  markerPlacement?: "geometry-center" | "reference-coordinate";
   parks?: PublicParkSummary[];
   stops?: PublicActivationStop[];
 };
@@ -123,6 +128,7 @@ export function displayedReferenceMapLegendItems(
 
 export const referenceMapLeafletOptions = {
   scrollWheelZoom: false,
+  wheelPxPerZoomLevel: 120,
   zoomControl: false,
   zoomSnap: 0.25,
 } as const;
@@ -136,6 +142,7 @@ export function buildReferenceMapItems({
   references,
   boundaries,
   geojsonByPath,
+  markerPlacement = "geometry-center",
   parks,
   stops,
 }: BuildReferenceMapItemsInput): ReferenceMapItem[] {
@@ -160,7 +167,9 @@ export function buildReferenceMapItems({
       grid: reference.grid ?? "",
       locationDesc: reference.locationDesc ?? "",
       potaUrl: reference.potaUrl ?? "",
-      marker: markerForGeojson(geojson) ?? markerForReference(reference),
+      marker: markerPlacement === "reference-coordinate"
+        ? markerForReference(reference) ?? markerForGeojson(geojson)
+        : markerForGeojson(geojson) ?? markerForReference(reference),
       geometryKind: boundary?.geometryKind ?? "point",
       boundaryStatus: boundary?.status ?? "unknown",
       sourceName: boundary?.sourceName ?? "Parks on the Air reference coordinate",
@@ -179,6 +188,12 @@ export function buildReferenceMapItems({
 }
 
 function markerForReference(reference: ReferenceMapReference): ReferenceMapItem["marker"] {
+  if (reference.mapPoint) {
+    return {
+      latitude: reference.mapPoint.latitude,
+      longitude: reference.mapPoint.longitude,
+    };
+  }
   if (typeof reference.latitude !== "number" || typeof reference.longitude !== "number") {
     return null;
   }

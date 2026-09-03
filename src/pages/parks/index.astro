@@ -243,6 +243,36 @@ const sameGeometryReferences = sameGeometryReferenceSet(parks);
     font-weight: 900;
   }
 
+  .parks-directory-hero[data-location-mode="active"] .parks-directory-hero__content {
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(0.75rem);
+  }
+
+  @media (min-width: 621px) {
+    .parks-directory-hero[data-location-mode="active"],
+    .parks-directory-hero[data-location-mode="active"] .parks-directory-hero__map,
+    .parks-directory-hero[data-location-mode="active"]
+      .parks-directory-hero__map
+      :global(.map-preview),
+    .parks-directory-hero[data-location-mode="active"]
+      .parks-directory-hero__map
+      :global(.ri-reference-map) {
+      min-height: calc(100svh - var(--header-height));
+      height: calc(100svh - var(--header-height));
+    }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .parks-directory-hero__content {
+      transition:
+        opacity 180ms ease,
+        transform 180ms ease,
+        visibility 180ms;
+    }
+  }
+
   .parks-directory__heading {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(300px, 0.7fr);
@@ -446,6 +476,10 @@ const sameGeometryReferences = sameGeometryReferenceSet(parks);
     .parks-directory-hero__content {
       position: static;
       padding-block: 1.25rem 1.5rem;
+    }
+
+    .parks-directory-hero[data-location-mode="active"] .parks-directory-hero__content {
+      display: none;
     }
 
     .parks-directory-hero__intro {

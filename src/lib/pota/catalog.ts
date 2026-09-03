@@ -7,6 +7,11 @@ import type {
 } from "../reference-map";
 
 export type ParksCatalogReference = PotaReference & {
+  mapPoint?: {
+    latitude: number;
+    longitude: number;
+    notes: string;
+  };
   status: "available" | "point-only";
   geometryKind: "boundary" | "activation-zone" | "point";
   source: {

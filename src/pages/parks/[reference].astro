@@ -243,6 +243,35 @@ const officialMultipleReferencesUrl =
     background: rgba(255, 250, 240, 0.08);
   }
 
+  .park-hero[data-location-mode="active"] .park-hero__content {
+    display: none;
+  }
+
+  .park-hero[data-location-mode="active"] .park-identity {
+    display: none;
+  }
+
+  :global(.park-page .park-hero[data-location-mode="active"] .park-detail-map__key) {
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  @media (min-width: 561px) {
+    .park-hero[data-location-mode="active"] {
+      min-height: 100svh;
+    }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .park-identity,
+    :global(.park-detail-map__key) {
+      transition:
+        opacity 180ms ease,
+        transform 180ms ease;
+    }
+  }
+
   .park-subnav {
     position: sticky;
     z-index: 900;
