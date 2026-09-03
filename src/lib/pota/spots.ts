@@ -62,8 +62,6 @@ function normalizeRiPotaSpot(
   if (
     !parkNames.has(parkReference) ||
     !activatorCallsign ||
-    !frequency ||
-    !mode ||
     !spotTime ||
     !locationDesc ||
     isInvalidSpot(value.invalid) ||

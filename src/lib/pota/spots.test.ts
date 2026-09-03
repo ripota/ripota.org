@@ -88,6 +88,23 @@ describe("normalizeRiPotaSpots", () => {
     expect(result.map((item) => item.id)).toEqual(["3", "2"]);
   });
 
+  it("keeps valid RI spots when POTA omits frequency or mode metadata", () => {
+    const result = normalizeRiPotaSpots([
+      spot({ spotId: 1, mode: "" }),
+      spot({ spotId: 2, frequency: "" }),
+    ], options);
+
+    expect(result).toHaveLength(2);
+    expect(result.find((item) => item.id === "1")).toMatchObject({
+      frequency: "14052.0",
+      mode: "",
+    });
+    expect(result.find((item) => item.id === "2")).toMatchObject({
+      frequency: "",
+      mode: "CW",
+    });
+  });
+
   it("returns an empty list for a non-array upstream payload", () => {
     expect(normalizeRiPotaSpots({ error: "changed schema" }, options)).toEqual([]);
   });

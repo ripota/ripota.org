@@ -856,13 +856,19 @@ const payload = JSON.stringify({
         ${spots.map((spot) => `
           <span class="map-popup__stop">
             <b>${escapeHtml(spot.activatorCallsign)}</b>
-            <span>${escapeHtml(spot.frequency)} kHz · ${escapeHtml(spot.mode)}</span>
+            <span>${escapeHtml(formatRadioDetails(spot.frequency, spot.mode))}</span>
             <span>Spotted ${escapeHtml(formatLiveSpotTime(spot.spotTime))}</span>
             ${spot.sourceLabel ? `<span>via ${escapeHtml(spot.sourceLabel)}</span>` : ""}
           </span>
         `).join("")}
       </span>
     `;
+  }
+
+  function formatRadioDetails(frequency: string, mode: string): string {
+    const parts = [frequency ? `${frequency} kHz` : "", mode]
+      .filter(Boolean);
+    return parts.length > 0 ? parts.join(" · ") : "Not provided";
   }
 
   function coverageStopsHtml(item: MapItem): string {

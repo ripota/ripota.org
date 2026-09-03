@@ -174,7 +174,7 @@ const { variant = "compact" } = Astro.props;
     activator.textContent = spot.activatorCallsign;
 
     radio.className = "on-air-now__radio";
-    radio.textContent = `${spot.frequency} kHz · ${spot.mode}`;
+    radio.textContent = formatRadioDetails(spot.frequency, spot.mode);
 
     time.className = "on-air-now__time";
     time.dateTime = normalizedSpotTimestamp(spot.spotTime);
@@ -198,6 +198,12 @@ const { variant = "compact" } = Astro.props;
 
   function normalizedSpotTimestamp(value: string): string {
     return /(Z|[+-]\d{2}:?\d{2})$/i.test(value) ? value : `${value}Z`;
+  }
+
+  function formatRadioDetails(frequency: string, mode: string): string {
+    const parts = [frequency ? `${frequency} kHz` : "", mode]
+      .filter(Boolean);
+    return parts.length > 0 ? parts.join(" · ") : "Not provided";
   }
 
   function formatSpotTime(value: string): string {
