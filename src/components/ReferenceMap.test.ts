@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import referenceMapSource from "./ReferenceMap.astro?raw";
+import parkDirectorySource from "../pages/parks/index.astro?raw";
 import eventHeroSource from "./activate-ri/EventHero.astro?raw";
 import volunteerPageSource from "../pages/activate-ri-2026/volunteer.astro?raw";
 import editPageSource from "../pages/activate-ri-2026/activator/plan.astro?raw";
@@ -108,6 +109,19 @@ describe("park directory map", () => {
     expect(referenceMapSource).toContain("Park map point");
     expect(referenceMapSource).toContain("Your location");
     expect(referenceMapSource).not.toContain('aria-label="Hide location results"');
+  });
+
+  it("uses a dedicated map and results split in mobile location mode", () => {
+    expect(referenceMapSource).toContain(
+      "grid-template-rows: 44% minmax(0, 56%)",
+    );
+    expect(referenceMapSource).toContain("grid-row: 2");
+    expect(referenceMapSource).toContain("max-height: none");
+    expect(referenceMapSource).toContain("position: sticky");
+    expect(parkDirectorySource).toContain("@media (max-width: 759px)");
+    expect(parkDirectorySource).toContain(
+      "height: calc(100svh - var(--header-height))",
+    );
   });
 });
 

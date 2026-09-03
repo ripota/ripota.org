@@ -522,6 +522,18 @@ const officialMultipleReferencesUrl =
       height: 430px;
     }
 
+    .park-hero[data-location-mode="active"] {
+      min-height: 100svh;
+      height: 100svh;
+      overflow: hidden;
+    }
+
+    :global(.park-page .park-hero[data-location-mode="active"] .park-detail-map) {
+      position: absolute;
+      inset: 0;
+      height: 100%;
+    }
+
     .park-hero__content {
       min-height: 0;
       padding-block: 1rem;

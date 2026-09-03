@@ -1093,6 +1093,23 @@ const primaryMapLabel = {
     }
   }
 
+  @media (max-width: 360px) {
+    .park-detail-map__mode-actions {
+      display: contents;
+    }
+
+    .park-detail-map__mode-actions a {
+      grid-column: 1 / -1;
+      grid-row: 3;
+      width: fit-content;
+    }
+
+    .park-detail-map__mode-actions button {
+      grid-column: 2;
+      grid-row: 1;
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .park-detail-map__location-button[data-state="requesting"] svg {
       animation: none;

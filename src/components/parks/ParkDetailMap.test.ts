@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import source from "./ParkDetailMap.astro?raw";
+import parkPageSource from "../../pages/parks/[reference].astro?raw";
 
 describe("ParkDetailMap", () => {
   it("presents both area geometry types with the same public terminology", () => {
@@ -94,5 +95,19 @@ describe("ParkDetailMap", () => {
       'new URLSearchParams(window.location.search).get("location") === "1"',
     );
     expect(source).toContain("locationSession.start()");
+  });
+
+  it("uses a full-viewport map in mobile location mode", () => {
+    expect(parkPageSource).toContain(
+      '.park-hero[data-location-mode="active"]',
+    );
+    expect(parkPageSource).toContain("min-height: 100svh");
+    expect(parkPageSource).toContain("height: 100svh");
+  });
+
+  it("gives the return action its own row on narrow phones", () => {
+    expect(source).toContain("@media (max-width: 360px)");
+    expect(source).toContain("display: contents");
+    expect(source).toContain("grid-row: 3");
   });
 });

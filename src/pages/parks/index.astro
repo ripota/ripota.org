@@ -250,7 +250,7 @@ const sameGeometryReferences = sameGeometryReferenceSet(parks);
     transform: translateY(0.75rem);
   }
 
-  @media (min-width: 621px) {
+  @media (min-width: 760px) {
     .parks-directory-hero[data-location-mode="active"],
     .parks-directory-hero[data-location-mode="active"] .parks-directory-hero__map,
     .parks-directory-hero[data-location-mode="active"]
@@ -259,6 +259,17 @@ const sameGeometryReferences = sameGeometryReferenceSet(parks);
     .parks-directory-hero[data-location-mode="active"]
       .parks-directory-hero__map
       :global(.ri-reference-map) {
+      min-height: calc(100svh - var(--header-height));
+      height: calc(100svh - var(--header-height));
+    }
+  }
+
+  @media (max-width: 759px) {
+    .parks-directory-hero[data-location-mode="active"],
+    .parks-directory-hero[data-location-mode="active"] .parks-directory-hero__map,
+    .parks-directory-hero[data-location-mode="active"]
+      .parks-directory-hero__map
+      :global(.map-preview) {
       min-height: calc(100svh - var(--header-height));
       height: calc(100svh - var(--header-height));
     }
