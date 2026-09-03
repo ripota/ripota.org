@@ -1,10 +1,10 @@
 {
-  "fingerprint": "f84e564d5496fc35a8d5cb00caf649a881ac15704b6bc85fa45a3fcfaeb0bec1",
-  "generatedAt": "2026-09-02T23:17:59.464Z",
+  "fingerprint": "da9899dfe684e522e7a1a67589a2832af7fa93c85a599b43f02e7541ab67b158",
+  "generatedAt": "2026-09-03T16:23:12.534Z",
   "inputs": {
     "event": "6d7da16bdf624787761d5ec3184666523a87ca4acae132b8af1b2cb509baf398",
     "parks": "e42276b4dfffdef8c927908b5c154a537c4fdee33a511ff1a14d73e6453531c7",
-    "stops": "a4349f82bd1fbeb54bbf4ec6deb72d24ae9de5091c7f12d74f5d245a5b304b4c",
+    "stops": "26e434645f8929f9d7144aca27c42f52b7e2808075a7e68a9a982e31b2b2613e",
     "template": "f5a84dce567d44f5844c982f0b3a47b63bf47e812f9f1876c008dbffbd595dd2"
   },
   "stopsSource": "remote",
