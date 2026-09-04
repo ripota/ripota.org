@@ -25,6 +25,44 @@ export type NormalizePotaSpotsOptions = {
   parkLocations: ReadonlyMap<string, string>;
 };
 
+export type PotaSpotReferenceEvidence = {
+  parkReference: string;
+  kind: "structured_spot" | "declared_nfer";
+  declaredByReference: string | null;
+};
+
+export function potaSpotReferenceEvidence(
+  spot: Pick<LivePotaSpot, "parkReference" | "sourceLabel" | "comments">,
+): PotaSpotReferenceEvidence[] {
+  const primary = normalizePotaReference(spot.parkReference);
+  if (!primary) return [];
+  const evidence: PotaSpotReferenceEvidence[] = [{
+    parkReference: primary,
+    kind: "structured_spot",
+    declaredByReference: null,
+  }];
+  if (!spot.sourceLabel.trim().toLowerCase().startsWith("ham2k portable logger")) {
+    return evidence;
+  }
+
+  const match = spot.comments.trim().toUpperCase().match(
+    /\b(\d+)-FER:\s+((?:[A-Z]{1,4}-\d{4,6}(?:\s+|$)){2,})$/,
+  );
+  if (!match) return evidence;
+  const expectedCount = Number(match[1]);
+  const references = [...new Set(match[2].match(/[A-Z]{1,4}-\d{4,6}/g) ?? [])];
+  if (references.length !== expectedCount || !references.includes(primary)) return evidence;
+  for (const parkReference of references) {
+    if (parkReference === primary) continue;
+    evidence.push({
+      parkReference,
+      kind: "declared_nfer",
+      declaredByReference: primary,
+    });
+  }
+  return evidence;
+}
+
 export function normalizeRiPotaSpots(
   value: unknown,
   { parkNames, parkLocations }: NormalizePotaSpotsOptions,

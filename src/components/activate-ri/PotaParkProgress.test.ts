@@ -18,6 +18,7 @@ describe("Activate RI POTA result surfaces", () => {
     for (const label of ["All", "Confirmed", "Observed", "Scheduled", "Still needed"]) {
       expect(progress).toContain(`> ${label}</label>`);
     }
+    expect(progress).toContain("Declared N-fer via");
     expect(progress).toContain("All POTA event activation rows");
     expect(progress).toContain("Planned event stops");
     expect(progress).toContain("Open local field guide");

@@ -69,12 +69,16 @@ export async function persistPotaSpotHistory(
 export async function cleanupPotaSpotHistory(
   env: Pick<Env, "DB">,
   now = new Date(),
-): Promise<{ deleted: number; cutoff: string }> {
+): Promise<{ deleted: number; syncStatesDeleted: number; cutoff: string }> {
   const cutoff = now.valueOf() - potaSpotRetentionMilliseconds;
   const deleted = await env.DB.prepare(
     `DELETE FROM pota_spot_observations
      WHERE spot_time < ?`,
   ).bind(new Date(cutoff).toISOString()).run();
+  const syncStatesDeleted = await env.DB.prepare(
+    `DELETE FROM pota_spot_history_sync
+     WHERE last_seen_at < ?`,
+  ).bind(cutoff).run();
   await env.DB.prepare(
     `UPDATE pota_spot_collection_state
      SET last_cleanup_at = ?, last_cleanup_deleted = ?
@@ -82,6 +86,7 @@ export async function cleanupPotaSpotHistory(
   ).bind(now.valueOf(), deleted.meta.changes, collectionStateId).run();
   return {
     deleted: deleted.meta.changes,
+    syncStatesDeleted: syncStatesDeleted.meta.changes,
     cutoff: new Date(cutoff).toISOString(),
   };
 }

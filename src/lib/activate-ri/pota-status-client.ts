@@ -14,6 +14,9 @@ export type PublicParkObservation = {
   frequency: string;
   mode: string;
   sourceLabel: string;
+  spotterCallsign: string;
+  evidenceKind: "structured_spot" | "declared_nfer";
+  declaredByReference: string | null;
 };
 
 export type PublicParkPotaStatus = {

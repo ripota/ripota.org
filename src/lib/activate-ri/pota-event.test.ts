@@ -5,6 +5,7 @@ import {
   isSpotCaptureTime,
   normalizePotaActivationHistory,
   spotToEventObservation,
+  spotToEventObservations,
   summarizeParkPotaStatuses,
   type ParkPotaFacts,
 } from "./pota-event";
@@ -84,6 +85,24 @@ describe("Activate RI POTA status", () => {
       locationDesc: "US-RI",
     }));
   });
+
+  it("creates provisional event evidence for declared Ham2K N-fer references", () => {
+    const observations = spotToEventObservations({
+      ...liveSpot(),
+      parkReference: "US-6979",
+      sourceLabel: "Ham2K Portable Logger",
+      comments: "CW 2-fer: US-6979 US-6980",
+    }, new Date("2026-09-11T12:01:00Z"));
+
+    expect(observations.map((item) => ({
+      reference: item.parkReference,
+      kind: item.observationKind,
+      declaredBy: item.declaredByReference,
+    }))).toEqual([
+      { reference: "US-6979", kind: "structured_spot", declaredBy: null },
+      { reference: "US-6980", kind: "declared_nfer", declaredBy: "US-6979" },
+    ]);
+  });
 });
 
 function history(activeCallsign: string, qso_date: string, totalQSOs: number, locationDesc = "US-RI") {
@@ -95,7 +114,7 @@ function activation(qualifying: boolean) {
 }
 
 function observation() {
-  return { parkReference: "US-0513", spotDate: "2026-09-11", activatorCallsign: "N1ABC", locationDesc: "US-RI" as const, sourceSpotId: "1", observedAt: "2026-09-11T12:00:00Z", frequency: "14.074", mode: "FT8", sourceLabel: "POTA" };
+  return { parkReference: "US-0513", spotDate: "2026-09-11", activatorCallsign: "N1ABC", locationDesc: "US-RI" as const, sourceSpotId: "1", observedAt: "2026-09-11T12:00:00Z", spotTime: "2026-09-11T12:00:00Z", frequency: "14.074", mode: "FT8", sourceLabel: "POTA", spotterCallsign: "N1XYZ", comments: "", observationKind: "structured_spot" as const, declaredByReference: null };
 }
 
 function liveSpot(): LivePotaSpot {

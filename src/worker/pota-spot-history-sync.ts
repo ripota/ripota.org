@@ -2,6 +2,7 @@ import { references } from "@ripota/parks";
 
 import {
   normalizePotaSpotHistory,
+  potaSpotReferenceEvidence,
   type LivePotaSpot,
 } from "../lib/pota/spots";
 import { isSpotCaptureTime } from "../lib/activate-ri/pota-event";
@@ -30,6 +31,7 @@ type HistorySyncRow = {
   last_history_sync_at: number | null;
   retry_after: number;
   consecutive_failures: number;
+  declared_references_json: string;
 };
 
 type HistoryTarget = {
@@ -37,6 +39,7 @@ type HistoryTarget = {
   parkReference: string;
   parkName: string;
   live: boolean;
+  currentSpot?: LivePotaSpot;
 };
 
 type HistoryOutcome = {
@@ -84,7 +87,7 @@ export async function syncPotaSpotHistories(
     const existingResult = await env.DB.prepare(
       `SELECT activator_callsign, park_reference, first_seen_at, last_seen_at,
         last_live_spot_id, last_live_count, active, last_history_sync_at,
-        retry_after, consecutive_failures
+        retry_after, consecutive_failures, declared_references_json
        FROM pota_spot_history_sync`,
     ).all<HistorySyncRow>();
     const existing = new Map((existingResult.results ?? []).map((row) => [pairKey(row), row]));
@@ -97,10 +100,20 @@ export async function syncPotaSpotHistories(
            last_live_spot_id, last_live_count, active
          ) VALUES (?, ?, ?, ?, ?, ?, 1)
          ON CONFLICT(activator_callsign, park_reference) DO UPDATE SET
+           first_seen_at = CASE
+             WHEN pota_spot_history_sync.active = 0 THEN excluded.first_seen_at
+             ELSE pota_spot_history_sync.first_seen_at
+           END,
            last_seen_at = excluded.last_seen_at,
-           last_live_spot_id = excluded.last_live_spot_id,
-           last_live_count = excluded.last_live_count,
-           active = 1`,
+           active = 1,
+           last_history_sync_at = CASE
+             WHEN pota_spot_history_sync.active = 0 THEN NULL
+             ELSE pota_spot_history_sync.last_history_sync_at
+           END,
+           declared_references_json = CASE
+             WHEN pota_spot_history_sync.active = 0 THEN '[]'
+             ELSE pota_spot_history_sync.declared_references_json
+           END`,
       ).bind(
         spot.activatorCallsign,
         spot.parkReference,
@@ -120,6 +133,7 @@ export async function syncPotaSpotHistories(
             parkReference: spot.parkReference,
             parkName: spot.parkName,
             live: true,
+            currentSpot: spot,
           }]
         : [];
     });
@@ -134,21 +148,25 @@ export async function syncPotaSpotHistories(
         : []
     );
     const targets = [...currentTargets, ...endedTargets];
-    const outcomes = await mapWithConcurrency(targets, historyConcurrency, async (target) => {
-      try {
-        return {
-          target,
-          spots: await fetchPotaSpotHistory(options.fetcher ?? fetch, target),
-          error: null,
-        } satisfies HistoryOutcome;
-      } catch (error) {
-        logWorkerError("pota-spot-history-sync-failed", error, {
-          activatorCallsign: target.activatorCallsign,
-          parkReference: target.parkReference,
-        });
-        return { target, spots: [], error } satisfies HistoryOutcome;
-      }
-    });
+    const outcomes: HistoryOutcome[] = await mapWithConcurrency(
+      targets,
+      historyConcurrency,
+      async (target): Promise<HistoryOutcome> => {
+        try {
+          return {
+            target,
+            spots: await fetchPotaSpotHistory(options.fetcher ?? fetch, target),
+            error: null,
+          } satisfies HistoryOutcome;
+        } catch (error) {
+          logWorkerError("pota-spot-history-sync-failed", error, {
+            activatorCallsign: target.activatorCallsign,
+            parkReference: target.parkReference,
+          });
+          return { target, spots: [], error } satisfies HistoryOutcome;
+        }
+      },
+    );
 
     const successful = outcomes.filter((outcome) => outcome.error === null);
     const historySpots = successful.flatMap((outcome) => outcome.spots);
@@ -168,11 +186,19 @@ export async function syncPotaSpotHistories(
         return env.DB.prepare(
           `UPDATE pota_spot_history_sync
            SET active = ?, last_history_sync_at = ?, retry_after = 0,
-             consecutive_failures = 0, last_error_at = NULL
+             consecutive_failures = 0, last_error_at = NULL,
+             declared_references_json = ?,
+             last_live_spot_id = CASE WHEN ? THEN ? ELSE last_live_spot_id END,
+             last_live_count = CASE WHEN ? THEN ? ELSE last_live_count END
            WHERE activator_callsign = ? AND park_reference = ?`,
         ).bind(
           outcome.target.live ? 1 : 0,
           startedAt,
+          JSON.stringify(declaredReferences(outcome)),
+          outcome.target.live ? 1 : 0,
+          outcome.target.currentSpot?.id ?? "",
+          outcome.target.live ? 1 : 0,
+          outcome.target.currentSpot?.upstreamCount ?? null,
           outcome.target.activatorCallsign,
           outcome.target.parkReference,
         );
@@ -211,6 +237,17 @@ export async function syncPotaSpotHistories(
        WHERE id = ? AND history_lease_token = ?`,
     ).bind(collectionStateId, leaseToken).run();
   }
+}
+
+function declaredReferences(outcome: HistoryOutcome): string[] {
+  const spots = outcome.target.currentSpot
+    ? [outcome.target.currentSpot, ...outcome.spots]
+    : outcome.spots;
+  return [...new Set(spots.flatMap((spot) =>
+    potaSpotReferenceEvidence(spot)
+      .filter((reference) => reference.kind === "declared_nfer")
+      .map((reference) => reference.parkReference)
+  ))].sort();
 }
 
 function historyIsDue(

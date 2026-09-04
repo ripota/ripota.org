@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { normalizePotaSpotHistory, normalizeRiPotaSpots } from "./spots";
+import {
+  normalizePotaSpotHistory,
+  normalizeRiPotaSpots,
+  potaSpotReferenceEvidence,
+} from "./spots";
 
 const parkNames = new Map([
   ["US-10545", "Hillsdale Preserve Management Area"],
@@ -154,5 +158,31 @@ describe("normalizePotaSpotHistory", () => {
   it("rejects malformed payloads and excludes QRT reports", () => {
     expect(() => normalizePotaSpotHistory({}, context)).toThrow("was not an array");
     expect(normalizePotaSpotHistory([{ spotTime: "2026-09-04T12:00:00", comments: "QRT" }], context)).toEqual([]);
+  });
+});
+
+describe("potaSpotReferenceEvidence", () => {
+  it("recovers Ham2K N-fer references while preserving the structured primary", () => {
+    expect(potaSpotReferenceEvidence({
+      parkReference: "US-6979",
+      sourceLabel: "Ham2K Portable Logger",
+      comments: "CW 2-fer: US-6979 US-6980",
+    })).toEqual([
+      { parkReference: "US-6979", kind: "structured_spot", declaredByReference: null },
+      { parkReference: "US-6980", kind: "declared_nfer", declaredByReference: "US-6979" },
+    ]);
+  });
+
+  it("does not infer references from untrusted or malformed comments", () => {
+    expect(potaSpotReferenceEvidence({
+      parkReference: "US-6979",
+      sourceLabel: "Web",
+      comments: "2-fer: US-6979 US-6980",
+    })).toHaveLength(1);
+    expect(potaSpotReferenceEvidence({
+      parkReference: "US-6979",
+      sourceLabel: "Ham2K Portable Logger",
+      comments: "3-fer: US-6979 US-6980",
+    })).toHaveLength(1);
   });
 });

@@ -18,15 +18,32 @@ afterEach(() => {
 });
 
 describe("Activate RI POTA evidence store", () => {
-  it("persists duplicate spot observations idempotently without comments", async () => {
+  it("persists duplicate spot observations idempotently with public provenance", async () => {
     const database = createMigratedSqliteD1();
     cleanup = database.close;
     const env = testEnv(database.DB);
     const first = new Date("2026-09-11T12:00:00Z");
     const second = new Date("2026-09-11T12:05:00Z");
 
-    await persistEventSpotObservations(env, [liveSpot({ comments: "do not retain", frequency: "14.074" })], first);
-    await persistEventSpotObservations(env, [liveSpot({ comments: "still private", frequency: "14.076" })], second);
+    await persistEventSpotObservations(env, [liveSpot({
+      comments: "first report",
+      frequency: "14.074",
+      spotTime: "2026-09-11T11:59:00Z",
+    })], first);
+    await persistEventSpotObservations(env, [
+      liveSpot({
+        id: "newer",
+        comments: "newest report",
+        frequency: "14.076",
+        spotTime: "2026-09-11T12:04:00Z",
+      }),
+      liveSpot({
+        id: "older",
+        comments: "older history report",
+        frequency: "7.074",
+        spotTime: "2026-09-11T11:45:00Z",
+      }),
+    ], second);
 
     const rows = await database.DB.prepare(
       "SELECT * FROM activate_ri_pota_spot_observations",
@@ -36,8 +53,11 @@ describe("Activate RI POTA evidence store", () => {
       first_observed_at: first.toISOString(),
       last_observed_at: second.toISOString(),
       last_frequency: "14.076",
+      last_comments: "newest report",
+      last_spot_time: "2026-09-11T12:04:00.000Z",
+      last_spotter_callsign: "N1XYZ",
+      observation_kind: "structured_spot",
     });
-    expect(rows.results?.[0]).not.toHaveProperty("comments");
   });
 
   it("projects independent schedule, observation, attempts, confirmation, and live facts", async () => {
@@ -68,6 +88,52 @@ describe("Activate RI POTA evidence store", () => {
     });
     expect(projection.summary).toMatchObject({ total: 61, confirmed: 1, observedNotConfirmed: 1 });
     expect(JSON.stringify(projection)).not.toMatch(/"(?:email|phone|token|notes|comments)"\s*:/i);
+  });
+
+  it("keeps a declared N-fer provisional and live until POTA confirms it", async () => {
+    const database = createMigratedSqliteD1();
+    cleanup = database.close;
+    const env = testEnv(database.DB);
+    const now = new Date("2026-09-11T12:05:00Z");
+    const primary = liveSpot({
+      parkReference: "US-6979",
+      parkName: "Arcadia Management Area",
+      sourceLabel: "Ham2K Portable Logger",
+      comments: "CW 2-fer: US-6979 US-6980",
+      spotTime: "2026-09-11T11:45:28Z",
+    });
+    await persistEventSpotObservations(env, [primary], now);
+    await seedLiveCache(database.DB, now, [liveSpot({
+      parkReference: "US-6979",
+      parkName: "Arcadia Management Area",
+      sourceLabel: "RBN",
+      comments: "RBN 10 dB 22 WPM",
+    })]);
+    await database.DB.prepare(
+      `INSERT INTO pota_spot_history_sync (
+         activator_callsign, park_reference, first_seen_at, last_seen_at,
+         last_live_spot_id, active, declared_references_json
+       ) VALUES ('N1ABC', 'US-6979', ?, ?, 'spot-1', 1, '["US-6980"]')`,
+    ).bind(now.valueOf() - 20 * 60_000, now.valueOf()).run();
+
+    const observed = await getPublicPotaParkStatus(env, now);
+    expect(observed.parks.find((park) => park.reference === "US-6980")).toMatchObject({
+      status: "observed",
+      live: true,
+      lastObservation: {
+        activeCallsign: "N1ABC",
+        evidenceKind: "declared_nfer",
+        declaredByReference: "US-6979",
+      },
+    });
+
+    await seedEvidence(database.DB, "US-6980", "N1ABC", 10);
+    const confirmed = await getPublicPotaParkStatus(env, now);
+    expect(confirmed.parks.find((park) => park.reference === "US-6980")).toMatchObject({
+      status: "confirmed",
+      live: true,
+      confirmation: { activeCallsign: "N1ABC", totalQsos: 10 },
+    });
   });
 });
 
@@ -217,8 +283,12 @@ async function seedScheduledStop(DB: D1Database, reference: string, status: stri
   ).bind(reference, status).run();
 }
 
-async function seedLiveCache(DB: D1Database, fetchedAt: Date) {
+async function seedLiveCache(
+  DB: D1Database,
+  fetchedAt: Date,
+  spots: LivePotaSpot[] = [liveSpot()],
+) {
   await DB.prepare(
     `UPDATE pota_spots_cache SET payload_json = ?, fetched_at = ? WHERE id = 'ri-live-spots'`,
-  ).bind(JSON.stringify([liveSpot()]), fetchedAt.valueOf()).run();
+  ).bind(JSON.stringify(spots), fetchedAt.valueOf()).run();
 }

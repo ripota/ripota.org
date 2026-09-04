@@ -146,8 +146,11 @@ import { activateRi2026Event } from "../../data/activate-ri-2026/event";
         `${park.confirmation.activeCallsign} · ${formatQsoDate(park.confirmation.qsoDate)} UTC · ${park.confirmation.totalQsos} QSOs`,
       ));
     } else if (park.lastObservation) {
+      const evidence = park.lastObservation.evidenceKind === "declared_nfer"
+        ? `Declared N-fer via ${park.lastObservation.declaredByReference ?? "another park"}`
+        : "Last spotted";
       article.appendChild(paragraph(
-        `Last spotted ${formatUtcTimestamp(park.lastObservation.lastObservedAt)} · ${park.lastObservation.activeCallsign}`,
+        `${evidence} ${formatUtcTimestamp(park.lastObservation.lastObservedAt)} · ${park.lastObservation.activeCallsign}`,
       ));
     } else if (park.attempts[0]) {
       article.appendChild(paragraph(

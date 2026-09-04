@@ -61,12 +61,14 @@ describe("POTA spot history synchronization", () => {
       source_label: "Ham2K Portable Logger",
     });
     await expect(database.DB.prepare(
-      `SELECT active, last_live_count, consecutive_failures
+      `SELECT active, last_live_count, consecutive_failures,
+        declared_references_json
        FROM pota_spot_history_sync`,
     ).first()).resolves.toEqual({
       active: 0,
       last_live_count: 2,
       consecutive_failures: 0,
+      declared_references_json: '["US-10544"]',
     });
   });
 
@@ -76,23 +78,28 @@ describe("POTA spot history synchronization", () => {
     cleanup = database.close;
     const start = Date.parse("2026-09-04T12:00:00Z");
     const fetcher = vi.fn()
+      .mockResolvedValueOnce(Response.json([historySpot()]))
       .mockResolvedValueOnce(new Response("bad gateway", { status: 503 }))
       .mockResolvedValueOnce(Response.json([historySpot()]));
 
     await expect(syncPotaSpotHistories(database, [liveSpot()], {
       fetcher: fetcher as typeof fetch,
       now: () => new Date(start),
+    })).resolves.toMatchObject({ attempted: 1, succeeded: 1 });
+    await expect(syncPotaSpotHistories(database, [liveSpot({ upstreamCount: 2 })], {
+      fetcher: fetcher as typeof fetch,
+      now: () => new Date(start + 60_000),
     })).resolves.toMatchObject({ attempted: 1, failed: 1 });
-    await expect(syncPotaSpotHistories(database, [liveSpot()], {
+    await expect(syncPotaSpotHistories(database, [liveSpot({ upstreamCount: 2 })], {
       fetcher: fetcher as typeof fetch,
-      now: () => new Date(start + 30_000),
+      now: () => new Date(start + 90_000),
     })).resolves.toMatchObject({ attempted: 0 });
-    await expect(syncPotaSpotHistories(database, [liveSpot()], {
+    await expect(syncPotaSpotHistories(database, [liveSpot({ upstreamCount: 2 })], {
       fetcher: fetcher as typeof fetch,
-      now: () => new Date(start + 61_000),
+      now: () => new Date(start + 121_000),
     })).resolves.toMatchObject({ attempted: 1, succeeded: 1 });
 
-    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher).toHaveBeenCalledTimes(3);
     await expect(database.DB.prepare(
       "SELECT consecutive_failures, retry_after FROM pota_spot_history_sync",
     ).first()).resolves.toEqual({ consecutive_failures: 0, retry_after: 0 });

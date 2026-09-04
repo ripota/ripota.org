@@ -1,10 +1,17 @@
-import type { LivePotaSpot } from "../pota/spots";
+import { references } from "@ripota/parks";
+
+import {
+  potaSpotReferenceEvidence,
+  type LivePotaSpot,
+  type PotaSpotReferenceEvidence,
+} from "../pota/spots";
 
 export const activateRiPotaEventId = "activate-ri-2026";
 export const activateRiPotaStartDate = "2026-09-10";
 export const activateRiPotaEndDate = "2026-09-13";
 export const activateRiPotaReconciliationEnd = "2026-10-14T00:00:00.000Z";
 export const qualifyingActivationQsos = 10;
+const riReferences = new Set(references.map((park) => park.reference));
 
 export type PotaActivationEvidence = {
   parkReference: string;
@@ -25,9 +32,14 @@ export type PotaSpotObservation = {
   locationDesc: "US-RI";
   sourceSpotId: string | null;
   observedAt: string;
+  spotTime: string;
   frequency: string;
   mode: string;
   sourceLabel: string;
+  spotterCallsign: string;
+  comments: string;
+  observationKind: PotaSpotReferenceEvidence["kind"];
+  declaredByReference: string | null;
 };
 
 export type ParkPotaPrimaryStatus = "confirmed" | "observed" | "scheduled" | "needed";
@@ -96,25 +108,43 @@ export function spotToEventObservation(
   spot: LivePotaSpot,
   observedAt: Date,
 ): PotaSpotObservation | null {
-  const spotTime = new Date(spot.spotTime);
-  if (!Number.isFinite(spotTime.valueOf()) || spot.locationDesc !== "US-RI") return null;
-  const spotDate = spotTime.toISOString().slice(0, 10);
-  if (spotDate < activateRiPotaStartDate || spotDate > activateRiPotaEndDate) return null;
-  const callsign = normalizeCallsign(spot.activatorCallsign);
-  const reference = normalizeReference(spot.parkReference);
-  if (!callsign || !reference) return null;
+  return spotToEventObservations(spot, observedAt)[0] ?? null;
+}
 
-  return {
-    parkReference: reference,
+export function spotToEventObservations(
+  spot: LivePotaSpot,
+  observedAt: Date,
+): PotaSpotObservation[] {
+  const spotTime = new Date(spot.spotTime);
+  if (!Number.isFinite(spotTime.valueOf()) || spot.locationDesc !== "US-RI") return [];
+  const spotDate = spotTime.toISOString().slice(0, 10);
+  if (spotDate < activateRiPotaStartDate || spotDate > activateRiPotaEndDate) return [];
+  const callsign = normalizeCallsign(spot.activatorCallsign);
+  if (!callsign) return [];
+
+  const base = {
     spotDate,
     activatorCallsign: callsign,
-    locationDesc: "US-RI",
+    locationDesc: "US-RI" as const,
     sourceSpotId: spot.id.trim() || null,
     observedAt: observedAt.toISOString(),
+    spotTime: spotTime.toISOString(),
     frequency: spot.frequency.trim().slice(0, 32),
     mode: spot.mode.trim().toUpperCase().slice(0, 24),
     sourceLabel: spot.sourceLabel.trim().slice(0, 64),
+    spotterCallsign: normalizeCallsign(spot.spotterCallsign),
+    comments: spot.comments.trim().slice(0, 500),
   };
+  return potaSpotReferenceEvidence(spot).flatMap((evidence) => {
+    const parkReference = normalizeReference(evidence.parkReference);
+    if (!parkReference || !riReferences.has(parkReference)) return [];
+    return [{
+      ...base,
+      parkReference,
+      observationKind: evidence.kind,
+      declaredByReference: evidence.declaredByReference,
+    }];
+  });
 }
 
 export function deriveParkPotaStatus(facts: ParkPotaFacts): ParkPotaDerivedStatus {

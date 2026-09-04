@@ -57,7 +57,15 @@ describe("POTA spot history", () => {
       "42", old.toISOString(), old.toISOString(), old.toISOString(), old.toISOString(),
     ).run();
 
-    await expect(cleanupPotaSpotHistory(database, now)).resolves.toMatchObject({ deleted: 1 });
+    await database.DB.prepare(
+      `INSERT INTO pota_spot_history_sync (
+         activator_callsign, park_reference, first_seen_at, last_seen_at
+       ) VALUES ('K1NW', 'US-10542', ?, ?)`,
+    ).bind(old.valueOf(), old.valueOf()).run();
+    await expect(cleanupPotaSpotHistory(database, now)).resolves.toMatchObject({
+      deleted: 1,
+      syncStatesDeleted: 1,
+    });
     const rolling = await database.DB.prepare("SELECT COUNT(*) AS count FROM pota_spot_observations")
       .first<{ count: number }>();
     const event = await database.DB.prepare("SELECT COUNT(*) AS count FROM activate_ri_pota_spot_observations")

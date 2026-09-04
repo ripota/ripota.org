@@ -5,7 +5,7 @@ import {
   activateRiPotaStartDate,
   deriveParkPotaStatus,
   normalizePotaActivationHistory,
-  spotToEventObservation,
+  spotToEventObservations,
   summarizeParkPotaStatuses,
   type ParkPotaFacts,
   type PotaActivationEvidence,
@@ -14,6 +14,7 @@ import {
 import type { LivePotaSpot } from "../lib/pota/spots";
 import type { Env } from "./env";
 import { logWorkerError } from "./logging";
+import { currentLivePotaReferences } from "./pota-live-references";
 
 const historyBatchSize = 20;
 const historyConcurrency = 5;
@@ -44,9 +45,14 @@ type SpotObservationRow = {
   location_desc: string;
   source_spot_id: string | null;
   last_observed_at: string;
+  last_spot_time: string;
   last_frequency: string;
   last_mode: string;
   last_source_label: string;
+  last_spotter_callsign: string;
+  last_comments: string;
+  observation_kind: "structured_spot" | "declared_nfer";
+  declared_by_reference: string | null;
 };
 
 type ActivationEvidenceRow = {
@@ -92,6 +98,9 @@ type PublicSpotObservation = {
   frequency: string;
   mode: string;
   sourceLabel: string;
+  spotterCallsign: string;
+  evidenceKind: "structured_spot" | "declared_nfer";
+  declaredByReference: string | null;
 };
 
 export type PublicPotaParkStatusProjection = {
@@ -131,10 +140,7 @@ export async function persistEventSpotObservations(
   spots: readonly LivePotaSpot[],
   observedAt = new Date(),
 ): Promise<number> {
-  const observations = spots.flatMap((spot) => {
-    const observation = spotToEventObservation(spot, observedAt);
-    return observation ? [observation] : [];
-  });
+  const observations = spots.flatMap((spot) => spotToEventObservations(spot, observedAt));
   const statements = observations.map((observation) => spotObservationUpsert(env, observation));
   if (statements.length > 0) await env.DB.batch(statements);
   await env.DB.prepare(
@@ -153,8 +159,9 @@ export async function getPublicPotaParkStatus(
     scheduledReferences(env),
     env.DB.prepare(
       `SELECT park_reference, spot_date, activator_callsign, location_desc,
-        source_spot_id, last_observed_at, last_frequency, last_mode,
-        last_source_label
+        source_spot_id, last_observed_at, last_spot_time, last_frequency,
+        last_mode, last_source_label, last_spotter_callsign, last_comments,
+        observation_kind, declared_by_reference
        FROM activate_ri_pota_spot_observations
        WHERE event_id = ?
        ORDER BY last_observed_at DESC`,
@@ -167,7 +174,7 @@ export async function getPublicPotaParkStatus(
        ORDER BY qso_date DESC, total_qsos DESC, activator_callsign ASC`,
     ).bind(env.ACTIVATE_RI_EVENT_ID).all<ActivationEvidenceRow>(),
     readSyncState(env),
-    currentLiveReferences(env, now),
+    currentLivePotaReferences(env, now),
   ]);
 
   const observationsByPark = groupBy(observationResult.results ?? [], (row) => row.park_reference);
@@ -594,29 +601,6 @@ async function scheduledReferences(
   return new Set((result.results ?? []).map((row) => row.park_reference));
 }
 
-async function currentLiveReferences(
-  env: Pick<Env, "DB">,
-  now: Date,
-): Promise<Set<string>> {
-  const row = await env.DB.prepare(
-    `SELECT payload_json, fetched_at FROM pota_spots_cache WHERE id = 'ri-live-spots'`,
-  ).first<{ payload_json: string | null; fetched_at: number | null }>();
-  if (!row?.payload_json || !row.fetched_at) return new Set();
-  let spots: unknown;
-  try {
-    spots = JSON.parse(row.payload_json);
-  } catch {
-    return new Set();
-  }
-  if (!Array.isArray(spots)) return new Set();
-  const elapsedSeconds = Math.max(0, Math.floor((now.valueOf() - row.fetched_at) / 1_000));
-  return new Set(spots.flatMap((spot) => {
-    if (!isRecord(spot) || spot.locationDesc !== "US-RI" || typeof spot.parkReference !== "string") return [];
-    const expiry = typeof spot.expiresInSeconds === "number" ? spot.expiresInSeconds : null;
-    return expiry === null || expiry - elapsedSeconds > 0 ? [spot.parkReference] : [];
-  }));
-}
-
 async function readSyncState(
   env: Pick<Env, "DB" | "ACTIVATE_RI_EVENT_ID">,
 ): Promise<SyncStateRow> {
@@ -638,16 +622,51 @@ function spotObservationUpsert(
     `INSERT INTO activate_ri_pota_spot_observations (
        event_id, park_reference, spot_date, activator_callsign, location_desc,
        source_spot_id, first_observed_at, last_observed_at, last_frequency,
-       last_mode, last_source_label, created_at, updated_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       last_mode, last_source_label, created_at, updated_at,
+       last_spotter_callsign, last_comments, last_spot_time,
+       observation_kind, declared_by_reference
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(event_id, park_reference, spot_date, activator_callsign)
      DO UPDATE SET
        location_desc = excluded.location_desc,
-       source_spot_id = COALESCE(excluded.source_spot_id, source_spot_id),
        last_observed_at = excluded.last_observed_at,
-       last_frequency = excluded.last_frequency,
-       last_mode = excluded.last_mode,
-       last_source_label = excluded.last_source_label,
+       source_spot_id = CASE
+         WHEN excluded.last_spot_time >= last_spot_time THEN excluded.source_spot_id
+         ELSE source_spot_id
+       END,
+       last_frequency = CASE
+         WHEN excluded.last_spot_time >= last_spot_time THEN excluded.last_frequency
+         ELSE last_frequency
+       END,
+       last_mode = CASE
+         WHEN excluded.last_spot_time >= last_spot_time THEN excluded.last_mode
+         ELSE last_mode
+       END,
+       last_source_label = CASE
+         WHEN excluded.last_spot_time >= last_spot_time THEN excluded.last_source_label
+         ELSE last_source_label
+       END,
+       last_spotter_callsign = CASE
+         WHEN excluded.last_spot_time >= last_spot_time THEN excluded.last_spotter_callsign
+         ELSE last_spotter_callsign
+       END,
+       last_comments = CASE
+         WHEN excluded.last_spot_time >= last_spot_time THEN excluded.last_comments
+         ELSE last_comments
+       END,
+       last_spot_time = MAX(last_spot_time, excluded.last_spot_time),
+       observation_kind = CASE
+         WHEN observation_kind = 'structured_spot'
+           OR excluded.observation_kind = 'structured_spot'
+         THEN 'structured_spot'
+         ELSE 'declared_nfer'
+       END,
+       declared_by_reference = CASE
+         WHEN observation_kind = 'structured_spot'
+           OR excluded.observation_kind = 'structured_spot'
+         THEN NULL
+         ELSE COALESCE(excluded.declared_by_reference, declared_by_reference)
+       END,
        updated_at = excluded.updated_at`,
   ).bind(
     env.ACTIVATE_RI_EVENT_ID,
@@ -663,6 +682,11 @@ function spotObservationUpsert(
     observation.sourceLabel,
     observation.observedAt,
     observation.observedAt,
+    observation.spotterCallsign,
+    observation.comments,
+    observation.spotTime,
+    observation.observationKind,
+    observation.declaredByReference,
   );
 }
 
@@ -674,9 +698,14 @@ function observationFromRow(row: SpotObservationRow): PotaSpotObservation {
     locationDesc: "US-RI",
     sourceSpotId: row.source_spot_id,
     observedAt: row.last_observed_at,
+    spotTime: row.last_spot_time,
     frequency: row.last_frequency,
     mode: row.last_mode,
     sourceLabel: row.last_source_label,
+    spotterCallsign: row.last_spotter_callsign,
+    comments: row.last_comments,
+    observationKind: row.observation_kind,
+    declaredByReference: row.declared_by_reference,
   };
 }
 
@@ -709,10 +738,13 @@ function publicObservation(row: SpotObservationRow): PublicSpotObservation {
   return {
     spotDate: row.spot_date,
     activeCallsign: row.activator_callsign,
-    lastObservedAt: row.last_observed_at,
+    lastObservedAt: row.last_spot_time || row.last_observed_at,
     frequency: row.last_frequency,
     mode: row.last_mode,
     sourceLabel: row.last_source_label,
+    spotterCallsign: row.last_spotter_callsign,
+    evidenceKind: row.observation_kind,
+    declaredByReference: row.declared_by_reference,
   };
 }
 
@@ -760,10 +792,6 @@ function classifySyncError(error: unknown): string {
 
 function emptyReconciliation(acquired: boolean, deep: boolean): PotaReconciliationResult {
   return { acquired, deep, attempted: 0, succeeded: 0, failed: 0, evidenceRows: 0, complete: false };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 class SyncError extends Error {
