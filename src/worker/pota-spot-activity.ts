@@ -4,7 +4,12 @@ import {
   activateRiPotaEndDate,
   activateRiPotaStartDate,
 } from "../lib/activate-ri/pota-event";
+import {
+  potaSpotReferenceEvidence,
+  type PotaSpotReferenceEvidence,
+} from "../lib/pota/spots";
 import type { Env } from "./env";
+import { currentLivePotaReferences } from "./pota-live-references";
 import { potaSpotRetentionMilliseconds } from "./pota-spot-history";
 
 const eventStart = Date.parse(`${activateRiPotaStartDate}T00:00:00.000Z`);
@@ -12,12 +17,21 @@ const eventEndExclusive = Date.parse(`${activateRiPotaEndDate}T00:00:00.000Z`) +
 const parkByReference = new Map(references.map((park) => [park.reference, park]));
 
 type ObservationRow = {
+  source_spot_id: string;
   park_reference: string;
   activator_callsign: string;
   spot_time: string;
-  reported_expires_at: number | null;
   frequency: string;
   mode: string;
+  source_label: string;
+  spotter_callsign: string;
+  comments: string;
+};
+
+type ProjectedObservationRow = ObservationRow & {
+  projected_reference: string;
+  evidence_kind: PotaSpotReferenceEvidence["kind"];
+  declared_by_reference: string | null;
 };
 
 type CollectionStateRow = {
@@ -39,6 +53,9 @@ export type PublicPotaSpotActivity = {
     modes: number;
     bands: number;
     spots: number;
+    rbnSpots: number;
+    nonRbnSpots: number;
+    nonRbnSpotters: number;
   };
   parks: PublicPotaSpotActivityPark[];
 };
@@ -51,6 +68,12 @@ export type PublicPotaSpotActivityPark = {
   lastSpottedAt: string;
   live: boolean;
   spotCount: number;
+  structuredSpotCount: number;
+  declaredNferSpotCount: number;
+  rbnSpotCount: number;
+  nonRbnSpotCount: number;
+  nonRbnSpotters: string[];
+  declaredByReferences: string[];
   activators: string[];
   modes: string[];
   bands: string[];
@@ -65,22 +88,22 @@ export async function getPublicPotaSpotActivity(
     ? now.valueOf() - potaSpotRetentionMilliseconds
     : eventStart;
   const windowEnd = scope === "recent" ? now.valueOf() : eventEndExclusive;
-  const [observations, state, retained] = await Promise.all([
+  const [observations, state, retained, liveReferences] = await Promise.all([
     env.DB.prepare(
       scope === "recent"
-        ? `SELECT park_reference, activator_callsign, spot_time,
-            reported_expires_at, frequency, mode
+        ? `SELECT source_spot_id, park_reference, activator_callsign, spot_time,
+            frequency, mode, source_label, spotter_callsign, comments
            FROM pota_spot_observations
-           WHERE last_observed_at >= ? AND last_observed_at <= ?
+           WHERE spot_time >= ? AND spot_time <= ?
            ORDER BY spot_time DESC`
-        : `SELECT park_reference, activator_callsign, spot_time,
-            reported_expires_at, frequency, mode
+        : `SELECT source_spot_id, park_reference, activator_callsign, spot_time,
+            frequency, mode, source_label, spotter_callsign, comments
            FROM pota_spot_observations
            WHERE spot_time >= ? AND spot_time < ?
            ORDER BY spot_time DESC`,
     ).bind(
-      scope === "recent" ? windowStart : new Date(windowStart).toISOString(),
-      scope === "recent" ? windowEnd : new Date(windowEnd).toISOString(),
+      new Date(windowStart).toISOString(),
+      new Date(windowEnd).toISOString(),
     ).all<ObservationRow>(),
     env.DB.prepare(
       `SELECT last_collection_at, last_cleanup_at
@@ -89,12 +112,15 @@ export async function getPublicPotaSpotActivity(
     ).first<CollectionStateRow>(),
     env.DB.prepare("SELECT COUNT(*) AS count FROM pota_spot_observations")
       .first<{ count: number }>(),
+    currentLivePotaReferences(env, now),
   ]);
 
-  const parks = summarizeParks(observations.results ?? [], now.valueOf());
+  const observationRows = observations.results ?? [];
+  const parks = summarizeParks(observationRows, liveReferences);
   const activators = new Set(parks.flatMap((park) => park.activators));
   const modes = new Set(parks.flatMap((park) => park.modes));
   const bands = new Set(parks.flatMap((park) => park.bands));
+  const nonRbnSpotters = new Set(parks.flatMap((park) => park.nonRbnSpotters));
   return {
     ok: true,
     generatedAt: now.toISOString(),
@@ -111,7 +137,10 @@ export async function getPublicPotaSpotActivity(
       activators: activators.size,
       modes: modes.size,
       bands: bands.size,
-      spots: parks.reduce((sum, park) => sum + park.spotCount, 0),
+      spots: observationRows.length,
+      rbnSpots: observationRows.filter(isRbn).length,
+      nonRbnSpots: observationRows.filter((row) => !isRbn(row)).length,
+      nonRbnSpotters: nonRbnSpotters.size,
     },
     parks,
   };
@@ -131,12 +160,15 @@ export function frequencyToAmateurBand(value: string): string | null {
   return ranges.find(([minimum, maximum]) => kilohertz >= minimum && kilohertz <= maximum)?.[2] ?? null;
 }
 
-function summarizeParks(rows: readonly ObservationRow[], now: number): PublicPotaSpotActivityPark[] {
-  const grouped = new Map<string, ObservationRow[]>();
-  for (const row of rows) {
-    const parkRows = grouped.get(row.park_reference) ?? [];
+function summarizeParks(
+  rows: readonly ObservationRow[],
+  liveReferences: ReadonlyMap<string, PotaSpotReferenceEvidence["kind"]>,
+): PublicPotaSpotActivityPark[] {
+  const grouped = new Map<string, ProjectedObservationRow[]>();
+  for (const row of projectReferences(rows)) {
+    const parkRows = grouped.get(row.projected_reference) ?? [];
     parkRows.push(row);
-    grouped.set(row.park_reference, parkRows);
+    grouped.set(row.projected_reference, parkRows);
   }
   return [...grouped.entries()].flatMap(([reference, parkRows]) => {
     const park = parkByReference.get(reference);
@@ -153,13 +185,43 @@ function summarizeParks(rows: readonly ObservationRow[], now: number): PublicPot
       potaUrl: park.potaUrl,
       firstSpottedAt: times[0],
       lastSpottedAt: times[times.length - 1],
-      live: parkRows.some((row) => row.reported_expires_at === null || row.reported_expires_at > now),
+      live: liveReferences.has(reference),
       spotCount: parkRows.length,
+      structuredSpotCount: parkRows.filter((row) => row.evidence_kind === "structured_spot").length,
+      declaredNferSpotCount: parkRows.filter((row) => row.evidence_kind === "declared_nfer").length,
+      rbnSpotCount: parkRows.filter(isRbn).length,
+      nonRbnSpotCount: parkRows.filter((row) => !isRbn(row)).length,
+      nonRbnSpotters: uniqueSorted(parkRows
+        .filter((row) => !isRbn(row))
+        .map((row) => row.spotter_callsign)
+        .filter(Boolean)),
+      declaredByReferences: uniqueSorted(parkRows
+        .map((row) => row.declared_by_reference)
+        .filter((reference): reference is string => Boolean(reference))),
       activators: uniqueSorted(parkRows.map((row) => row.activator_callsign)),
       modes,
       bands,
     }];
   }).sort((left, right) => right.lastSpottedAt.localeCompare(left.lastSpottedAt));
+}
+
+function projectReferences(rows: readonly ObservationRow[]): ProjectedObservationRow[] {
+  return rows.flatMap((row) => potaSpotReferenceEvidence({
+    parkReference: row.park_reference,
+    sourceLabel: row.source_label,
+    comments: row.comments,
+  }).flatMap((evidence) => parkByReference.has(evidence.parkReference)
+    ? [{
+        ...row,
+        projected_reference: evidence.parkReference,
+        evidence_kind: evidence.kind,
+        declared_by_reference: evidence.declaredByReference,
+      }]
+    : []));
+}
+
+function isRbn(row: Pick<ObservationRow, "source_label">): boolean {
+  return row.source_label.trim().toUpperCase() === "RBN";
 }
 
 function uniqueSorted(values: readonly string[]): string[] {

@@ -20,6 +20,9 @@ describe("public POTA spot activity", () => {
     expect(component).toContain("Activators");
     expect(component).toContain("Modes");
     expect(component).toContain("Bands");
+    expect(component).toContain("RBN reports");
+    expect(component).toContain("Non-RBN reports");
+    expect(component).toContain("Declared N-fer");
     expect(component).toContain("First spotted");
     expect(component).toContain("Last spotted");
     expect(component).toContain("rolling 14-day collection window");

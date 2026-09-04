@@ -13,6 +13,9 @@
     <div><dt>Modes</dt><dd data-activity-modes>—</dd></div>
     <div><dt>Bands</dt><dd data-activity-bands>—</dd></div>
     <div><dt>Spots retained</dt><dd data-activity-spots>—</dd></div>
+    <div><dt>RBN reports</dt><dd data-activity-rbn-spots>—</dd></div>
+    <div><dt>Non-RBN reports</dt><dd data-activity-non-rbn-spots>—</dd></div>
+    <div><dt>Non-RBN spotters</dt><dd data-activity-non-rbn-spotters>—</dd></div>
   </dl>
 
   <p class="pota-progress__notice">
@@ -29,7 +32,9 @@
           <th scope="col">Activators</th>
           <th scope="col">Modes</th>
           <th scope="col">Bands</th>
-          <th scope="col">Spots</th>
+          <th scope="col">Evidence</th>
+          <th scope="col">Non-RBN spotters</th>
+          <th scope="col">Spot reports</th>
         </tr>
       </thead>
       <tbody data-pota-activity-rows></tbody>
@@ -49,6 +54,12 @@
     lastSpottedAt: string;
     live: boolean;
     spotCount: number;
+    structuredSpotCount: number;
+    declaredNferSpotCount: number;
+    rbnSpotCount: number;
+    nonRbnSpotCount: number;
+    nonRbnSpotters: string[];
+    declaredByReferences: string[];
     activators: string[];
     modes: string[];
     bands: string[];
@@ -58,7 +69,16 @@
     ok: true;
     scope: "recent" | "event";
     lastCollectedAt: string | null;
-    summary: { parks: number; activators: number; modes: number; bands: number; spots: number };
+    summary: {
+      parks: number;
+      activators: number;
+      modes: number;
+      bands: number;
+      spots: number;
+      rbnSpots: number;
+      nonRbnSpots: number;
+      nonRbnSpotters: number;
+    };
     parks: ActivityPark[];
   };
 
@@ -100,6 +120,9 @@
     setText(root, "[data-activity-modes]", String(snapshot.summary.modes));
     setText(root, "[data-activity-bands]", String(snapshot.summary.bands));
     setText(root, "[data-activity-spots]", String(snapshot.summary.spots));
+    setText(root, "[data-activity-rbn-spots]", String(snapshot.summary.rbnSpots));
+    setText(root, "[data-activity-non-rbn-spots]", String(snapshot.summary.nonRbnSpots));
+    setText(root, "[data-activity-non-rbn-spotters]", String(snapshot.summary.nonRbnSpotters));
     const scope = snapshot.scope === "event"
       ? "Showing spots from the Activate All RI event window"
       : "Pre-event rehearsal: showing the rolling 14-day collection window";
@@ -141,9 +164,24 @@
       cell("Activators", park.activators.join(", ") || "Not provided"),
       cell("Modes", park.modes.join(", ") || "Not provided"),
       cell("Bands", park.bands.join(", ") || "Not provided"),
-      cell("Spots", String(park.spotCount)),
+      cell("Evidence", evidenceLabel(park)),
+      cell("Non-RBN spotters", park.nonRbnSpotters.join(", ") || "None retained"),
+      cell(
+        "Spot reports",
+        `${park.spotCount} total · ${park.rbnSpotCount} RBN · ${park.nonRbnSpotCount} non-RBN`,
+      ),
     ]) row.appendChild(element);
     return row;
+  }
+
+  function evidenceLabel(park: ActivityPark): string {
+    if (park.structuredSpotCount > 0) {
+      return park.declaredNferSpotCount > 0
+        ? "Structured POTA spot and declared N-fer"
+        : "Structured POTA spot";
+    }
+    const primary = park.declaredByReferences.join(", ");
+    return primary ? `Declared N-fer from ${primary}` : "Declared N-fer";
   }
 
   function cell(label: string, value: string): HTMLTableCellElement {
