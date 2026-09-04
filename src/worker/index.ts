@@ -36,6 +36,7 @@ import {
   cleanupPotaSpotHistory,
   persistPotaSpotHistory,
 } from "./pota-spot-history";
+import { syncPotaSpotHistories } from "./pota-spot-history-sync";
 
 export { ActivateRiOpsRoom };
 
@@ -243,6 +244,11 @@ export async function runActivateRiPotaSchedule(
       env,
       spots.snapshot.spots,
       now,
+    );
+    outcome.spotHistory = await syncPotaSpotHistories(
+      env,
+      spots.snapshot.spots,
+      { now: () => now },
     );
     if (isSpotCaptureTime(now)) {
       outcome.observations = await persistEventSpotObservations(

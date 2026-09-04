@@ -55,7 +55,9 @@ export async function persistPotaSpotHistory(
     spot.upstreamCount,
   ));
 
-  if (statements.length > 0) await env.DB.batch(statements);
+  for (let index = 0; index < statements.length; index += 100) {
+    await env.DB.batch(statements.slice(index, index + 100));
+  }
   await env.DB.prepare(
     `UPDATE pota_spot_collection_state
      SET last_collection_at = ?
