@@ -9,15 +9,60 @@ database_name="ripota-org"
 backup_dir="tmp/d1-backups"
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 backup_path="${backup_dir}/${database_name}-${timestamp}.sql"
+partial_backup_path="${backup_path}.partial"
 wrangler=(npx wrangler)
 base_env=(--env "")
+max_attempts=3
+initial_retry_delay_seconds=5
+
+retry_with_backoff() {
+  local description="$1"
+  shift
+
+  local attempt=1
+  local delay_seconds="${initial_retry_delay_seconds}"
+  local exit_code
+
+  while true; do
+    if "$@"; then
+      return 0
+    else
+      exit_code=$?
+    fi
+
+    if ((attempt >= max_attempts)); then
+      echo "${description} failed after ${max_attempts} attempts." >&2
+      return "${exit_code}"
+    fi
+
+    echo "${description} failed on attempt ${attempt}/${max_attempts}; retrying in ${delay_seconds} seconds." >&2
+    sleep "${delay_seconds}"
+    ((attempt += 1))
+    delay_seconds=$((delay_seconds * 3))
+  done
+}
+
+cleanup_partial_backup() {
+  rm -f -- "${partial_backup_path}"
+}
+
+export_database() {
+  cleanup_partial_backup
+  "${wrangler[@]}" d1 export "${database_name}" --remote "${base_env[@]}" --output "${partial_backup_path}" || return $?
+  mv -- "${partial_backup_path}" "${backup_path}"
+}
 
 mkdir -p "${backup_dir}"
+trap cleanup_partial_backup EXIT
 
 echo "Capturing current Time Travel bookmark for ${database_name}."
-"${wrangler[@]}" d1 time-travel info "${database_name}" "${base_env[@]}"
+retry_with_backoff \
+  "Time Travel bookmark lookup" \
+  "${wrangler[@]}" d1 time-travel info "${database_name}" "${base_env[@]}"
 
 echo "Exporting production D1 database ${database_name} to ${backup_path}."
-"${wrangler[@]}" d1 export "${database_name}" --remote "${base_env[@]}" --output "${backup_path}"
+retry_with_backoff \
+  "Production D1 export" \
+  export_database
 
 echo "Production D1 backup saved to ${backup_path}."
