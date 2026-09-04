@@ -175,6 +175,7 @@ function liveSpot(overrides: Partial<LivePotaSpot> = {}): LivePotaSpot {
     spotterCallsign: "N1XYZ",
     comments: "synthetic",
     sourceLabel: "POTA",
+    upstreamCount: null,
     locationDesc: "US-RI",
     expiresInSeconds: 600,
     parkUrl: "https://pota.app/#/park/US-7971",

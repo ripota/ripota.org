@@ -40,6 +40,7 @@ function storedSpot(overrides: Partial<LivePotaSpot> = {}): LivePotaSpot {
     spotterCallsign: "KW7MM-#",
     comments: "RBN 5 dB",
     sourceLabel: "RBN",
+    upstreamCount: null,
     locationDesc: "US-RI",
     expiresInSeconds: 561,
     parkUrl: "https://pota.app/#/park/US-10545",

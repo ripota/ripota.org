@@ -26,7 +26,7 @@ describe("POTA spot history", () => {
 
     const rows = await database.DB.prepare(
       `SELECT first_observed_at, last_observed_at, reported_expires_at,
-        frequency, mode
+        frequency, mode, spotter_callsign, comments, upstream_count
        FROM pota_spot_observations`,
     ).all<Record<string, unknown>>();
     expect(rows.results).toEqual([{
@@ -35,6 +35,9 @@ describe("POTA spot history", () => {
       reported_expires_at: lastSeen.valueOf() + 300_000,
       frequency: "14315",
       mode: "SSB",
+      spotter_callsign: "K1NW",
+      comments: "",
+      upstream_count: null,
     }]);
   });
 
@@ -43,7 +46,7 @@ describe("POTA spot history", () => {
     cleanup = database.close;
     const now = new Date("2026-09-18T12:00:00Z");
     const old = new Date(now.valueOf() - potaSpotRetentionMilliseconds - 1);
-    await persistPotaSpotHistory(database, [spot()], old);
+    await persistPotaSpotHistory(database, [spot({ spotTime: old.toISOString() })], now);
     await database.DB.prepare(
       `INSERT INTO activate_ri_pota_spot_observations (
         event_id, park_reference, spot_date, activator_callsign, location_desc,
@@ -76,6 +79,7 @@ function spot(overrides: Partial<LivePotaSpot> = {}): LivePotaSpot {
     spotterCallsign: "K1NW",
     comments: "",
     sourceLabel: "POTA",
+    upstreamCount: null,
     locationDesc: "US-RI",
     expiresInSeconds: 600,
     parkUrl: "https://pota.app/#/park/US-10542",

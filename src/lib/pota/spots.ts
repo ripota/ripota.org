@@ -13,6 +13,7 @@ export type LivePotaSpot = {
   spotterCallsign: string;
   comments: string;
   sourceLabel: string;
+  upstreamCount: number | null;
   locationDesc: "US-RI";
   expiresInSeconds: number | null;
   parkUrl: string;
@@ -84,11 +85,52 @@ function normalizeRiPotaSpot(
     spotterCallsign: stringValue(value.spotter).trim().toUpperCase(),
     comments,
     sourceLabel: stringValue(value.source).trim(),
+    upstreamCount: nonnegativeIntegerOrNull(value.count),
     locationDesc,
     expiresInSeconds,
     parkUrl: officialPotaParkUrl(parkReference),
     spotsUrl: officialPotaSpotsUrl,
   };
+}
+
+export type NormalizePotaSpotHistoryOptions = {
+  parkReference: string;
+  parkName: string;
+  activatorCallsign: string;
+};
+
+export function normalizePotaSpotHistory(
+  value: unknown,
+  { parkReference, parkName, activatorCallsign }: NormalizePotaSpotHistoryOptions,
+): LivePotaSpot[] {
+  if (!Array.isArray(value)) {
+    throw new Error("POTA spot history was not an array.");
+  }
+
+  return value.flatMap((candidate, index) => {
+    if (!isRecord(candidate)) return [];
+    const spotTime = stringValue(candidate.spotTime).trim();
+    const comments = stringValue(candidate.comments).trim();
+    if (!spotTime || /\bQRT\b/i.test(comments)) return [];
+    const sourceId = stringValue(candidate.spotId).trim();
+    return [{
+      id: sourceId || `${parkReference}:${activatorCallsign}:${spotTime}:${index}`,
+      parkReference,
+      parkName,
+      activatorCallsign,
+      frequency: stringValue(candidate.frequency).trim(),
+      mode: stringValue(candidate.mode).trim().toUpperCase(),
+      spotTime,
+      spotterCallsign: stringValue(candidate.spotter).trim().toUpperCase(),
+      comments,
+      sourceLabel: stringValue(candidate.source).trim(),
+      upstreamCount: null,
+      locationDesc: "US-RI" as const,
+      expiresInSeconds: null,
+      parkUrl: officialPotaParkUrl(parkReference),
+      spotsUrl: officialPotaSpotsUrl,
+    }];
+  }).sort((left, right) => right.spotTime.localeCompare(left.spotTime));
 }
 
 function riSpotLocation(value: unknown, catalogLocation: string | undefined): "US-RI" | null {
@@ -136,6 +178,11 @@ function numberOrNull(value: unknown): number | null {
   }
 
   return null;
+}
+
+function nonnegativeIntegerOrNull(value: unknown): number | null {
+  const parsed = numberOrNull(value);
+  return parsed !== null && Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
 }
 
 function isInvalidSpot(value: unknown): boolean {

@@ -15,16 +15,26 @@ export async function persistPotaSpotHistory(
     `INSERT INTO pota_spot_observations (
       spot_key, source_spot_id, park_reference, park_name,
       activator_callsign, spot_time, first_observed_at, last_observed_at,
-      reported_expires_at, frequency, mode, source_label
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      reported_expires_at, frequency, mode, source_label, spotter_callsign,
+      comments, upstream_count
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(spot_key) DO UPDATE SET
       source_spot_id = excluded.source_spot_id,
       park_name = excluded.park_name,
       last_observed_at = excluded.last_observed_at,
-      reported_expires_at = excluded.reported_expires_at,
+      reported_expires_at = COALESCE(
+        excluded.reported_expires_at,
+        pota_spot_observations.reported_expires_at
+      ),
       frequency = excluded.frequency,
       mode = excluded.mode,
-      source_label = excluded.source_label`,
+      source_label = excluded.source_label,
+      spotter_callsign = excluded.spotter_callsign,
+      comments = excluded.comments,
+      upstream_count = COALESCE(
+        excluded.upstream_count,
+        pota_spot_observations.upstream_count
+      )`,
   ).bind(
     spotKey(spot),
     spot.id,
@@ -40,6 +50,9 @@ export async function persistPotaSpotHistory(
     spot.frequency,
     spot.mode,
     spot.sourceLabel,
+    spot.spotterCallsign,
+    spot.comments,
+    spot.upstreamCount,
   ));
 
   if (statements.length > 0) await env.DB.batch(statements);
@@ -58,8 +71,8 @@ export async function cleanupPotaSpotHistory(
   const cutoff = now.valueOf() - potaSpotRetentionMilliseconds;
   const deleted = await env.DB.prepare(
     `DELETE FROM pota_spot_observations
-     WHERE last_observed_at < ?`,
-  ).bind(cutoff).run();
+     WHERE spot_time < ?`,
+  ).bind(new Date(cutoff).toISOString()).run();
   await env.DB.prepare(
     `UPDATE pota_spot_collection_state
      SET last_cleanup_at = ?, last_cleanup_deleted = ?

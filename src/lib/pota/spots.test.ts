@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeRiPotaSpots } from "./spots";
+import { normalizePotaSpotHistory, normalizeRiPotaSpots } from "./spots";
 
 const parkNames = new Map([
   ["US-10545", "Hillsdale Preserve Management Area"],
@@ -45,12 +45,18 @@ describe("normalizeRiPotaSpots", () => {
         spotterCallsign: "KW7MM-#",
         comments: "RBN 5 dB 24 WPM",
         sourceLabel: "RBN",
+        upstreamCount: null,
         locationDesc: "US-RI",
         expiresInSeconds: 561,
         parkUrl: "https://pota.app/#/park/US-10545",
         spotsUrl: "https://pota.app/",
       },
     ]);
+  });
+
+  it("retains the upstream count as an internal change signal", () => {
+    expect(normalizeRiPotaSpots([spot({ count: 12 })], options)[0].upstreamCount).toBe(12);
+    expect(normalizeRiPotaSpots([spot({ count: -1 })], options)[0].upstreamCount).toBeNull();
   });
 
   it("uses checked-in RI membership and removes QRT, expired, and invalid spots", () => {
@@ -116,5 +122,37 @@ describe("normalizeRiPotaSpots", () => {
       spot({ spotId: 3, reference: "US-7971", locationDesc: "US-RI" }),
       spot({ spotId: 4, reference: "US-2868", locationDesc: 42 }),
     ], options).map((item) => item.id)).toEqual(["3"]);
+  });
+});
+
+describe("normalizePotaSpotHistory", () => {
+  const context = {
+    parkReference: "US-10545",
+    parkName: "Hillsdale Preserve Management Area",
+    activatorCallsign: "N1BS",
+  };
+
+  it("normalizes individual history reports with their provenance", () => {
+    expect(normalizePotaSpotHistory([{
+      spotId: 56078943,
+      spotTime: "2026-09-04T11:45:28",
+      spotter: "n1bs",
+      mode: "cw",
+      frequency: "7054",
+      source: "Ham2K Portable Logger",
+      comments: "CW 2-fer: US-6979 US-6980",
+    }], context)).toEqual([expect.objectContaining({
+      id: "56078943",
+      spotterCallsign: "N1BS",
+      sourceLabel: "Ham2K Portable Logger",
+      comments: "CW 2-fer: US-6979 US-6980",
+      upstreamCount: null,
+      expiresInSeconds: null,
+    })]);
+  });
+
+  it("rejects malformed payloads and excludes QRT reports", () => {
+    expect(() => normalizePotaSpotHistory({}, context)).toThrow("was not an array");
+    expect(normalizePotaSpotHistory([{ spotTime: "2026-09-04T12:00:00", comments: "QRT" }], context)).toEqual([]);
   });
 });

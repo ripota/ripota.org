@@ -99,5 +99,5 @@ function observation() {
 }
 
 function liveSpot(): LivePotaSpot {
-  return { id: "1", parkReference: "US-7971", parkName: "Synthetic Park", activatorCallsign: "N1ABC", frequency: "14.074", mode: "FT8", spotTime: "2026-09-11T12:00:00Z", spotterCallsign: "N1XYZ", comments: "ignored", sourceLabel: "POTA", expiresInSeconds: 300, parkUrl: "https://pota.app/#/park/US-7971", spotsUrl: "https://pota.app/", locationDesc: "US-RI" };
+  return { id: "1", parkReference: "US-7971", parkName: "Synthetic Park", activatorCallsign: "N1ABC", frequency: "14.074", mode: "FT8", spotTime: "2026-09-11T12:00:00Z", spotterCallsign: "N1XYZ", comments: "ignored", sourceLabel: "POTA", upstreamCount: null, expiresInSeconds: 300, parkUrl: "https://pota.app/#/park/US-7971", spotsUrl: "https://pota.app/", locationDesc: "US-RI" };
 }
