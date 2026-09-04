@@ -1,9 +1,14 @@
 ---
+export interface Props {
+  showActivity?: boolean;
+}
+
+const { showActivity = false } = Astro.props;
 const links = [
   ["Overview", "/activate-ri-2026/"],
   ["Schedule", "/activate-ri-2026/schedule/"],
   ["Parks", "/activate-ri-2026/parks/"],
-  ["Activity", "/activate-ri-2026/activity/"],
+  ...(showActivity ? [["Activity", "/activate-ri-2026/activity/"]] : []),
   ["Hunter", "/activate-ri-2026/hunter/"],
   ["FAQ", "/activate-ri-2026/help/"],
   ["Activator", "/activate-ri-2026/activator/"],

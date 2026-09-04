@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import component from "./PotaSpotActivity.astro?raw";
 import nav from "./EventNav.astro?raw";
 import page from "../../pages/activate-ri-2026/activity.astro?raw";
+import adminPage from "../../pages/activate-ri-2026/admin.astro?raw";
 
 describe("public POTA spot activity", () => {
-  it("provides a public event page linked from event navigation", () => {
-    expect(nav).toContain('["Activity", "/activate-ri-2026/activity/"]');
+  it("provides a public event page linked only from the admin navigation", () => {
+    expect(nav).toContain('showActivity ? [["Activity", "/activate-ri-2026/activity/"]] : []');
+    expect(adminPage).toContain("<EventNav showActivity />");
+    expect(page).toContain("<EventNav />");
     expect(page).toContain('canonicalPath="/activate-ri-2026/activity/"');
     expect(page).toContain("<PotaSpotActivity />");
     expect(page).toContain('<SiteHeader variant="solid" showEventLink />');
