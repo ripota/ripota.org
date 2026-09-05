@@ -60,6 +60,9 @@ test("an Access-bootstrap administrator can enroll and sign in with a passkey", 
     await page.goto(`${server.origin}/account/sign-in/?returnTo=%2Factivate-ri-2026%2Fadmin%2F`);
     await page.getByRole("button", { name: "Sign in with a passkey" }).click();
     await expect(page).toHaveURL(`${server.origin}/activate-ri-2026/admin/`);
+    await page.clock.install({ time: new Date("2026-09-05T12:00:00Z") });
+    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+    await expect(page.getByRole("link", { name: "Progress", exact: true })).toBeVisible();
     const accounts = await page.request.get(`${server.origin}/api/activate-ri-2026/admin/accounts`);
     expect(accounts.status(), await accounts.text()).toBe(200);
   } finally {

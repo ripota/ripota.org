@@ -2,15 +2,17 @@ import { describe, expect, it } from "vitest";
 import component from "./PotaSpotActivity.astro?raw";
 import client from "../../lib/activate-ri/spot-activity-client?raw";
 import nav from "./EventNav.astro?raw";
-import page from "../../pages/activate-ri-2026/activity.astro?raw";
+import page from "../../pages/activate-ri-2026/progress.astro?raw";
 import adminPage from "../../pages/activate-ri-2026/admin.astro?raw";
 
 describe("public POTA spot activity", () => {
-  it("provides a public event page linked only from the admin navigation", () => {
-    expect(nav).toContain('showActivity ? [["Activity", "/activate-ri-2026/activity/"]] : []');
-    expect(adminPage).toContain("<EventNav showActivity />");
+  it("provides a progress page with phase-aware public navigation and an admin override", () => {
+    expect(nav).toContain('["Progress", progressPath]');
+    expect(nav).toContain("subscribeEventPhase");
+    expect(adminPage).toContain("<EventNav showProgress />");
     expect(page).toContain("<EventNav />");
-    expect(page).toContain('canonicalPath="/activate-ri-2026/activity/"');
+    expect(page).toContain('canonicalPath="/activate-ri-2026/progress/"');
+    expect(page).toContain('id="progress-title">Event progress</h1>');
     expect(page).toContain("<PotaSpotActivity />");
     expect(page).toContain('<SiteHeader variant="solid" showEventLink />');
   });

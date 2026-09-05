@@ -4,6 +4,30 @@ import { startActivateRiServer } from "./helpers/activate-ri-server";
 
 test.setTimeout(60_000);
 
+test("legacy activity links redirect permanently to progress and preserve the selected view", async ({ page, request }) => {
+  const server = await startActivateRiServer();
+  try {
+    for (const suffix of ["", "/"]) {
+      const response = await request.get(`${server.origin}/activate-ri-2026/activity${suffix}?view=unspotted`, {
+        maxRedirects: 0,
+      });
+      expect(response.status()).toBe(301);
+      const destination = new URL(response.headers().location, server.origin);
+      expect(destination.pathname).toBe("/activate-ri-2026/progress/");
+      expect(destination.search).toBe("?view=unspotted");
+    }
+    await page.clock.install({ time: new Date("2026-09-11T12:00:00Z") });
+    await page.goto(`${server.origin}/activate-ri-2026/activity/?view=unspotted`);
+    await expect(page).toHaveURL(`${server.origin}/activate-ri-2026/progress/?view=unspotted`);
+    await expect(page.getByRole("heading", { name: "Event progress", exact: true })).toBeVisible();
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "https://ripota.org/activate-ri-2026/progress/");
+    await expect(page.getByRole("radio", { name: /Not yet spotted/ })).toBeChecked();
+    await expect(page.getByRole("link", { name: "Progress", exact: true })).toHaveAttribute("aria-current", "page");
+  } finally {
+    await server.stop();
+  }
+});
+
 for (const path of ["/activate-ri-2026/", "/activate-ri-2026/parks/"]) {
   test(`a pre-event build transitions at runtime on ${path}`, async ({ page }) => {
     const server = await startActivateRiServer();
@@ -32,7 +56,12 @@ for (const path of ["/activate-ri-2026/", "/activate-ri-2026/parks/"]) {
       const results = page.locator('[data-event-view="results"]');
       await expect(planning).toBeVisible();
       await expect(results).toBeHidden();
+      const progressLink = page.locator("[data-event-progress-link]");
+      await expect(progressLink).toBeHidden();
       await page.clock.runFor(60_000);
+      await expect(progressLink).toBeVisible();
+      await expect(progressLink).toHaveText("Progress");
+      await expect(progressLink).toHaveAttribute("href", "/activate-ri-2026/progress/");
       await expect(planning).toBeHidden();
       await expect(results).toBeVisible();
       await expect(page.locator("[data-event-phase-views]")).toHaveAttribute("data-phase", "event-live");
@@ -45,6 +74,7 @@ for (const path of ["/activate-ri-2026/", "/activate-ri-2026/parks/"]) {
       await page.clock.setFixedTime(new Date("2026-09-14T00:00:00Z"));
       await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
       await expect(page.locator("[data-event-phase-views]")).toHaveAttribute("data-phase", "post-event");
+      await expect(progressLink).toBeVisible();
       if (!path.endsWith("/parks/")) {
         await expect(results.getByRole("link", { name: "Check recognition" })).toBeVisible();
       }
@@ -80,7 +110,7 @@ test("activity filters missing parks, keeps the view on refresh, and explains st
       fail ? route.fulfill({ status: 503 }) : route.fulfill({ json: snapshot }));
     await page.clock.install();
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(server.origin + "/activate-ri-2026/activity/?view=unspotted");
+    await page.goto(server.origin + "/activate-ri-2026/progress/?view=unspotted");
     const rows = page.locator("[data-pota-activity-rows] tr");
     await expect(rows).toHaveCount(60);
     await expect(page.getByRole("radio", { name: "Not yet spotted (60)", exact: true })).toBeChecked();

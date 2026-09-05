@@ -1,14 +1,15 @@
 ---
 export interface Props {
-  showActivity?: boolean;
+  showProgress?: boolean;
 }
 
-const { showActivity = false } = Astro.props;
+const { showProgress = false } = Astro.props;
+const progressPath = "/activate-ri-2026/progress/";
 const links = [
   ["Overview", "/activate-ri-2026/"],
   ["Schedule", "/activate-ri-2026/schedule/"],
   ["Parks", "/activate-ri-2026/parks/"],
-  ...(showActivity ? [["Activity", "/activate-ri-2026/activity/"]] : []),
+  ["Progress", progressPath],
   ["Hunter", "/activate-ri-2026/hunter/"],
   ["FAQ", "/activate-ri-2026/help/"],
   ["Activator", "/activate-ri-2026/activator/"],
@@ -33,9 +34,30 @@ function isCurrent(href: string): boolean {
 <nav class="event-nav" aria-label="Activate All RI navigation">
   {
     links.map(([label, href]) => (
-      <a href={href} aria-current={isCurrent(href) ? "page" : undefined}>
+      <a
+        href={href}
+        aria-current={isCurrent(href) ? "page" : undefined}
+        hidden={href === progressPath && !showProgress}
+        data-event-progress-link={href === progressPath || undefined}
+        data-progress-always-visible={href === progressPath && showProgress ? "true" : undefined}
+      >
         {label}
       </a>
     ))
   }
 </nav>
+
+<script>
+  import { subscribeEventPhase } from "../../lib/activate-ri/event-phase";
+
+  subscribeEventPhase((phase) => {
+    const eventStarted = phase === "event-live" || phase === "post-event";
+    document.querySelectorAll<HTMLAnchorElement>("[data-event-progress-link]").forEach((link) => {
+      link.hidden = !eventStarted && link.dataset.progressAlwaysVisible !== "true";
+    });
+  });
+</script>
+
+<style>
+  [data-event-progress-link][hidden] { display: none !important; }
+</style>
