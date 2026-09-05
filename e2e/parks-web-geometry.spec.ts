@@ -487,6 +487,26 @@ for (const viewport of [
       expect(browser.errors).toEqual([]);
     });
 
+    test("requested agendas retain unmatched parks in portable links", async ({ page, parksOrigin }) => {
+      const browser = observeBrowser(page);
+      await page.route("**/api/activate-ri-2026/public/stops", (route) => route.fulfill({
+        contentType: "application/json", body: JSON.stringify({ ok: true, stops: syntheticStops }),
+      }));
+      await page.goto(`${parksOrigin}/activate-ri-2026/schedule/?parks=US-0513,US-0514&timezone=utc`);
+      await expect(page.locator("[data-filter-row]:visible")).toHaveCount(1);
+      await expect(page.locator("[data-requested-schedule-copy]")).toContainText("1 planned activation window at 1 of 2 requested parks");
+      await expect(page.locator("[data-requested-schedule-unmatched-list]")).toContainText("US-0514");
+      await page.getByRole("button", { name: "Share agenda", exact: true }).click();
+      const shareUrl = new URL(await page.locator("[data-schedule-share-url]").inputValue());
+      expect(shareUrl.searchParams.get("parks")).toBe("US-0513,US-0514");
+      expect(shareUrl.searchParams.get("timezone")).toBe("utc");
+      expect(shareUrl.searchParams.has("scope")).toBe(false);
+      await expect(page.locator(".schedule-estimate-note")).toContainText("planned estimates");
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await page.waitForLoadState("networkidle");
+      expect(browser.errors).toEqual([]);
+    });
+
     test("event maps and coverage retain lightweight filters and primary volunteer actions", async ({ page, parksOrigin }) => {
       const browser = observeBrowser(page);
       await page.route("**/api/activate-ri-2026/public/stops", (route) => route.fulfill({

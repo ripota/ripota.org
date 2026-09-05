@@ -51,14 +51,21 @@ export function formatActivationTimeRange(
   option = activationTimeZoneOptions[0],
 ): string {
   const startDate = eventUtcDate(input.plannedDate, input.startTime);
+  const endDate = endDateFromStart(startDate, input.startTime, input.endTime);
   const start = formatTime(startDate, option);
-  const end = formatTime(
-    endDateFromStart(startDate, input.startTime, input.endTime),
-    option,
-  );
+  const end = formatTime(endDate, option);
   const zone = formatTimeZone(startDate, option);
+  const calendarDate = new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    timeZone: option.timeZone,
+  });
+  const dayCue = calendarDate.format(startDate) === calendarDate.format(endDate)
+    ? ""
+    : " (+1 day)";
 
-  return `${start}-${end} ${zone}`;
+  return `${start}-${end} ${zone}${dayCue}`;
 }
 
 export function formatActivationDateTimeRange(

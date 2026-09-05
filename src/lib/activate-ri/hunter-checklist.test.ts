@@ -10,6 +10,7 @@ import {
   parseHunterParksCsv,
   readHunterChecklistState,
   remainingHunterReferences,
+  startBlankHunterChecklist,
   writeHunterChecklistState,
   type HunterReference,
 } from "./hunter-checklist";
@@ -102,6 +103,29 @@ describe("hunter checklist CSV import", () => {
 });
 
 describe("hunter checklist state", () => {
+  it("persists an intentionally blank checklist without inventing an import", () => {
+    const state = startBlankHunterChecklist(emptyHunterChecklistState(), "2026-09-05T12:00:00.000Z");
+    expect(state.lastImportedAt).toBeNull();
+    expect(state.importedReferenceIds).toEqual([]);
+    expect(hasHunterChecklistData(state)).toBe(true);
+    expect(remainingHunterReferences(state, references)).toEqual(references);
+    expect(normalizeHunterChecklistState(JSON.parse(JSON.stringify(state)), references)).toEqual(state);
+    expect(hasHunterChecklistData({ ...state, manualOverrides: {} })).toBe(true);
+    expect(normalizeHunterChecklistState({ ...emptyHunterChecklistState(), startedAt: "invalid" }, references))
+      .toEqual(emptyHunterChecklistState());
+  });
+
+  it("does not replace a saved import, manual choices, or an already started checklist", () => {
+    for (const state of [
+      { ...emptyHunterChecklistState(), importedReferenceIds: ["US-0513"] },
+      { ...emptyHunterChecklistState(), lastImportedAt: "2026-09-01T12:00:00.000Z" },
+      { ...emptyHunterChecklistState(), manualOverrides: { "US-0513": true } },
+      startBlankHunterChecklist(emptyHunterChecklistState(), "2026-09-01T12:00:00.000Z"),
+    ]) {
+      expect(startBlankHunterChecklist(state, "2026-09-05T12:00:00.000Z")).toBe(state);
+    }
+  });
+
   it("replaces imported references while preserving explicit overrides", () => {
     const state = {
       ...emptyHunterChecklistState(),

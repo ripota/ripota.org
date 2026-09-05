@@ -46,7 +46,7 @@ test("hunter imports, overrides, filters, persists, resets, and clears a local c
     await page.goto(`${server.origin}/activate-ri-2026/hunter/`);
     await expect(page.getByRole("link", { name: "Hunter", exact: true })).toHaveAttribute("aria-current", "page");
     await expect(page.getByRole("link", { name: /Open POTA My Stats/ })).toHaveAttribute("href", "https://pota.app/#/user/stats");
-    await expect(page.getByText("No checklist has been imported")).toBeVisible();
+    await expect(page.getByText("No checklist has been saved")).toBeVisible();
 
     await page.getByLabel("Choose CSV file").setInputFiles({ name: "hunter_parks.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
     await expect(page.getByRole("status")).toContainText("Import complete");
@@ -138,6 +138,67 @@ test("hunter imports, overrides, filters, persists, resets, and clears a local c
     await expect(page.getByRole("heading", { name: /1 of 61 Rhode Island parks hunted/ })).toBeVisible();
     await page.getByRole("button", { name: "Clear my checklist data" }).click();
     await expect(page.getByText("Checklist data cleared")).toBeVisible();
+  } finally {
+    await server.stop();
+  }
+});
+
+test("a blank checklist persists without a fake import and resets back to all parks remaining", async ({ page }) => {
+  const server = await startActivateRiServer();
+  try {
+    await page.goto(`${server.origin}/activate-ri-2026/hunter/`);
+    await page.getByRole("button", { name: "Start a blank checklist", exact: true }).click();
+    await expect(page.getByRole("heading", { name: /0 of 61 Rhode Island parks hunted/ })).toBeVisible();
+    await expect(page.locator("[data-hunter-saved-note]")).toContainText("Started without a CSV import.");
+    await expect(page.locator("[data-hunter-blank-start]")).toBeHidden();
+    const state = await page.evaluate(() => JSON.parse(localStorage.getItem("activate-ri-2026:hunter-checklist:v1")!));
+    expect(state.lastImportedAt).toBeNull();
+    expect(state.startedAt).toEqual(expect.any(String));
+    await page.reload();
+    await expect(page.getByRole("heading", { name: /0 of 61 Rhode Island parks hunted/ })).toBeVisible();
+    await page.getByLabel(/US-0513 .* hunted/).check();
+    await expect(page.getByRole("heading", { name: /1 of 61 Rhode Island parks hunted/ })).toBeVisible();
+    await page.getByRole("button", { name: "Reset manual changes", exact: true }).click();
+    await page.reload();
+    await expect(page.getByRole("heading", { name: /0 of 61 Rhode Island parks hunted/ })).toBeVisible();
+    await expect(page.locator("[data-hunter-blank-start]")).toBeHidden();
+    await page.getByRole("button", { name: "Clear my checklist data", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Start a blank checklist", exact: true })).toBeVisible();
+  } finally {
+    await server.stop();
+  }
+});
+
+test("pasted requested references validate without changing an existing checklist", async ({ page }) => {
+  const server = await startActivateRiServer();
+  try {
+    await page.goto(`${server.origin}/activate-ri-2026/hunter/#hunter-requested-parks`);
+    const savedState = JSON.stringify({
+      version: 1, importedReferenceIds: ["US-0513"], manualOverrides: {}, lastImportedAt: "2026-09-01T12:00:00.000Z",
+    });
+    // Another tab may have saved a checklist after this page first loaded.
+    await page.evaluate((saved) => localStorage.setItem("activate-ri-2026:hunter-checklist:v1", saved), savedState);
+    await page.getByRole("button", { name: "Start a blank checklist", exact: true }).click();
+    await expect(page.getByRole("heading", { name: /1 of 61 Rhode Island parks hunted/ })).toBeVisible();
+    await expect(page.locator("[data-hunter-blank-start]")).toBeHidden();
+    const input = page.locator("[data-hunter-requested-input]");
+    await expect(page.locator("[data-hunter-requested-parks]")).toHaveAttribute("open", "");
+    await input.fill("US-0514 BAD US-9999");
+    await page.getByRole("button", { name: "View requested parks schedule", exact: true }).click();
+    await expect(page.locator("[data-hunter-requested-error]")).toContainText("BAD");
+    await expect(page.locator("[data-hunter-requested-error]")).toContainText("US-9999");
+    await expect(input).toHaveAttribute("aria-invalid", "true");
+    await expect(page).toHaveURL(/\/hunter\/#hunter-requested-parks$/);
+    await input.fill(" ; , ");
+    await page.getByRole("button", { name: "View requested parks schedule", exact: true }).click();
+    await expect(page.locator("[data-hunter-requested-error]")).toContainText("Enter at least one");
+    await input.fill("us-0514; US-0513\nUS-0514");
+    await page.getByRole("button", { name: "View requested parks schedule", exact: true }).click();
+    await expect(page).toHaveURL(/\/schedule\/\?parks=US-0513%2CUS-0514$/);
+    expect(await page.evaluate(() => localStorage.getItem("activate-ri-2026:hunter-checklist:v1"))).toBe(savedState);
+    await page.goBack();
+    await expect(page.getByRole("heading", { name: /1 of 61 Rhode Island parks hunted/ })).toBeVisible();
+    await expect(page.getByLabel(/US-0513 .* hunted/)).toBeChecked();
   } finally {
     await server.stop();
   }

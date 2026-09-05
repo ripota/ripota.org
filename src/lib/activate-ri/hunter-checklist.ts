@@ -17,6 +17,7 @@ export type HunterChecklistState = {
   importedReferenceIds: string[];
   manualOverrides: Record<string, boolean>;
   lastImportedAt: string | null;
+  startedAt?: string;
 };
 
 export type HunterCsvResult = {
@@ -38,6 +39,14 @@ export function emptyHunterChecklistState(): HunterChecklistState {
     manualOverrides: {},
     lastImportedAt: null,
   };
+}
+
+export function startBlankHunterChecklist(
+  current: HunterChecklistState,
+  startedAt = new Date().toISOString(),
+): HunterChecklistState {
+  if (hasHunterChecklistData(current)) return current;
+  return { ...emptyHunterChecklistState(), startedAt };
 }
 
 export function parseHunterParksCsv(
@@ -160,6 +169,7 @@ export function applyHunterImport(
     importedReferenceIds: [...result.importedReferenceIds],
     manualOverrides: { ...current.manualOverrides },
     lastImportedAt: importedAt,
+    ...(current.startedAt ? { startedAt: current.startedAt } : {}),
   };
 }
 
@@ -184,7 +194,8 @@ export function remainingHunterReferences<T extends HunterReferenceIdentity>(
 }
 
 export function hasHunterChecklistData(state: HunterChecklistState): boolean {
-  return state.lastImportedAt !== null || Object.keys(state.manualOverrides).length > 0;
+  return Boolean(state.startedAt) || state.lastImportedAt !== null ||
+    state.importedReferenceIds.length > 0 || Object.keys(state.manualOverrides).length > 0;
 }
 
 export function readHunterChecklistState(
@@ -235,6 +246,9 @@ export function normalizeHunterChecklistState(
     importedReferenceIds,
     manualOverrides,
     lastImportedAt: typeof value.lastImportedAt === "string" ? value.lastImportedAt : null,
+    ...(typeof value.startedAt === "string" && Number.isFinite(Date.parse(value.startedAt))
+      ? { startedAt: value.startedAt }
+      : {}),
   };
 }
 

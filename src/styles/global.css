@@ -3386,6 +3386,11 @@ p {
     margin: 0.45in;
   }
 
+  :root:has(.schedule-print-heading) {
+    color-scheme: light;
+    background: #fff;
+  }
+
   body:has(.schedule-print-heading) {
     background: #fff;
     color: #111;
@@ -3400,7 +3405,7 @@ p {
   body:has(.schedule-print-heading) .schedule-actions,
   body:has(.schedule-print-heading) .notice,
   body:has(.schedule-print-heading) .site-footer,
-  body:has(.schedule-print-heading) .activator-popover__card {
+  body:has(.schedule-print-heading) .activator-popover {
     display: none !important;
   }
 
@@ -3452,6 +3457,7 @@ p {
   }
 
   body:has(.schedule-print-heading) .personal-schedule-summary h2,
+  body:has(.schedule-print-heading) .personal-schedule-summary h3,
   body:has(.schedule-print-heading) .personal-schedule-summary summary,
   body:has(.schedule-print-heading) .personal-schedule-summary p,
   body:has(.schedule-print-heading) .personal-schedule-unscheduled ul {
@@ -3473,6 +3479,25 @@ p {
 
   body:has(.schedule-print-heading) .personal-schedule-summary h2 {
     font-size: 15pt;
+  }
+
+  body:has(.schedule-print-heading) [data-requested-schedule-summary] {
+    break-inside: auto;
+    font-size: 8.5pt;
+  }
+
+  body:has(.schedule-print-heading) [data-requested-schedule-summary] h3 {
+    break-after: avoid;
+    font-size: 10pt;
+  }
+
+  body:has(.schedule-print-heading) [data-requested-schedule-unmatched-list] {
+    margin-block: 0.04in;
+    padding-left: 0.16in;
+  }
+
+  body:has(.schedule-print-heading) [data-requested-schedule-unmatched-list] li {
+    break-inside: avoid;
   }
 
   body:has(.schedule-print-heading) .personal-schedule-unscheduled ul {
@@ -3518,6 +3543,14 @@ p {
     display: table-header-group;
   }
 
+  body:has(.schedule-print-heading) .event-table thead th {
+    background: #eee;
+  }
+
+  body:has(.schedule-print-heading) .event-table th span {
+    color: #444;
+  }
+
   body:has(.schedule-print-heading) .event-table tbody {
     display: table-row-group;
   }
@@ -3551,10 +3584,8 @@ p {
     display: none !important;
   }
 
-  body:has(.schedule-print-heading) .activator-popover__trigger {
-    border: 0;
-    background: transparent;
-    padding: 0;
+  body:has(.schedule-print-heading) .schedule-print-activator {
+    display: block;
     color: #111;
     font: inherit;
   }

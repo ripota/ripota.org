@@ -22,6 +22,7 @@
     "@types/node": "^25.9.3",
     "astro": "latest",
     "leaflet": "^1.9.4",
+    "pdfjs-dist": "^6.3.289",
     "typescript": "latest",
     "vitest": "latest",
     "wrangler": "latest"

@@ -29,7 +29,7 @@ describe("ScheduleTable markup", () => {
     expect(source).toContain('window.history.replaceState({}, "", url)');
   });
 
-  it("filters against the browser-local remaining parks without putting park IDs in the URL", () => {
+  it("loads remaining parks from the browser-local checklist", () => {
     expect(source).toContain('data-hunter-scope');
     expect(source).toContain('My remaining parks');
     expect(source).toContain('readHunterChecklistState(localStorage, parks)');
@@ -37,12 +37,12 @@ describe("ScheduleTable markup", () => {
     expect(source).toContain('row.dataset.parkReference = stop.parkReference');
     expect(source).toContain('url.searchParams.set("scope", "remaining")');
     expect(source).toContain('No Hunter checklist has been saved in this browser yet.');
-    expect(source).toContain('Import checklist first');
+    expect(source).toContain('Start checklist first');
     expect(source).toContain('Not currently scheduled');
     expect(source).toContain('data-personal-schedule-copy aria-live="polite"');
     expect(source).not.toContain('data-personal-schedule-summary aria-live');
     expect(source).toContain('visibleCount === 1 ? "matches" : "match"');
-    expect(source).not.toContain('url.searchParams.set("parks"');
+    expect(source).toContain("buildRequestedAgendaUrl");
   });
 
   it("prints the current personalized schedule with human-readable context", () => {

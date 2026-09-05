@@ -77,6 +77,21 @@ describe("activation time helpers", () => {
     });
   });
 
+  it("marks the next day only when the selected timezone crosses midnight", () => {
+    const stop = {
+      plannedDate: "2026-09-11",
+      startTime: "23:45",
+      endTime: "01:15",
+    };
+
+    expect(formatActivationTimeRange(stop, timeZoneOptionForValue("utc"))).toBe(
+      "23:45-01:15 UTC (+1 day)",
+    );
+    expect(formatActivationTimeRange(stop, timeZoneOptionForValue("eastern"))).toBe(
+      "19:45-21:15 EDT",
+    );
+  });
+
   it("handles the final Eastern block on the next UTC date", () => {
     expect(
       formatActivationDate({
@@ -90,7 +105,7 @@ describe("activation time helpers", () => {
         startTime: "01:00",
         endTime: "04:00",
       }),
-    ).toBe("21:00-00:00 EDT");
+    ).toBe("21:00-00:00 EDT (+1 day)");
     expect(
       formatActivationDate(
         {
@@ -100,6 +115,16 @@ describe("activation time helpers", () => {
         timeZoneOptionForValue("utc"),
       ),
     ).toBe("Sep 12, 2026");
+    expect(
+      formatActivationDateTimeRange(
+        {
+          plannedDate: "2026-09-11",
+          startTime: "01:00",
+          endTime: "04:00",
+        },
+        timeZoneOptionForValue("utc"),
+      ),
+    ).toBe("Sep 12, 2026 01:00-04:00 UTC");
 
     expect(
       stopTimeRangeToInstants("2026-09-11", "01:00", "04:00", {
