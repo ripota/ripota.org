@@ -7,6 +7,9 @@ import process from "node:process";
 export default function globalSetup(): () => void {
   const buildEnv = { ...process.env };
   delete buildEnv.RIPOTA_E2E_BUILD_READY;
+  // The static HTML must use the same test key as the local E2E server,
+  // even when Mise has loaded a production site key from the local environment.
+  buildEnv.PUBLIC_TURNSTILE_SITE_KEY = "1x00000000000000000000AA";
 
   run("npm", ["run", "build:local"], buildEnv);
 
