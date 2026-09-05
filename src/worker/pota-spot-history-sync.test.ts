@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { LivePotaSpot } from "../lib/pota/spots";
+import { persistPotaSpotHistory } from "./pota-spot-history";
 import { createMigratedSqliteD1 } from "./test-utils/sqlite-d1";
 import { syncPotaSpotHistories } from "./pota-spot-history-sync";
 
@@ -130,6 +131,90 @@ describe("POTA spot history synchronization", () => {
     await expect(database.DB.prepare(
       "SELECT consecutive_failures, retry_after FROM pota_spot_history_sync",
     ).first()).resolves.toEqual({ consecutive_failures: 0, retry_after: 0 });
+  });
+
+  it("seeds retained pairs for one backfill without replacing existing sync state", async () => {
+    const database = createMigratedSqliteD1({
+      through: "0020_pota_declared_nfer_evidence.sql",
+    });
+    cleanup = database.close;
+    const firstSeen = new Date("2026-09-04T11:45:00Z");
+    const lastSeen = new Date("2026-09-04T13:39:00Z");
+    await persistPotaSpotHistory(database, [liveSpot({
+      id: "retained-1",
+      spotTime: firstSeen.toISOString(),
+    })], firstSeen);
+    await persistPotaSpotHistory(database, [liveSpot({
+      id: "retained-2",
+      spotTime: lastSeen.toISOString(),
+    })], lastSeen);
+    await persistPotaSpotHistory(database, [liveSpot({
+      id: "existing-1",
+      activatorCallsign: "KC1ZEW",
+      parkReference: "US-2878",
+      parkName: "Lincoln Woods State Park",
+      spotTime: lastSeen.toISOString(),
+    })], lastSeen);
+    const existingSyncAt = Date.parse("2026-09-04T13:59:00Z");
+    await database.DB.prepare(
+      `INSERT INTO pota_spot_history_sync (
+         activator_callsign, park_reference, first_seen_at, last_seen_at,
+         active, last_history_sync_at, declared_references_json
+       ) VALUES ('KC1ZEW', 'US-2878', ?, ?, 0, ?, '["US-5483"]')`,
+    ).bind(lastSeen.valueOf(), lastSeen.valueOf(), existingSyncAt).run();
+
+    database.applyMigrationFile("0021_pota_post_close_history_sync.sql");
+
+    await expect(database.DB.prepare(
+      `SELECT first_seen_at, last_seen_at, active, last_history_sync_at,
+        post_close_sync_at
+       FROM pota_spot_history_sync
+       WHERE activator_callsign = 'N1BS' AND park_reference = 'US-10545'`,
+    ).first()).resolves.toEqual({
+      first_seen_at: firstSeen.valueOf(),
+      last_seen_at: lastSeen.valueOf(),
+      active: 0,
+      last_history_sync_at: null,
+      post_close_sync_at: null,
+    });
+    await expect(database.DB.prepare(
+      `SELECT active, last_history_sync_at, declared_references_json
+       FROM pota_spot_history_sync
+       WHERE activator_callsign = 'KC1ZEW' AND park_reference = 'US-2878'`,
+    ).first()).resolves.toEqual({
+      active: 0,
+      last_history_sync_at: existingSyncAt,
+      declared_references_json: '["US-5483"]',
+    });
+
+    const fetcher = vi.fn(async () => Response.json([historySpot()]));
+    const backfillAt = Date.parse("2026-09-04T14:00:00Z");
+    await expect(syncPotaSpotHistories(database, [], {
+      fetcher: fetcher as typeof fetch,
+      now: () => new Date(backfillAt),
+    })).resolves.toMatchObject({
+      attempted: 1,
+      backfillAttempted: 1,
+      succeeded: 1,
+      observations: 1,
+    });
+    await expect(database.DB.prepare(
+      `SELECT active, last_history_sync_at, post_close_sync_at,
+        declared_references_json
+       FROM pota_spot_history_sync
+       WHERE activator_callsign = 'N1BS' AND park_reference = 'US-10545'`,
+    ).first()).resolves.toEqual({
+      active: 0,
+      last_history_sync_at: backfillAt,
+      post_close_sync_at: backfillAt,
+      declared_references_json: '["US-10544"]',
+    });
+
+    await expect(syncPotaSpotHistories(database, [], {
+      fetcher: fetcher as typeof fetch,
+      now: () => new Date(backfillAt + 60_000),
+    })).resolves.toMatchObject({ attempted: 0 });
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
   it("processes every due pair while limiting simultaneous requests", async () => {
