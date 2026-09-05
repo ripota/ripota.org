@@ -3,7 +3,7 @@ import "leaflet/dist/leaflet.css";
 import parks from "../../public/data/activate-ri-2026/parks.json";
 import { references } from "@ripota/parks";
 import { dataset, displayReferences } from "@ripota/parks/display";
-import { getCanonicalGeometryUrl, getWebGeometry } from "../lib/pota/geometry-assets";
+import { getCanonicalGeometryUrl, getWebGeometry, parksGeometryVersion } from "../lib/pota/geometry-assets";
 import {
   buildReferenceMapItems,
   coverageStatusLabels,
@@ -78,6 +78,7 @@ const payload = JSON.stringify({
     bbox: showBoundaries || variant === "directory" ? item.bbox : undefined,
   })),
   attribution: dataset.attribution,
+  sourceBaseUrl: `${dataset.projectUrl}/blob/v${parksGeometryVersion}`,
   disclaimer: dataset.disclaimer,
   canonicalGeometryUrl: variant === "directory" ? getCanonicalGeometryUrl() : undefined,
   parks: isEventMap ? eventParks : [],
@@ -304,6 +305,7 @@ const payload = JSON.stringify({
   type MapPayload = {
     variant: "home" | "directory" | "coverage" | "volunteer";
     attribution: string;
+    sourceBaseUrl: string;
     disclaimer: string;
     canonicalGeometryUrl?: string;
     phaseFocus: "volunteer" | "hunter";
@@ -354,7 +356,9 @@ const payload = JSON.stringify({
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(map);
-    map.attributionControl.addAttribution(escapeHtml(payload.attribution));
+    map.attributionControl.addAttribution(escapeHtml(payload.attribution)
+      .replace("DATA_SOURCES.md", `<a href="${escapeHtml(payload.sourceBaseUrl)}/DATA_SOURCES.md" target="_blank" rel="noreferrer">map sources</a>`)
+      .replace("DATA_LICENSE.md", `<a href="${escapeHtml(payload.sourceBaseUrl)}/DATA_LICENSE.md" target="_blank" rel="noreferrer">data license</a>`));
     mapElement.title = payload.disclaimer;
     map.setView([41.58, -71.48], 9);
 
