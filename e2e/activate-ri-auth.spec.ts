@@ -23,8 +23,12 @@ test("an existing private link can enroll and later use a real passkey", async (
     await page.goto(`${server.origin}/activate-ri-2026/edit/${encodeURIComponent(token)}/`);
     await expect(page).toHaveURL(`${server.origin}/activate-ri-2026/activator/plan/`);
     await page.goto(`${server.origin}/account/security/`);
-    await page.getByRole("button", { name: "Add another passkey" }).click();
+    await expect(page.locator("[data-account-identity-status]")).toContainText("activator");
+    await expect(page.locator("[data-account-admin-guidance]")).toBeHidden();
+    await expect(page.getByText("No passkeys saved yet.")).toBeVisible();
+    await page.getByRole("button", { name: "Add a passkey", exact: true }).click();
     await expect(page.getByText("Passkey added.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Add another passkey", exact: true })).toBeVisible();
 
     const logout = await page.request.post(`${server.origin}/api/auth/logout`, {
       headers: { origin: server.origin },
@@ -49,7 +53,8 @@ test("an Access-bootstrap administrator can enroll and sign in with a passkey", 
     await page.goto(`${server.origin}/activate-ri-2026/admin/recovery/`);
     await page.getByRole("button", { name: "Continue to passkey setup" }).click();
     await expect(page).toHaveURL(`${server.origin}/account/security/`);
-    await page.getByRole("button", { name: "Add another passkey" }).click();
+    await expect(page.locator("[data-account-admin-guidance]")).toBeVisible();
+    await page.getByRole("button", { name: "Add a passkey", exact: true }).click();
     await expect(page.getByText("Passkey added.")).toBeVisible();
     await page.getByLabel("Callsign", { exact: true }).fill("W1ADMIN");
     await page.getByLabel("Public name (optional)").fill("Admin Operator");
@@ -90,6 +95,8 @@ test("an activator can use only an emailed sign-in link", async ({ page }) => {
     await page.goto(`${server.origin}/activate-ri-2026/activator/account/`);
     await expect(page.getByText(/signed in with an email link/i)).toBeVisible();
     await expect(page.getByText(/Activator access is ready now/i)).toBeVisible();
+    await expect(page.locator("[data-account-admin-guidance]")).toBeHidden();
+    await expect(page.getByRole("button", { name: "Add a passkey", exact: true })).toBeVisible();
   } finally {
     await server.stop();
   }
@@ -102,7 +109,7 @@ test("a dual-role email session cannot use administrator APIs", async ({ page })
     await addVirtualAuthenticator(cdp);
     await page.goto(`${server.origin}/activate-ri-2026/admin/recovery/`);
     await page.getByRole("button", { name: "Continue to passkey setup" }).click();
-    await page.getByRole("button", { name: "Add another passkey" }).click();
+    await page.getByRole("button", { name: "Add a passkey", exact: true }).click();
     await expect(page.getByText("Passkey added.")).toBeVisible();
     await submitVolunteer(page, server.origin, "N1ADM", "local-admin@ripota.org");
     await page.request.post(`${server.origin}/api/auth/logout`, { headers: { origin: server.origin } });
@@ -143,7 +150,7 @@ test("reset completion revokes the previous passkey and session", async ({ brows
 
     await adminPage.goto(`${server.origin}/activate-ri-2026/admin/recovery/`);
     await adminPage.getByRole("button", { name: "Continue to passkey setup" }).click();
-    await adminPage.getByRole("button", { name: "Add another passkey" }).click();
+    await adminPage.getByRole("button", { name: "Add a passkey", exact: true }).click();
     await expect(adminPage.getByText("Passkey added.")).toBeVisible();
 
     const editUrl = await submitVolunteer(subjectPage, server.origin, "N1RST", "reset@example.com");
@@ -151,7 +158,7 @@ test("reset completion revokes the previous passkey and session", async ({ brows
     const editToken = new URL(editUrl).hash.slice(1);
     await subjectPage.goto(`${server.origin}/activate-ri-2026/edit/${encodeURIComponent(editToken)}/`);
     await subjectPage.goto(`${server.origin}/account/security/`);
-    await subjectPage.getByRole("button", { name: "Add another passkey" }).click();
+    await subjectPage.getByRole("button", { name: "Add a passkey", exact: true }).click();
     await expect(subjectPage.getByText("Passkey added.")).toBeVisible();
     const before = await subjectCdp.send("WebAuthn.getCredentials", {
       authenticatorId: subjectAuthenticatorId,

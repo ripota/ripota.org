@@ -1,9 +1,9 @@
 <section class="form-card" aria-labelledby="passkeys-title">
   <h2 id="passkeys-title">Passkeys</h2>
-  <p>Add at least two recovery-capable passkeys when possible.</p>
+  <p>Save a passkey for faster sign-in. A second passkey gives you a backup way to sign in.</p>
   <ul data-passkey-list><li>Loading passkeys…</li></ul>
   <button class="button" data-variant="primary" type="button" data-add-passkey>
-    Add another passkey
+    Add a passkey
   </button>
   <p class="form-status" data-passkey-status aria-live="polite"></p>
 </section>
@@ -20,7 +20,7 @@
 
   add?.addEventListener("click", async () => {
     add.disabled = true;
-    status?.replaceChildren("Waiting for your authenticator…");
+    status?.replaceChildren("Follow your device's passkey prompt…");
     try {
       const optionsResponse = await fetch("/api/auth/passkeys/registration/options", { method: "POST" });
       const options = await optionsResponse.json();
@@ -51,6 +51,12 @@
     if (!isRecord(body) || !Array.isArray(body.passkeys)) return;
     const passkeys = body.passkeys.filter(isPasskey);
     list?.replaceChildren(...passkeys.map(passkeyItem));
+    add?.replaceChildren(passkeys.length > 0 ? "Add another passkey" : "Add a passkey");
+    if (passkeys.length === 0) {
+      const empty = document.createElement("li");
+      empty.textContent = "No passkeys saved yet.";
+      list?.appendChild(empty);
+    }
   }
 
   function passkeyItem(passkey: Passkey): HTMLLIElement {

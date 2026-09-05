@@ -451,6 +451,42 @@ for (const viewport of [
       expect(browser.errors).toEqual([]);
     });
 
+    test("schedule search deep links and secondary filters remain usable", async ({ page, parksOrigin }) => {
+      const browser = observeBrowser(page);
+      await page.route("**/api/activate-ri-2026/public/stops", (route) => route.fulfill({
+        contentType: "application/json", body: JSON.stringify({ ok: true, stops: syntheticStops }),
+      }));
+      await page.goto(`${parksOrigin}/activate-ri-2026/schedule/?q=us-0513`);
+      const search = page.locator("[data-schedule-search]");
+      const rows = page.locator("[data-filter-row]:visible");
+      await expect(search).toHaveValue("us-0513");
+      await expect(rows).toHaveCount(1);
+      await expect(rows).toContainText("US-0513");
+      if (viewport.name === "mobile") {
+        await expect(page.locator("[data-schedule-more-filters]")).not.toHaveAttribute("open", "");
+        await expect(page.locator('[data-filter="activator"]')).toBeHidden();
+        await page.locator("[data-schedule-more-summary]").focus();
+        await page.keyboard.press("Enter");
+      }
+      await expect(page.locator('[data-filter="activator"]')).toBeVisible();
+      await expect(page.locator('[data-filter="county"]')).toBeVisible();
+      await expect(page.locator("[data-hunter-scope]")).toBeVisible();
+      await search.fill("block island");
+      await expect(rows).toHaveCount(1);
+      await expect(rows).toContainText("Block Island National Wildlife Refuge");
+      await expect.poll(() => new URL(page.url()).searchParams.get("q")).toBe("block island");
+      await search.fill("no matching park");
+      await expect(rows).toHaveCount(0);
+      await expect(page.locator("[data-filter-empty]")).toBeVisible();
+      await page.getByRole("button", { name: "Clear filters", exact: true }).click();
+      await expect(search).toHaveValue("");
+      await expect(rows).toHaveCount(1);
+      await expect.poll(() => new URL(page.url()).searchParams.has("q")).toBe(false);
+      await page.waitForLoadState("networkidle");
+      expect(browser.canonicalRequests).toEqual([]);
+      expect(browser.errors).toEqual([]);
+    });
+
     test("event maps and coverage retain lightweight filters and primary volunteer actions", async ({ page, parksOrigin }) => {
       const browser = observeBrowser(page);
       await page.route("**/api/activate-ri-2026/public/stops", (route) => route.fulfill({

@@ -23,6 +23,8 @@
     const roles = body.roles.length > 0 ? body.roles.join(" and ") : "account holder";
     status?.replaceChildren(`Verified email (kept private): ${email} · signed in with ${methodLabel(body.authenticationMethod)} · ${roles}`);
     if (prompt) prompt.hidden = body.authenticationMethod !== "email";
+    const adminGuidance = document.querySelector<HTMLElement>("[data-account-admin-guidance]");
+    if (adminGuidance) adminGuidance.hidden = !body.roles.includes("administrator");
   }
 
   function methodLabel(method: string): string {

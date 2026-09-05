@@ -14,7 +14,8 @@ const { eyebrow = "RI POTA account" } = Astro.props;
 <div class="section-header">
   <p class="eyebrow">{eyebrow}</p>
   <h1 id="security-title">Account security</h1>
-  <p>Email sign-in can open activator tools, but administrator actions always require a passkey.</p>
+  <p>Manage your passkeys and signed-in browsers.</p>
+  <p data-account-admin-guidance hidden>Administrator actions require signing in with a passkey.</p>
 </div>
 <AccountIdentity />
 <CommunityByline />

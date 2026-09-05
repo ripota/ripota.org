@@ -45,25 +45,22 @@ const countyOptions = uniqueSortedValues(
 </section>
 
 <form class="event-filters" data-event-filters aria-label="Schedule filters">
-  <label class="event-filter">
-    Parks
-    <select class="event-filter__control" name="schedule-scope" data-hunter-scope>
-      <option value="all">All scheduled parks</option>
-      <option value="remaining">My remaining parks</option>
+  <label class="event-filter schedule-search">
+    Search parks
+    <input class="event-filter__control" type="search" name="q" data-schedule-search placeholder="Reference or park name" />
+  </label>
+  <label class="event-filter schedule-day">
+    Event day (Rhode Island time)
+    <select class="event-filter__control" data-filter="timeline">
+      {timelineOptions.map((option) => <option value={option.value}>{option.label}</option>)}
     </select>
   </label>
-  <label class="event-filter">
+  <label class="event-filter schedule-timezone">
     Time zone
     <select class="event-filter__control" name="schedule-timezone" data-timezone>
       {activationTimeZoneOptions.map((option) => (
         <option value={option.value}>{option.value === "eastern" ? "Eastern (RI / EDT)" : option.label}</option>
       ))}
-    </select>
-  </label>
-  <label class="event-filter">
-    Activator
-    <select class="event-filter__control" data-filter="activator">
-      <option value="all">Any activator</option>
     </select>
   </label>
   <label class="event-filter">
@@ -78,19 +75,31 @@ const countyOptions = uniqueSortedValues(
       <option value="all">Any band</option>
     </select>
   </label>
-  <label class="event-filter">
-    Event day (Rhode Island time)
-    <select class="event-filter__control" data-filter="timeline">
-      {timelineOptions.map((option) => <option value={option.value}>{option.label}</option>)}
-    </select>
-  </label>
-  <label class="event-filter">
-    County
-    <select class="event-filter__control" data-filter="county">
-      <option value="all">Any county</option>
-      {countyOptions.map((county) => <option value={county}>{county}</option>)}
-    </select>
-  </label>
+  <details class="schedule-secondary-filters" data-schedule-more-filters open>
+    <summary data-schedule-more-summary>More filters</summary>
+    <div class="schedule-secondary-controls">
+      <label class="event-filter">
+        Parks
+        <select class="event-filter__control" name="schedule-scope" data-hunter-scope>
+          <option value="all">All scheduled parks</option>
+          <option value="remaining">My remaining parks</option>
+        </select>
+      </label>
+      <label class="event-filter">
+        Activator
+        <select class="event-filter__control" data-filter="activator">
+          <option value="all">Any activator</option>
+        </select>
+      </label>
+      <label class="event-filter">
+        County
+        <select class="event-filter__control" data-filter="county">
+          <option value="all">Any county</option>
+          {countyOptions.map((county) => <option value={county}>{county}</option>)}
+        </select>
+      </label>
+    </div>
+  </details>
 </form>
 
 <div class="schedule-actions">
@@ -167,6 +176,11 @@ const countyOptions = uniqueSortedValues(
     ) as unknown as HTMLSelectElement[];
     const timezone = filters.querySelector("[data-timezone]") as HTMLSelectElement | null;
     const hunterScope = filters.querySelector("[data-hunter-scope]") as HTMLSelectElement | null;
+    const search = filters.querySelector<HTMLInputElement>("[data-schedule-search]");
+    const moreFilters = filters.querySelector<HTMLDetailsElement>("[data-schedule-more-filters]");
+    const moreSummary = filters.querySelector<HTMLElement>("[data-schedule-more-summary]");
+    const secondaryControls = Array.from(moreFilters?.querySelectorAll("select") ?? []) as unknown as HTMLSelectElement[];
+    const mobileFilters = window.matchMedia("(max-width: 700px)");
     const printButton = document.querySelector<HTMLButtonElement>("[data-print-schedule]");
     const clearButton = document.querySelector<HTMLButtonElement>("[data-clear-schedule-filters]");
     const matchingCount = document.querySelector<HTMLElement>("[data-schedule-count]");
@@ -191,6 +205,12 @@ const countyOptions = uniqueSortedValues(
     }
 
     restoreFiltersFromUrl(controls, timezone, hunterScope);
+    const secondaryFilterCount = () => secondaryControls.filter((control) => control.value !== "all").length;
+    const showSecondaryFiltersForViewport = () => {
+      if (moreFilters) moreFilters.open = !mobileFilters.matches || secondaryFilterCount() > 0;
+    };
+    showSecondaryFiltersForViewport();
+    mobileFilters.addEventListener("change", showSecondaryFiltersForViewport);
 
     const applyFilters = () => {
       const values = Object.fromEntries(
@@ -200,11 +220,14 @@ const countyOptions = uniqueSortedValues(
       const visibleParkIds = new Set<string>();
       const useRemaining = hunterScope?.value === "remaining";
       const missingChecklist = useRemaining && !checklistAvailable;
+      const query = search?.value.trim() ?? "";
+      const normalizedQuery = query.toLowerCase();
 
       for (const row of rows) {
         const isVisible =
           !missingChecklist &&
           (!useRemaining || remainingIds.has(row.dataset.parkReference ?? "")) &&
+          (!normalizedQuery || (row.dataset.parkSearch ?? "").includes(normalizedQuery)) &&
           matchesList(row.dataset.modes, values.mode) &&
           matchesList(row.dataset.activator, values.activator) &&
           matchesList(row.dataset.bands, values.band) &&
@@ -224,8 +247,8 @@ const countyOptions = uniqueSortedValues(
         const emptyCell = empty.querySelector<HTMLElement>("td");
         if (emptyCell) {
           emptyCell.textContent = useRemaining
-            ? "No activation windows for your remaining parks match these filters."
-            : "No scheduled activation windows match these filters.";
+            ? "No activation windows for your remaining parks match this search and filters."
+            : "No scheduled activation windows match this search and filters.";
         }
       }
       renderPersonalScheduleSummary({
@@ -242,6 +265,7 @@ const countyOptions = uniqueSortedValues(
         controls,
         hunterScope,
         remainingParkCount: remainingParks.length,
+        searchQuery: query,
         timezone,
         useRemaining,
         visibleCount,
@@ -250,20 +274,29 @@ const countyOptions = uniqueSortedValues(
         printButton.disabled = missingChecklist || !scheduleAvailable;
       }
       if (clearButton) {
-        clearButton.disabled = !useRemaining && controls.every((control) => control.value === "all");
+        clearButton.disabled = !query && !useRemaining && controls.every((control) => control.value === "all");
       }
       if (matchingCount) {
         matchingCount.textContent = scheduleAvailable && !missingChecklist
-          ? `${visibleCount} matching activation window${visibleCount === 1 ? "" : "s"}.`
+          ? `${visibleCount} matching activation window${visibleCount === 1 ? "" : "s"}${query ? ` for “${query}”` : ""}.`
           : "";
+      }
+      if (moreSummary) {
+        const count = secondaryFilterCount();
+        moreSummary.textContent = count > 0 ? `More filters (${count} active)` : "More filters";
       }
     };
 
     clearButton?.addEventListener("click", () => {
       controls.forEach((control) => { control.value = "all"; });
       if (hunterScope) hunterScope.value = "all";
+      if (search) search.value = "";
       applyFilters();
-      updateScheduleUrl(controls, timezone, hunterScope);
+      updateScheduleUrl(controls, timezone, hunterScope, search);
+    });
+    search?.addEventListener("input", () => {
+      applyFilters();
+      updateScheduleUrl(controls, timezone, hunterScope, search);
     });
     controls.forEach((control) => control.addEventListener("change", () => {
       applyFilters();
@@ -278,15 +311,16 @@ const countyOptions = uniqueSortedValues(
       });
     }));
     controls.forEach((control) => control.addEventListener("change", () => {
-      updateScheduleUrl(controls, timezone, hunterScope);
+      updateScheduleUrl(controls, timezone, hunterScope, search);
     }));
     hunterScope?.addEventListener("change", () => {
       applyFilters();
-      updateScheduleUrl(controls, timezone, hunterScope);
+      updateScheduleUrl(controls, timezone, hunterScope, search);
     });
     timezone?.addEventListener("change", () => {
       applySelectedTime(table, timezone.value);
-      updateScheduleUrl(controls, timezone, hunterScope);
+      applyFilters();
+      updateScheduleUrl(controls, timezone, hunterScope, search);
       void trackAnalyticsEvent("activate-ri-2026", "schedule_filter_used", {
         filterCategory: "time_zone",
       });
@@ -313,7 +347,7 @@ const countyOptions = uniqueSortedValues(
     });
     applySelectedTime(table, timezone?.value);
     applyFilters();
-    updateScheduleUrl(controls, timezone, hunterScope);
+    updateScheduleUrl(controls, timezone, hunterScope, search);
   }
 
   async function setupLiveSchedule(table: HTMLTableElement): Promise<void> {
@@ -321,6 +355,11 @@ const countyOptions = uniqueSortedValues(
     if (!body) {
       return;
     }
+
+    const filters = document.querySelector<HTMLFormElement>("[data-event-filters]");
+    const search = filters?.querySelector<HTMLInputElement>("[data-schedule-search]");
+    if (search) search.value = new URL(window.location.href).searchParams.get("q")?.trim() ?? "";
+    filters?.addEventListener("submit", (event) => event.preventDefault());
 
     let parks: PublicParkSummary[] = [];
     document.querySelector("[data-reload-schedule]")?.addEventListener("click", () => {
@@ -346,7 +385,6 @@ const countyOptions = uniqueSortedValues(
       if (loaded) {
         loaded.textContent = `Schedule loaded ${new Intl.DateTimeFormat(undefined, { timeStyle: "short" }).format(new Date())}. Reload to check for changes.`;
       }
-      const filters = document.querySelector("[data-event-filters]") as HTMLFormElement | null;
       if (filters) {
         updateSelectOptions(filters, "activator", uniqueSortedValues(visibleStops.map((stop) => [stop.activatorCallsign])));
         updateSelectOptions(filters, "mode", uniqueSortedValues(visibleStops.map((stop) => stop.modes)));
@@ -358,7 +396,6 @@ const countyOptions = uniqueSortedValues(
       }
     } catch {
       renderScheduleUnavailable(body);
-      const filters = document.querySelector("[data-event-filters]") as HTMLFormElement | null;
       if (filters) {
         setupEventFilters(filters, table, parks, [], false);
       }
@@ -474,6 +511,7 @@ const countyOptions = uniqueSortedValues(
     row.dataset.date = stop.plannedDate;
     row.dataset.modes = stop.modes.join("|");
     row.dataset.parkReference = stop.parkReference;
+    row.dataset.parkSearch = `${stop.parkReference} ${park?.name ?? ""}`.toLowerCase();
 
     appendCell(row, "Date", formatActivationDate(stop));
     appendCell(row, "Time", formatActivationTimeRange(stop));
@@ -802,6 +840,7 @@ const countyOptions = uniqueSortedValues(
     controls: HTMLSelectElement[];
     hunterScope: HTMLSelectElement | null;
     remainingParkCount: number;
+    searchQuery: string;
     timezone: HTMLSelectElement | null;
     useRemaining: boolean;
     visibleCount: number;
@@ -811,6 +850,7 @@ const countyOptions = uniqueSortedValues(
     controls,
     hunterScope,
     remainingParkCount,
+    searchQuery,
     timezone,
     useRemaining,
     visibleCount,
@@ -830,7 +870,8 @@ const countyOptions = uniqueSortedValues(
       ? `${remainingParkCount} remaining park${remainingParkCount === 1 ? "" : "s"}`
       : hunterScope?.selectedOptions[0]?.textContent?.trim() ?? "All scheduled parks";
     const timezoneLabel = timezone?.selectedOptions[0]?.textContent?.trim();
-    const details = [scopeLabel, timezoneLabel, ...activeFilters].filter(Boolean).join(" · ");
+    const searchLabel = searchQuery ? `Search: “${searchQuery}”` : "";
+    const details = [scopeLabel, timezoneLabel, searchLabel, ...activeFilters].filter(Boolean).join(" · ");
     summary.textContent = `${visibleCount} matching activation window${visibleCount === 1 ? "" : "s"} · ${details}`;
   }
 
@@ -930,8 +971,15 @@ const countyOptions = uniqueSortedValues(
     controls: HTMLSelectElement[],
     timezone: HTMLSelectElement | null,
     hunterScope: HTMLSelectElement | null,
+    search: HTMLInputElement | null,
   ): void {
     const url = new URL(window.location.href);
+    const query = search?.value.trim();
+    if (query) {
+      url.searchParams.set("q", query);
+    } else {
+      url.searchParams.delete("q");
+    }
     for (const control of controls) {
       const key = control.dataset.filter;
       if (!key) {
@@ -983,6 +1031,64 @@ const countyOptions = uniqueSortedValues(
 </script>
 
 <style>
+  .event-filter {
+    align-content: end;
+  }
+
+  .schedule-secondary-filters {
+    grid-column: 1 / -1;
+  }
+
+  .schedule-secondary-controls {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.8rem;
+  }
+
+  [data-schedule-more-summary] {
+    display: none;
+  }
+
+  @media (max-width: 700px) {
+    .event-filters[data-event-filters] {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .schedule-actions {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    [data-print-schedule],
+    .schedule-actions p {
+      grid-column: 1 / -1;
+    }
+
+    .schedule-search,
+    .schedule-secondary-filters {
+      grid-column: 1 / -1;
+    }
+
+    .schedule-secondary-filters {
+      display: block;
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 0.75rem;
+    }
+
+    [data-schedule-more-summary] {
+      display: list-item;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .schedule-secondary-controls {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.7rem;
+      padding-top: 0.75rem;
+    }
+  }
+
   @media print {
     [data-schedule-loaded],
     [data-schedule-count] {

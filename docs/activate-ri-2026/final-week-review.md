@@ -16,7 +16,17 @@ The first implementation covers:
 
 The event-window decision, organizer coverage confirmation, and real-device email/passkey rehearsal remain open. The existing UTC phase boundaries are unchanged. These changes do not create a separate event award or determine official POTA eligibility.
 
-Validation: Astro check reports zero errors, warnings, or hints; the local build and volunteer bundle gate pass. All 595 unit tests, 22 event browser tests, and 30 desktop/mobile park browser tests pass. Browser regressions cover cancellation after reload and unrelated saves, email-only sign-in, explicit date selection, saved hunter checklists, phase destinations, and unavailable schedule/map states. At 390 × 844, the signup's first identity field now begins approximately 642 pixels from the page top, compared with 1,886 during the original review. This is local verification; production deployment and real-device rehearsal are pending.
+Validation of the first pass: Astro check reports zero errors, warnings, or hints; the local build and volunteer bundle gate pass. All 595 unit tests, 22 event browser tests, and 30 desktop/mobile park browser tests pass. Browser regressions cover cancellation after reload and unrelated saves, email-only sign-in, explicit date selection, saved hunter checklists, phase destinations, and unavailable schedule/map states. At 390 × 844, the signup's first identity field now begins approximately 642 pixels from the page top, compared with 1,886 during the original review. The first pass was deployed September 5 in signed commit `44e5434e`, followed by test timing fix `e3ce29f8`; all 30 production browser checks passed. Real-device rehearsal remains pending.
+
+The second polish pass adds:
+
+- Shareable park-name/reference search on the schedule and direct schedule links beside each hunter checklist park.
+- Paired primary filters on phones, with secondary filters in a keyboard-accessible **More filters** disclosure. Active secondary filters remain visible in its label and reopen when a shared view loads.
+- Search and filter context retained in printouts, including time-zone changes, without changing saved hunter data.
+- FAQ answers for early activity, Rhode Island dates versus display time zones, existing progress-reporting boundaries, seasonal access, and delayed official POTA credit.
+- Plain-language passkey setup and backup guidance, with administrator requirements shown only to administrator accounts.
+
+Validation of the polish pass: Astro check reports zero errors, warnings, or hints; the local build and volunteer bundle gate pass. All 595 unit tests, 24 event browser tests, and 32 desktop/mobile public-site tests pass. Regressions cover shared search URLs, typing during delayed schedule loading, keyboard disclosure, restored filters, print context, unchanged hunter data after following park links, and account-specific passkey guidance. Visual checks at 390 and 320 pixels confirm compact filters without horizontal page overflow; desktop filters remain visible in aligned rows. The event-window decision and real-device rehearsal remain pending.
 
 ## Original assessment
 

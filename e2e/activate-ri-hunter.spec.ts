@@ -122,6 +122,14 @@ test("hunter imports, overrides, filters, persists, resets, and clears a local c
     await expect(page.getByRole("heading", { name: /2 of 61 Rhode Island parks hunted/ })).toBeVisible();
     await expect(page.getByRole("status")).toHaveText("Your saved checklist is ready.");
     await expect(page.locator("[data-hunter-import-panel]")).not.toHaveAttribute("open", "");
+    await page.getByRole("link", { name: "View schedule for US-0514", exact: true }).click();
+    await expect(page).toHaveURL(/\/schedule\/\?q=US-0514$/);
+    await expect(page.locator("[data-schedule-search]")).toHaveValue("US-0514");
+    await expect(page.locator("[data-filter-row]:visible")).toHaveCount(1);
+    await expect(page.locator("[data-filter-row]:visible")).toContainText("US-0514");
+    await page.goBack();
+    await expect(page.getByRole("heading", { name: /2 of 61 Rhode Island parks hunted/ })).toBeVisible();
+    await expect(page.getByLabel(/US-0514 .* hunted/)).toBeChecked();
     await page.locator("[data-hunter-update-import]").click();
     await expect(page.locator("[data-hunter-import-panel]")).toHaveAttribute("open", "");
     await page.getByLabel("Choose CSV file").setInputFiles({ name: "hunter_parks.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });

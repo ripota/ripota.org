@@ -374,10 +374,18 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
       official.target = "_blank";
       official.rel = "noopener noreferrer";
       official.textContent = "Official POTA park";
+      const schedule = document.createElement("a");
+      schedule.href = `/activate-ri-2026/schedule/?q=${encodeURIComponent(park.reference)}`;
+      schedule.textContent = "View schedule";
+      schedule.setAttribute("aria-label", `View schedule for ${park.reference}`);
+      const links = document.createElement("div");
+      links.className = "hunter-park-links";
+      links.appendChild(schedule);
+      links.appendChild(official);
       label.appendChild(checkbox);
       label.appendChild(copy);
       item.appendChild(label);
-      item.appendChild(official);
+      item.appendChild(links);
       return item;
     }
 
@@ -482,5 +490,20 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
 
   [data-hunter-update-import] {
     justify-self: start;
+  }
+
+  :global(.hunter-park-links) {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: flex-start;
+  }
+
+  @media (max-width: 640px) {
+    :global(.hunter-park-links) {
+      flex-direction: row;
+      flex-wrap: wrap;
+      gap: 0.5rem 1rem;
+    }
   }
 </style>
