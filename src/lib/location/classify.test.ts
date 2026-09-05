@@ -1,4 +1,6 @@
 import type { FeatureCollection } from "geojson";
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 import { classifyLocation } from "./classify";
 
@@ -24,7 +26,28 @@ const square: FeatureCollection = {
   ],
 };
 
+const require = createRequire(import.meta.url);
+const blockIslandCanonical = JSON.parse(readFileSync(
+  require.resolve("@ripota/parks/boundaries/us-0513.geojson"),
+  "utf8",
+)) as FeatureCollection;
+const blockIslandWeb = JSON.parse(readFileSync(
+  require.resolve("@ripota/parks/boundaries-web/us-0513.geojson"),
+  "utf8",
+)) as FeatureCollection;
+
 describe("classifyLocation", () => {
+  it.each([
+    { latitude: 41.2125898938028, longitude: -71.5758990759014, webStatus: "inside" },
+    { latitude: 41.1983999548789, longitude: -71.5883386162742, webStatus: "outside" },
+  ])("keeps the canonical Block Island edge uncertain where web rendering would report $webStatus", ({ latitude, longitude, webStatus }) => {
+    const location = { latitude, longitude, accuracy: 1 };
+    expect(classifyLocation(location, blockIslandCanonical, "boundary").status)
+      .toBe("near-boundary");
+    expect(classifyLocation(location, blockIslandWeb, "boundary").status)
+      .toBe(webStatus);
+  });
+
   it("reports inside only when the accuracy circle fits inside the boundary", () => {
     const result = classifyLocation(
       { latitude: 0, longitude: 0, accuracy: 100 },

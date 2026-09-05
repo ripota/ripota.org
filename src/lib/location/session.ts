@@ -53,6 +53,7 @@ export function createLocationSession(
   let state: LocationSessionState = { status: "idle" };
   let watchId: number | undefined;
   let destroyed = false;
+  let watchGeneration = 0;
 
   function emit(nextState: LocationSessionState) {
     state = nextState;
@@ -60,6 +61,7 @@ export function createLocationSession(
   }
 
   function clearWatch() {
+    watchGeneration += 1;
     if (watchId !== undefined && geolocation) {
       geolocation.clearWatch(watchId);
       watchId = undefined;
@@ -82,11 +84,12 @@ export function createLocationSession(
     }
 
     emit({ status: "requesting" });
+    const currentWatch = ++watchGeneration;
 
     try {
       watchId = geolocation.watchPosition(
         (position) => {
-          if (destroyed) return;
+          if (destroyed || currentWatch !== watchGeneration) return;
 
           const location = {
             latitude: position.coords.latitude,
@@ -98,7 +101,7 @@ export function createLocationSession(
           options.onPosition(location);
         },
         (error) => {
-          if (!destroyed) fail(errorName(error));
+          if (!destroyed && currentWatch === watchGeneration) fail(errorName(error));
         },
         {
           enableHighAccuracy: true,

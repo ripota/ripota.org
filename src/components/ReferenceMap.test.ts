@@ -46,7 +46,10 @@ describe("Activate All RI maps", () => {
     for (const source of [eventHeroSource, volunteerPageSource, editPageSource]) {
       expect(source).toContain("showBoundaries={false}");
     }
-    expect(referenceMapSource).toContain("geojson: showBoundaries ? item.geojson : null");
+    expect(referenceMapSource).toContain("geojsonByReference: showBoundaries");
+    expect(referenceMapSource).toContain("displayReferences");
+    expect(referenceMapSource).not.toContain("pota/catalog");
+    expect(referenceMapSource).not.toContain("parksCatalog");
   });
 });
 
@@ -78,7 +81,7 @@ describe("park directory map", () => {
     );
     expect(referenceMapSource).toContain('payload.variant === "directory"');
     expect(referenceMapSource).toContain('paddingTopLeft: [Math.min(760, window.innerWidth * 0.52), 32]');
-    expect(referenceMapSource).toContain("references: parksCatalog.references");
+    expect(referenceMapSource).toContain('import { references } from "@ripota/parks"');
     expect(referenceMapSource).toContain("bounds.extend([item.marker.latitude, item.marker.longitude])");
   });
 

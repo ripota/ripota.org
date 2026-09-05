@@ -1,3 +1,4 @@
+import type { DisplayReference, GeoJsonFeatureCollection } from "@ripota/parks/types";
 import { describe, expect, it } from "vitest";
 import {
   buildReferenceMapItems,
@@ -7,7 +8,6 @@ import {
   referenceMapLeafletOptions,
   referenceMapLegendItems,
   referenceMapStatusColors,
-  type ReferenceBoundaryRecord,
 } from "./reference-map";
 import type { PublicActivationStop, PublicParkSummary } from "./activate-ri/types";
 
@@ -34,29 +34,25 @@ const references = [
   },
 ];
 
-const boundaries: ReferenceBoundaryRecord[] = [
+const displayReferences: readonly DisplayReference[] = [
   {
     reference: "US-0001",
     status: "available",
     geometryKind: "boundary",
-    sourceName: "Local source",
-    sourceUrl: "https://example.com/boundary",
-    sourceFeatureIds: [1],
-    localGeojson: "./boundaries/us-0001.geojson",
+    displayPoint: { latitude: 41.5, longitude: -71.4, source: "official" },
+    bbox: [-71.41, 41.49, -71.39, 41.51],
+    artifact: "@ripota/parks/boundaries/us-0001.geojson",
   },
   {
     reference: "US-0002",
     status: "point-only",
     geometryKind: "point",
-    sourceName: "POTA coordinate",
-    sourceUrl: "https://pota.app/#/park/US-0002",
-    sourceFeatureIds: ["US-0002"],
-    localGeojson: "./boundaries/us-0002.geojson",
+    displayPoint: { latitude: 41.6, longitude: -71.5, source: "official" },
   },
 ];
 
-const geojsonByPath = {
-  "./boundaries/us-0001.geojson": JSON.stringify({
+const geojsonByReference: Readonly<Record<string, GeoJsonFeatureCollection>> = {
+  "US-0001": {
     type: "FeatureCollection",
     properties: { potaReference: "US-0001" },
     features: [
@@ -77,20 +73,20 @@ const geojsonByPath = {
         },
       },
     ],
-  }),
-  "./boundaries/us-0002.geojson": JSON.stringify({
+  },
+  "US-0002": {
     type: "FeatureCollection",
     properties: { potaReference: "US-0002" },
     features: [],
-  }),
+  },
 };
 
 describe("buildReferenceMapItems", () => {
   it("adds boundaries and centroid markers for every reference", () => {
     const items = buildReferenceMapItems({
       references,
-      boundaries,
-      geojsonByPath,
+      displayReferences,
+      geojsonByReference,
     });
 
     expect(items).toHaveLength(2);
@@ -108,7 +104,7 @@ describe("buildReferenceMapItems", () => {
     });
   });
 
-  it("uses GeoJSON bounds for available boundary markers before reference coordinates", () => {
+  it("uses published display bounds for available boundary markers before reference coordinates", () => {
     const items = buildReferenceMapItems({
       references: [
         {
@@ -117,8 +113,8 @@ describe("buildReferenceMapItems", () => {
           longitude: -77,
         },
       ],
-      boundaries: [boundaries[0]],
-      geojsonByPath,
+      displayReferences: [displayReferences[0]],
+      geojsonByReference,
     });
 
     expect(items[0].marker).toEqual({
@@ -136,80 +132,63 @@ describe("buildReferenceMapItems", () => {
           longitude: -77,
         },
       ],
-      boundaries: [boundaries[0]],
-      geojsonByPath,
+      displayReferences: [displayReferences[0]],
+      geojsonByReference,
       markerPlacement: "reference-coordinate",
     });
 
     expect(items[0].marker).toEqual({
-      latitude: 38.9,
-      longitude: -77,
+      latitude: 41.5,
+      longitude: -71.4,
     });
   });
 
-  it("uses a reviewed map point instead of an out-of-state reference coordinate", () => {
-    const items = buildReferenceMapItems({
-      references: [
-        {
-          ...references[0],
-          latitude: 41.312,
-          longitude: -73.9709,
-          mapPoint: {
-            latitude: 41.7445710002769,
-            longitude: -71.594458000176,
-          },
-        },
-      ],
-      boundaries: [boundaries[0]],
-      geojsonByPath,
-      markerPlacement: "reference-coordinate",
-    });
-
-    expect(items[0].marker).toEqual({
-      latitude: 41.7445710002769,
-      longitude: -71.594458000176,
-    });
-  });
-
-  it("keeps an activation-zone marker centered on its displayed mapped area", () => {
-    const displayGeojson = JSON.stringify({
-      type: "FeatureCollection",
-      features: [
-        {
-          type: "Feature",
-          properties: { geometryRole: "display" },
-          geometry: {
-            type: "Polygon",
-            coordinates: [[
-              [-71.6, 41.4],
-              [-71.4, 41.4],
-              [-71.4, 41.5],
-              [-71.6, 41.5],
-              [-71.6, 41.4],
-            ]],
-          },
-        },
-      ],
-    });
+  it("uses a reviewed map point without modifying official coordinates", () => {
+    const official = { ...references[0], latitude: 41.312, longitude: -73.9709 };
     const [item] = buildReferenceMapItems({
-      references: [{
-        ...references[0],
-        reference: "US-TRAIL",
-        latitude: 41.312,
-        longitude: -73.9709,
-      }],
-      boundaries: [{
-        ...boundaries[0],
-        reference: "US-TRAIL",
-        geometryKind: "activation-zone",
-        localGeojson: "./boundaries/us-trail.geojson",
-      }],
-      geojsonByPath: { "./boundaries/us-trail.geojson": displayGeojson },
+      references: [official],
+      displayReferences: [{ ...displayReferences[0], displayPoint: {
+        latitude: 41.7445710002769, longitude: -71.594458000176, source: "reviewed",
+      } }],
+      markerPlacement: "reference-coordinate",
     });
+    expect(item.marker).toMatchObject({ latitude: 41.7445710002769, longitude: -71.594458000176 });
+    expect(official).toMatchObject({ latitude: 41.312, longitude: -73.9709 });
+    expect(item.geojson).toBeNull();
+  });
 
+  it("centers activation-zone markers using metadata even without geometry", () => {
+    const [item] = buildReferenceMapItems({
+      references,
+      displayReferences: [{ ...displayReferences[0], geometryKind: "activation-zone", bbox: [-71.6, 41.4, -71.4, 41.5] }],
+    });
     expect(item.marker).toEqual({ latitude: 41.45, longitude: -71.5 });
-    expect(item.geojson?.features).toHaveLength(1);
-    expect(item.geojson?.features[0]).not.toHaveProperty("properties.bufferPart");
+    expect(item.geojson).toBeNull();
+  });
+
+  it("never traverses coordinate payloads to place markers", () => {
+    const [item] = buildReferenceMapItems({
+      references,
+      displayReferences,
+      geojsonByReference: { "US-0001": {
+        type: "FeatureCollection",
+        get features(): never { throw new Error("Coordinates must stay opt-in"); },
+      } },
+    });
+    expect(item.marker).toEqual({ latitude: 41.5, longitude: -71.4 });
+    expect(item.bbox).toEqual(displayReferences[0].bbox);
+  });
+
+  it("keeps unknown, unreviewed fallback, and reviewed point-only states distinct", () => {
+    const [unknown] = buildReferenceMapItems({ references, displayReferences: [] });
+    expect(unknown).toMatchObject({ boundaryStatus: "unknown", geometryKind: "point", geojson: null });
+    const [fallback, point] = buildReferenceMapItems({
+      references,
+      displayReferences: [{ ...displayReferences[0], status: "research-needed", geometryKind: "point" }, displayReferences[1]],
+      geojsonByReference,
+    });
+    expect(fallback).toMatchObject({ boundaryStatus: "research-needed", geometryKind: "point", geojson: null });
+    expect(point).toMatchObject({ boundaryStatus: "point-only", geometryKind: "point", geojson: null });
   });
 
   it("attaches derived coverage and sorted stops when event data is provided", () => {
@@ -251,8 +230,8 @@ describe("buildReferenceMapItems", () => {
 
     const [item] = buildReferenceMapItems({
       references,
-      boundaries,
-      geojsonByPath,
+      displayReferences,
+      geojsonByReference,
       parks,
       stops,
     });

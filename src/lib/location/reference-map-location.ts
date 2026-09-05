@@ -16,12 +16,19 @@ import {
   type LocationSessionError,
   type LocationSessionState,
 } from "./session";
+import {
+  createGeometryClassificationRequest,
+  requireCanonicalGeometry,
+  type CanonicalGeometry,
+} from "./canonical-geometry";
+export { createCanonicalGeometryLoader } from "./canonical-geometry";
 
 export type ReferenceLocationMapItem = {
   reference: string;
   name: string;
   geometryKind: LocationGeometryKind;
   geojson: FeatureCollection | null;
+  bbox?: readonly [number, number, number, number] | null;
   marker: {
     latitude: number;
     longitude: number;
@@ -47,6 +54,7 @@ type SetupReferenceMapLocationOptions<TItem extends ReferenceLocationMapItem> = 
   items: TItem[];
   layersByReference: ReadonlyMap<string, ReferenceLocationMapLayers>;
   getBaseStyle: (item: TItem) => ReferenceLocationBaseStyle;
+  loadGeometry: () => Promise<CanonicalGeometry>;
 };
 
 type StatusTone = "inside" | "uncertain" | "neutral";
@@ -73,6 +81,7 @@ export function setupReferenceMapLocation<TItem extends ReferenceLocationMapItem
   items,
   layersByReference,
   getBaseStyle,
+  loadGeometry,
 }: SetupReferenceMapLocationOptions<TItem>): void {
   const shell = mapElement.closest<HTMLElement>(".reference-map-preview");
   const locationButton = shell?.querySelector<HTMLButtonElement>(
@@ -121,6 +130,7 @@ export function setupReferenceMapLocation<TItem extends ReferenceLocationMapItem
   let locationModeActive = false;
   let browseView: { center: L.LatLng; zoom: number } | undefined;
   let pendingResultsScrollTop: number | undefined;
+  let canonicalGeometry: CanonicalGeometry | undefined;
 
   function historyState(): Record<string, unknown> {
     const state = window.history.state;
@@ -269,8 +279,13 @@ export function setupReferenceMapLocation<TItem extends ReferenceLocationMapItem
         const item = items.find(({ reference }) => reference === match.reference);
         if (!item) continue;
 
-        if (item.geojson) {
-          const parkBounds = L.geoJSON(item.geojson as GeoJSON.GeoJsonObject).getBounds();
+        if (item.bbox) {
+          bounds.extend([
+            [item.bbox[1], item.bbox[0]],
+            [item.bbox[3], item.bbox[2]],
+          ]);
+        } else if (canonicalGeometry?.has(item.reference)) {
+          const parkBounds = L.geoJSON(canonicalGeometry.get(item.reference)).getBounds();
           if (parkBounds.isValid()) bounds.extend(parkBounds);
         }
         if (item.marker) {
@@ -397,6 +412,7 @@ export function setupReferenceMapLocation<TItem extends ReferenceLocationMapItem
   }
 
   function clearActiveLocation(): void {
+    classificationRequest.invalidate();
     latestLocation = undefined;
     latestResults = undefined;
     nearbyExpanded = false;
@@ -420,6 +436,7 @@ export function setupReferenceMapLocation<TItem extends ReferenceLocationMapItem
 
     switch (state.status) {
       case "requesting":
+        classificationRequest.invalidate();
         setLocationMode(true);
         nearbyExpanded = false;
         clearResults();
@@ -443,24 +460,56 @@ export function setupReferenceMapLocation<TItem extends ReferenceLocationMapItem
     }
   }
 
-  const session = createLocationSession({
-    onStateChange: handleSessionState,
-    onPosition: (location) => {
-      latestLocation = location;
-      updateLocationLayers(location);
+  const classificationRequest = createGeometryClassificationRequest({
+    load: async () => {
+      const geometry = await loadGeometry();
+      // Never turn an incomplete response into a misleading no-match result.
+      for (const item of items) requireCanonicalGeometry(geometry, item.reference);
+      return geometry;
+    },
+    onLoading: () => {
+      latestResults = undefined;
+      clearResults();
+      applyHighlights();
+      showStatus(
+        "Loading mapped boundaries…",
+        "Your location is shown; boundary checks are not ready yet.",
+        "neutral",
+      );
+    },
+    onError: () => {
+      showStatus(
+        "Mapped boundaries could not load",
+        "Your location is shown. Use the location button to try again.",
+        "neutral",
+      );
+    },
+    onReady: (geometry, location) => {
+      canonicalGeometry = geometry;
       const results = findGlobalLocationMatches(
         location,
-        items,
+        items.map((item) => ({
+          ...item,
+          geojson: requireCanonicalGeometry(geometry, item.reference),
+        })),
         expandedNearbyLimit,
       );
       latestResults = results;
       renderResults(location, results);
       applyHighlights(results);
-
       if (!centeredOnFirstFix) {
         centeredOnFirstFix = true;
         fitLocationContext(results);
       }
+    },
+  });
+
+  const session = createLocationSession({
+    onStateChange: handleSessionState,
+    onPosition: (location) => {
+      latestLocation = location;
+      updateLocationLayers(location);
+      classificationRequest.request(location);
     },
   });
 
@@ -494,6 +543,7 @@ export function setupReferenceMapLocation<TItem extends ReferenceLocationMapItem
 
   locationControl.addEventListener("click", () => {
     if (session.getState().status === "active" && latestLocation) {
+      classificationRequest.request(latestLocation);
       setResultsVisible(true);
       fitLocationContext(latestResults);
       return;
@@ -596,6 +646,7 @@ export function setupReferenceMapLocation<TItem extends ReferenceLocationMapItem
 
   window.addEventListener("pagehide", (event) => {
     if (!event.persisted) {
+      classificationRequest.invalidate();
       session.destroy();
       clearLocationLayers();
       document.removeEventListener("click", preserveLocationNavigation, true);

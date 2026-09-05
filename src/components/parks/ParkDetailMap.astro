@@ -1,32 +1,45 @@
 ---
 import "leaflet/dist/leaflet.css";
+import { getDisplayReference } from "@ripota/parks/display";
+import type { CatalogRecord } from "@ripota/parks/types";
+import {
+  getCanonicalGeometryUrl,
+  getWebGeometry,
+} from "../../lib/pota/geometry-assets";
 
-type ParkMapReference = {
-  reference: string;
-  name: string;
-  latitude: number;
-  longitude: number;
-  mapPoint?: {
-    latitude: number;
-    longitude: number;
-  };
-  geometryKind: "boundary" | "activation-zone" | "point";
-  geojson: {
-    type: "FeatureCollection";
-    features: unknown[];
-  };
-};
+type ParkMapReference = Pick<
+  CatalogRecord,
+  "reference" | "name" | "latitude" | "longitude" | "geometryKind"
+>;
 
 type Props = {
   id: string;
   park: ParkMapReference;
-  relatedParks?: ParkMapReference[];
+  relatedParks?: readonly ParkMapReference[];
 };
 
 const { id, park, relatedParks = [] } = Astro.props;
 const dataId = `${id}-data`;
 const locationStatusId = `${id}-location-status`;
-const payload = JSON.stringify({ park, relatedParks });
+function mapPayload(reference: ParkMapReference) {
+  const display = getDisplayReference(reference.reference);
+  if (!display) throw new Error(`Missing display metadata for ${reference.reference}`);
+  return {
+    reference: reference.reference,
+    name: reference.name,
+    latitude: reference.latitude,
+    longitude: reference.longitude,
+    geometryKind: reference.geometryKind,
+    displayPoint: display.displayPoint,
+    bbox: display.bbox,
+    geojson: getWebGeometry(reference.reference),
+    canonicalGeometryUrl: getCanonicalGeometryUrl(reference.reference),
+  };
+}
+const payload = JSON.stringify({
+  park: mapPayload(park),
+  relatedParks: relatedParks.map(mapPayload),
+});
 const primaryMapLabel = {
   boundary: "mapped area",
   "activation-zone": "mapped area",
@@ -132,6 +145,7 @@ const primaryMapLabel = {
 
 <script>
   import L from "leaflet";
+  import type { CatalogRecord, DisplayReference } from "@ripota/parks/types";
   import { classifyLocation } from "../../lib/location/classify";
   import type {
     LocationClassification,
@@ -144,18 +158,21 @@ const primaryMapLabel = {
     LocationSessionError,
     LocationSessionState,
   } from "../../lib/location/session";
+  import {
+    createCanonicalGeometryLoader,
+    createGeometryClassificationRequest,
+    requireCanonicalGeometry,
+    type CanonicalGeometry,
+  } from "../../lib/location/canonical-geometry";
 
-  type ParkMapReference = {
-    reference: string;
-    name: string;
-    latitude: number;
-    longitude: number;
-    mapPoint?: {
-      latitude: number;
-      longitude: number;
-    };
-    geometryKind: "boundary" | "activation-zone" | "point";
+  type ParkMapReference = Pick<
+    CatalogRecord,
+    "reference" | "name" | "latitude" | "longitude" | "geometryKind"
+  > & {
+    displayPoint: DisplayReference["displayPoint"];
+    bbox?: DisplayReference["bbox"];
     geojson: GeoJSON.FeatureCollection;
+    canonicalGeometryUrl: string;
   };
 
   type ParkMapPayload = {
@@ -222,7 +239,14 @@ const primaryMapLabel = {
 
     mapElement.dataset.mapReady = "true";
     const payload = JSON.parse(dataElement.textContent ?? "{}") as ParkMapPayload;
-    const parkMapPoint = payload.park.mapPoint ?? payload.park;
+    const parkMapPoint = payload.park.displayPoint;
+    const references = [payload.park, ...payload.relatedParks];
+    const canonicalLoaders = references.map((park) => ({
+      reference: park.reference,
+      load: createCanonicalGeometryLoader(park.canonicalGeometryUrl, {
+        expectedReferences: [park.reference],
+      }),
+    }));
     const map = L.map(mapElement, {
       attributionControl: true,
       scrollWheelZoom: false,
@@ -296,13 +320,19 @@ const primaryMapLabel = {
         [parkMapPoint.latitude, parkMapPoint.longitude],
         pointStyle,
       )
-        .bindTooltip(payload.park.mapPoint ? "Park map point" : "POTA reference coordinate", {
+        .bindTooltip(parkMapPoint.source === "official" ? "POTA reference coordinate" : "Park map point", {
           direction: "top",
         })
         .addTo(map);
     }
 
     const maxFitZoom = payload.park.geometryKind === "point" ? 14 : 18;
+    const parkBounds = payload.park.bbox
+      ? L.latLngBounds(
+          [payload.park.bbox[1], payload.park.bbox[0]],
+          [payload.park.bbox[3], payload.park.bbox[2]],
+        )
+      : primaryLayer.getBounds();
 
     const locationLayers = L.layerGroup().addTo(map);
     let accuracyLayer: L.Circle | undefined;
@@ -388,7 +418,6 @@ const primaryMapLabel = {
           latestLocation.longitude,
         );
         const bounds = accuracyLayer?.getBounds() ?? L.latLngBounds(location, location);
-        const parkBounds = primaryLayer.getBounds();
         if (parkBounds.isValid()) bounds.extend(parkBounds);
 
         const wideLayout = window.matchMedia("(min-width: 861px)").matches;
@@ -406,11 +435,10 @@ const primaryMapLabel = {
       });
     };
 
-    const showClassification = (location: ReportedLocation): void => {
-      const references = [payload.park, ...payload.relatedParks];
+    const showClassification = (location: ReportedLocation, geometry: CanonicalGeometry): void => {
       const classified: ClassifiedReference[] = references.map((park) => ({
         park,
-        result: classifyLocation(location, park.geojson, park.geometryKind),
+        result: classifyLocation(location, requireCanonicalGeometry(geometry, park.reference), park.geometryKind),
       }));
       const primary = classified[0];
       if (!primary) return;
@@ -520,6 +548,7 @@ const primaryMapLabel = {
 
       switch (state.status) {
         case "requesting":
+          classificationRequest.invalidate();
           setLocationMode(true);
           showStatus(
             "Finding your location…",
@@ -528,6 +557,7 @@ const primaryMapLabel = {
           );
           break;
         case "stopped":
+          classificationRequest.invalidate();
           latestLocation = undefined;
           centeredOnFirstFix = false;
           clearLocationLayers();
@@ -536,6 +566,8 @@ const primaryMapLabel = {
           afterLayout(resetView);
           break;
         case "error": {
+          classificationRequest.invalidate();
+          latestLocation = undefined;
           const [primary, secondary] = errorCopy(state.error);
           showStatus(primary, secondary, "outside");
           break;
@@ -543,12 +575,33 @@ const primaryMapLabel = {
       }
     };
 
+    const classificationRequest = createGeometryClassificationRequest({
+      load: async () => {
+        const geometry = new Map<string, GeoJSON.FeatureCollection>();
+        await Promise.all(canonicalLoaders.map(async ({ reference, load }) => {
+          geometry.set(reference, requireCanonicalGeometry(await load(), reference));
+        }));
+        return geometry;
+      },
+      onLoading: () => showStatus(
+        "Loading mapped boundaries…",
+        "Your location is shown; boundary checks are not ready yet.",
+        "neutral",
+      ),
+      onError: () => showStatus(
+        "Mapped boundaries could not load",
+        "Your location is shown. Use the location button to try again.",
+        "neutral",
+      ),
+      onReady: (geometry, location) => showClassification(location, geometry),
+    });
+
     const locationSession = createLocationSession({
       onStateChange: handleSessionState,
       onPosition: (location) => {
         latestLocation = location;
         updateLocationLayers(location);
-        showClassification(location);
+        classificationRequest.request(location);
         if (!centeredOnFirstFix) {
           centeredOnFirstFix = true;
           fitLocationContext();
@@ -559,7 +612,7 @@ const primaryMapLabel = {
     const resetView = (): void => {
       const wideLayout = window.matchMedia("(min-width: 861px)").matches;
       map.invalidateSize({ animate: false });
-      map.fitBounds(primaryLayer.getBounds(), {
+      map.fitBounds(parkBounds, {
         animate: false,
         maxZoom: maxFitZoom,
         paddingBottomRight: [48, 48],
@@ -577,6 +630,7 @@ const primaryMapLabel = {
 
     locationButton?.addEventListener("click", () => {
       if (locationSession.getState().status === "active" && latestLocation) {
+        classificationRequest.request(latestLocation);
         fitLocationContext();
       } else {
         locationSession.start();
@@ -617,6 +671,7 @@ const primaryMapLabel = {
     window.addEventListener(
       "pagehide",
       () => {
+        classificationRequest.invalidate();
         locationSession.destroy();
         clearLocationLayers();
       },

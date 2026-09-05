@@ -2,6 +2,16 @@ import { describe, expect, it } from "vitest";
 import source from "./reference-map-location.ts?raw";
 
 describe("statewide reference-map location adapter", () => {
+  it("requires canonical geometry before reporting any matches and retries explicitly", () => {
+    expect(source).toContain("const geometry = await loadGeometry()");
+    expect(source).toContain("geojson: requireCanonicalGeometry(geometry, item.reference)");
+    expect(source).toContain("classificationRequest.request(latestLocation)");
+    expect(source).toContain("classificationRequest.invalidate()");
+    expect(source).toContain("Loading mapped boundaries…");
+    expect(source).toContain("Mapped boundaries could not load");
+    expect(source).not.toContain("L.geoJSON(item.geojson");
+  });
+
   it("uses the shared session and global matcher without persisting coordinates", () => {
     expect(source).toContain("createLocationSession");
     expect(source).toContain("findGlobalLocationMatches(");

@@ -1,3 +1,4 @@
+import type { DisplayReference, GeoJsonFeatureCollection, GeometryKind } from "@ripota/parks/types";
 import { deriveParkCoverage } from "./activate-ri/coverage";
 import type {
   ParkCoverageStatus,
@@ -7,38 +8,15 @@ import type {
 
 export type ReferenceMapVariant = "home" | "directory" | "coverage" | "volunteer";
 
-export type ReferenceMapGeometryKind = "boundary" | "activation-zone" | "point";
-
-export type ReferenceMapGeoJson = {
-  type: "FeatureCollection";
-  features: unknown[];
-  properties?: Record<string, unknown>;
-};
-
 export type ReferenceMapReference = {
   reference: string;
   name: string;
   latitude?: number;
   longitude?: number;
   grid?: string;
-  counties?: string[];
+  counties?: readonly string[];
   locationDesc?: string;
   potaUrl?: string;
-  mapPoint?: {
-    latitude: number;
-    longitude: number;
-  };
-};
-
-export type ReferenceBoundaryRecord = {
-  reference: string;
-  status: "available" | "point-only" | "research-needed";
-  geometryKind?: ReferenceMapGeometryKind;
-  sourceName: string;
-  sourceUrl: string;
-  sourceFeatureIds?: Array<string | number>;
-  localGeojson?: string;
-  notes?: string;
 };
 
 export type ReferenceMapCoverage = {
@@ -51,7 +29,7 @@ export type ReferenceMapCoverage = {
 export type ReferenceMapItem = {
   reference: string;
   name: string;
-  counties: string[];
+  counties: readonly string[];
   grid: string;
   locationDesc: string;
   potaUrl: string;
@@ -59,18 +37,17 @@ export type ReferenceMapItem = {
     latitude: number;
     longitude: number;
   } | null;
-  geometryKind: ReferenceMapGeometryKind;
-  boundaryStatus: ReferenceBoundaryRecord["status"] | "unknown";
-  sourceName: string;
-  sourceUrl: string;
-  geojson: ReferenceMapGeoJson | null;
+  geometryKind: GeometryKind;
+  boundaryStatus: DisplayReference["status"] | "unknown";
+  bbox?: DisplayReference["bbox"];
+  geojson: GeoJsonFeatureCollection | null;
   coverage: ReferenceMapCoverage | null;
 };
 
 export type BuildReferenceMapItemsInput = {
-  references: ReferenceMapReference[];
-  boundaries: ReferenceBoundaryRecord[];
-  geojsonByPath: Record<string, string | ReferenceMapGeoJson>;
+  references: readonly ReferenceMapReference[];
+  displayReferences: readonly DisplayReference[];
+  geojsonByReference?: Readonly<Record<string, GeoJsonFeatureCollection>>;
   markerPlacement?: "geometry-center" | "reference-coordinate";
   parks?: PublicParkSummary[];
   stops?: PublicActivationStop[];
@@ -140,14 +117,14 @@ export const referenceMapFitBoundsOptions = {
 
 export function buildReferenceMapItems({
   references,
-  boundaries,
-  geojsonByPath,
+  displayReferences,
+  geojsonByReference = {},
   markerPlacement = "geometry-center",
   parks,
   stops,
 }: BuildReferenceMapItemsInput): ReferenceMapItem[] {
-  const boundariesByReference = new Map(
-    boundaries.map((boundary) => [boundary.reference, boundary]),
+  const displayByReference = new Map(
+    displayReferences.map((display) => [display.reference, display]),
   );
   const coverageByReference = new Map(
     parks && stops
@@ -156,9 +133,15 @@ export function buildReferenceMapItems({
   );
 
   return references.map((reference) => {
-    const boundary = boundariesByReference.get(reference.reference);
+    const display = displayByReference.get(reference.reference);
     const coverage = coverageByReference.get(reference.reference);
-    const geojson = geojsonForBoundary(boundary, geojsonByPath);
+    const geojson = display?.status === "available"
+      ? geojsonByReference[reference.reference] ?? null
+      : null;
+    const referencePoint = display
+      ? { latitude: display.displayPoint.latitude, longitude: display.displayPoint.longitude }
+      : markerForReference(reference);
+    const center = markerForBounds(display?.bbox);
 
     return {
       reference: reference.reference,
@@ -168,12 +151,11 @@ export function buildReferenceMapItems({
       locationDesc: reference.locationDesc ?? "",
       potaUrl: reference.potaUrl ?? "",
       marker: markerPlacement === "reference-coordinate"
-        ? markerForReference(reference) ?? markerForGeojson(geojson)
-        : markerForGeojson(geojson) ?? markerForReference(reference),
-      geometryKind: boundary?.geometryKind ?? "point",
-      boundaryStatus: boundary?.status ?? "unknown",
-      sourceName: boundary?.sourceName ?? "Parks on the Air reference coordinate",
-      sourceUrl: boundary?.sourceUrl ?? reference.potaUrl ?? "",
+        ? referencePoint ?? center
+        : center ?? referencePoint,
+      geometryKind: display?.geometryKind ?? "point",
+      boundaryStatus: display?.status ?? "unknown",
+      bbox: display?.bbox,
       geojson,
       coverage: coverage
         ? {
@@ -188,12 +170,6 @@ export function buildReferenceMapItems({
 }
 
 function markerForReference(reference: ReferenceMapReference): ReferenceMapItem["marker"] {
-  if (reference.mapPoint) {
-    return {
-      latitude: reference.mapPoint.latitude,
-      longitude: reference.mapPoint.longitude,
-    };
-  }
   if (typeof reference.latitude !== "number" || typeof reference.longitude !== "number") {
     return null;
   }
@@ -204,90 +180,10 @@ function markerForReference(reference: ReferenceMapReference): ReferenceMapItem[
   };
 }
 
-function markerForGeojson(
-  geojson: ReferenceMapGeoJson | null,
+function markerForBounds(
+  bbox: DisplayReference["bbox"],
 ): ReferenceMapItem["marker"] {
-  if (!geojson) {
-    return null;
-  }
-
-  const bounds = coordinateBounds(geojson.features);
-  if (!bounds) {
-    return null;
-  }
-
-  return {
-    latitude: (bounds.minLatitude + bounds.maxLatitude) / 2,
-    longitude: (bounds.minLongitude + bounds.maxLongitude) / 2,
-  };
-}
-
-function coordinateBounds(value: unknown): {
-  minLatitude: number;
-  maxLatitude: number;
-  minLongitude: number;
-  maxLongitude: number;
-} | null {
-  const bounds = {
-    minLatitude: Infinity,
-    maxLatitude: -Infinity,
-    minLongitude: Infinity,
-    maxLongitude: -Infinity,
-  };
-
-  visitCoordinates(value, (longitude, latitude) => {
-    bounds.minLatitude = Math.min(bounds.minLatitude, latitude);
-    bounds.maxLatitude = Math.max(bounds.maxLatitude, latitude);
-    bounds.minLongitude = Math.min(bounds.minLongitude, longitude);
-    bounds.maxLongitude = Math.max(bounds.maxLongitude, longitude);
-  });
-
-  if (!Number.isFinite(bounds.minLatitude) || !Number.isFinite(bounds.minLongitude)) {
-    return null;
-  }
-
-  return bounds;
-}
-
-function visitCoordinates(
-  value: unknown,
-  visit: (longitude: number, latitude: number) => void,
-): void {
-  if (!Array.isArray(value)) {
-    if (typeof value === "object" && value !== null) {
-      Object.values(value).forEach((nested) => visitCoordinates(nested, visit));
-    }
-    return;
-  }
-
-  if (
-    value.length >= 2 &&
-    typeof value[0] === "number" &&
-    typeof value[1] === "number" &&
-    Number.isFinite(value[0]) &&
-    Number.isFinite(value[1])
-  ) {
-    visit(value[0], value[1]);
-    return;
-  }
-
-  value.forEach((nested) => visitCoordinates(nested, visit));
-}
-
-function geojsonForBoundary(
-  boundary: ReferenceBoundaryRecord | undefined,
-  geojsonByPath: Record<string, string | ReferenceMapGeoJson>,
-): ReferenceMapGeoJson | null {
-  if (!boundary?.localGeojson || boundary.status !== "available") {
-    return null;
-  }
-
-  const geojson = geojsonByPath[boundary.localGeojson];
-  if (!geojson) {
-    return null;
-  }
-
-  return typeof geojson === "string"
-    ? (JSON.parse(geojson) as ReferenceMapGeoJson)
-    : geojson;
+  if (!bbox || !bbox.every(Number.isFinite)) return null;
+  const [west, south, east, north] = bbox;
+  return { latitude: (south + north) / 2, longitude: (west + east) / 2 };
 }

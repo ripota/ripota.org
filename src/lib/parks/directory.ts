@@ -1,4 +1,4 @@
-import type { ParksCatalogReference } from "../pota/catalog";
+import type { CatalogRecord } from "@ripota/parks/types";
 
 export type ParkGeometryLabel = "Mapped area" | "Reference location";
 
@@ -12,7 +12,7 @@ export function parkGuidePath(reference: string): string {
 }
 
 export function parkGeometryLabel(
-  park: Pick<ParksCatalogReference, "geometryKind">,
+  park: Pick<CatalogRecord, "geometryKind">,
 ): ParkGeometryLabel {
   if (park.geometryKind === "activation-zone" || park.geometryKind === "boundary") {
     return "Mapped area";
@@ -21,7 +21,7 @@ export function parkGeometryLabel(
 }
 
 export function parkGeometryDescription(
-  park: Pick<ParksCatalogReference, "geometryKind">,
+  park: Pick<CatalogRecord, "geometryKind">,
 ): string {
   if (park.geometryKind === "activation-zone" || park.geometryKind === "boundary") {
     return "The highlighted area is based on the linked public map source. Confirm current POTA requirements before activating.";
@@ -43,9 +43,9 @@ export function parkGuideNavigationItems(
 }
 
 export function sameGeometryReferences(
-  parks: ParksCatalogReference[],
+  parks: readonly CatalogRecord[],
   reference: string,
-): ParksCatalogReference[] {
+): CatalogRecord[] {
   const park = parks.find((candidate) => candidate.reference === reference);
   const fingerprint = park ? geometryFingerprint(park) : null;
   if (!park || !fingerprint) {
@@ -59,7 +59,7 @@ export function sameGeometryReferences(
 }
 
 export function sameGeometryReferenceSet(
-  parks: ParksCatalogReference[],
+  parks: readonly CatalogRecord[],
 ): Set<string> {
   const referencesByFingerprint = new Map<string, string[]>();
   for (const park of parks) {
@@ -79,7 +79,7 @@ export function sameGeometryReferenceSet(
   );
 }
 
-function geometryFingerprint(park: ParksCatalogReference): string | null {
+function geometryFingerprint(park: CatalogRecord): string | null {
   if (park.status !== "available" || park.source.featureIds.length === 0) {
     return null;
   }

@@ -3,6 +3,26 @@ import source from "./ParkDetailMap.astro?raw";
 import parkPageSource from "../../pages/parks/[reference].astro?raw";
 
 describe("ParkDetailMap", () => {
+  it("renders opt-in web geometry and uses canonical metadata for the camera", () => {
+    expect(source).toContain("getDisplayReference(reference.reference)");
+    expect(source).toContain("geojson: getWebGeometry(reference.reference)");
+    expect(source).toContain("displayPoint: display.displayPoint");
+    expect(source).toContain("bbox: display.bbox");
+    expect(source).toContain("map.fitBounds(parkBounds");
+    expect(source).not.toContain("JSON.stringify({ park, relatedParks })");
+  });
+
+  it("uses only lazy detailed geometry for location checks and invalidates pending sessions", () => {
+    expect(source).toContain("createCanonicalGeometryLoader(park.canonicalGeometryUrl, {");
+    expect(source).toContain("expectedReferences: [park.reference]");
+    expect(source).toContain("requireCanonicalGeometry(geometry, park.reference)");
+    expect(source).not.toContain("classifyLocation(location, park.geojson");
+    expect(source).toContain("classificationRequest.invalidate()");
+    expect(source).toContain("classificationRequest.request(latestLocation)");
+    expect(source).toContain("Loading mapped boundaries…");
+    expect(source).toContain("Mapped boundaries could not load");
+  });
+
   it("presents both area geometry types with the same public terminology", () => {
     expect(source).toContain('boundary: "mapped area"');
     expect(source).toContain('"activation-zone": "mapped area"');

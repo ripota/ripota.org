@@ -1,2 +1,5 @@
 /data/activate-ri-2026/*.json
   Cache-Control: public, max-age=60, must-revalidate
+/data/parks/3.1.1/*
+  Content-Type: application/geo+json
+  Cache-Control: public, max-age=31536000, immutable

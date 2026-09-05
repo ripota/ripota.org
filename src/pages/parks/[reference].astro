@@ -3,7 +3,8 @@ import Footer from "../../components/Footer.astro";
 import Notice from "../../components/Notice.astro";
 import ParkDetailMap from "../../components/parks/ParkDetailMap.astro";
 import SiteHeader from "../../components/SiteHeader.astro";
-import { parksCatalog, type ParksCatalogReference } from "../../lib/pota/catalog";
+import { parksCatalog } from "../../lib/pota/catalog";
+import type { CatalogRecord } from "@ripota/parks/types";
 import {
   parkGeometryDescription,
   parkGeometryLabel,
@@ -14,7 +15,7 @@ import {
 import BaseLayout from "../../layouts/BaseLayout.astro";
 
 type Props = {
-  park: ParksCatalogReference;
+  park: CatalogRecord;
 };
 
 export function getStaticPaths() {

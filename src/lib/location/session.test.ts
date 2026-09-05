@@ -169,4 +169,41 @@ describe("createLocationSession", () => {
       expect.any(Function),
     );
   });
+
+  it("ignores queued position and error callbacks after a watch is stopped", () => {
+    const location = geolocationHarness();
+    const onPosition = vi.fn();
+    const session = createLocationSession({
+      geolocation: location.geolocation,
+      document: null,
+      onPosition,
+    });
+    session.start();
+    session.stop();
+    location.succeed(41.7, -71.5, 9);
+    location.fail(1);
+    expect(onPosition).not.toHaveBeenCalled();
+    expect(session.getState()).toEqual({ status: "stopped" });
+  });
+
+  it("ignores an older watch after location mode is restarted", () => {
+    const location = geolocationHarness();
+    const onPosition = vi.fn();
+    const session = createLocationSession({
+      geolocation: location.geolocation,
+      document: null,
+      onPosition,
+    });
+    session.start();
+    const [oldSuccess, oldError] = vi.mocked(location.geolocation.watchPosition).mock.calls[0]!;
+    session.stop();
+    session.start();
+    oldSuccess({ coords: { latitude: 42, longitude: -72, accuracy: 10 } } as GeolocationPosition);
+    oldError?.({ code: 1 } as GeolocationPositionError);
+    expect(onPosition).not.toHaveBeenCalled();
+    expect(session.getState()).toEqual({ status: "requesting" });
+    location.succeed(41.7, -71.5, 9);
+    expect(onPosition).toHaveBeenCalledExactlyOnceWith({ latitude: 41.7, longitude: -71.5, accuracy: 9 });
+    expect(session.getState()).toEqual({ status: "active" });
+  });
 });

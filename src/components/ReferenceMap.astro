@@ -1,11 +1,9 @@
 ---
 import "leaflet/dist/leaflet.css";
 import parks from "../../public/data/activate-ri-2026/parks.json";
-import {
-  parksCatalog,
-  referenceBoundaries,
-  referenceGeojsonByPath,
-} from "../lib/pota/catalog";
+import { references } from "@ripota/parks";
+import { dataset, displayReferences } from "@ripota/parks/display";
+import { getCanonicalGeometryUrl, getWebGeometry } from "../lib/pota/geometry-assets";
 import {
   buildReferenceMapItems,
   coverageStatusLabels,
@@ -42,9 +40,13 @@ const {
 const eventParks = parks as PublicParkSummary[];
 const isEventMap = variant === "coverage" || variant === "volunteer";
 const mapItems = buildReferenceMapItems({
-  references: parksCatalog.references,
-  boundaries: referenceBoundaries,
-  geojsonByPath: referenceGeojsonByPath,
+  references,
+  displayReferences,
+  geojsonByReference: showBoundaries
+    ? Object.fromEntries(displayReferences
+      .filter((display) => display.status === "available")
+      .map(({ reference }) => [reference, getWebGeometry(reference)]))
+    : undefined,
   markerPlacement: variant === "directory" ? "reference-coordinate" : "geometry-center",
   parks: isEventMap ? eventParks : undefined,
   stops: isEventMap ? [] : undefined,
@@ -73,8 +75,11 @@ const payload = JSON.stringify({
   phaseFocus,
   items: mapItems.map((item) => ({
     ...item,
-    geojson: showBoundaries ? item.geojson : null,
+    bbox: showBoundaries || variant === "directory" ? item.bbox : undefined,
   })),
+  attribution: dataset.attribution,
+  disclaimer: dataset.disclaimer,
+  canonicalGeometryUrl: variant === "directory" ? getCanonicalGeometryUrl() : undefined,
   parks: isEventMap ? eventParks : [],
   coverageStatusLabels,
   referenceMapStatusColors,
@@ -288,9 +293,8 @@ const payload = JSON.stringify({
       longitude: number;
     } | null;
     geometryKind: LocationGeometryKind;
+    bbox?: readonly [number, number, number, number];
     boundaryStatus: string;
-    sourceName: string;
-    sourceUrl: string;
     geojson: GeoJSON.FeatureCollection | null;
     coverage: MapCoverage | null;
     liveSpots?: LivePotaSpot[];
@@ -299,6 +303,9 @@ const payload = JSON.stringify({
 
   type MapPayload = {
     variant: "home" | "directory" | "coverage" | "volunteer";
+    attribution: string;
+    disclaimer: string;
+    canonicalGeometryUrl?: string;
     phaseFocus: "volunteer" | "hunter";
     items: MapItem[];
     parks: PublicPark[];
@@ -347,6 +354,8 @@ const payload = JSON.stringify({
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(map);
+    map.attributionControl.addAttribution(escapeHtml(payload.attribution));
+    mapElement.title = payload.disclaimer;
     map.setView([41.58, -71.48], 9);
 
     for (const item of payload.items) {
@@ -381,6 +390,9 @@ const payload = JSON.stringify({
           items: payload.items,
           layersByReference,
           getBaseStyle: (item) => itemStyle(payload, item),
+          loadGeometry: locationMap.createCanonicalGeometryLoader(payload.canonicalGeometryUrl!, {
+            expectedReferences: payload.items.map(({ reference }) => reference),
+          }),
         });
       });
     }
@@ -438,9 +450,9 @@ const payload = JSON.stringify({
       }).addTo(map);
       displayLayers.push(layer);
 
-      const layerBounds = layer.getBounds();
-      if (layerBounds.isValid()) {
-        bounds.extend(layerBounds);
+      if (item.bbox) {
+        const [west, south, east, north] = item.bbox;
+        bounds.extend([[south, west], [north, east]]);
       }
     }
 

@@ -7,7 +7,8 @@ import {
   sameGeometryReferences,
   sameGeometryReferenceSet,
 } from "./directory";
-import { parksCatalog, type ParksCatalogReference } from "../pota/catalog";
+import { parksCatalog } from "../pota/catalog";
+import type { CatalogRecord } from "@ripota/parks/types";
 
 describe("park directory helpers", () => {
   it("builds stable lowercase reference paths", () => {
@@ -70,10 +71,10 @@ describe("park directory helpers", () => {
 
 function park(
   reference: string,
-  geometryKind: ParksCatalogReference["geometryKind"],
+  geometryKind: CatalogRecord["geometryKind"],
   featureIds: Array<string | number> = [1],
   sourceUrl = "https://example.com/geometry",
-): ParksCatalogReference {
+): CatalogRecord {
   return {
     reference,
     name: reference,

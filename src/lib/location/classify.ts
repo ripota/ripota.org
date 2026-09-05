@@ -1,4 +1,5 @@
 import pointToPolygonDistance from "@turf/point-to-polygon-distance";
+import type { GeometryKind } from "@ripota/parks/types";
 import type {
   Feature,
   FeatureCollection,
@@ -6,10 +7,7 @@ import type {
   Polygon,
 } from "geojson";
 
-export type LocationGeometryKind =
-  | "boundary"
-  | "activation-zone"
-  | "point";
+export type LocationGeometryKind = GeometryKind;
 
 export type ReportedLocation = {
   latitude: number;
