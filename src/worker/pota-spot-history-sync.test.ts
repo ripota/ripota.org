@@ -17,7 +17,13 @@ describe("POTA spot history synchronization", () => {
     const database = createMigratedSqliteD1();
     cleanup = database.close;
     const start = Date.parse("2026-09-04T12:00:00Z");
-    const fetcher = vi.fn(async (_input: RequestInfo | URL) => Response.json([historySpot()]));
+    let historyFetches = 0;
+    const fetcher = vi.fn(async (_input: RequestInfo | URL) => {
+      historyFetches += 1;
+      return Response.json(historyFetches === 5
+        ? [historySpot(), lateHistorySpot()]
+        : [historySpot()]);
+    });
 
     await expect(syncPotaSpotHistories(database, [liveSpot()], {
       fetcher: fetcher as typeof fetch,
@@ -47,8 +53,20 @@ describe("POTA spot history synchronization", () => {
       fetcher: fetcher as typeof fetch,
       now: () => new Date(start + 14 * 60_000),
     })).resolves.toMatchObject({ attempted: 0 });
+    await expect(syncPotaSpotHistories(database, [], {
+      fetcher: fetcher as typeof fetch,
+      now: () => new Date(start + 18 * 60_000),
+    })).resolves.toMatchObject({
+      attempted: 1,
+      postCloseAttempted: 1,
+      succeeded: 1,
+    });
+    await expect(syncPotaSpotHistories(database, [], {
+      fetcher: fetcher as typeof fetch,
+      now: () => new Date(start + 19 * 60_000),
+    })).resolves.toMatchObject({ attempted: 0 });
 
-    expect(fetcher).toHaveBeenCalledTimes(4);
+    expect(fetcher).toHaveBeenCalledTimes(5);
     expect(String(fetcher.mock.calls[0][0])).toBe(
       "https://api.pota.app/spot/comments/N1BS/US-10545",
     );
@@ -61,14 +79,23 @@ describe("POTA spot history synchronization", () => {
       source_label: "Ham2K Portable Logger",
     });
     await expect(database.DB.prepare(
+      `SELECT spotter_callsign, comments, source_label
+       FROM pota_spot_observations WHERE source_spot_id = 'history-late'`,
+    ).first()).resolves.toEqual({
+      spotter_callsign: "W1AW",
+      comments: "Late manual report",
+      source_label: "Web",
+    });
+    await expect(database.DB.prepare(
       `SELECT active, last_live_count, consecutive_failures,
-        declared_references_json
+        declared_references_json, post_close_sync_at
        FROM pota_spot_history_sync`,
     ).first()).resolves.toEqual({
       active: 0,
       last_live_count: 2,
       consecutive_failures: 0,
       declared_references_json: '["US-10544"]',
+      post_close_sync_at: start + 18 * 60_000,
     });
   });
 
@@ -160,5 +187,17 @@ function historySpot(): Record<string, unknown> {
     frequency: "7054",
     source: "Ham2K Portable Logger",
     comments: "CW 2-fer: US-10545 US-10544",
+  };
+}
+
+function lateHistorySpot(): Record<string, unknown> {
+  return {
+    spotId: "history-late",
+    spotTime: "2026-09-04T12:17:49",
+    spotter: "W1AW",
+    mode: "CW",
+    frequency: "7054",
+    source: "Web",
+    comments: "Late manual report",
   };
 }

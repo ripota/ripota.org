@@ -13,6 +13,7 @@ import { persistPotaSpotHistory } from "./pota-spot-history";
 
 const collectionStateId = "ri-live-spots";
 const safetySyncIntervalMilliseconds = 10 * 60_000;
+const postCloseSyncDelayMilliseconds = 5 * 60_000;
 const syncLeaseMilliseconds = 2 * 60_000;
 const upstreamTimeoutMilliseconds = 10_000;
 const historyConcurrency = 5;
@@ -32,6 +33,7 @@ type HistorySyncRow = {
   retry_after: number;
   consecutive_failures: number;
   declared_references_json: string;
+  post_close_sync_at: number | null;
 };
 
 type HistoryTarget = {
@@ -39,6 +41,7 @@ type HistoryTarget = {
   parkReference: string;
   parkName: string;
   live: boolean;
+  phase: "live" | "close" | "post_close" | "backfill";
   currentSpot?: LivePotaSpot;
 };
 
@@ -55,6 +58,10 @@ export type PotaSpotHistorySyncResult = {
   succeeded: number;
   failed: number;
   observations: number;
+  liveAttempted: number;
+  closeAttempted: number;
+  postCloseAttempted: number;
+  backfillAttempted: number;
 };
 
 export type PotaSpotHistorySyncOptions = {
@@ -87,7 +94,8 @@ export async function syncPotaSpotHistories(
     const existingResult = await env.DB.prepare(
       `SELECT activator_callsign, park_reference, first_seen_at, last_seen_at,
         last_live_spot_id, last_live_count, active, last_history_sync_at,
-        retry_after, consecutive_failures, declared_references_json
+        retry_after, consecutive_failures, declared_references_json,
+        post_close_sync_at
        FROM pota_spot_history_sync`,
     ).all<HistorySyncRow>();
     const existing = new Map((existingResult.results ?? []).map((row) => [pairKey(row), row]));
@@ -113,6 +121,10 @@ export async function syncPotaSpotHistories(
            declared_references_json = CASE
              WHEN pota_spot_history_sync.active = 0 THEN '[]'
              ELSE pota_spot_history_sync.declared_references_json
+           END,
+           post_close_sync_at = CASE
+             WHEN pota_spot_history_sync.active = 0 THEN NULL
+             ELSE pota_spot_history_sync.post_close_sync_at
            END`,
       ).bind(
         spot.activatorCallsign,
@@ -133,21 +145,27 @@ export async function syncPotaSpotHistories(
             parkReference: spot.parkReference,
             parkName: spot.parkName,
             live: true,
+            phase: "live" as const,
             currentSpot: spot,
           }]
         : [];
     });
-    const endedTargets = [...existing.values()].flatMap((row) =>
-      row.active === 1 && !currentKeys.has(pairKey(row)) && row.retry_after <= startedAt
-        ? [{
-            activatorCallsign: row.activator_callsign,
-            parkReference: row.park_reference,
-            parkName: parkNames.get(row.park_reference) ?? row.park_reference,
-            live: false,
-          }]
-        : []
-    );
-    const targets = [...currentTargets, ...endedTargets];
+    const inactiveTargets = [...existing.values()].flatMap((row): HistoryTarget[] => {
+      if (currentKeys.has(pairKey(row)) || row.retry_after > startedAt) return [];
+      const base = {
+        activatorCallsign: row.activator_callsign,
+        parkReference: row.park_reference,
+        parkName: parkNames.get(row.park_reference) ?? row.park_reference,
+        live: false,
+      };
+      if (row.active === 1) return [{ ...base, phase: "close" }];
+      if (row.post_close_sync_at !== null) return [];
+      if (row.last_history_sync_at === null) return [{ ...base, phase: "backfill" }];
+      return startedAt - row.last_history_sync_at >= postCloseSyncDelayMilliseconds
+        ? [{ ...base, phase: "post_close" }]
+        : [];
+    });
+    const targets = [...currentTargets, ...inactiveTargets];
     const outcomes: HistoryOutcome[] = await mapWithConcurrency(
       targets,
       historyConcurrency,
@@ -188,6 +206,11 @@ export async function syncPotaSpotHistories(
            SET active = ?, last_history_sync_at = ?, retry_after = 0,
              consecutive_failures = 0, last_error_at = NULL,
              declared_references_json = ?,
+             post_close_sync_at = CASE
+               WHEN ? THEN ?
+               WHEN ? THEN NULL
+               ELSE post_close_sync_at
+             END,
              last_live_spot_id = CASE WHEN ? THEN ? ELSE last_live_spot_id END,
              last_live_count = CASE WHEN ? THEN ? ELSE last_live_count END
            WHERE activator_callsign = ? AND park_reference = ?`,
@@ -195,6 +218,9 @@ export async function syncPotaSpotHistories(
           outcome.target.live ? 1 : 0,
           startedAt,
           JSON.stringify(declaredReferences(outcome)),
+          outcome.target.phase === "post_close" || outcome.target.phase === "backfill" ? 1 : 0,
+          startedAt,
+          outcome.target.live ? 1 : 0,
           outcome.target.live ? 1 : 0,
           outcome.target.currentSpot?.id ?? "",
           outcome.target.live ? 1 : 0,
@@ -224,11 +250,15 @@ export async function syncPotaSpotHistories(
 
     return {
       acquired: true,
-      considered: current.length + endedTargets.length,
+      considered: current.length + inactiveTargets.length,
       attempted: outcomes.length,
       succeeded: successful.length,
       failed: outcomes.length - successful.length,
       observations: historySpots.length,
+      liveAttempted: countPhase(outcomes, "live"),
+      closeAttempted: countPhase(outcomes, "close"),
+      postCloseAttempted: countPhase(outcomes, "post_close"),
+      backfillAttempted: countPhase(outcomes, "backfill"),
     };
   } finally {
     await env.DB.prepare(
@@ -319,5 +349,20 @@ async function mapWithConcurrency<T, R>(
 }
 
 function emptyResult(acquired: boolean, considered: number): PotaSpotHistorySyncResult {
-  return { acquired, considered, attempted: 0, succeeded: 0, failed: 0, observations: 0 };
+  return {
+    acquired,
+    considered,
+    attempted: 0,
+    succeeded: 0,
+    failed: 0,
+    observations: 0,
+    liveAttempted: 0,
+    closeAttempted: 0,
+    postCloseAttempted: 0,
+    backfillAttempted: 0,
+  };
+}
+
+function countPhase(outcomes: readonly HistoryOutcome[], phase: HistoryTarget["phase"]): number {
+  return outcomes.filter((outcome) => outcome.target.phase === phase).length;
 }
