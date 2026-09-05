@@ -312,7 +312,7 @@ export async function insertPendingPlan(
   };
 }
 
-export async function listPublicStopRows(env: Env): Promise<StopExportRow[]> {
+export async function listPublicStopRows(env: Pick<Env, "DB" | "ACTIVATE_RI_EVENT_ID">): Promise<StopExportRow[]> {
   const result = await env.DB.prepare(
     `SELECT
        s.id,

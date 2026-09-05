@@ -54,3 +54,61 @@ for (const path of ["/activate-ri-2026/", "/activate-ri-2026/parks/"]) {
     }
   });
 }
+
+test("activity filters missing parks, keeps the view on refresh, and explains stale results", async ({ page }) => {
+  const server = await startActivateRiServer();
+  try {
+    const response = await page.request.get(server.origin + "/api/activate-ri-2026/public/spot-activity");
+    expect(response.ok()).toBe(true);
+    const snapshot = await response.json();
+    snapshot.scope = "event";
+    const spotted = snapshot.unspottedParks.shift();
+    Object.assign(spotted, {
+      spotCount: 1, structuredSpotCount: 1, rbnSpotCount: 1,
+      firstSpottedAt: "2026-09-11T12:00:00Z", lastSpottedAt: "2026-09-11T12:00:00Z",
+      activators: ["W1AW"], modes: ["CW"], bands: ["20m"], coverage: { status: "spotted", stop: null },
+    });
+    snapshot.parks.push(spotted);
+    Object.assign(snapshot.summary, { parks: 1, unspottedParks: 60, spots: 1 });
+    const planned = snapshot.unspottedParks[0];
+    planned.coverage = { status: "scheduled_later", stop: {
+      parkReference: planned.reference, activatorCallsign: "N1BS", status: "scheduled",
+      startAt: "2026-09-11T13:00:00Z", endAt: "2026-09-11T14:00:00Z",
+    } };
+    let fail = false;
+    await page.route("**/api/activate-ri-2026/public/spot-activity", route =>
+      fail ? route.fulfill({ status: 503 }) : route.fulfill({ json: snapshot }));
+    await page.clock.install();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(server.origin + "/activate-ri-2026/activity/?view=unspotted");
+    const rows = page.locator("[data-pota-activity-rows] tr");
+    await expect(rows).toHaveCount(60);
+    await expect(page.getByRole("radio", { name: "Not yet spotted (60)", exact: true })).toBeChecked();
+    await page.getByRole("searchbox", { name: "Search parks" }).fill(planned.reference);
+    await expect(rows).toHaveCount(1);
+    await expect(rows).toContainText("Scheduled later");
+    await expect(rows).toContainText("N1BS");
+    await page.getByRole("searchbox", { name: "Search parks" }).fill("");
+    await page.getByRole("radio", { name: "All parks (61)", exact: true }).check();
+    await expect(rows).toHaveCount(61);
+    await page.getByRole("radio", { name: "Spotted (1)", exact: true }).check();
+    await expect(rows).toHaveCount(1);
+    await expect(rows).toContainText("W1AW");
+    await page.getByRole("radio", { name: "Not yet spotted (60)", exact: true }).check();
+    await page.reload();
+    await expect(rows).toHaveCount(60);
+    snapshot.unspottedParks.shift();
+    snapshot.parks.push({ ...planned, spotCount: 1, coverage: { status: "spotted", stop: null } });
+    Object.assign(snapshot.summary, { parks: 2, unspottedParks: 59, spots: 2 });
+    await page.clock.runFor(60_000);
+    await expect(rows).toHaveCount(59);
+    await expect(page.getByRole("radio", { name: "Not yet spotted (59)", exact: true })).toBeChecked();
+    fail = true;
+    await page.clock.runFor(60_000);
+    await expect(page.locator("[data-pota-activity-status]")).toContainText("may be out of date");
+    await expect(rows).toHaveCount(59);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  } finally {
+    await server.stop();
+  }
+});

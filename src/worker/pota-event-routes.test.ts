@@ -64,7 +64,7 @@ describe("Activate RI POTA API routes", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("cache-control")).toContain("max-age=60");
+    expect(response.headers.get("cache-control")).toContain("no-store");
     await expect(response.json()).resolves.toMatchObject({
       ok: true,
       scope: "recent",

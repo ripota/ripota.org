@@ -3,7 +3,10 @@ import { references } from "@ripota/parks";
 import {
   activateRiPotaEndDate,
   activateRiPotaStartDate,
+  activateRiPotaEventId,
 } from "../lib/activate-ri/pota-event";
+import { deriveSpotCoverage, spotCoveragePriority, type CoverageStop, type SpotCoverage } from "../lib/activate-ri/spot-coverage";
+import { listPublicStopRows } from "./db";
 import {
   potaSpotReferenceEvidence,
   type PotaSpotReferenceEvidence,
@@ -48,6 +51,8 @@ export type PublicPotaSpotActivity = {
   lastCleanupAt: string | null;
   retainedSpotCount: number;
   summary: {
+    totalParks: number;
+    unspottedParks: number;
     parks: number;
     activators: number;
     modes: number;
@@ -58,14 +63,15 @@ export type PublicPotaSpotActivity = {
     nonRbnSpotters: number;
   };
   parks: PublicPotaSpotActivityPark[];
+  unspottedParks: PublicPotaSpotActivityPark[];
 };
 
 export type PublicPotaSpotActivityPark = {
   reference: string;
   name: string;
   potaUrl: string;
-  firstSpottedAt: string;
-  lastSpottedAt: string;
+  firstSpottedAt: string | null;
+  lastSpottedAt: string | null;
   live: boolean;
   spotCount: number;
   structuredSpotCount: number;
@@ -77,10 +83,13 @@ export type PublicPotaSpotActivityPark = {
   activators: string[];
   modes: string[];
   bands: string[];
+  coverage?: SpotCoverage;
+  confirmation?: { activatorCallsign: string; totalQsos: number; qsoDate: string } | null;
+  retainedEventEvidence?: boolean;
 };
 
 export async function getPublicPotaSpotActivity(
-  env: Pick<Env, "DB">,
+  env: Pick<Env, "DB"> & Partial<Pick<Env, "ACTIVATE_RI_EVENT_ID">>,
   now = new Date(),
 ): Promise<PublicPotaSpotActivity> {
   const scope = now.valueOf() < eventStart ? "recent" : "event";
@@ -88,7 +97,8 @@ export async function getPublicPotaSpotActivity(
     ? now.valueOf() - potaSpotRetentionMilliseconds
     : eventStart;
   const windowEnd = scope === "recent" ? now.valueOf() : eventEndExclusive;
-  const [observations, state, retained, liveReferences] = await Promise.all([
+  const eventEnv = { DB: env.DB, ACTIVATE_RI_EVENT_ID: env.ACTIVATE_RI_EVENT_ID ?? activateRiPotaEventId };
+  const [observations, state, retained, liveReferences, stopRows, confirmations, eventObservations] = await Promise.all([
     env.DB.prepare(
       scope === "recent"
         ? `SELECT source_spot_id, park_reference, activator_callsign, spot_time,
@@ -113,10 +123,66 @@ export async function getPublicPotaSpotActivity(
     env.DB.prepare("SELECT COUNT(*) AS count FROM pota_spot_observations")
       .first<{ count: number }>(),
     currentLivePotaReferences(env, now),
+    listPublicStopRows(eventEnv),
+    env.DB.prepare(
+      `SELECT park_reference, activator_callsign, total_qsos, qso_date
+       FROM activate_ri_pota_activation_evidence
+       WHERE event_id = ? AND qualifying = 1
+       ORDER BY qso_date DESC, total_qsos DESC`,
+    ).bind(eventEnv.ACTIVATE_RI_EVENT_ID).all<{
+      park_reference: string; activator_callsign: string; total_qsos: number; qso_date: string;
+    }>(),
+    env.DB.prepare(
+      `SELECT park_reference, MAX(last_spot_time) AS last_spot_time
+       FROM activate_ri_pota_spot_observations
+       WHERE event_id = ? AND ? = 'event'
+       GROUP BY park_reference`,
+    ).bind(eventEnv.ACTIVATE_RI_EVENT_ID, scope).all<{ park_reference: string; last_spot_time: string }>(),
   ]);
 
   const observationRows = observations.results ?? [];
   const parks = summarizeParks(observationRows, liveReferences);
+  const spotted = new Map(parks.map(park => [park.reference, park]));
+  const observedDuringEvent = new Map(eventObservations.results.map(row => [row.park_reference, row.last_spot_time]));
+  const stopsByPark = new Map<string, CoverageStop[]>();
+  for (const stop of stopRows) {
+    const stops = stopsByPark.get(stop.park_reference) ?? [];
+    stops.push({
+      parkReference: stop.park_reference, activatorCallsign: stop.submitter_callsign,
+      startAt: stop.start_at, endAt: stop.end_at, status: stop.status,
+    });
+    stopsByPark.set(stop.park_reference, stops);
+  }
+  const unspottedParks: PublicPotaSpotActivityPark[] = [];
+  for (const reference of references) {
+    const park: PublicPotaSpotActivityPark = spotted.get(reference.reference) ?? {
+      reference: reference.reference, name: reference.name, potaUrl: reference.potaUrl,
+      firstSpottedAt: null, lastSpottedAt: null, live: false,
+      spotCount: 0, structuredSpotCount: 0, declaredNferSpotCount: 0,
+      rbnSpotCount: 0, nonRbnSpotCount: 0, nonRbnSpotters: [], declaredByReferences: [],
+      activators: [], modes: [], bands: [],
+    };
+    const confirmation = scope === "event"
+      ? confirmations.results.find(row => row.park_reference === reference.reference)
+      : undefined;
+    const retainedObservation = observedDuringEvent.get(park.reference);
+    if (retainedObservation && !spotted.has(park.reference)) {
+      park.retainedEventEvidence = true;
+      park.lastSpottedAt = retainedObservation;
+      spotted.set(park.reference, park);
+      parks.push(park);
+    }
+    park.confirmation = confirmation ? {
+      activatorCallsign: confirmation.activator_callsign,
+      totalQsos: confirmation.total_qsos, qsoDate: confirmation.qso_date,
+    } : null;
+    park.coverage = deriveSpotCoverage(spotted.has(park.reference), Boolean(confirmation), stopsByPark.get(park.reference) ?? [], now);
+    if (!spotted.has(reference.reference)) unspottedParks.push(park);
+  }
+  unspottedParks.sort((a, b) =>
+    spotCoveragePriority[a.coverage!.status] - spotCoveragePriority[b.coverage!.status] ||
+    a.name.localeCompare(b.name),
+  );
   const activators = new Set(parks.flatMap((park) => park.activators));
   const modes = new Set(parks.flatMap((park) => park.modes));
   const bands = new Set(parks.flatMap((park) => park.bands));
@@ -133,6 +199,8 @@ export async function getPublicPotaSpotActivity(
     lastCleanupAt: millisecondsToIso(state?.last_cleanup_at),
     retainedSpotCount: retained?.count ?? 0,
     summary: {
+      totalParks: references.length,
+      unspottedParks: unspottedParks.length,
       parks: parks.length,
       activators: activators.size,
       modes: modes.size,
@@ -143,6 +211,7 @@ export async function getPublicPotaSpotActivity(
       nonRbnSpotters: nonRbnSpotters.size,
     },
     parks,
+    unspottedParks,
   };
 }
 
@@ -202,7 +271,7 @@ function summarizeParks(
       modes,
       bands,
     }];
-  }).sort((left, right) => right.lastSpottedAt.localeCompare(left.lastSpottedAt));
+  }).sort((left, right) => (right.lastSpottedAt ?? "").localeCompare(left.lastSpottedAt ?? ""));
 }
 
 function projectReferences(rows: readonly ObservationRow[]): ProjectedObservationRow[] {

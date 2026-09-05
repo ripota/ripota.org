@@ -185,7 +185,7 @@ export async function handleActivateRiApi(
   ) {
     return json(
       await getPublicPotaSpotActivity(env),
-      { headers: publicJsonCacheHeaders },
+      { headers: { "cache-control": "no-store" } },
     );
   }
 
