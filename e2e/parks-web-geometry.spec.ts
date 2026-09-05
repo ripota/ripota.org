@@ -506,12 +506,15 @@ for (const viewport of [
       await page.goto(`${parksOrigin}/activate-ri-2026/`);
       await expect(page.locator("[data-hero-scheduled]:visible")).toHaveText("Unavailable");
       await expect(page.locator("[data-hero-schedule-error]:visible")).toContainText("The schedule is temporarily unavailable");
+      await page.waitForLoadState("networkidle");
       await page.goto(`${parksOrigin}/activate-ri-2026/schedule/`);
       await expect(page.locator("[data-live-schedule]")).toContainText("The schedule is temporarily unavailable");
       await expect(page.locator("[data-coverage-shortcut-wrap]")).toBeHidden();
+      await page.waitForLoadState("networkidle");
       await page.goto(`${parksOrigin}/activate-ri-2026/parks/`);
       await expect(page.locator("[data-live-coverage]")).toContainText("Live coverage is unavailable");
       await expect(page.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(0);
+      await page.waitForLoadState("networkidle");
 
       await page.goto(`${parksOrigin}/activate-ri-2026/volunteer/`);
       await readyMap(page, "[data-reference-map]");
