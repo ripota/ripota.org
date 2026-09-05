@@ -84,9 +84,7 @@ function renderSummary(root: HTMLElement, snapshot: ActivitySnapshot): void {
   setText(root, "[data-activity-unspotted]", String(snapshot.summary.unspottedParks));
   for (const [selector, value] of [
     ["activators", snapshot.summary.activators], ["modes", snapshot.summary.modes],
-    ["bands", snapshot.summary.bands], ["spots", snapshot.summary.spots],
-    ["rbn-spots", snapshot.summary.rbnSpots], ["non-rbn-spots", snapshot.summary.nonRbnSpots],
-    ["non-rbn-spotters", snapshot.summary.nonRbnSpotters],
+    ["bands", snapshot.summary.bands],
     ["count-all", snapshot.summary.totalParks], ["count-spotted", snapshot.summary.parks],
     ["count-unspotted", snapshot.summary.unspottedParks],
   ] as const) setText(root, `[data-activity-${selector}]`, String(value));

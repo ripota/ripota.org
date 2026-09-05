@@ -17,14 +17,24 @@ describe("public POTA spot activity", () => {
     expect(page).toContain('<SiteHeader variant="solid" showEventLink />');
   });
 
-  it("shows public collection health and the requested event dimensions", () => {
+  it("keeps headline metrics focused on coverage and participation", () => {
+    const summary = component.match(/<dl\b[\s\S]*?<\/dl>/)?.[0] ?? "";
+    for (const label of ["Parks spotted", "Not yet spotted", "Activators", "Modes", "Bands"]) {
+      expect(summary).toContain(`<dt>${label}</dt>`);
+    }
+    for (const label of ["Spots retained", "RBN reports", "Non-RBN reports", "Non-RBN spotters"]) {
+      expect(summary).not.toContain(label);
+    }
+  });
+
+  it("preserves per-park spot details and collection status", () => {
     expect(component).toContain("How are we doing?");
     expect(component).toContain("Parks spotted");
     expect(component).toContain("Activators");
     expect(component).toContain("Modes");
     expect(component).toContain("Bands");
-    expect(component).toContain("RBN reports");
-    expect(component).toContain("Non-RBN reports");
+    expect(component).toContain('<th scope="col">Non-RBN spotters</th>');
+    expect(component).toContain('<th scope="col">Spot reports</th>');
     expect(client).toContain("Declared N-fer");
     expect(component).toContain("First spotted");
     expect(component).toContain("Last spotted");

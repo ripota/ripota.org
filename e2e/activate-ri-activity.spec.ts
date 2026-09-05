@@ -111,6 +111,9 @@ test("activity filters missing parks, keeps the view on refresh, and explains st
     await page.clock.install();
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(server.origin + "/activate-ri-2026/progress/?view=unspotted");
+    await expect(page.getByLabel("Event progress summary").locator("dt")).toHaveText([
+      "Parks spotted", "Not yet spotted", "Activators", "Modes", "Bands",
+    ]);
     const rows = page.locator("[data-pota-activity-rows] tr");
     await expect(rows).toHaveCount(60);
     await expect(page.getByRole("radio", { name: "Not yet spotted (60)", exact: true })).toBeChecked();
