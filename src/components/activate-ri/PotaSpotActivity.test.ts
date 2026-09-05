@@ -42,9 +42,12 @@ describe("public POTA spot activity", () => {
     expect(client).toContain("/api/activate-ri-2026/public/spot-activity");
   });
 
-  it("keeps the unofficial-source-of-truth disclaimer visible", () => {
-    expect(component).toContain("unofficial RI POTA community summary");
-    expect(component).toContain("Official Parks on the Air");
-    expect(component).toContain("A spot is activity evidence, not a confirmed activation");
+  it("keeps the spot caveat brief and retains the shared site disclaimer", () => {
+    expect(component).toContain("Unofficial RI POTA summary. Spots aren’t confirmed activations.");
+    expect(page).toContain("<Notice />");
+  });
+
+  it("briefly explains the missing-park order", () => {
+    expect(component).toContain("No spots recorded yet. Parks with no remaining schedule or an elapsed window appear first.");
   });
 });
