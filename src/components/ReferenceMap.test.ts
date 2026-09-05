@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import referenceMapSource from "./ReferenceMap.astro?raw";
 import parkDirectorySource from "../pages/parks/index.astro?raw";
-import eventHeroSource from "./activate-ri/EventHero.astro?raw";
+import eventHeroSource from "./activate-ri/EventHeroContent.astro?raw";
 import volunteerPageSource from "../pages/activate-ri-2026/volunteer.astro?raw";
 import editPageSource from "../pages/activate-ri-2026/activator/plan.astro?raw";
 

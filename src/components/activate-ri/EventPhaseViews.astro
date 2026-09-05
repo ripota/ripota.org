@@ -1,0 +1,22 @@
+<div data-event-phase-views>
+  <div data-event-view="planning"><slot name="planning" /></div>
+  <div data-event-view="results" hidden><slot name="results" /></div>
+</div>
+
+<script>
+  import { subscribeEventPhase } from "../../lib/activate-ri/event-phase";
+
+  subscribeEventPhase((phase) => {
+    const results = phase === "event-live" || phase === "post-event";
+    document.querySelectorAll<HTMLElement>("[data-event-phase-views]").forEach((root) => {
+      root.dataset.phase = phase;
+      root.querySelectorAll<HTMLElement>("[data-event-view]").forEach((view) => {
+        view.hidden = (view.dataset.eventView === "results") !== results;
+      });
+    });
+  });
+</script>
+
+<style>
+  [data-event-view][hidden] { display: none !important; }
+</style>

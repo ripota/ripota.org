@@ -6,10 +6,7 @@ import Footer from "../../components/Footer.astro";
 import Notice from "../../components/Notice.astro";
 import SiteHeader from "../../components/SiteHeader.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
-import { activateRi2026Event } from "../../data/activate-ri-2026/event";
-
-const showPotaResults = new Set<string>(["event-live", "post-event"])
-  .has(activateRi2026Event.phase);
+import EventPhaseViews from "../../components/activate-ri/EventPhaseViews.astro";
 ---
 
 <BaseLayout
@@ -19,19 +16,29 @@ const showPotaResults = new Set<string>(["event-live", "post-event"])
 >
   <SiteHeader variant="solid" showEventLink />
   <main id="main">
-    <section class="section event-page" aria-labelledby="parks-title">
+    <section class="section event-page" aria-label="Event park coverage">
       <div class="container">
         <EventNav />
+        <EventPhaseViews>
+        <div slot="planning">
         <div class="section-header">
           <p class="eyebrow">Park coverage</p>
-          <h1 id="parks-title">{showPotaResults ? "Event progress by park" : "Coverage by park"}</h1>
+          <h1 id="parks-title">Coverage by park</h1>
           <p class="lead">
-            {showPotaResults
-              ? "A reference-by-reference view of persistent POTA evidence, current spots, and planned event coverage."
-              : "A reference-by-reference view of planned coverage and gaps for the 2026 Rhode Island POTA weekend."}
+            A reference-by-reference view of planned coverage and gaps for the 2026 Rhode Island POTA weekend.
           </p>
         </div>
-        {showPotaResults ? <PotaParkProgress /> : <ParkCoverageTable />}
+        <ParkCoverageTable />
+        </div>
+        <div slot="results">
+          <div class="section-header">
+            <p class="eyebrow">Park coverage</p>
+            <h1>Event progress by park</h1>
+            <p class="lead">A reference-by-reference view of persistent POTA evidence, current spots, and planned event coverage.</p>
+          </div>
+          <PotaParkProgress />
+        </div>
+        </EventPhaseViews>
       </div>
     </section>
     <Notice />

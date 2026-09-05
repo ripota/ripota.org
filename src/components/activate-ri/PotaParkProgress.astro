@@ -51,6 +51,7 @@ import { activateRi2026Event } from "../../data/activate-ri-2026/event";
 
 <script>
   import { potaParkStatusStore } from "../../lib/activate-ri/pota-status-store";
+  import { subscribeEventPhase } from "../../lib/activate-ri/event-phase";
   import type { PublicParkPotaStatus, PublicPotaParkStatusSnapshot } from "../../lib/activate-ri/pota-status-client";
   import { fetchPublicActivationStops } from "../../lib/activate-ri/public-stops-client";
   import type { PublicActivationStop } from "../../lib/activate-ri/types";
@@ -83,8 +84,11 @@ import { activateRi2026Event } from "../../data/activate-ri-2026/event";
         );
       }
     });
-    if (root.dataset.phase === "event-live") potaParkStatusStore.start();
-    else void potaParkStatusStore.refresh();
+    subscribeEventPhase((phase) => {
+      root.dataset.phase = phase;
+      if (phase === "event-live" || phase === "post-event") potaParkStatusStore.start();
+      if (snapshot) renderSummary(snapshot, false);
+    });
 
     function renderSummary(value: PublicPotaParkStatusSnapshot, refreshFailed: boolean): void {
       setText("[data-pota-confirmed]", `${value.summary.confirmed} / ${value.summary.total}`);

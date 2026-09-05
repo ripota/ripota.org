@@ -355,6 +355,15 @@ const payload = JSON.stringify({
     }
 
     fitReferenceBounds(map, bounds, payload);
+    // Phase views can become visible long after this static page initialized.
+    if (mapElement.closest("[data-event-view]")) {
+      new ResizeObserver(() => {
+        if (mapElement.clientWidth > 0 && mapElement.clientHeight > 0) {
+          map.invalidateSize();
+          fitReferenceBounds(map, bounds, payload);
+        }
+      }).observe(mapElement);
+    }
     setupPopupActions(mapElement);
     updateMapLegend(mapElement, payload);
     const applyCoverageFilter = setupCoverageFilter(

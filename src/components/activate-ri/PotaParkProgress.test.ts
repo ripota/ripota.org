@@ -1,17 +1,19 @@
 import { describe, expect, it } from "vitest";
 import progress from "./PotaParkProgress.astro?raw";
-import hero from "./EventHero.astro?raw";
+import hero from "./EventHeroContent.astro?raw";
 import map from "../ReferenceMap.astro?raw";
 import parksPage from "../../pages/activate-ri-2026/parks.astro?raw";
 import admin from "./AdminPotaStatus.astro?raw";
 
 describe("Activate RI POTA result surfaces", () => {
   it("keeps planning UI and switches the existing hero/parks route by event phase", () => {
-    expect(hero).toContain('"event-live", "post-event"');
+    expect(hero).toContain("subscribeEventPhase");
     expect(hero).toContain("Confirmed by POTA");
     expect(hero).toContain("Without confirmation");
     expect(hero).toContain('href="/activate-ri-2026/parks/"');
-    expect(parksPage).toContain("showPotaResults ? <PotaParkProgress /> : <ParkCoverageTable />");
+    expect(parksPage).toContain("<EventPhaseViews>");
+    expect(parksPage).toContain("<PotaParkProgress />");
+    expect(parksPage).toContain("<ParkCoverageTable />");
   });
 
   it("provides textual status filters, evidence details, schedules, official links, and source-of-truth copy", () => {

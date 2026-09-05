@@ -32,8 +32,8 @@ describe("shared header Activate All RI contract", () => {
   });
 
   it("keeps the parks route as the public coverage/results surface", () => {
-    expect(eventParksSource).toContain(
-      "showPotaResults ? <PotaParkProgress /> : <ParkCoverageTable />",
-    );
+    expect(eventParksSource).toContain("<EventPhaseViews>");
+    expect(eventParksSource).toContain("<PotaParkProgress />");
+    expect(eventParksSource).toContain("<ParkCoverageTable />");
   });
 });
