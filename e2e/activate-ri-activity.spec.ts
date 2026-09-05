@@ -29,7 +29,7 @@ test("legacy activity links redirect permanently to progress and preserve the se
 });
 
 for (const path of ["/activate-ri-2026/", "/activate-ri-2026/parks/"]) {
-  test(`a pre-event build transitions at runtime on ${path}`, async ({ page }) => {
+  test(`a pre-event build transitions at runtime on ${path}`, async ({ page, request }) => {
     const server = await startActivateRiServer();
     const errors: string[] = [];
     page.on("pageerror", error => errors.push(error.message));
@@ -56,6 +56,10 @@ for (const path of ["/activate-ri-2026/", "/activate-ri-2026/parks/"]) {
       const results = page.locator('[data-event-view="results"]');
       await expect(planning).toBeVisible();
       await expect(results).toBeHidden();
+      if (!path.endsWith("/parks/")) {
+        await expect(planning.getByRole("link", { name: "Add an activation", exact: true })).toHaveAttribute("href", "/activate-ri-2026/volunteer/");
+        await expect(planning.getByRole("link", { name: "Get ready to hunt", exact: true })).toHaveAttribute("href", "/activate-ri-2026/hunter/");
+      }
       const progressLink = page.locator("[data-event-progress-link]");
       await expect(progressLink).toBeHidden();
       await page.clock.runFor(60_000);
@@ -70,13 +74,20 @@ for (const path of ["/activate-ri-2026/", "/activate-ri-2026/parks/"]) {
         await expect(results.locator(".pota-park-card")).toHaveCount(61);
       } else {
         await expect(results.locator("[data-hero-pota-updated]")).toContainText("Sep 10");
+        await expect(results.getByRole("link", { name: "See RI on air now", exact: true })).toHaveAttribute("href", "/on-air/");
+        await expect(results.getByRole("link", { name: "Update my activation", exact: true })).toHaveAttribute("href", "/activate-ri-2026/activator/plan/");
       }
       await page.clock.setFixedTime(new Date("2026-09-14T00:00:00Z"));
       await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
       await expect(page.locator("[data-event-phase-views]")).toHaveAttribute("data-phase", "post-event");
       await expect(progressLink).toBeVisible();
       if (!path.endsWith("/parks/")) {
-        await expect(results.getByRole("link", { name: "Check recognition" })).toBeVisible();
+        const progressAction = results.getByRole("link", { name: "View event progress", exact: true });
+        await expect(progressAction).toBeVisible();
+        await expect(progressAction).toHaveAttribute("href", "/activate-ri-2026/progress/");
+        const destination = await request.get(server.origin + await progressAction.getAttribute("href"));
+        expect(destination.status()).toBe(200);
+        await expect(results.getByRole("link", { name: "Submit corrections", exact: true })).toHaveAttribute("href", "/activate-ri-2026/help/");
       }
       expect(errors).toEqual([]);
     } finally {

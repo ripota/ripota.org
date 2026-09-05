@@ -694,6 +694,11 @@ export async function updatePlanByActivatorId(
 
   for (const stop of submission.stops) {
     const existingStop = stop.id ? existingStops.get(stop.id) : undefined;
+    // A saved itinerary is not a request to restore a cancelled stop or rewrite
+    // a completed activation, including when an older browser sends stale data.
+    if (existingStop?.status === "cancelled" || existingStop?.status === "completed") {
+      continue;
+    }
     const { startAt, endAt } = stopTimeRangeToInstants(
       stop.plannedDate,
       stop.startTime,
@@ -712,11 +717,9 @@ export async function updatePlanByActivatorId(
                modes_json = ?,
                public_notes = ?,
                organizer_notes = ?,
-               status = CASE WHEN status = 'completed' THEN status ELSE ? END,
-               updated_at = ?,
-               cancelled_at = CASE WHEN status = 'cancelled' THEN NULL ELSE cancelled_at END,
-               cancel_reason = CASE WHEN status = 'cancelled' THEN '' ELSE cancel_reason END
-           WHERE id = ? AND activator_id = ? AND event_id = ?`,
+               updated_at = ?
+           WHERE id = ? AND activator_id = ? AND event_id = ?
+             AND status NOT IN ('cancelled', 'completed')`,
         ).bind(
           stop.parkReference,
           startAt,
@@ -725,7 +728,6 @@ export async function updatePlanByActivatorId(
           JSON.stringify(stop.modes),
           stop.publicNotes,
           stop.organizerNotes,
-          nextStopStatus,
           now,
           existingStop.id,
           existing.id,
@@ -741,7 +743,7 @@ export async function updatePlanByActivatorId(
         summary: `${submission.submitterCallsign} updated ${existingStop.park_reference}.`,
         details: {
           previous: stopSnapshot(existingStop),
-          next: updatedStopSnapshot(existingStop, stop, nextStopStatus),
+          next: updatedStopSnapshot(existingStop, stop),
         },
       }, now));
 
@@ -759,7 +761,7 @@ export async function updatePlanByActivatorId(
           summary: `${submission.submitterCallsign} changed ${existingStop.park_reference} to ${stop.parkReference} on an approved activator.`,
           details: {
             previous: stopSnapshot(existingStop),
-            next: updatedStopSnapshot(existingStop, stop, nextStopStatus),
+            next: updatedStopSnapshot(existingStop, stop),
           },
         });
       }
@@ -779,7 +781,7 @@ export async function updatePlanByActivatorId(
           summary: `${submission.submitterCallsign} changed activation stop timing or park.`,
           details: {
             previous: stopSnapshot(existingStop),
-            next: updatedStopSnapshot(existingStop, stop, nextStopStatus),
+            next: updatedStopSnapshot(existingStop, stop),
           },
         });
       }
@@ -830,7 +832,11 @@ export async function updatePlanByActivatorId(
   }
 
   for (const existingStop of existing.stops) {
-    if (incomingIds.has(existingStop.id) || existingStop.status === "cancelled") {
+    if (
+      incomingIds.has(existingStop.id) ||
+      existingStop.status === "cancelled" ||
+      existingStop.status === "completed"
+    ) {
       continue;
     }
 
@@ -850,7 +856,8 @@ export async function updatePlanByActivatorId(
              cancelled_at = ?,
              cancel_reason = ?,
              updated_at = ?
-         WHERE id = ? AND activator_id = ? AND event_id = ?`,
+         WHERE id = ? AND activator_id = ? AND event_id = ?
+           AND status NOT IN ('cancelled', 'completed')`,
       ).bind(
         now,
         "Removed by activator.",
@@ -1653,7 +1660,6 @@ function stopSnapshot(stop: PendingStopDto): Record<string, unknown> {
 function updatedStopSnapshot(
   existingStop: PendingStopDto,
   stop: Required<ActivationStopInput> & { id?: string },
-  nextStopStatus: string,
 ): Record<string, unknown> {
   return {
     id: existingStop.id,
@@ -1665,7 +1671,7 @@ function updatedStopSnapshot(
     modes: stop.modes,
     publicNotes: stop.publicNotes,
     organizerNotes: stop.organizerNotes,
-    status: existingStop.status === "completed" ? existingStop.status : nextStopStatus,
+    status: existingStop.status,
   };
 }
 

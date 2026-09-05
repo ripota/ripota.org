@@ -52,6 +52,13 @@ test("hunter imports, overrides, filters, persists, resets, and clears a local c
     await expect(page.getByRole("status")).toContainText("Import complete");
     await expect(page.getByRole("heading", { name: /1 of 61 Rhode Island parks hunted/ })).toBeVisible();
     await expect(page.getByText(/There is 1 remaining park with an announced activation window/)).toBeVisible();
+    await expect(page.locator("[data-hunter-import-panel]")).not.toHaveAttribute("open", "");
+    await expect(page.locator("[data-hunter-saved-note]")).toContainText("Saved in this browser.");
+    await expect(page.locator("[data-hunter-progress-text]")).toBeFocused();
+    expect(await page.locator("[data-hunter-results]").evaluate((results) => {
+      const importPanel = document.querySelector("[data-hunter-import-panel]");
+      return Boolean(importPanel && results.compareDocumentPosition(importPanel) & Node.DOCUMENT_POSITION_FOLLOWING);
+    })).toBe(true);
 
     await page.getByRole("link", { name: "View and print my schedule" }).click();
     await expect(page).toHaveURL(/\/activate-ri-2026\/schedule\/\?scope=remaining/);
@@ -59,6 +66,18 @@ test("hunter imports, overrides, filters, persists, resets, and clears a local c
     await expect(page.getByText("1 activation window covering 1 of your 60 remaining parks matches the current filters.")).toBeVisible();
     await expect(page.getByRole("row").filter({ hasText: "US-0514" })).toBeVisible();
     await expect(page.getByRole("row").filter({ hasText: "US-0513" })).toBeHidden();
+    await page.locator("[data-timezone]").selectOption("utc");
+    await page.locator('[data-filter="mode"]').selectOption("SSB");
+    await expect(page.locator("[data-schedule-count]")).toHaveText("0 matching activation windows.");
+    await page.getByRole("button", { name: "Clear filters", exact: true }).click();
+    await expect(page.locator("[data-hunter-scope]")).toHaveValue("all");
+    await expect(page.locator("[data-timezone]")).toHaveValue("utc");
+    await expect(page.locator("[data-schedule-count]")).toHaveText("2 matching activation windows.");
+    await expect(page).toHaveURL(/\?timezone=utc$/);
+    await page.getByRole("button", { name: "Reload schedule", exact: true }).click();
+    await expect(page.locator("[data-timezone]")).toHaveValue("utc");
+    await expect(page.locator("[data-schedule-loaded]")).toContainText("Reload to check for changes.");
+    await page.locator("[data-hunter-scope]").selectOption("remaining");
     await page.evaluate(() => {
       window.print = () => {
         window.dispatchEvent(new Event("beforeprint"));
@@ -94,11 +113,18 @@ test("hunter imports, overrides, filters, persists, resets, and clears a local c
 
     await page.getByLabel(/US-0514 .* hunted/).check();
     await expect(page.getByRole("heading", { name: /2 of 61 Rhode Island parks hunted/ })).toBeVisible();
+    await expect(page.getByLabel(/US-0514 .* hunted/)).toBeFocused();
     await page.getByLabel("Show").selectOption("hunted");
     await page.getByLabel("Search parks").fill("US-0514");
     await expect(page.getByText("US-0514", { exact: true })).toBeVisible();
 
     await page.reload();
+    await expect(page.getByRole("heading", { name: /2 of 61 Rhode Island parks hunted/ })).toBeVisible();
+    await expect(page.getByRole("status")).toHaveText("Your saved checklist is ready.");
+    await expect(page.locator("[data-hunter-import-panel]")).not.toHaveAttribute("open", "");
+    await page.locator("[data-hunter-update-import]").click();
+    await expect(page.locator("[data-hunter-import-panel]")).toHaveAttribute("open", "");
+    await page.getByLabel("Choose CSV file").setInputFiles({ name: "hunter_parks.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
     await expect(page.getByRole("heading", { name: /2 of 61 Rhode Island parks hunted/ })).toBeVisible();
     await page.getByRole("button", { name: "Reset manual changes" }).click();
     await expect(page.getByRole("heading", { name: /1 of 61 Rhode Island parks hunted/ })).toBeVisible();
@@ -121,6 +147,7 @@ test("hunter accepts a dropped zero-match export and reports invalid input", asy
     await expect(page.getByRole("status")).toContainText("Import complete");
     await expect(page.getByRole("heading", { name: /0 of 61 Rhode Island parks hunted/ })).toBeVisible();
 
+    await page.locator("[data-hunter-update-import]").click();
     await page.getByLabel("Choose CSV file").setInputFiles({
       name: "hunter_parks.csv",
       mimeType: "text/csv",
@@ -137,6 +164,7 @@ test("hunter accepts a dropped zero-match export and reports invalid input", asy
     await expect(page.getByRole("status")).toContainText("may be incomplete");
     await expect(page.getByRole("heading", { name: /1 of 61 Rhode Island parks hunted/ })).toBeVisible();
 
+    await page.locator("[data-hunter-update-import]").click();
     await page.getByLabel("Choose CSV file").setInputFiles({
       name: "hunter_parks.csv",
       mimeType: "text/csv",

@@ -1,6 +1,6 @@
 ---
 import parks from "../../../public/data/activate-ri-2026/parks.json";
-import { deriveParkCoverage, isParkVolunteerActionable } from "../../lib/activate-ri/coverage";
+import { isParkVolunteerActionable } from "../../lib/activate-ri/coverage";
 import {
   formatActivatorModes,
   timelineOptions,
@@ -13,7 +13,9 @@ import {
 import type { ParkCoverage, PublicParkSummary } from "../../lib/activate-ri/types";
 
 const publicParks = parks as PublicParkSummary[];
-const visibleCoverage = deriveParkCoverage(publicParks, []);
+// Coverage is unknown until the live request succeeds; an empty placeholder
+// must not make every park look like it needs a volunteer while loading.
+const visibleCoverage: ParkCoverage[] = [];
 const countyOptions = uniqueSortedValues(
   publicParks.map((park) => (park.counties?.length ? park.counties : ["Unknown county"])),
 );
@@ -102,6 +104,7 @@ function parkCounties(park: ParkCoverage) {
       </tr>
     </thead>
     <tbody>
+      <tr><td colspan="5" data-label="Park coverage">Loading the event schedule…</td></tr>
       {
         visibleCoverage.map((park) => (
           <tr

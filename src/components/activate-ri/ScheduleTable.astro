@@ -20,17 +20,18 @@ const countyOptions = uniqueSortedValues(
   <p data-schedule-print-summary></p>
   <p data-schedule-print-generated></p>
   <p>Activation windows are planned estimates. Confirm live activity with official POTA spots.</p>
+  <p>Event-day filters use Rhode Island time. Dates and times below use the selected time zone.</p>
   <p>{siteIdentity.disclaimer}</p>
 </header>
 
-<p class="event-coverage-shortcut">
+<p class="event-coverage-shortcut" data-coverage-shortcut-wrap hidden>
   <a href="/activate-ri-2026/parks/?coverage=needed" data-coverage-shortcut>
     Find parks that still need coverage <span data-coverage-gap-count></span><span aria-hidden="true"> →</span>
   </a>
 </p>
 
 <section class="personal-schedule-summary" data-personal-schedule-summary hidden>
-  <p class="eyebrow">Your browser-local checklist</p>
+  <p class="eyebrow">Your all-time RI checklist</p>
   <h2 data-personal-schedule-title>Schedule for your remaining parks</h2>
   <p data-personal-schedule-copy aria-live="polite"></p>
   <p data-personal-schedule-import hidden>
@@ -55,7 +56,7 @@ const countyOptions = uniqueSortedValues(
     Time zone
     <select class="event-filter__control" name="schedule-timezone" data-timezone>
       {activationTimeZoneOptions.map((option) => (
-        <option value={option.value}>{option.label}</option>
+        <option value={option.value}>{option.value === "eastern" ? "Eastern (RI / EDT)" : option.label}</option>
       ))}
     </select>
   </label>
@@ -78,7 +79,7 @@ const countyOptions = uniqueSortedValues(
     </select>
   </label>
   <label class="event-filter">
-    Timeline
+    Event day (Rhode Island time)
     <select class="event-filter__control" data-filter="timeline">
       {timelineOptions.map((option) => <option value={option.value}>{option.label}</option>)}
     </select>
@@ -96,8 +97,16 @@ const countyOptions = uniqueSortedValues(
   <button class="button" data-variant="light" type="button" data-print-schedule>
     Print filtered schedule
   </button>
-  <p>Printing uses the park scope, timezone, and filters shown above.</p>
+  <button class="button" data-variant="light" type="button" data-clear-schedule-filters disabled>
+    Clear filters
+  </button>
+  <button class="button" data-variant="light" type="button" data-reload-schedule>
+    Reload schedule
+  </button>
+  <p>Printing uses the parks, time zone, and filters shown above. Event-day filters use Rhode Island time.</p>
 </div>
+<p data-schedule-loaded></p>
+<p data-schedule-count role="status" aria-live="polite"></p>
 
 <div class="event-table-wrap" data-schedule-table-wrap>
   <table class="event-table" data-filtered-table data-live-schedule data-parks={JSON.stringify(publicParks)}>
@@ -159,6 +168,8 @@ const countyOptions = uniqueSortedValues(
     const timezone = filters.querySelector("[data-timezone]") as HTMLSelectElement | null;
     const hunterScope = filters.querySelector("[data-hunter-scope]") as HTMLSelectElement | null;
     const printButton = document.querySelector<HTMLButtonElement>("[data-print-schedule]");
+    const clearButton = document.querySelector<HTMLButtonElement>("[data-clear-schedule-filters]");
+    const matchingCount = document.querySelector<HTMLElement>("[data-schedule-count]");
     const unscheduledDisclosure = document.querySelector<HTMLDetailsElement>("[data-personal-schedule-unscheduled]");
     let unscheduledWasOpen = false;
     let checklistAvailable = false;
@@ -238,8 +249,22 @@ const countyOptions = uniqueSortedValues(
       if (printButton) {
         printButton.disabled = missingChecklist || !scheduleAvailable;
       }
+      if (clearButton) {
+        clearButton.disabled = !useRemaining && controls.every((control) => control.value === "all");
+      }
+      if (matchingCount) {
+        matchingCount.textContent = scheduleAvailable && !missingChecklist
+          ? `${visibleCount} matching activation window${visibleCount === 1 ? "" : "s"}.`
+          : "";
+      }
     };
 
+    clearButton?.addEventListener("click", () => {
+      controls.forEach((control) => { control.value = "all"; });
+      if (hunterScope) hunterScope.value = "all";
+      applyFilters();
+      updateScheduleUrl(controls, timezone, hunterScope);
+    });
     controls.forEach((control) => control.addEventListener("change", () => {
       applyFilters();
       const filterCategory = control.dataset.filter as
@@ -298,6 +323,9 @@ const countyOptions = uniqueSortedValues(
     }
 
     let parks: PublicParkSummary[] = [];
+    document.querySelector("[data-reload-schedule]")?.addEventListener("click", () => {
+      window.location.reload();
+    });
     try {
       parks = JSON.parse(table.dataset.parks ?? "[]");
     } catch {
@@ -311,6 +339,13 @@ const countyOptions = uniqueSortedValues(
       document.querySelectorAll<HTMLElement>("[data-coverage-gap-count]").forEach((count) => {
         count.textContent = `(${gapCount})`;
       });
+      document.querySelectorAll<HTMLElement>("[data-coverage-shortcut-wrap]").forEach((shortcut) => {
+        shortcut.hidden = gapCount === 0;
+      });
+      const loaded = document.querySelector<HTMLElement>("[data-schedule-loaded]");
+      if (loaded) {
+        loaded.textContent = `Schedule loaded ${new Intl.DateTimeFormat(undefined, { timeStyle: "short" }).format(new Date())}. Reload to check for changes.`;
+      }
       const filters = document.querySelector("[data-event-filters]") as HTMLFormElement | null;
       if (filters) {
         updateSelectOptions(filters, "activator", uniqueSortedValues(visibleStops.map((stop) => [stop.activatorCallsign])));
@@ -414,7 +449,12 @@ const countyOptions = uniqueSortedValues(
     const cell = document.createElement("td");
     cell.colSpan = 7;
     cell.dataset.label = "Schedule";
-    cell.textContent = "Live schedule is unavailable. Try refreshing this page.";
+    cell.append("The schedule is temporarily unavailable. Reload to try again, or check ");
+    const officialSpots = document.createElement("a");
+    officialSpots.href = "https://pota.app/";
+    officialSpots.textContent = "official POTA spots";
+    cell.appendChild(officialSpots);
+    cell.append(" for current activity.");
     row.appendChild(cell);
     body.replaceChildren(row);
   }
@@ -941,3 +981,12 @@ const countyOptions = uniqueSortedValues(
     return date === filter;
   }
 </script>
+
+<style>
+  @media print {
+    [data-schedule-loaded],
+    [data-schedule-count] {
+      display: none;
+    }
+  }
+</style>

@@ -29,6 +29,7 @@ const turnstileSiteKey =
   </div>
 
   <ActivateRiRequiredNote />
+  <p class="form-help" data-edit-plan-state aria-live="polite"></p>
   <p class="form-status" data-edit-status aria-live="polite">Loading plan...</p>
 
   <div data-edit-fields hidden>
@@ -37,6 +38,16 @@ const turnstileSiteKey =
   <datalist id="activate-ri-edit-clubs" data-club-options></datalist>
 
   <ActivateRiStopsSection mode="edit" hidden={true} />
+
+  <section class="event-guidance event-guidance--compact" data-edit-readonly-stops hidden aria-labelledby="readonly-stops-title">
+    <h2 id="readonly-stops-title">Cancelled and completed stops</h2>
+    <p>
+      These stops stay unchanged when you save your plan.
+      <a href="/activate-ri-2026/help/#activator-faq">Contact an organizer</a>
+      to restore a cancelled stop or correct a completed stop.
+    </p>
+    <div class="stack" data-edit-readonly-stop-list></div>
+  </section>
 
   <ActivateRiOrganizerNotesField hidden={true} />
 
@@ -64,11 +75,9 @@ const turnstileSiteKey =
   <div class="form-confirmation__body">
     <p class="eyebrow">Changes saved</p>
     <h2>Your activation plan was updated</h2>
-    <p>
-      The latest version is saved. You can keep editing this plan or return to
-      the event overview.
-    </p>
+    <p data-edit-confirmation-message>The latest version is saved.</p>
     <div class="form-actions">
+      <button class="button" data-variant="light" type="button" data-edit-keep-editing>Keep editing</button>
       <a class="button" data-variant="primary" href="/activate-ri-2026/activator/" data-edit-confirmation-overview>
         Back to activator portal
       </a>
@@ -108,6 +117,7 @@ const turnstileSiteKey =
     timeBlockToRange,
     utcRangeToTimeBlockValue,
   } from "../../lib/activate-ri/time-blocks";
+  import { formatActivationDateTimeRange } from "../../lib/activate-ri/time";
   import {
     formatVolunteerMissingFieldSummary,
     formatVolunteerProblemFieldSummary,
@@ -124,6 +134,8 @@ const turnstileSiteKey =
     bands?: unknown;
     modes?: unknown;
     public_notes?: unknown;
+    organizer_notes?: unknown;
+    status?: unknown;
   };
 
   type PlanDto = {
@@ -135,10 +147,14 @@ const turnstileSiteKey =
     public_notes?: unknown;
     organizer_notes?: unknown;
     stops?: unknown;
+    status?: unknown;
   };
 
   const editForm = document.querySelector("[data-activator-edit]") as HTMLFormElement | null;
   const editStatus = editForm?.querySelector("[data-edit-status]");
+  const planState = editForm?.querySelector<HTMLElement>("[data-edit-plan-state]");
+  const readonlyStopsSection = editForm?.querySelector<HTMLElement>("[data-edit-readonly-stops]");
+  const readonlyStopList = editForm?.querySelector<HTMLElement>("[data-edit-readonly-stop-list]");
   const editFields = editForm?.querySelector("[data-edit-fields]") as HTMLElement | null | undefined;
   const editStops = editForm?.querySelector("[data-stops-container]") as HTMLElement | null | undefined;
   const editActions = editForm?.querySelector("[data-edit-actions]") as HTMLElement | null | undefined;
@@ -148,17 +164,20 @@ const turnstileSiteKey =
   const editTurnstile = editForm?.querySelector("[data-edit-turnstile]") as HTMLElement | null | undefined;
   const editConfirmation = document.querySelector("[data-edit-confirmation]") as HTMLDialogElement | null;
   const savePlanButton = editForm?.querySelector("[data-save-plan]") as HTMLButtonElement | null | undefined;
+  const cancelPlanButton = editForm?.querySelector<HTMLButtonElement>("[data-cancel-plan]");
   const stopTemplate = document.querySelector("[data-stop-template]") as HTMLTemplateElement | null;
   let isSaving = false;
   let plans: PlanDto[] = [];
   let selectedPlanId = "";
   let selectedPlanPublicNotes = "";
+  let readonlyStops: StopDto[] = [];
 
   setupCallsignFields(editForm ?? document);
   setupRequiredFieldValidation();
   void populateClubDatalist("activate-ri-edit-clubs");
   void loadPlan();
   setupDocumentPopupDismissal();
+  document.querySelector("[data-edit-keep-editing]")?.addEventListener("click", () => editConfirmation?.close());
 
   document.addEventListener("activate-ri:add-park", (event) => {
     const reference = (event as CustomEvent<{ reference?: string }>).detail?.reference;
@@ -219,7 +238,7 @@ const turnstileSiteKey =
     appendRepeatedStop()?.querySelector<HTMLInputElement>("[data-park-input]")?.focus();
   });
 
-  editForm?.querySelector("[data-cancel-plan]")?.addEventListener("click", async () => {
+  cancelPlanButton?.addEventListener("click", async () => {
     if (!window.confirm("Cancel this activation plan? This will mark active stops as cancelled.")) {
       return;
     }
@@ -308,13 +327,60 @@ const turnstileSiteKey =
     const stops = Array.isArray(plan.stops)
       ? plan.stops.filter((stop): stop is StopDto => typeof stop === "object" && stop !== null)
       : [];
-    for (const stop of stops) {
+    readonlyStops = stops.filter(isReadonlyStop);
+    renderReadonlyStops();
+    const activeStops = stops.filter((stop) => !isReadonlyStop(stop));
+    if (cancelPlanButton) cancelPlanButton.disabled = activeStops.length === 0;
+    const state = planStatusMessage(plan, stops);
+    planState?.replaceChildren(state);
+    document.querySelector("[data-edit-confirmation-message]")?.replaceChildren(`The latest version is saved. ${state}`);
+    for (const stop of activeStops) {
       appendStop(stop);
     }
     if (stops.length === 0) {
       appendStop({});
     }
-    setupStopCards({ validatePark: true, setupErrorDescriptions: true });
+    setupStopCards({ validatePark: true, setupErrorDescriptions: true, allowRemoveLastStop: readonlyStops.length > 0 });
+  }
+
+  function isReadonlyStop(stop: StopDto): boolean {
+    return stop.status === "cancelled" || stop.status === "completed";
+  }
+
+  function planStatusMessage(plan: PlanDto, stops: StopDto[]): string {
+    if (stops.length > 0 && stops.every((stop) => stop.status === "cancelled")) {
+      return "All stops cancelled. Saving this plan will not restore them.";
+    }
+    if (stops.length > 0 && stops.every(isReadonlyStop)) {
+      return "No active stops remain. Cancelled and completed stops stay unchanged when you save.";
+    }
+    if (plan.status === "approved") {
+      return "Approved — your active stops are on the public schedule. Saved changes appear there immediately.";
+    }
+    if (plan.status === "pending") {
+      return "Awaiting organizer approval. Your stops are not on the public schedule yet.";
+    }
+    return "This plan is not approved for the public schedule. Contact an organizer for help.";
+  }
+
+  function renderReadonlyStops(): void {
+    readonlyStopList?.replaceChildren();
+    if (readonlyStopsSection) readonlyStopsSection.hidden = readonlyStops.length === 0;
+    for (const stop of readonlyStops) {
+      const card = document.createElement("article");
+      card.dataset.readonlyStop = stringValue(stop.status);
+      const heading = document.createElement("h3");
+      heading.textContent = `${stringValue(stop.park_reference)} — ${stop.status === "cancelled" ? "Cancelled" : "Completed"}`;
+      const timing = document.createElement("p");
+      timing.textContent = formatActivationDateTimeRange({
+        plannedDate: stringValue(stop.planned_date),
+        startTime: stringValue(stop.start_time),
+        endTime: stringValue(stop.end_time),
+      });
+      card.appendChild(heading);
+      card.appendChild(timing);
+      readonlyStopList?.appendChild(card);
+    }
   }
 
   function appendStop(
@@ -344,8 +410,14 @@ const turnstileSiteKey =
     if (preferences) {
       applyRepeatedStopPreferences(node, preferences);
     }
+    if (stop.status === "delayed") {
+      const status = document.createElement("p");
+      status.className = "form-help";
+      status.textContent = "Status: Delayed";
+      node.querySelector(".activation-stop-card__header")?.insertAdjacentElement("afterend", status);
+    }
     editStops.appendChild(node);
-    setupStopCards({ validatePark: true, setupErrorDescriptions: true });
+    setupStopCards({ validatePark: true, setupErrorDescriptions: true, allowRemoveLastStop: readonlyStops.length > 0 });
     return node;
   }
 
@@ -369,7 +441,7 @@ const turnstileSiteKey =
       publicNotes: selectedPlanPublicNotes,
       organizerNotes: data.get("organizerNotes"),
       turnstileToken: data.get("cf-turnstile-response"),
-      stops: Array.from(editForm?.querySelectorAll<HTMLElement>("[data-stop-card]") ?? []).map((stop) => {
+      stops: [...Array.from(editForm?.querySelectorAll<HTMLElement>("[data-stop-card]") ?? []).map((stop) => {
         const timeBlock = (stop.querySelector("[data-time-block]") as HTMLSelectElement | null)?.value ?? "";
         const timeRange = timeBlockToRange(timeBlock) ?? { startTime: "", endTime: "" };
 
@@ -384,7 +456,18 @@ const turnstileSiteKey =
           modes: selectedValues(stop.querySelector<HTMLElement>("[data-modes]")),
           publicNotes: (stop.querySelector("[data-public-notes]") as HTMLTextAreaElement | null)?.value ?? "",
         };
-      }),
+      }), ...readonlyStops.map((stop) => ({
+        id: stringValue(stop.id),
+        parkReference: stringValue(stop.park_reference),
+        plannedDate: stringValue(stop.planned_date),
+        timeBlock: timeBlockValue(stop),
+        startTime: stringValue(stop.start_time),
+        endTime: stringValue(stop.end_time),
+        bands: arrayValue(stop.bands),
+        modes: arrayValue(stop.modes),
+        publicNotes: stringValue(stop.public_notes),
+        organizerNotes: stringValue(stop.organizer_notes),
+      }))],
     };
   }
 
@@ -410,7 +493,7 @@ const turnstileSiteKey =
       return;
     }
 
-    setupStopCards({ validatePark: true, setupErrorDescriptions: true });
+    setupStopCards({ validatePark: true, setupErrorDescriptions: true, allowRemoveLastStop: readonlyStops.length > 0 });
     if (options.focusIdentity) {
       focusActivatorIdentityFields();
     }

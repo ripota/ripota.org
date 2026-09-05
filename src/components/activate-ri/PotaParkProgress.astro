@@ -7,8 +7,8 @@ import { activateRi2026Event } from "../../data/activate-ri-2026/event";
   <div class="pota-progress__summary">
     <div>
       <p class="eyebrow">Unofficial event results</p>
-      <h2 id="pota-progress-title">POTA evidence across all 61 parks</h2>
-      <p data-pota-summary-status role="status" aria-live="polite">Loading persisted POTA evidence…</p>
+      <h2 id="pota-progress-title">Progress across all 61 parks</h2>
+      <p data-pota-summary-status role="status" aria-live="polite">Loading event progress…</p>
     </div>
     <progress max="61" value="0" data-pota-progress-bar>0 of 61</progress>
     <dl class="coverage-summary" aria-label="POTA evidence summary">
@@ -34,7 +34,7 @@ import { activateRi2026Event } from "../../data/activate-ri-2026/event";
   />
 
   <fieldset class="pota-status-filters" data-pota-filters>
-    <legend>Filter parks by strongest evidence</legend>
+    <legend>Filter by park status</legend>
     <label><input type="radio" name="pota-status-filter" value="all" checked /> All</label>
     <label><input type="radio" name="pota-status-filter" value="confirmed" /> Confirmed</label>
     <label><input type="radio" name="pota-status-filter" value="observed" /> Observed</label>
@@ -80,7 +80,7 @@ import { activateRi2026Event } from "../../data/activate-ri-2026/event";
         render();
       } else if (state.status === "unavailable") {
         root.querySelector("[data-pota-summary-status]")?.replaceChildren(
-          "Persisted POTA evidence is temporarily unavailable. Try again shortly.",
+          "Event progress is temporarily unavailable. Try again shortly.",
         );
       }
     });
@@ -106,7 +106,7 @@ import { activateRi2026Event } from "../../data/activate-ri-2026/event";
         "[data-pota-summary-status]",
         value.warning ?? (refreshFailed
           ? `Showing the last successful result as of ${lastUpdated}; refresh failed.`
-          : `${root.dataset.phase === "post-event" ? "Provisional results" : "Evidence"} as of ${lastUpdated}.`),
+          : `${root.dataset.phase === "post-event" ? "Provisional results" : "Progress"} as of ${lastUpdated}.`),
       );
     }
 

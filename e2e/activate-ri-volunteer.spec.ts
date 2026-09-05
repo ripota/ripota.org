@@ -101,6 +101,9 @@ test("volunteer can submit a plan that can be approved and shown publicly", asyn
     await page.getByLabel("Club / group affiliation").fill("RI POTA");
     await page.locator("[data-park-input]").fill("US-2868");
     await page.getByRole("button", { name: "US-2868" }).click();
+    await expect(page.locator("[data-planned-date]")).toHaveValue("");
+    await page.getByRole("button", { name: "Submit for review" }).click();
+    await expect(page.locator("[data-planned-date]")).toBeFocused();
     await page.locator("[data-planned-date]").selectOption("2026-09-11");
     await page.locator("[data-time-block]").selectOption("09:00-12:00");
 

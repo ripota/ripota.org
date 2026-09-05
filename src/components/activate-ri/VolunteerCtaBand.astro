@@ -2,21 +2,36 @@
 import { eventRoute } from "../../lib/activate-ri/paths";
 ---
 
-<section class="volunteer-cta-band" aria-labelledby="volunteer-cta-title">
-  <div class="volunteer-cta-band__copy">
-    <p class="eyebrow">Activator signups</p>
-    <h2 id="volunteer-cta-title">Help fill the Rhode Island map</h2>
+<div class="event-participation">
+  <article class="event-guidance__item">
+    <p class="eyebrow">For activators</p>
+    <h3>Add another park or operating window</h3>
     <p>
-      Submit one park or a multi-park route for organizer review, then update
-      your plan if timing or access changes.
+      One stop or a multi-park route—every activation gives hunters another
+      chance. Parks already on the schedule welcome more times, bands, and modes.
     </p>
-  </div>
-  <div class="button-row volunteer-cta-band__actions" aria-label="Volunteer actions">
     <a class="button" data-variant="primary" href={eventRoute("volunteer")} data-analytics-event="event_cta_clicked" data-analytics-feature="volunteer_form" data-analytics-action="volunteer">
-      Volunteer to Activate
+      Add an activation
     </a>
-    <a class="button" data-variant="light" href={eventRoute("schedule")} data-analytics-event="event_cta_clicked" data-analytics-feature="schedule" data-analytics-action="schedule">
-      See the schedule
+    <p>Already signed up? <a href={eventRoute("activatorPlan")}>Open My Plan</a>.</p>
+  </article>
+  <article class="event-guidance__item">
+    <p class="eyebrow">For hunters</p>
+    <h3>Get ready for your Worked All RI award</h3>
+    <p>
+      Find the Rhode Island parks you still need, check their planned times,
+      and follow current spots during the event.
+    </p>
+    <a class="button" data-variant="primary" href={eventRoute("hunter")} data-analytics-event="event_cta_clicked" data-analytics-feature="hunter_checklist" data-analytics-action="hunter">
+      Get ready to hunt
     </a>
-  </div>
-</section>
+    <p><a href={eventRoute("schedule")}>Browse the schedule</a> or <a href="/on-air/">see RI on air now</a>.</p>
+  </article>
+</div>
+
+<style>
+  .event-participation { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+  .event-participation article { display: grid; justify-items: start; align-content: start; gap: 1rem; }
+  .event-participation article p { margin: 0; }
+  @media (max-width: 640px) { .event-participation { grid-template-columns: 1fr; } }
+</style>

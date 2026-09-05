@@ -19,13 +19,20 @@ describe("Activate RI event config", () => {
     );
   });
 
-  it("keeps volunteer as the planning primary call to action", () => {
+  it("gives activators and hunters separate planning actions", () => {
     expect(activateRi2026Event.phaseCtas.planning.primary.href).toBe(
       eventRoute("volunteer"),
     );
     expect(activateRi2026Event.phaseCtas.planning.secondary.href).toBe(
-      eventRoute("schedule"),
+      eventRoute("hunter"),
     );
+  });
+
+  it("uses existing tools for live updates and post-event results", () => {
+    expect(activateRi2026Event.phaseCtas["event-live"].primary.href).toBe("/on-air/");
+    expect(activateRi2026Event.phaseCtas["event-live"].secondary.href).toBe(eventRoute("activatorPlan"));
+    expect(activateRi2026Event.phaseCtas["post-event"].primary.href).toBe(eventRoute("progress"));
+    expect(activateRi2026Event.phaseCtas["post-event"].secondary.href).toBe(eventRoute("help"));
   });
 
   it("centralizes event routes and generated JSON paths", () => {

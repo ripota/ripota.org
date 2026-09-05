@@ -8,53 +8,53 @@
   "softStartDate": "2026-09-10",
   "timezone": "UTC",
   "goalParkCount": 61,
-  "publicSummary": "A Rhode Island POTA community weekend to cover all 61 Rhode Island references.",
+  "publicSummary": "Activate Rhode Island parks or work toward your Worked All RI award during our community POTA weekend.",
   "phaseCtas": {
     "planning": {
       "primary": {
-        "label": "Volunteer to activate",
+        "label": "Add an activation",
         "href": "/activate-ri-2026/volunteer/",
         "description": "Submit one park or a multi-park route for organizer review."
       },
       "secondary": {
-        "label": "See the schedule",
-        "href": "/activate-ri-2026/schedule/",
-        "description": "Review planned activation windows as they are approved."
+        "label": "Get ready to hunt",
+        "href": "/activate-ri-2026/hunter/",
+        "description": "Find the parks you still need for your Worked All RI award."
       }
     },
     "schedule-live": {
       "primary": {
-        "label": "Find scheduled activations",
-        "href": "/activate-ri-2026/schedule/",
-        "description": "Browse approved activation windows by date and time."
+        "label": "Add an activation",
+        "href": "/activate-ri-2026/volunteer/",
+        "description": "Give hunters another chance with more parks, times, bands, and modes."
       },
       "secondary": {
-        "label": "Fill a coverage gap",
-        "href": "/activate-ri-2026/parks/",
-        "description": "Find parks that still need activator coverage."
+        "label": "Get ready to hunt",
+        "href": "/activate-ri-2026/hunter/",
+        "description": "Find the parks you still need for your Worked All RI award."
       }
     },
     "event-live": {
       "primary": {
-        "label": "Open event schedule",
-        "href": "/activate-ri-2026/schedule/",
-        "description": "Use the schedule and official POTA spots during the event."
+        "label": "See RI on air now",
+        "href": "/on-air/",
+        "description": "Check current POTA spots for frequencies and modes."
       },
       "secondary": {
         "label": "Update my activation",
-        "href": "/activate-ri-2026/volunteer/",
-        "description": "Use your private edit link to update or cancel a stop."
+        "href": "/activate-ri-2026/activator/plan/",
+        "description": "Sign in to My Plan to update or cancel a stop."
       }
     },
     "post-event": {
       "primary": {
-        "label": "Check recognition",
-        "href": "/activate-ri-2026/awards/",
-        "description": "Review community recognition details after the event."
+        "label": "View event progress",
+        "href": "/activate-ri-2026/progress/",
+        "description": "See Rhode Island park activity during the event."
       },
       "secondary": {
         "label": "Submit corrections",
-        "href": "/activate-ri-2026/volunteer/",
+        "href": "/activate-ri-2026/help/",
         "description": "Contact organizers about schedule or log corrections."
       }
     }

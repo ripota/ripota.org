@@ -9,7 +9,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 
 <BaseLayout
   title="Activate All RI 2026 Hunter Checklist"
-  description="Compare your official POTA Hunted Parks CSV with Rhode Island's current 61 references, privately in your browser."
+  description="Prepare your Worked All RI hunt: find parks you still need, browse planned activation times, and follow current POTA spots."
   canonicalPath="/activate-ri-2026/hunter/"
 >
   <SiteHeader variant="solid" showEventLink />
@@ -19,9 +19,19 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         <EventNav />
         <div class="section-header">
           <p class="eyebrow">For hunters</p>
-          <h1 id="hunter-title">Your Rhode Island park checklist</h1>
+          <h1 id="hunter-title">Plan your Worked All RI hunt</h1>
           <p class="lead">
-            See which of Rhode Island's 61 current POTA references you have hunted and what remains, using the complete export from your own POTA account.
+            Work toward POTA's Worked All RI award by hunting Rhode Island's 61 current references.
+            Find parks you still need and plan when to listen.
+          </p>
+          <div class="hunter-page-actions">
+            <a class="button" data-variant="primary" href="/activate-ri-2026/schedule/">View event schedule</a>
+            <a class="button" data-variant="light" href="/on-air/">See RI on air now</a>
+          </div>
+          <p>
+            Already hunted RI parks? Import your POTA Hunted Parks CSV below to personalize your schedule.
+            Your past contacts count toward the chase; this checklist is not limited to the event.
+            <a href="https://docs.pota.app/docs/awards.html#worked-all-references-awards" target="_blank" rel="noopener noreferrer">See the official POTA award details</a>.
           </p>
         </div>
         <HunterChecklist />
@@ -31,3 +41,12 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
   </main>
   <Footer />
 </BaseLayout>
+
+<style>
+  .hunter-page-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin: 1rem 0;
+  }
+</style>

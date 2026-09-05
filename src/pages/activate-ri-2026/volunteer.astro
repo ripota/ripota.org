@@ -22,62 +22,25 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
           <p class="eyebrow">Activator signup</p>
           <h1 id="volunteer-title">Volunteer to activate</h1>
           <p class="lead">
-            Share one planned activation or a multi-park plan for organizer
-            review. Each stop uses a three-hour block so hunters and organizers
-            can scan coverage consistently.
+            Add one park or a multi-park route. More activations are welcome at
+            parks already scheduled. New plans appear after organizer review.
           </p>
         </div>
-        <section class="event-guidance" aria-labelledby="before-submit-title">
-          <div class="section-header section-header--compact">
-            <p class="eyebrow">Before you submit</p>
-            <h2 id="before-submit-title">Share the plan you can reasonably attempt</h2>
-          </div>
-          <div class="event-guidance__grid">
-            <article class="event-guidance__item">
-              <h3>One stop or a rove</h3>
-              <p>
-                Submit one park if that is your plan, or add multiple stops for
-                a multi-park route.
-              </p>
-            </article>
-            <article class="event-guidance__item">
-              <h3>Organizer review</h3>
-              <p>
-                New plans are reviewed before they appear on the public
-                schedule.
-              </p>
-            </article>
-            <article class="event-guidance__item">
-              <h3>Account access</h3>
-              <p>
-                Use an email address you can reach. The site sends a
-                short-lived, single-use link after submission.
-              </p>
-            </article>
-            <article class="event-guidance__item">
-              <h3>Spots and logs</h3>
-              <p>
-                Frequencies are not collected here. Spot and log through normal
-                Parks on the Air systems.
-              </p>
-            </article>
-          </div>
-        </section>
         <aside class="event-guidance event-guidance--compact" data-volunteer-account-state>
           <p data-volunteer-account-message>
-            Returning activator? <a href="/account/sign-in/?returnTo=%2Factivate-ri-2026%2Fvolunteer%2F">Sign in with a passkey</a>
-            before submitting. You can also submit first and claim the plan from the email we send.
+            Already signed up? <a href="/activate-ri-2026/activator/plan/">Open My Plan</a>
+            to add parks or change your stops. New here? We'll email you a link after you submit.
           </p>
         </aside>
+        <VolunteerForm />
         <ReferenceMap
           id="activate-ri-volunteer-map"
           variant="volunteer"
           title="Choose a park from the map"
-          caption="Use the map to start a stop in the form below. Adding a park only edits this form; it does not submit a plan or reserve coverage."
+          caption="Use the map to add a stop to the form above. Review your dates and times before submitting."
           phaseFocus="volunteer"
           showBoundaries={false}
         />
-        <VolunteerForm />
         <section
           class="event-guidance event-guidance--compact"
           id="update-your-plan-when-things-change"
@@ -95,14 +58,14 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
               </a>
             </h2>
             <p class="lead">
-              The site emails a 15-minute, single-use sign-in link after
-              submission. Add a passkey for faster future access, or request
-              another email link whenever you need to return.
+              We'll email you a link to open and update your plan. Each link
+              works once and expires in 15 minutes; request another if needed.
+              You can also save a passkey for faster sign-in.
             </p>
           </div>
           <ul class="event-help-list">
             <li>Pending plans stay in organizer review until approved.</li>
-            <li>The same email address can manage multiple submitted plans.</li>
+            <li>Use the same email address to keep all your stops together.</li>
             <li>Approved plans should be updated instead of submitted again.</li>
           </ul>
         </section>
@@ -125,8 +88,11 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     const response = await fetch("/api/auth/session", { headers: { accept: "application/json" } });
     const body = await response.json().catch(() => null);
     if (!isRecord(body) || body.signedIn !== true || !isRecord(body.user)) return;
-    const email = typeof body.user.email === "string" ? body.user.email : "your verified account";
-    message?.replaceChildren(`Signed in as ${email}. A submission using this verified email will be associated with your account.`);
+    const email = typeof body.user.email === "string" ? body.user.email : "your RI POTA account";
+    const planLink = document.createElement("a");
+    planLink.href = "/activate-ri-2026/activator/plan/";
+    planLink.textContent = "Open My Plan";
+    message?.replaceChildren(`Signed in as ${email}. Use the same email to keep your stops together. `, planLink);
   }
   function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);

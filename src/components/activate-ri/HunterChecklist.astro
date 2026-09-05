@@ -9,43 +9,6 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
 ---
 
 <section class="hunter-checklist" data-hunter-checklist data-references={JSON.stringify(hunterReferences)}>
-  <div class="hunter-import" aria-labelledby="hunter-import-title">
-    <div class="hunter-import__copy">
-      <p class="eyebrow">Private browser-local import</p>
-      <h2 id="hunter-import-title">Import your official Hunted Parks export</h2>
-      <ol>
-        <li>
-          <a href="https://pota.app/#/user/stats" target="_blank" rel="noopener noreferrer">
-            Open POTA My Stats
-          </a>
-          and sign in if needed.
-        </li>
-        <li>Beside <strong>Hunted Parks</strong>, choose <strong>Export CSV</strong> to download <code>hunter_parks.csv</code>.</li>
-        <li>Return here and choose or drop that file. Import begins immediately.</li>
-      </ol>
-      <p class="hunter-import__help">
-        If POTA asks you to sign in, finish signing in, return here, and use <strong>Open POTA My Stats</strong> again.
-      </p>
-    </div>
-
-    <div class="hunter-drop" data-hunter-drop>
-      <p><strong>Choose or drop <code>hunter_parks.csv</code></strong></p>
-      <p>CSV only, up to 5 MB. The file never leaves this browser.</p>
-      <label class="button" data-variant="light" for="hunter-csv-input">Choose CSV file</label>
-      <input
-        id="hunter-csv-input"
-        class="hunter-file-input"
-        type="file"
-        accept=".csv,text/csv"
-        data-hunter-file
-      />
-    </div>
-  </div>
-
-  <p class="hunter-privacy">
-    RI POTA does not upload or retain your CSV, callsign, worldwide history, QSO counts, or dates. Only the RI reference IDs in your latest import, manual checkbox choices, schema version, and import time are saved in this browser. We record coarse, anonymous feature use—such as whether an import succeeded or the personal schedule was opened—using a random event-specific browser ID. Custom analytics is skipped when Global Privacy Control or Do Not Track is enabled.
-  </p>
-
   <p class="hunter-message" role="status" aria-live="polite" data-hunter-status>
     No checklist has been imported in this browser yet.
   </p>
@@ -54,11 +17,15 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
   <section class="hunter-results" aria-labelledby="hunter-results-title" data-hunter-results hidden>
     <div class="hunter-results__header">
       <div>
-        <p class="eyebrow">Your browser-local checklist</p>
-        <h2 id="hunter-results-title" data-hunter-progress-text>0 of 61 Rhode Island parks hunted</h2>
+        <p class="eyebrow">Your all-time RI checklist</p>
+        <h2 id="hunter-results-title" data-hunter-progress-text tabindex="-1">0 of 61 Rhode Island parks hunted</h2>
       </div>
       <progress data-hunter-progress max={hunterReferences.length} value="0">0 of {hunterReferences.length}</progress>
     </div>
+    <p data-hunter-saved-note></p>
+    <button class="button" data-variant="light" type="button" data-hunter-update-import>
+      Update from POTA CSV
+    </button>
 
     <section class="hunter-planner" aria-labelledby="hunter-planner-title">
       <div>
@@ -71,6 +38,10 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
       </a>
     </section>
 
+    <p class="hunter-local-note">
+      This checklist combines your imported all-time RI history with your manual choices.
+      Check a park after you work it. This changes your checklist; official POTA credit comes from activator logs.
+    </p>
     <div class="hunter-checklist-controls">
       <label class="event-filter">
         Search parks
@@ -79,7 +50,7 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
       <label class="event-filter">
         Show
         <select class="event-filter__control" data-hunter-filter>
-          <option value="all">Hunted and remaining</option>
+          <option value="all">Remaining and hunted</option>
           <option value="hunted">Hunted only</option>
           <option value="remaining">Remaining only</option>
         </select>
@@ -87,15 +58,15 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
     </div>
 
     <div class="hunter-lists">
-      <section aria-labelledby="hunter-complete-title" data-hunter-complete-section>
-        <h3 id="hunter-complete-title">Hunted <span data-hunter-complete-count></span></h3>
-        <ul class="hunter-park-list" data-hunter-complete></ul>
-        <p class="hunter-list-empty" data-hunter-complete-empty hidden>No hunted parks match this search.</p>
-      </section>
       <section aria-labelledby="hunter-remaining-title" data-hunter-remaining-section>
         <h3 id="hunter-remaining-title">Remaining <span data-hunter-remaining-count></span></h3>
         <ul class="hunter-park-list" data-hunter-remaining></ul>
         <p class="hunter-list-empty" data-hunter-remaining-empty hidden>No remaining parks match this search.</p>
+      </section>
+      <section aria-labelledby="hunter-complete-title" data-hunter-complete-section>
+        <h3 id="hunter-complete-title">Hunted <span data-hunter-complete-count></span></h3>
+        <ul class="hunter-park-list" data-hunter-complete></ul>
+        <p class="hunter-list-empty" data-hunter-complete-empty hidden>No hunted parks match this search.</p>
       </section>
     </div>
 
@@ -108,9 +79,54 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
       </button>
     </div>
     <p class="hunter-local-note">
-      Reset removes checkbox overrides and returns to the latest imported RI references. Clear removes both the import and overrides from this browser only.
+      Importing a new CSV keeps your manual choices. Reset returns to your latest import.
+      Clear removes the import and manual choices from this browser only.
     </p>
   </section>
+  <details class="hunter-import-details" data-hunter-import-panel open>
+    <summary data-hunter-import-summary>Import POTA CSV</summary>
+    <div class="hunter-import" aria-labelledby="hunter-import-title">
+      <div class="hunter-import__copy">
+        <p class="eyebrow">Personalize your hunt</p>
+        <h2 id="hunter-import-title">Import your official Hunted Parks export</h2>
+        <ol>
+          <li>
+            <a href="https://pota.app/#/user/stats" target="_blank" rel="noopener noreferrer">
+              Open POTA My Stats
+            </a>
+            and sign in if needed.
+          </li>
+          <li>Beside <strong>Hunted Parks</strong>, choose <strong>Export CSV</strong> to download <code>hunter_parks.csv</code>.</li>
+          <li>Return here and choose or drop that file. Import begins immediately.</li>
+        </ol>
+        <p class="hunter-import__help">
+          If POTA asks you to sign in, finish signing in, return here, and use <strong>Open POTA My Stats</strong> again.
+        </p>
+      </div>
+
+      <div class="hunter-drop" data-hunter-drop>
+        <p><strong>Choose or drop <code>hunter_parks.csv</code></strong></p>
+        <p>CSV only, up to 5 MB. The file never leaves this browser.</p>
+        <label class="button" data-variant="light" for="hunter-csv-input">Choose CSV file</label>
+        <input
+          id="hunter-csv-input"
+          class="hunter-file-input"
+          type="file"
+          accept=".csv,text/csv"
+          data-hunter-file
+        />
+      </div>
+    </div>
+  </details>
+  <p class="hunter-privacy">
+    Your CSV stays on this device. Your checklist is saved in this browser only.
+  </p>
+  <details class="hunter-privacy-details">
+    <summary>Privacy details</summary>
+    <p class="hunter-privacy">
+      RI POTA does not upload or retain your CSV, callsign, worldwide history, QSO counts, or dates. Only the RI reference IDs in your latest import, manual checkbox choices, schema version, and import time are saved in this browser. We record coarse, anonymous feature use—such as whether an import succeeded or the personal schedule was opened—using a random event-specific browser ID. Custom analytics is skipped when Global Privacy Control or Do Not Track is enabled.
+    </p>
+  </details>
 </section>
 
 <script>
@@ -144,6 +160,8 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
     const error = root.querySelector("[data-hunter-error]") as HTMLElement | null;
     const search = root.querySelector("[data-hunter-search]") as HTMLInputElement | null;
     const filter = root.querySelector("[data-hunter-filter]") as HTMLSelectElement | null;
+    const importPanel = root.querySelector<HTMLDetailsElement>("[data-hunter-import-panel]");
+    const importSummary = root.querySelector<HTMLElement>("[data-hunter-import-summary]");
     let storageAvailable = true;
     let scheduleState: "loading" | "ready" | "unavailable" = "loading";
     let publicStops: PublicActivationStop[] = [];
@@ -151,6 +169,15 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
     let manualOverrideTracked = false;
 
     render();
+    if (hasHunterChecklistData(state)) {
+      if (importPanel) importPanel.open = false;
+      announce("Your saved checklist is ready.");
+    }
+    root.querySelector("[data-hunter-update-import]")?.addEventListener("click", () => {
+      if (importPanel) importPanel.open = true;
+      importSummary?.scrollIntoView({ block: "start" });
+      importSummary?.focus();
+    });
     void loadSchedules();
     if (state.lastImportedAt) {
       void trackAnalyticsEvent("activate-ri-2026", "hunter_checklist_resumed");
@@ -216,6 +243,8 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
         announce(formatHunterImportSummary(parsed));
         void trackAnalyticsEvent("activate-ri-2026", "hunter_import_succeeded", { importMethod });
         render();
+        if (importPanel) importPanel.open = false;
+        root.querySelector<HTMLElement>("[data-hunter-progress-text]")?.focus();
       } catch (caught) {
         void trackAnalyticsEvent("activate-ri-2026", "hunter_import_failed", {
           importMethod,
@@ -258,7 +287,15 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
     }
 
     function render(): void {
-      if (results) results.hidden = !hasHunterChecklistData(state);
+      const hasChecklist = hasHunterChecklistData(state);
+      if (results) results.hidden = !hasChecklist;
+      if (importSummary) importSummary.textContent = hasChecklist ? "Update from POTA CSV" : "Import POTA CSV";
+      if (!hasChecklist && importPanel) importPanel.open = true;
+      const importedAt = state.lastImportedAt ? new Date(state.lastImportedAt) : null;
+      const importedLabel = importedAt && Number.isFinite(importedAt.valueOf())
+        ? `Last imported ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(importedAt)}. `
+        : "";
+      setText("[data-hunter-saved-note]", `${importedLabel}${storageAvailable ? "Saved in this browser." : "This checklist could not be saved in this browser."}`);
       renderLists();
       if (!storageAvailable && error?.hidden) {
         showError("Browser storage is unavailable. Your current checklist cannot be saved for the next visit.");
@@ -306,6 +343,7 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
       const label = document.createElement("label");
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
+      checkbox.id = `hunter-park-${park.reference}`;
       checkbox.checked = checked;
       checkbox.setAttribute("aria-label", `${park.reference} ${park.name} hunted`);
       checkbox.addEventListener("change", () => {
@@ -317,6 +355,12 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
         persistState();
         announce(`${park.reference} marked ${checkbox.checked ? "hunted" : "remaining"}.`);
         render();
+        const movedCheckbox = root.querySelector<HTMLInputElement>(`#${checkbox.id}`);
+        if (movedCheckbox?.closest<HTMLElement>("[data-hunter-complete-section], [data-hunter-remaining-section]")?.hidden) {
+          filter?.focus({ preventScroll: true });
+        } else {
+          movedCheckbox?.focus({ preventScroll: true });
+        }
       });
       const copy = document.createElement("span");
       const reference = document.createElement("strong");
@@ -424,3 +468,19 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
     return "read_failed";
   }
 </script>
+
+<style>
+  .hunter-import-details > summary,
+  .hunter-privacy-details > summary {
+    cursor: pointer;
+    font-weight: 700;
+  }
+
+  .hunter-import-details[open] > summary {
+    margin-bottom: 1rem;
+  }
+
+  [data-hunter-update-import] {
+    justify-self: start;
+  }
+</style>

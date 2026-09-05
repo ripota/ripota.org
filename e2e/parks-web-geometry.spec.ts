@@ -431,9 +431,9 @@ for (const viewport of [
       for (const route of [
         { path: "", heading: "Activate All RI", nav: "Overview" },
         { path: "help/", heading: "Activate All RI FAQ", nav: "FAQ" },
-        { path: "parks/", heading: "Coverage by park", nav: "Parks" },
+        { path: "parks/", heading: "Activation plans by park", nav: "Parks" },
         { path: "schedule/", heading: "Event schedule", nav: "Schedule" },
-        { path: "hunter/", heading: "Your Rhode Island park checklist", nav: "Hunter" },
+        { path: "hunter/", heading: "Plan your Worked All RI hunt", nav: "Hunter" },
       ]) {
         await page.goto(`${parksOrigin}/activate-ri-2026/${route.path}`);
         await page.waitForLoadState("networkidle");
@@ -458,7 +458,7 @@ for (const viewport of [
       }));
       await page.goto(`${parksOrigin}/activate-ri-2026/`);
       await readyMap(page, "[data-reference-map]");
-      await expect(page.locator('[aria-label="Event actions"] a[data-variant="primary"]:visible')).toHaveText("Volunteer to activate");
+      await expect(page.locator('[aria-label="Event actions"] a[data-variant="primary"]:visible')).toHaveText("Add an activation");
       await expect(page.locator("[data-hero-scheduled]:visible")).toHaveText("1 / 61");
       const payload = await referencePayload(page);
       expect(payload.items).toHaveLength(61);
@@ -492,23 +492,40 @@ for (const viewport of [
       expect(browser.errors).toEqual([]);
     });
 
-    test("unavailable event API uses the checked-in fallback and then visible unavailable copy", async ({ page, parksOrigin }) => {
+    test("an event API outage shows unavailable coverage instead of placeholder gaps", async ({ page, parksOrigin }) => {
       const browser = observeBrowser(page);
       const liveUrl = `${parksOrigin}/api/activate-ri-2026/public/stops`;
       const fallbackUrl = `${parksOrigin}/data/activate-ri-2026/stops.json`;
+      let fallbackRequests = 0;
       browser.expectedFailures.add(liveUrl);
       await page.route(liveUrl, (route) => route.fulfill({ status: 503, body: "Synthetic public API outage" }));
-      const fallbackResponse = page.waitForResponse(fallbackUrl);
+      await page.route(fallbackUrl, (route) => {
+        fallbackRequests += 1;
+        return route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: true, stops: [], generatedAt: null }) });
+      });
+      await page.goto(`${parksOrigin}/activate-ri-2026/`);
+      await expect(page.locator("[data-hero-scheduled]:visible")).toHaveText("Unavailable");
+      await expect(page.locator("[data-hero-schedule-error]:visible")).toContainText("The schedule is temporarily unavailable");
+      await page.goto(`${parksOrigin}/activate-ri-2026/schedule/`);
+      await expect(page.locator("[data-live-schedule]")).toContainText("The schedule is temporarily unavailable");
+      await expect(page.locator("[data-coverage-shortcut-wrap]")).toBeHidden();
       await page.goto(`${parksOrigin}/activate-ri-2026/parks/`);
-      await page.waitForLoadState("networkidle");
-      await expect(page.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(61);
-      await expect(page.locator("[data-live-coverage]")).not.toContainText("unavailable");
-      expect((await fallbackResponse).ok()).toBe(true);
-      expect(await (await fallbackResponse).json()).toMatchObject({ ok: true, stops: expect.any(Array) });
-      browser.expectedFailures.add(fallbackUrl);
-      await page.route(fallbackUrl, (route) => route.fulfill({ status: 503, body: "Synthetic fallback outage" }));
-      await page.reload();
       await expect(page.locator("[data-live-coverage]")).toContainText("Live coverage is unavailable");
+      await expect(page.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(0);
+
+      await page.goto(`${parksOrigin}/activate-ri-2026/volunteer/`);
+      await readyMap(page, "[data-reference-map]");
+      await expect(page.locator("[data-map-coverage-status]")).toContainText("The event schedule is unavailable");
+      await expect(page.locator("[data-map-coverage-filter]")).toBeDisabled();
+      await expect(page.locator("[data-map-coverage-count]")).toBeEmpty();
+      await expect(page.locator("[data-reference-map] .reference-map-marker")).toHaveCount(61);
+      await expect(page.locator("[data-map-legend-item]:visible")).toHaveCount(0);
+      const payload = await referencePayload(page);
+      const markerIndex = payload.items.findIndex((item: { reference: string }) => item.reference === "US-2870");
+      await page.locator("[data-reference-map] .reference-map-marker").nth(markerIndex).click();
+      await expect(page.locator(".leaflet-popup-content")).toContainText("Schedule unavailable");
+      await expect(page.locator(".leaflet-popup-content")).not.toContainText("Needs coverage");
+      expect(fallbackRequests).toBe(0);
       expect(browser.canonicalRequests).toEqual([]);
       expect(browser.errors).toEqual([]);
     });

@@ -10,6 +10,7 @@ export type StopSetupOptions = {
   root?: Document | Element;
   validatePark?: boolean;
   setupErrorDescriptions?: boolean;
+  allowRemoveLastStop?: boolean;
 };
 
 export type RepeatedStopPreferences = {
@@ -178,7 +179,7 @@ export function setupStopCards(options: StopSetupOptions = {}): void {
 
     const removeButton = stop.querySelector<HTMLButtonElement>("[data-remove-stop]");
     if (removeButton) {
-      removeButton.hidden = stops.length === 1;
+      removeButton.hidden = stops.length === 1 && !options.allowRemoveLastStop;
       removeButton.onclick = () => {
         stop.remove();
         setupStopCards(options);

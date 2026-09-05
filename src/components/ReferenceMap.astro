@@ -49,7 +49,6 @@ const mapItems = buildReferenceMapItems({
     : undefined,
   markerPlacement: variant === "directory" ? "reference-coordinate" : "geometry-center",
   parks: isEventMap ? eventParks : undefined,
-  stops: isEventMap ? [] : undefined,
 });
 const potaLegendItems = [
   { label: "POTA confirmed", color: "#2d7a4b", statuses: ["confirmed"] },
@@ -61,6 +60,7 @@ const potaLegendItems = [
 const legendItems = isEventMap ? (resultsMode ? potaLegendItems : referenceMapLegendItems) : [];
 const visibleLegendLabels = new Set(resultsMode
   ? potaLegendItems.map((item) => item.label)
+  : isEventMap ? []
   : displayedReferenceMapLegendItems(
     mapItems
       .map((item) => item.coverage?.status)
@@ -85,6 +85,7 @@ const payload = JSON.stringify({
   coverageStatusLabels,
   referenceMapStatusColors,
   resultsMode,
+  coverageState: isEventMap && !resultsMode ? "loading" : undefined,
   potaStatusColors: {
     confirmed: "#2d7a4b",
     observed: "#b56b00",
@@ -110,7 +111,7 @@ const payload = JSON.stringify({
     variant === "volunteer" && (
       <div class="reference-map-toolbar">
         <label class="event-coverage-toggle">
-          <input type="checkbox" data-map-coverage-filter />
+          <input type="checkbox" data-map-coverage-filter disabled />
           <span>
             Only show parks needing coverage <span data-map-coverage-count></span>
           </span>
@@ -234,6 +235,9 @@ const payload = JSON.stringify({
       </div>
     )
   }
+  {isEventMap && !resultsMode && (
+    <p class="map-preview__caption" data-map-coverage-status role="status">Loading the event schedule…</p>
+  )}
   {showCaption && <figcaption class="map-preview__caption">{caption}</figcaption>}
 </figure>
 
@@ -314,6 +318,7 @@ const payload = JSON.stringify({
     coverageStatusLabels: Record<string, string>;
     referenceMapStatusColors: Record<string, string>;
     resultsMode: boolean;
+    coverageState?: "loading" | "ready" | "unavailable";
     potaStatusColors: Record<string, string>;
   };
 
@@ -657,7 +662,8 @@ const payload = JSON.stringify({
     const count = mapPreview?.querySelector<HTMLElement>("[data-map-coverage-count]");
 
     const applyFilter = () => {
-      const onlyNeedsCoverage = filter?.checked ?? false;
+      const onlyNeedsCoverage = payload.coverageState === "ready" && (filter?.checked ?? false);
+      if (filter) filter.disabled = payload.coverageState !== "ready";
       let coverageGapCount = 0;
 
       for (const item of payload.items) {
@@ -678,7 +684,7 @@ const payload = JSON.stringify({
       }
 
       if (count) {
-        count.textContent = `(${coverageGapCount})`;
+        count.textContent = payload.coverageState === "ready" ? `(${coverageGapCount})` : "";
       }
     };
 
@@ -721,10 +727,20 @@ const payload = JSON.stringify({
         item.coverage = coverageByReference.get(item.reference) ?? item.coverage;
         updateMapItemLayers(payload, item, layersByReference.get(item.reference));
       }
+      payload.coverageState = "ready";
+      const status = mapElement.closest(".map-preview")?.querySelector<HTMLElement>("[data-map-coverage-status]");
+      if (status) status.hidden = true;
       updateMapLegend(mapElement, payload);
       applyCoverageFilter();
     } catch {
-      return;
+      payload.coverageState = "unavailable";
+      for (const item of payload.items) {
+        updateMapItemLayers(payload, item, layersByReference.get(item.reference));
+      }
+      const status = mapElement.closest(".map-preview")?.querySelector<HTMLElement>("[data-map-coverage-status]");
+      if (status) status.textContent = "The event schedule is unavailable. Try refreshing this page. Park locations are still shown.";
+      updateMapLegend(mapElement, payload);
+      applyCoverageFilter();
     }
   }
 
@@ -739,6 +755,10 @@ const payload = JSON.stringify({
       : payload.items.map((item) => item.coverage?.status).filter(Boolean));
 
     mapPreview.querySelectorAll<HTMLElement>("[data-map-legend-item]").forEach((item) => {
+      if (payload.coverageState && payload.coverageState !== "ready") {
+        item.hidden = true;
+        return;
+      }
       if (item.dataset.mapLegendOptional !== "true") {
         item.hidden = false;
         return;
@@ -834,7 +854,7 @@ const payload = JSON.stringify({
       <strong>${escapeHtml(item.reference)}</strong>
       <span>${escapeHtml(item.name)}</span>
       <em>${escapeHtml(detailLine(item))}</em>
-      <span><b>${escapeHtml(item.coverage?.label ?? "Needs coverage")}</b></span>
+      <span><b>${escapeHtml(item.coverage?.label ?? (payload.coverageState === "loading" ? "Loading schedule…" : "Schedule unavailable"))}</b></span>
       ${coverageStopsHtml(item)}
       <span class="map-popup__links">
         <a href="/activate-ri-2026/parks/">Open coverage table</a>
@@ -897,6 +917,7 @@ const payload = JSON.stringify({
   }
 
   function coverageStopsHtml(item: MapItem): string {
+    if (!item.coverage) return "";
     const stops = item.coverage?.stops ?? [];
     if (stops.length === 0) {
       return `<span>Needs coverage.</span>`;

@@ -75,10 +75,12 @@ test("an activator can use only an emailed sign-in link", async ({ page }) => {
   const server = await startActivateRiServer();
   try {
     await submitVolunteer(page, server.origin, "N1EML", "email-only@example.com");
-    const requested = await page.request.post(`${server.origin}/api/auth/email-login`, {
-      headers: { origin: server.origin },
-      data: { email: "email-only@example.com", turnstileToken: "" },
-    });
+    await page.goto(`${server.origin}/account/sign-in/?returnTo=%2Factivate-ri-2026%2Factivator%2Fplan%2F`);
+    await expect(page.getByLabel("Email address")).toBeVisible();
+    await page.getByLabel("Email address").fill("email-only@example.com");
+    const requestedPromise = page.waitForResponse(`${server.origin}/api/auth/email-login`);
+    await page.getByRole("button", { name: "Send sign-in link" }).click();
+    const requested = await requestedPromise;
     expect(requested.ok()).toBe(true);
     const email = await server.waitForEmailText("Your RI POTA sign-in link");
     const link = email.split("\n").find((line) => line.startsWith(`${server.origin}/account/access/#`));

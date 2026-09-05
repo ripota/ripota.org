@@ -103,6 +103,92 @@ test("activator edit map add activation scrolls to identity fields and skips dup
   }
 });
 
+test("removed and cancelled stops stay cancelled after later plan saves", async ({ page, request }) => {
+  const server = await startActivateRiServer({ legacyLinkIssuanceEnabled: true });
+  const callsign = randomCallsign();
+  const email = `${callsign.toLowerCase()}@example.com`;
+  try {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const response = await request.post(`${server.origin}/api/activate-ri-2026/plans`, {
+      headers: { origin: server.origin },
+      data: {
+        submitterCallsign: callsign,
+        submitterName: "Cancellation Rehearsal",
+        submitterEmail: email,
+        stops: ["US-2868", "US-2869"].map((parkReference) => ({
+          parkReference,
+          plannedDate: "2026-09-12",
+          timeBlock: "09:00-12:00",
+          bands: ["40m"],
+          modes: ["SSB"],
+        })),
+      },
+    });
+    expect(response.status(), await response.text()).toBe(202);
+    const submitted = await response.json() as { editUrl: string };
+    await page.goto(submitted.editUrl);
+    await expect(page.locator("[data-edit-plan-state]")).toContainText("Awaiting organizer approval");
+    await approvePendingActivator(request, server.origin, callsign, email);
+    await page.reload();
+    await expect(page.locator("[data-edit-plan-state]")).toContainText("Approved");
+    await expect(page.locator("[data-stop-card]")).toHaveCount(2);
+
+    await page.locator("[data-stop-card]").nth(1).getByRole("button", { name: "Remove", exact: true }).click();
+    await savePlan();
+    await expect(page.locator("[data-stop-card]")).toHaveCount(1);
+    await expect(page.locator('[data-readonly-stop="cancelled"]')).toContainText("US-2869 — Cancelled");
+    await expectPublicStatuses(["scheduled", "cancelled"]);
+
+    await page.reload();
+    await expect(page.locator("[data-stop-card]")).toHaveCount(1);
+    await page.locator('[name="organizerNotes"]').fill("Unrelated note after removing a stop.");
+    await savePlan();
+    await expectPublicStatuses(["scheduled", "cancelled"]);
+
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.getByRole("button", { name: "Cancel plan", exact: true }).click();
+    await expect(page.locator("[data-edit-status]")).toHaveText("Plan cancelled.");
+    await expect(page.locator("[data-stop-card]")).toHaveCount(0);
+    await expect(page.locator('[data-readonly-stop="cancelled"]')).toHaveCount(2);
+    await expect(page.locator("[data-edit-plan-state]")).toContainText("All stops cancelled");
+    await expect(page.getByRole("button", { name: "Cancel plan", exact: true })).toBeDisabled();
+
+    await page.reload();
+    await expect(page.locator('[data-readonly-stop="cancelled"]')).toHaveCount(2);
+    await page.getByRole("button", { name: "Add another park", exact: true }).click();
+    await expect(page.locator("[data-stop-card]")).toHaveCount(1);
+    await page.locator("[data-stop-card]").getByRole("button", { name: "Remove", exact: true }).click();
+    await expect(page.locator("[data-stop-card]")).toHaveCount(0);
+    await expect(page.locator('[data-readonly-stop="cancelled"]')).toHaveCount(2);
+    await page.locator('[name="organizerNotes"]').fill("Unrelated note after cancelling the plan.");
+    await savePlan();
+    await expectPublicStatuses(["cancelled", "cancelled"]);
+    await expect(page.locator("[data-edit-plan-state]")).toContainText("All stops cancelled");
+
+    async function savePlan(): Promise<void> {
+      await page.getByRole("button", { name: "Save changes", exact: true }).click();
+      const confirmation = page.locator("[data-edit-confirmation]");
+      await expect(confirmation).toBeVisible();
+      await confirmation.getByRole("button", { name: "Keep editing" }).click();
+    }
+
+    async function expectPublicStatuses(statuses: string[]): Promise<void> {
+      const publicResponse = await request.get(`${server.origin}/api/activate-ri-2026/public/stops`, {
+        headers: { "cache-control": "no-cache" },
+      });
+      expect(publicResponse.ok()).toBe(true);
+      const publicBody = await publicResponse.json() as {
+        stops: Array<{ activatorCallsign: string; parkReference: string; status: string }>;
+      };
+      expect(publicBody.stops.filter((stop) => stop.activatorCallsign === callsign)
+        .sort((left, right) => left.parkReference.localeCompare(right.parkReference))
+        .map((stop) => stop.status)).toEqual(statuses);
+    }
+  } finally {
+    await server.stop();
+  }
+});
+
 async function approvePendingActivator(
   request: APIRequestContext,
   origin: string,

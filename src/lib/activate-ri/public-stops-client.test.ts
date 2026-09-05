@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchPublicActivationStops } from "./public-stops-client";
 import type { PublicActivationStop } from "./types";
 
@@ -23,6 +23,14 @@ function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
 }
 
 describe("fetchPublicActivationStops", () => {
+  beforeEach(() => {
+    vi.stubEnv("DEV", false);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("returns API stops without requesting the static fallback", async () => {
     const fetcher = vi.fn(async () => jsonResponse({ ok: true, stops: [stop] }));
 
@@ -34,11 +42,34 @@ describe("fetchPublicActivationStops", () => {
     });
   });
 
-  it("falls back to the static public stops export when the live API is unavailable", async () => {
+  it("accepts a genuinely empty live schedule without falling back", async () => {
+    const fetcher = vi.fn(async () => jsonResponse({ ok: true, stops: [] }));
+
+    await expect(fetchPublicActivationStops(fetcher)).resolves.toEqual([]);
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    { ok: true, stops: [], generatedAt: null },
+    { ok: true, stops: [stop], generatedAt: "2026-09-04T12:00:00Z" },
+  ])("does not substitute a static export for a production API outage: %j", async (snapshot) => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ ok: false }, { status: 503 }))
+      .mockResolvedValueOnce(jsonResponse(snapshot));
+
+    await expect(fetchPublicActivationStops(fetcher)).rejects.toThrow(
+      "Public stops response was unavailable.",
+    );
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
+
+  it("uses a dated public stops export when Astro dev has no live API", async () => {
+    vi.stubEnv("DEV", true);
     const fetcher = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse({ ok: false }, { status: 404 }))
-      .mockResolvedValueOnce(jsonResponse({ ok: true, stops: [stop] }));
+      .mockResolvedValueOnce(jsonResponse({ ok: true, stops: [stop], generatedAt: "2026-09-04T12:00:00Z" }));
 
     await expect(fetchPublicActivationStops(fetcher)).resolves.toEqual([stop]);
 
@@ -48,7 +79,21 @@ describe("fetchPublicActivationStops", () => {
     });
   });
 
+  it.each([null, undefined, "", "not-a-date"])("rejects an undated or invalid local export in Astro dev: %s", async (generatedAt) => {
+    vi.stubEnv("DEV", true);
+    const fetcher = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("No Worker API"))
+      .mockResolvedValueOnce(jsonResponse({ ok: true, stops: [], generatedAt }));
+
+    await expect(fetchPublicActivationStops(fetcher)).rejects.toThrow(
+      "Public stops response was unavailable.",
+    );
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
   it("throws when neither source returns a public stops response", async () => {
+    vi.stubEnv("DEV", true);
     const fetcher = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse({ ok: false }, { status: 500 }))

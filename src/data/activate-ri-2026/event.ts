@@ -12,53 +12,53 @@ export const activateRi2026Event = {
   timezone: "UTC",
   goalParkCount: 61,
   publicSummary:
-    "A Rhode Island POTA community weekend to cover all 61 Rhode Island references.",
+    "Activate Rhode Island parks or work toward your Worked All RI award during our community POTA weekend.",
   phaseCtas: {
     planning: {
       primary: {
-        label: "Volunteer to activate",
+        label: "Add an activation",
         href: eventRoute("volunteer"),
         description: "Submit one park or a multi-park route for organizer review.",
       },
       secondary: {
-        label: "See the schedule",
-        href: eventRoute("schedule"),
-        description: "Review planned activation windows as they are approved.",
+        label: "Get ready to hunt",
+        href: eventRoute("hunter"),
+        description: "Find the parks you still need for your Worked All RI award.",
       },
     },
     "schedule-live": {
       primary: {
-        label: "Find scheduled activations",
-        href: eventRoute("schedule"),
-        description: "Browse approved activation windows by date and time.",
+        label: "Add an activation",
+        href: eventRoute("volunteer"),
+        description: "Give hunters another chance with more parks, times, bands, and modes.",
       },
       secondary: {
-        label: "Fill a coverage gap",
-        href: eventRoute("parks"),
-        description: "Find parks that still need activator coverage.",
+        label: "Get ready to hunt",
+        href: eventRoute("hunter"),
+        description: "Find the parks you still need for your Worked All RI award.",
       },
     },
     "event-live": {
       primary: {
-        label: "Open event schedule",
-        href: eventRoute("schedule"),
-        description: "Use the schedule and official POTA spots during the event.",
+        label: "See RI on air now",
+        href: "/on-air/",
+        description: "Check current POTA spots for frequencies and modes.",
       },
       secondary: {
         label: "Update my activation",
-        href: eventRoute("volunteer"),
+        href: eventRoute("activatorPlan"),
         description: "Sign in to My Plan to update or cancel a stop.",
       },
     },
     "post-event": {
       primary: {
-        label: "Check recognition",
-        href: eventRoute("awards"),
-        description: "Review community recognition details after the event.",
+        label: "View event progress",
+        href: eventRoute("progress"),
+        description: "See Rhode Island park activity during the event.",
       },
       secondary: {
         label: "Submit corrections",
-        href: eventRoute("volunteer"),
+        href: eventRoute("help"),
         description: "Contact organizers about schedule or log corrections.",
       },
     },

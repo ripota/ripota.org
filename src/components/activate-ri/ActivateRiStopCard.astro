@@ -138,16 +138,18 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
         <span class="required-marker" aria-label="Required field" title="Required">*</span>
       </span>
       <select data-planned-date required>
-        <option value="2026-09-10">Thursday, September 10 soft start</option>
+        <option value="">Choose a date</option>
+        <option value="2026-09-10">Thursday, September 10 — early activations</option>
         <option value="2026-09-11">Friday, September 11</option>
         <option value="2026-09-12">Saturday, September 12</option>
         <option value="2026-09-13">Sunday, September 13</option>
       </select>
+      <span class="form-help">Dates are in Rhode Island time.</span>
       <span class="form-error" data-field-error data-error-for="plannedDate"></span>
     </label>
     <div class="form-field">
       <span class="field-label-row">
-        <span class="form-label">Time block</span>
+        <span class="form-label">Planned time (EDT)</span>
         <span class="required-marker" aria-label="Required field" title="Required">*</span>
         <span class="help-popover">
           <button
@@ -156,8 +158,7 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
             aria-label="Help for time block field"
           >?</button>
           <span class="help-popover__bubble" role="tooltip">
-            The block is for schedule scanning. It does not mean you must
-            operate for exactly three hours.
+            Choose the window when you expect to be on the air.
           </span>
         </span>
       </span>
@@ -170,8 +171,8 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
         }
       </select>
       <span class="form-help">
-        Pick the closest planned operating window in EDT. Update it later if plans
-        change.
+        Choose the closest three-hour window. You can operate for less time
+        and update your plan later.
       </span>
       <span class="form-error" data-field-error data-error-for="timeBlock"></span>
     </div>

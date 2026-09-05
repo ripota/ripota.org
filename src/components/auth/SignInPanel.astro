@@ -8,8 +8,8 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY;
   <p class="eyebrow">RI POTA account</p>
   <h1 id="passkey-sign-in-title">Sign in</h1>
   <p>
-    Use a passkey saved to this device, your password manager, or a security key.
-    Android users can approve the device passkey or fingerprint prompt—no app is required.
+    Use a saved passkey, or get a sign-in link at the email address on your
+    activation plan.
   </p>
   <div class="form-actions">
     <button class="button" data-variant="primary" type="button" data-passkey-sign-in>
@@ -18,13 +18,14 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY;
   </div>
   <p class="form-status" data-sign-in-status aria-live="polite"></p>
 
-  <details>
+  <details open>
     <summary>Email me a sign-in link</summary>
     <form class="stack" data-email-sign-in>
       <label>
         Email address
         <input name="email" type="email" autocomplete="email" required />
       </label>
+      <p>Each email link works once and expires in 15 minutes.</p>
       <div
         class="cf-turnstile"
         data-sitekey={turnstileSiteKey}
