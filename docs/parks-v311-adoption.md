@@ -72,6 +72,10 @@ RIPOTA_PARKS_BASE_URL=https://ripota.org mise run e2e:parks
 The live mode performs public reads and browser-local synthetic scenarios.
 Authenticated volunteer, email, account, admin, and Ops Room regression tests
 use local fixtures as required by #16.
+The browser error observer recognizes exact Cloudflare telemetry cancellations
+and challenge capability probes while retaining application, asset, API, and
+page-error checks. Live public acceptance does not submit a volunteer form or
+claim that an interactive production Turnstile challenge was completed.
 
 ## Payload measurements
 
@@ -85,9 +89,11 @@ main `228d0af9` after its concurrent event-phase/activity changes, isolating
 this adoption from those changes. The park geometry baseline is identical.
 
 Local verification after rebasing: `mise run check` reports no errors,
-warnings, or hints; 580 tests across 93 unit files pass; all 20 Activate RI
+warnings, or hints; 580 tests across 93 unit files pass; all 21 Activate RI
 browser tests pass; build and production deployment dry run pass. No D1
 migrations are pending. The public park suite adds 30 desktop/mobile cases.
+The final integration also retains concurrent main `8a67e726`, including the
+event Progress page and navigation transition; its added browser test passes.
 Deployment evidence and the final signed commits are recorded on #33.
 
 Bytes are **raw / gzip**.

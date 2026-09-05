@@ -46,7 +46,11 @@ function observeBrowser(page: Page) {
   const expectedFailures = new Set<string>();
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("console", (message) => {
-    if (message.type() === "error" && !expectedFailures.has(message.location().url)) {
+    const location = message.location().url;
+    // Turnstile's iframe emits this exact zero-size console message in production.
+    if (location.startsWith("https://challenges.cloudflare.com/") &&
+      message.text() === "%c%d font-size:0;color:transparent NaN") return;
+    if (message.type() === "error" && !expectedFailures.has(location)) {
       errors.push(`Console: ${message.text()}`);
     }
   });
@@ -54,13 +58,27 @@ function observeBrowser(page: Page) {
     if (canonicalPath.test(new URL(request.url()).pathname)) canonicalRequests.push(request.url());
   });
   page.on("requestfailed", (request) => {
+    const url = new URL(request.url());
+    // Cloudflare's unload beacon can be canceled when its document navigates.
+    if (request.failure()?.errorText === "net::ERR_ABORTED" && request.method() === "POST" &&
+      url.origin === new URL(page.url()).origin && url.pathname === "/cdn-cgi/rum") return;
+    // These subdomain DNS probes are documented as non-fatal challenge checks:
+    // https://developers.cloudflare.com/cloudflare-challenges/troubleshooting/challenge-solve-issues/
+    if (request.failure()?.errorText === "net::ERR_NAME_NOT_RESOLVED" &&
+      url.hostname.endsWith(".challenges.cloudflare.com") &&
+      url.pathname.startsWith("/cdn-cgi/challenge-platform/")) return;
     // Leaflet cancels obsolete tiles while zooming or leaving a page.
-    if (request.failure()?.errorText === "net::ERR_ABORTED" && request.resourceType() === "image") return;
+    if (request.failure()?.errorText === "net::ERR_ABORTED" && request.resourceType() === "image" &&
+      url.origin === "https://tile.openstreetmap.org" && /^\/\d+\/\d+\/\d+\.png$/.test(url.pathname)) return;
     // Navigation can cancel the initiating document's fulfilled analytics stub.
     if (request.failure()?.errorText === "net::ERR_ABORTED" && syntheticAnalyticsRequests.has(request)) return;
     if (!expectedFailures.has(request.url())) errors.push(`Network: ${request.url()} ${request.failure()?.errorText}`);
   });
   page.on("response", (response) => {
+    const url = new URL(response.url());
+    // Unsupported Private Access Tokens return 401 before the normal challenge.
+    if (response.status() === 401 && url.hostname === "challenges.cloudflare.com" &&
+      /^\/cdn-cgi\/challenge-platform\/[^/]+\/[^/]+\/pat\//.test(url.pathname)) return;
     if (response.status() >= 400 && !expectedFailures.has(response.url())) {
       errors.push(`HTTP ${response.status()}: ${response.url()}`);
     }
