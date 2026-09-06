@@ -4,6 +4,7 @@ import OpsConnectionStatus from "./OpsConnectionStatus.astro";
 import OpsFeed from "./OpsFeed.astro";
 import OpsPinnedAnnouncement from "./OpsPinnedAnnouncement.astro";
 import OpsUpcomingStops from "./OpsUpcomingStops.astro";
+import OpsEmailPreferences from "./OpsEmailPreferences.astro";
 
 const parkNames = Object.fromEntries(
   references.map((reference) => [reference.reference, reference.name]),
@@ -19,6 +20,7 @@ const parkNames = Object.fromEntries(
     <div class="ops-room__main">
       <OpsPinnedAnnouncement />
       <OpsFeed />
+      <OpsEmailPreferences />
     </div>
     <aside class="ops-room__sidebar">
       <OpsUpcomingStops />
@@ -114,6 +116,19 @@ const parkNames = Object.fromEntries(
   const retryDelays = [1_000, 2_000, 5_000, 10_000, 30_000, 60_000];
   const cursorKey = "activate-ri-ops-cursor";
   const filterKey = "activate-ri-ops-filter";
+  let seenMessages = new Set<string>();
+  const visibleMessages = new Set<string>();
+  let seenTimer: number | undefined;
+  const readObserver = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      const id = (entry.target as HTMLElement).dataset.messageId;
+      if (!id) continue;
+      const readableHeight = Math.min(entry.boundingClientRect.height, feed?.clientHeight ?? innerHeight);
+      if (entry.isIntersecting && entry.intersectionRect.height >= readableHeight * 0.6) visibleMessages.add(id);
+      else visibleMessages.delete(id);
+    }
+    scheduleSeenMessages();
+  }, { threshold: Array.from({ length: 21 }, (_, index) => index / 20) });
   let activatorId = "";
   let upcomingStops: Stop[] = [];
   let pinnedMessage: Message | null = null;
@@ -165,6 +180,7 @@ const parkNames = Object.fromEntries(
       const sessionBody = await sessionResponse.json() as { activator?: { id?: string } };
       const data = await bootstrapResponse.json() as Bootstrap;
       activatorId = sessionBody.activator?.id ?? "";
+      restoreSeenMessages();
       membershipStatus = data.membership.status;
       roomMode = data.roomMode;
       upcomingStops = data.upcomingStops;
@@ -386,15 +402,23 @@ const parkNames = Object.fromEntries(
 
   function renderFeed(): void {
     if (!feed) return;
-    const nearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 80;
-    const previousHeight = feed.scrollHeight;
+    const nearTop = feed.scrollTop < 40;
+    const feedTop = feed.getBoundingClientRect().top;
+    const anchor = [...feed.querySelectorAll<HTMLElement>("[data-message-id]")]
+      .find((item) => item.getBoundingClientRect().bottom > feedTop);
+    const anchorOffset = anchor ? anchor.getBoundingClientRect().top - feedTop : 0;
     const filter = selectedFilter();
     const myParks = new Set(upcomingStops.map((stop) => stop.parkReference));
-    const visible = [...messages.values()].filter((message) => {
+    const visible = [...messages.values()].sort((a, b) =>
+      b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id),
+    ).filter((message) => {
       if (filter === "all") return true;
       if (filter === "my-parks") return Boolean(message.parkReference && myParks.has(message.parkReference));
       return message.kind === filter;
     });
+    readObserver.disconnect();
+    visibleMessages.clear();
+    window.clearTimeout(seenTimer);
     feed.replaceChildren();
     if (visible.length === 0) {
       const hasMessages = messages.size > 0;
@@ -404,19 +428,87 @@ const parkNames = Object.fromEntries(
           ? "Choose another filter to see the rest of the room."
           : "Announcements and field updates will appear here as they happen.",
       ));
+      updateUnreadControls();
       return;
     }
     visible.forEach((message) => feed.appendChild(messageItem(message)));
-    if (nearBottom) {
-      feed.scrollTop = feed.scrollHeight;
-    } else {
-      feed.scrollTop += feed.scrollHeight - previousHeight;
+    if (nearTop) {
+      feed.scrollTop = 0;
+    } else if (anchor?.dataset.messageId) {
+      const replacement = feed.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(anchor.dataset.messageId)}"]`);
+      if (replacement) feed.scrollTop += replacement.getBoundingClientRect().top - feedTop - anchorOffset;
+    }
+    feed.querySelectorAll("[data-message-id]").forEach((item) => readObserver.observe(item));
+    updateUnreadControls();
+  }
+
+  function isUnread(message: Message): boolean {
+    return !message.removed && message.authorActivatorId !== activatorId && !seenMessages.has(message.id);
+  }
+
+  function restoreSeenMessages(): void {
+    try {
+      const stored: unknown = JSON.parse(localStorage.getItem(`activate-ri-2026:ops-seen:${activatorId}`) ?? "[]");
+      seenMessages = new Set(Array.isArray(stored) ? stored.filter((id): id is string => typeof id === "string") : []);
+    } catch {
+      seenMessages = new Set();
     }
   }
+
+  function scheduleSeenMessages(): void {
+    window.clearTimeout(seenTimer);
+    if (document.hidden || rulesDialog?.open) return;
+    seenTimer = window.setTimeout(() => {
+      if (document.hidden || rulesDialog?.open) return;
+      const remembered = seenMessages;
+      restoreSeenMessages();
+      remembered.forEach((id) => seenMessages.add(id));
+      visibleMessages.forEach((id) => {
+        seenMessages.add(id);
+        const item = feed?.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(id)}"]`);
+        if (item) item.dataset.unread = "false";
+        item?.querySelector("[data-unread-label]")?.remove();
+      });
+      // Bound browser storage while retaining more than the recent feed window.
+      seenMessages = new Set([...seenMessages].slice(-1000));
+      try {
+        localStorage.setItem(`activate-ri-2026:ops-seen:${activatorId}`, JSON.stringify([...seenMessages]));
+      } catch { /* Reading the room still works when browser storage is unavailable. */ }
+      updateUnreadControls();
+    }, 1000);
+  }
+
+  function updateUnreadControls(): void {
+    const count = [...messages.values()].filter(isUnread).length;
+    const button = room?.querySelector<HTMLButtonElement>("[data-ops-unread]");
+    if (button) {
+      button.hidden = count === 0;
+      button.textContent = `${count} unread`;
+      button.setAttribute("aria-label", `Jump to unread (${count})`);
+      button.title = "Unread messages are remembered on this browser";
+    }
+    room?.querySelector("[data-ops-unread-status]")?.replaceChildren(`${count} unread messages in recent room updates. Newest messages appear first.`);
+  }
+
+  room?.querySelector("[data-ops-unread]")?.addEventListener("click", () => {
+    const all = room.querySelector<HTMLInputElement>('input[name="ops-filter"][value="all"]');
+    if (all) all.checked = true;
+    localStorage.setItem(filterKey, "all");
+    renderFeed();
+    const target = feed?.querySelector<HTMLElement>('[data-unread="true"]');
+    target?.scrollIntoView({ block: "nearest" });
+    target?.focus({ preventScroll: true });
+  });
+  room?.querySelector("[data-ops-latest]")?.addEventListener("click", () => {
+    if (feed) feed.scrollTop = 0;
+  });
 
   function messageItem(message: Message): HTMLLIElement {
     const item = document.createElement("li");
     item.className = `ops-message ops-message--${message.kind}`;
+    item.dataset.messageId = message.id;
+    item.dataset.unread = String(isUnread(message));
+    item.tabIndex = -1;
     if (message.authorActivatorId === activatorId) item.dataset.own = "true";
     const header = document.createElement("div");
     header.className = "ops-message__header";
@@ -433,6 +525,13 @@ const parkNames = Object.fromEntries(
     meta.appendChild(time);
     header.appendChild(author);
     header.appendChild(meta);
+    if (isUnread(message)) {
+      const unread = document.createElement("span");
+      unread.className = "ops-unread-label";
+      unread.dataset.unreadLabel = "";
+      unread.textContent = "New";
+      header.appendChild(unread);
+    }
     const body = document.createElement("p");
     body.className = "ops-message__body";
     body.textContent = message.removed ? "Message removed." : message.body;
@@ -525,6 +624,8 @@ const parkNames = Object.fromEntries(
       }
       applyEvent(result.event);
       bodyInput.value = "";
+      if (composeOptions) composeOptions.open = false;
+      if (feed) feed.scrollTop = 0;
       delete composer.dataset.clientNonce;
       await clearDraft();
       unsent && (unsent.hidden = true);
@@ -550,6 +651,7 @@ const parkNames = Object.fromEntries(
       return;
     }
     rulesDialog?.close();
+    scheduleSeenMessages();
     rulesStatus?.replaceChildren();
   });
 
@@ -569,6 +671,7 @@ const parkNames = Object.fromEntries(
       setConnection("paused", "Paused while in background");
       hiddenCloseTimer = window.setTimeout(() => closeSocket(true), 30_000);
     } else {
+      scheduleSeenMessages();
       connectSocket();
     }
   });

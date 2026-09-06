@@ -77,6 +77,20 @@ test("approved activators acknowledge rules and exchange a live room message", a
     await second.goto(`${server.origin}/activate-ri-2026/activator/`);
     await expect(second.locator("[data-ops-connection-label]")).toHaveText("Live");
 
+    await second.locator("[data-ops-email-preferences] summary").click();
+    const emailPreference = second.getByLabel("Email me organizer announcements");
+    await expect(emailPreference).not.toBeChecked();
+    await emailPreference.check();
+    await second.getByRole("button", { name: "Save preference" }).click();
+    await expect(second.locator("[data-ops-email-status]")).toHaveText("Saved. Organizer announcement emails are on.");
+    await second.goto(`${server.origin}/activate-ri-2026/activator/account/#ops-email-notifications`);
+    await expect(second.getByLabel("Email me organizer announcements")).toBeChecked();
+    await second.getByLabel("Email me organizer announcements").uncheck();
+    await second.getByRole("button", { name: "Save preference" }).click();
+    await expect(second.locator("[data-ops-email-status]")).toHaveText("Saved. Organizer announcement emails are off.");
+    await second.goto(`${server.origin}/activate-ri-2026/activator/`);
+    await expect(second.locator("[data-ops-connection-label]")).toHaveText("Live");
+
     await first.locator("[data-ops-body]").fill("Checking in from Beavertail.");
     await first.locator("[data-ops-options] summary").click();
     const stopOption = first.locator("[data-ops-context] option").filter({
@@ -123,6 +137,52 @@ test("approved activators acknowledge rules and exchange a live room message", a
     await admin.getByRole("button", { name: "Clear pinned announcement" }).click();
     await expect(second.locator("[data-ops-pin]")).toBeHidden();
     await expect(admin.locator("[data-admin-current-announcement]")).toBeHidden();
+
+    // Updates hidden by a filter remain unread, including across a reload.
+    await second.locator('input[name="ops-filter"][value="need-backup"]').check();
+    for (let index = 1; index <= 12; index += 1) {
+      const posted = await request.post(`${server.origin}/api/activate-ri-2026/admin/ops/messages`, {
+        headers: { "Cf-Access-Authenticated-User-Email": "local-admin@ripota.org", origin: server.origin },
+        data: { clientNonce: crypto.randomUUID(), kind: "chat", context: null,
+          body: `Field update ${index}: park access is clear and the next station is setting up on 40 meters.` },
+      });
+      expect(posted.ok()).toBe(true);
+    }
+    await second.reload();
+    await expect(second.getByRole("button", { name: /Jump to unread/ })).toBeVisible();
+    await second.getByRole("button", { name: /Jump to unread/ }).click();
+    await expect(second.locator("[data-ops-feed] > li").first()).toContainText("Field update 12:");
+    await expect(second.locator("[data-ops-feed] > li").first()).toHaveAttribute("data-unread", "false");
+    const newestId = await second.locator("[data-ops-feed] > li").first().getAttribute("data-message-id");
+    await second.reload();
+    await expect(second.locator(`[data-message-id="${newestId}"]`)).toHaveAttribute("data-unread", "false");
+    const feed = second.locator("[data-ops-feed]");
+    await feed.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+    const anchor = await feed.locator("li").last().boundingBox();
+    const latest = await request.post(`${server.origin}/api/activate-ri-2026/admin/ops/messages`, {
+      headers: { "Cf-Access-Authenticated-User-Email": "local-admin@ripota.org", origin: server.origin },
+      data: { clientNonce: crypto.randomUUID(), kind: "chat", context: null, body: "Fresh update while reading history." },
+    });
+    expect(latest.ok()).toBe(true);
+    await expect(feed.locator("li").first()).toContainText("Fresh update while reading history.");
+    expect(Math.abs((await feed.locator("li").last().boundingBox())!.y - anchor!.y)).toBeLessThan(3);
+    await second.getByRole("button", { name: "Latest", exact: true }).click();
+    await expect.poll(() => feed.evaluate((element) => element.scrollTop)).toBe(0);
+    await second.screenshot({ path: test.info().outputPath("ops-mobile.png"), fullPage: true });
+    expect(await second.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await first.screenshot({ path: test.info().outputPath("ops-desktop.png"), fullPage: true });
+    await second.setViewportSize({ width: 320, height: 740 });
+    await second.screenshot({ path: test.info().outputPath("ops-small-mobile.png"), fullPage: true });
+    const smallScreenLayout = await second.evaluate(() => ({
+      width: document.documentElement.scrollWidth,
+      viewport: innerWidth,
+      overflowing: [...document.querySelectorAll("body *")]
+        .filter((element) => element.getBoundingClientRect().right > innerWidth + 1)
+        .map((element) => ({ tag: element.tagName, className: element.className,
+          right: element.getBoundingClientRect().right, text: element.textContent?.slice(0, 40) })),
+    }));
+    expect(smallScreenLayout.width, JSON.stringify(smallScreenLayout)).toBeLessThanOrEqual(320);
+    await second.setViewportSize({ width: 390, height: 844 });
 
     await admin.getByRole("button", { name: /Messages/ }).click();
     const messageCard = admin.locator("[data-admin-ops-messages] .admin-card").filter({

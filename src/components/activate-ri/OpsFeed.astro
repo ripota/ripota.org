@@ -5,12 +5,14 @@ import OpsComposer from "./OpsComposer.astro";
 <section class="ops-card ops-feed-card" aria-labelledby="ops-feed-title">
   <div class="ops-card__heading">
     <div>
-      <p class="eyebrow">Live coordination</p>
+      <p class="eyebrow">Newest first</p>
       <h2 id="ops-feed-title">Room updates</h2>
     </div>
-    <button class="button" data-variant="light" type="button" data-ops-refresh>
-      Refresh
-    </button>
+    <div class="ops-feed-navigation">
+      <button class="button" data-variant="light" type="button" data-ops-unread hidden>Jump to unread</button>
+      <button class="button" data-variant="light" type="button" data-ops-latest>Latest</button>
+      <button class="button" data-variant="light" type="button" data-ops-refresh aria-label="Refresh room updates">↻</button>
+    </div>
   </div>
   <fieldset class="ops-filters" data-ops-filters>
     <legend class="sr-only">Filter room updates</legend>
@@ -27,4 +29,5 @@ import OpsComposer from "./OpsComposer.astro";
     </li>
   </ol>
   <OpsComposer />
+  <p class="sr-only" data-ops-unread-status aria-live="polite"></p>
 </section>

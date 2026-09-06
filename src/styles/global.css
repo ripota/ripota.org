@@ -4584,6 +4584,82 @@ p {
   max-width: 100%;
 }
 
+.ops-feed-navigation {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.ops-feed-card > .ops-card__heading {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.ops-feed-card > .ops-card__heading > div:first-child {
+  min-width: 0;
+}
+
+.ops-feed-navigation .button {
+  min-height: 2.2rem;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
+.ops-message[data-unread="true"] {
+  border-left: 3px solid var(--accent);
+}
+
+.ops-unread-label {
+  flex: 0 0 auto;
+  color: var(--text-primary);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.ops-email-preferences {
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 0.65rem 0.85rem;
+  background: var(--surface-raised);
+  font-size: 0.85rem;
+}
+
+.ops-email-preferences summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.ops-email-preferences summary span {
+  margin-left: 0.5rem;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.ops-email-preferences form {
+  display: grid;
+  justify-items: start;
+  gap: 0.65rem;
+  margin-top: 0.85rem;
+}
+
+.ops-email-preferences label {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 2.75rem;
+}
+
+.ops-email-preferences input {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.ops-email-preferences form > p {
+  color: var(--text-muted);
+  max-width: 65ch;
+}
+
 .ops-filters {
   flex-wrap: nowrap;
   width: 100%;
@@ -4595,6 +4671,7 @@ p {
 }
 
 .ops-filters label {
+  position: relative;
   flex: 0 0 auto;
   min-height: 2.15rem;
   border: 1px solid var(--border-subtle);
@@ -4723,6 +4800,17 @@ p {
   min-width: 0;
   border-top: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border-subtle));
   padding-top: 0.8rem;
+}
+
+.ops-feed-card:has([data-ops-options][open]) {
+  height: auto;
+  grid-template-rows: auto auto minmax(12rem, 30dvh) auto;
+}
+
+.ops-compose-help {
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  line-height: 1.4;
 }
 
 .ops-composer-card__heading {
@@ -5038,6 +5126,12 @@ p {
     padding-top: 0.4rem;
   }
 
+  .ops-app__container > .event-nav:not(.activator-tools-nav) {
+    width: 100%;
+    margin-inline: 0;
+    padding-inline: 0;
+  }
+
   .activator-tools-nav {
     flex-wrap: nowrap;
     gap: 0.4rem;
@@ -5174,6 +5268,7 @@ p {
   .ops-message__header {
     align-items: baseline;
     flex-direction: row;
+    flex-wrap: wrap;
     gap: 0.5rem;
   }
 

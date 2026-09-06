@@ -65,7 +65,7 @@ The room must continue to state that RI POTA is an unofficial community site and
 | Room operating modes | `full`, `announcements`, and `off`, controlled from the admin panel. A deployment-level hard-disable remains available. |
 | Participant deletion | Participants may remove their own messages. No message editing; delete and repost instead. |
 | Organizer moderation | Remove messages, mute, ban, unmute, unban, disconnect active room sessions, and separately revoke portal sessions or secure links. |
-| Email announcements | An organizer may explicitly send an announcement as an email broadcast to eligible activators. Ordinary messages never generate email. |
+| Email announcements | An organizer may explicitly email an announcement to eligible activators who opted in. Preferences default off. Ordinary messages never generate email. |
 | Retention | Keep room data through the event and for 90 days after the event, then purge message bodies and expired sessions according to a documented maintenance task. |
 | Attachments and formatting | Plain text only. No images, files, Markdown, rich previews, reactions, presence, typing indicators, or read receipts. |
 
@@ -93,6 +93,19 @@ Recommended routes:
 The activator portal should have obvious navigation between **Ops Room** and **My Plan**.
 
 ### 3.2 Mobile-first Ops Room layout
+
+The activator feed displays newest messages first. `Latest` returns to the top;
+the unread count jumps to an unseen message and clears any active filter.
+New arrivals preserve the visible message when someone is reading older history.
+Message IDs seen in the viewport are remembered in browser storage, scoped to
+the event and activator, after one second of visibility. This is private reading
+state for the recent feed, independent of the synchronization cursor; it is not
+a read receipt and does not sync between devices. The bootstrap contains the
+latest 50 messages, so unread counts describe that recent window on return.
+
+An expandable Email notifications control lives below the feed and on Account.
+Announcement emails link to Account so people can turn them off even when the
+room is unavailable. No installation or browser notification permission is needed.
 
 The main screen contains:
 
@@ -1120,7 +1133,7 @@ Fields:
 - announcement text
 - optional park/stop context
 - `Pin this announcement`
-- `Also email this announcement to N eligible activators`
+- `Also email subscribed activators`, with the opted-in recipient count
 - recipient criteria preview
 - final confirmation
 
@@ -1219,7 +1232,8 @@ It is not:
 
 ### 13.1 Eligible recipients
 
-Include memberships in:
+Require `email_announcements = 1` (default `0`) and an approved activator,
+with membership in:
 
 ```text
 active
@@ -1234,7 +1248,11 @@ pending/unapproved
 rejected
 ```
 
-A participant who withdrew after prior approval remains eligible while their membership remains active.
+A participant who withdrew their itinerary after prior approval remains eligible
+while their activator approval and membership remain active and they are opted in.
+Recheck consent and eligibility before each delivery batch, including retries.
+Record recipients who opted out or lost eligibility as skipped; do not retry them.
+Migration `0022_ops_email_preferences.sql` adds the preference and skip tracking.
 
 ### 13.2 Privacy
 
