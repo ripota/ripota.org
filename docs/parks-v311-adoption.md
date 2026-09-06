@@ -1,10 +1,19 @@
 # Parks v3.1.1 geometry adoption
 
-Issue [#33](https://github.com/ripota/ripota.org/issues/33) adopts the exact
+**Status:** Completed adoption; v3.1.1 is still pinned in `package.json`.\
+**Documentation reviewed:** 2026-09-06.
+
+The data paths and verification commands below describe the current
+implementation. Release checks, commit IDs, test counts, and payload
+comparisons record the original adoption evidence; they are not measurements
+of every later build or a current production migration-status check.
+
+Issue [#33](https://github.com/ripota/ripota.org/issues/33) adopted the exact
 [v3.1.1 release](https://github.com/ripota/parks/releases/tag/v3.1.1).
 The release tarball SHA256 is
 `574d4987d7f9ce76d062e243ce4a9607a7c3498b1f3f545c1af74e700a0db825`.
-The release checksum and all 318 packaged artifact checksums were verified.
+During adoption, the release checksum and all 318 packaged artifact checksums
+were verified.
 The signed release commit is
 `a4a5b204ebca50d8311e87487f3dc8f9193a4a5d`; its
 [main CI](https://github.com/ripota/parks/actions/runs/33967276635) and
@@ -14,7 +23,7 @@ both passed.
 ## Data paths
 
 - Root `references` retains official metadata and the public event-data
-  publishing contract. All 61 records match the preceding release.
+  publishing contract. At adoption, all 61 records matched the preceding release.
 - `/display` supplies marker points, bounds, review status, geometry kind,
   artifact paths, attribution, and the dataset disclaimer. Directory markers
   use display points; other reference-map variants use published bounds
@@ -77,7 +86,7 @@ and challenge capability probes while retaining application, asset, API, and
 page-error checks. Live public acceptance does not submit a volunteer form or
 claim that an interactive production Turnstile challenge was completed.
 
-## Payload measurements
+## Historical adoption measurements
 
 The measurement script reports UTF-8 HTML bytes and gzip bytes, then separately
 serializes and compresses the array of initial GeoJSON FeatureCollections.
@@ -88,13 +97,18 @@ payloads. Initial baseline checks ran on main
 main `228d0af9` after its concurrent event-phase/activity changes, isolating
 this adoption from those changes. The park geometry baseline is identical.
 
-Local verification after rebasing: `mise run check` reports no errors,
-warnings, or hints; 580 tests across 93 unit files pass; all 21 Activate RI
-browser tests pass; build and production deployment dry run pass. No D1
-migrations are pending. The public park suite adds 30 desktop/mobile cases.
-The final integration also retains concurrent main `8a67e726`, including the
-event Progress page and navigation transition; its added browser test passes.
+At the adoption's post-rebase verification, `mise run check` reported no errors,
+warnings, or hints; 580 tests across 93 unit files passed; all 21 Activate RI
+browser tests passed; build and production deployment dry run passed. The D1
+migration check reported no pending migrations at that time. The public park
+suite then added 30 desktop/mobile cases.
+The final integration also retained concurrent main `8a67e726`, including the
+event Progress page and navigation transition; its added browser test passed.
 Deployment evidence and the final signed commits are recorded on #33.
+
+Rerun the commands above for current acceptance and payload sizes. Later site
+changes can alter HTML bytes and suite counts without changing this versioned
+geometry comparison.
 
 Bytes are **raw / gzip**.
 

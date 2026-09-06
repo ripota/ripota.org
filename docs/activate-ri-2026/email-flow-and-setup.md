@@ -9,23 +9,25 @@ announcement broadcasts, and the operational setup required in Cloudflare.
 
 1. The activator submits `/activate-ri-2026/volunteer/`.
 2. `POST /api/activate-ri-2026/plans` validates the submission and Turnstile.
-3. The activator row is upserted by normalized email and the signup remains
-   `pending` under that activator.
+3. The activator row is upserted by normalized event email. A new/unapproved
+   activator remains `pending`; an approved activator keeps approval and
+   additional submitted stops go straight to `scheduled`.
 4. No reusable edit token is created when
    `AUTH_LEGACY_LINK_ISSUANCE_ENABLED=false`.
 5. A 15-minute login token is generated; only its SHA-256 hash is stored in
    `auth_email_tokens`.
-6. A `plan-created` activity event is written.
-7. The Worker emails a fragment-based, single-use account-claim link that
+6. The Worker emails a fragment-based, single-use account-claim link that
    opens My Plan. Delivery failure invalidates the token.
-8. The Worker sends admins an approval-needed email if
-    `ACTIVATE_RI_ADMIN_EMAILS` is configured.
+7. A `plan-created` activity event records the access-email outcome.
+8. For a pending signup, the Worker sends admins an approval-needed email if
+   `ACTIVATE_RI_ADMIN_EMAILS` is configured.
 9. Admin notification success, failure, or skip is written as
     `admin-notification-sent`, `admin-notification-failed`, or
     `admin-notification-skipped`.
 
 The plan submission still succeeds if email delivery fails. The failure is
-visible in the admin activity log.
+visible in the admin activity log. API plans are activator-owned itineraries;
+there is no separate plan table or new review gate for each repeat submission.
 
 ### Admin approval
 
@@ -109,13 +111,17 @@ passkey reset.
 
 ### Organizer security replacement
 
-The admin panel exposes two distinct operations:
+The admin panel exposes distinct operations with different scopes:
 
-- **Revoke portal sessions** invalidates browser sessions but keeps previously
-  issued private links usable.
-- **Revoke legacy access** revokes every edit token and browser session, sends
+- **Account security → Revoke sessions** invalidates unified sessions and related
+  legacy activator sessions, while keeping passkeys and private links usable.
+- **Ops members → Revoke portal sessions** invalidates legacy activator sessions
+  only. It does not end unified account sessions.
+- **Ops members → Revoke legacy access** revokes the activator's edit tokens and
+  legacy browser sessions, sends
   a security notification with the stable My Plan URL, and writes an audit
-  event. It does not create a replacement durable link.
+  event. It does not revoke unified sessions/passkeys or create a replacement
+  durable link.
 
 These are separate from Ops Room mute/ban controls. A room ban does not remove
 plan-edit access.
@@ -180,13 +186,18 @@ For D1 migrations, Cloudflare documents the required API token permission as:
 
 - Account > D1 > Edit
 
-If the token is missing D1 access, either update/create the token or temporarily
-run Wrangler without the token environment variables:
+If the token is missing D1 access, either update/create the token or verify
+interactive Wrangler authentication without the token environment variables:
 
 ```bash
 env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID \
-  npx wrangler d1 migrations apply ripota-org --remote
+  npx wrangler whoami
 ```
+
+Before running the migration task with interactive authentication, remove the
+overriding token from the task's environment source as well. Mise loads `.env`,
+so unsetting a shell variable alone can leave the same token active in a task.
+Keep credential values out of logs and the repository.
 
 ### 2. Apply the D1 migration locally
 
@@ -199,7 +210,7 @@ mise run activate-ri-2026:d1-apply-local
 Equivalent raw Wrangler command:
 
 ```bash
-npx wrangler d1 migrations apply ripota-org --local
+npx wrangler d1 migrations apply ripota-org --local --env local
 ```
 
 ### 3. Apply the D1 migration to the deployed database
@@ -212,27 +223,31 @@ Important: D1 migration commands default to local Wrangler storage unless
 `--remote` is passed. Use `--remote` for the deployed Cloudflare D1 database.
 
 ```bash
-npx wrangler d1 migrations apply ripota-org --remote
+mise run d1:migrate-production
 ```
 
-Wrangler will show the unapplied migrations and prompt for confirmation. The
-current private-session and Ops Room migrations are:
+The task checks authentication, backs up production, and applies all pending
+top-level migrations. Use the complete ordered `migrations/` directory; do not
+apply only the original session/Ops/auth files. Inspect pending migrations with:
 
-```text
-migrations/0009_activator_sessions.sql
-migrations/0010_activator_ops_room.sql
-migrations/0012_unified_auth.sql
+```bash
+npx wrangler d1 migrations list ripota-org --remote --env ""
 ```
+
+The checked-in sequence currently runs through
+`0021_pota_post_close_history_sync.sql`, including unified authentication,
+ownership preservation, community bylines, analytics, and POTA evidence/history.
 
 ### 4. Enable Email Sending for `ripota.org`
 
 Dashboard path:
 
 1. Open the Cloudflare dashboard.
-2. Go to **Compute & AI** > **Email Service** > **Email Sending**.
+2. Go to **Compute** > **Email Service** > **Email Sending**.
 3. Choose **Onboard Domain**.
 4. Select `ripota.org`.
-5. Let Cloudflare add the required SPF/DKIM DNS records.
+5. Review and add the domain's required DNS records, including bounce handling
+   and email authentication, as shown by the onboarding workflow.
 
 CLI alternative:
 
@@ -250,7 +265,7 @@ Do not commit admin email addresses to the repository.
 Set the comma-separated admin recipient list on the deployed Worker:
 
 ```bash
-npx wrangler secret put ACTIVATE_RI_ADMIN_EMAILS
+npx wrangler secret put ACTIVATE_RI_ADMIN_EMAILS --env ""
 ```
 
 When prompted, enter a comma-separated list, for example:
@@ -259,10 +274,9 @@ When prompted, enter a comma-separated list, for example:
 person1@example.com,person2@example.com
 ```
 
-Current operational note: the deployed value may temporarily contain only
-Rob's email address during setup/testing. Before launch, update
-`ACTIVATE_RI_ADMIN_EMAILS` to include K1NW and N1BS as admin notification
-recipients.
+Confirm the intended organizer recipients in the deployed secret before launch
+and after staffing changes. Repository configuration does not establish who is
+currently on that private list.
 
 For local testing, use `.dev.vars` or a local environment-specific secret. Do
 not commit `.dev.vars`.
@@ -281,8 +295,8 @@ Cloudflare DNS should include this TXT record:
 default._bimi.ripota.org TXT "v=BIMI1; l=https://ripota.org/assets/logos/ri-pota-bimi.svg;"
 ```
 
-`ripota.org` already publishes DMARC with `p=reject`, which is required for
-BIMI. Some mailbox providers, including Gmail, require a Verified Mark
+Verify the current DMARC enforcement policy before relying on BIMI; the DNS
+state is external to this repository. Some mailbox providers, including Gmail, require a Verified Mark
 Certificate or Common Mark Certificate before showing the logo. If a certificate
 is issued later, host the PEM file over HTTPS and add the `a=` tag:
 
@@ -294,6 +308,7 @@ After DNS publishes, validate the record and asset:
 
 ```bash
 dig +short TXT default._bimi.ripota.org
+dig +short TXT _dmarc.ripota.org
 curl -I https://ripota.org/assets/logos/ri-pota-bimi.svg
 ```
 
@@ -316,7 +331,7 @@ that likely affected local Wrangler D1 state, not the deployed database. Verify
 the deployed database with:
 
 ```bash
-npx wrangler d1 migrations list ripota-org --remote
+npx wrangler d1 migrations list ripota-org --remote --env ""
 ```
 
 ### 8. Verify email delivery
@@ -362,7 +377,9 @@ npx wrangler email sending send \
   unless configured for remote sending.
 - If public schedule data appears stale, verify that
   `/api/activate-ri-2026/public/stops` returns the updated D1 rows. The static
-  JSON files are only fallback content now.
+  event/park JSON files contain reference data, not current itinerary state.
+  Production shows an unavailable state when the live schedule fails; only
+  Astro dev may use a dated local `stops.json` export.
 - If remote D1 commands fail with `Authentication error`, code `10000`, or
   code `7403`, check whether `CLOUDFLARE_API_TOKEN` is set. The token must have
   Account > D1 > Edit permission, or you must run Wrangler without that token

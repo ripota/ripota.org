@@ -1,5 +1,7 @@
 # Privacy-conscious product analytics
 
+Last reviewed against the repository: 2026-09-06.
+
 The site uses three complementary sources. They answer different questions and
 should not be collapsed into one system:
 
@@ -18,9 +20,9 @@ server-side event and property allowlist before clients can send them.
 ## Cloudflare Web Analytics status
 
 Web Analytics is configured in the Cloudflare dashboard, not in this
-repository. There is no Web Analytics beacon or token in the source or current
-built HTML, so the repository does not prove that the browser beacon is active.
-Confirm the production zone's **Analytics & Logs > Web Analytics** setting and
+repository. There is no Web Analytics beacon or token in the source, so the
+repository does not prove that the browser beacon is active in production.
+Confirm the production site's Web Analytics configuration in Cloudflare and
 inspect rendered HTML for `beacon.min.js` after deployment. Cloudflare's normal
 proxied request analytics is separate from the optional browser beacon.
 
@@ -54,8 +56,11 @@ For local end-to-end testing, put a non-production value in the untracked
 `.dev.vars` file. With no key or no dataset binding, the endpoint returns 503
 and the product feature continues normally.
 
-Analytics Engine retains data for three months, so export the September event
-report by December 10, 2026. See Cloudflare's
+Analytics Engine retains data for three months. Export the aggregate report
+after the event and before November 28, 2026 to preserve the reporting window
+that starts on August 31; waiting until December would lose early activity.
+This is an operational export deadline, not an automatic export implemented by
+the repository. See Cloudflare's
 [SQL API](https://developers.cloudflare.com/analytics/analytics-engine/sql-api/)
 and [limits](https://developers.cloudflare.com/analytics/analytics-engine/limits/)
 documentation.
@@ -90,15 +95,26 @@ mise run analytics:report
 ```
 
 The command combines Analytics Engine feature events, authenticated D1 feature
-rollups, hunter participation, and Ops Room posting counts. It excludes the
-known initial production ingestion check by default and never prints raw or
+rollups, hunter-checklist browser usage, and Ops Room posting counts. It excludes
+the known initial production ingestion check by default and never prints raw or
 hashed browser identifiers. Use `mise run analytics:report --help` for scope,
-time-window, dataset, and JSON-output options. The JSON form is suitable for a
+start-time, dataset, database, and JSON-output options. The command uses the
+current Wrangler credentials, which need Account Analytics Read and access to
+the selected remote D1 database. The JSON form is suitable for a
 future scheduled export:
 
 ```bash
 mise run analytics:report --json
 ```
+
+`--since` defaults to `2026-08-31T19:34:14Z`; the command has no end-time
+option. Anonymous events and Ops Room messages are filtered by their event
+timestamps. D1 feature rows are selected by `last_used_at`, but their
+`use_count` and `first_used_at` cover the lifetime of that scope/subject/feature
+row. A later `--since` therefore does not turn feature opens into exact
+within-window counts. Use the bounded SQL examples below for a fixed anonymous
+event reporting interval. The domain conversion query is separate from the
+report command.
 
 The SQL below documents the underlying report contract and remains useful for
 ad hoc investigation.
@@ -170,11 +186,13 @@ all change the relationship. Interaction totals account for Analytics Engine's
 
 Migration `0015_analytics_feature_usage.sql` adds the reusable
 `analytics_feature_usage` rollup. It records only scope, subject type, the
-existing opaque activator ID, feature, first/last use, and use count. It does
+existing opaque subject ID, feature, first/last use, and use count. The current
+call sites record activators opening `ops_room`, `plan_editor`, or
+`account_security`; the reusable helper also permits a `user` subject. It does
 not duplicate callsigns, email addresses, chat text, form values, or auth
 tokens.
 
-Unique activators who successfully opened authenticated features:
+Unique activators recorded opening authenticated features:
 
 ```sql
 SELECT
@@ -204,15 +222,25 @@ WHERE event_id = 'activate-ri-2026'
 ```
 
 Volunteer conversion is a domain fact and should come from the existing D1
-records rather than telemetry:
+records rather than telemetry. Migration `0006_activator_owned_stops.sql`
+removed `activate_ri_plans`: an activator owns their stops directly, and the
+activator row holds review status. Count retained submissions by that status:
 
 ```sql
 SELECT
-  COUNT(DISTINCT activator_id) AS activators_with_plans,
-  COUNT(*) AS plans_submitted
-FROM activate_ri_plans
-WHERE event_id = 'activate-ri-2026';
+  a.status AS review_status,
+  COUNT(DISTINCT a.id) AS activators_with_stops,
+  COUNT(s.id) AS stops_submitted
+FROM activate_ri_activators a
+JOIN activate_ri_stops s ON s.activator_id = a.id AND s.event_id = a.event_id
+WHERE a.event_id = 'activate-ri-2026'
+GROUP BY a.status
+ORDER BY a.status;
 ```
+
+This includes cancelled stops and withdrawn/rejected activators when their
+records remain. Add explicit status filters when reporting approved or active
+participation, and use the audit trail for historical submission actions.
 
 Admin changes, approvals, authentication, live POTA evidence, and schedule
 state likewise remain in their existing domain/audit tables. Custom product

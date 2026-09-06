@@ -74,9 +74,9 @@ In the Cloudflare dashboard:
    - If there is only one IdP, enable instant authentication.
 9. Save the application.
 
-Cloudflare's current docs say Access applications are deny-by-default, and a
-user must match an Allow policy before access is granted. They also document
-using public hostnames with paths for self-hosted applications.
+Cloudflare documents public hostnames, application paths, and the default-deny
+Allow policy requirement in its
+[self-hosted application setup](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/self-hosted-public-app/).
 
 ## Worker Configuration
 
@@ -144,6 +144,15 @@ curl -i https://ripota.org/api/activate-ri-2026/admin/plans
 
 ## Local Development
 
-Local tests can enable `ALLOW_LOCAL_ADMIN_AUTH=true` and send
-`Cf-Access-Authenticated-User-Email`. That setting is restricted to localhost
-requests. Do not enable it in the top-level production vars.
+`env.local` enables `ALLOW_LOCAL_ADMIN_AUTH=true`. On localhost, when Access JWT
+secrets are absent, the Worker uses `LOCAL_ADMIN_EMAIL` (default
+`local-admin@ripota.org`) without requiring an email header. Local `dual` mode
+allows that identity to open the admin dashboard and begin passkey enrollment
+through recovery. Use `http://localhost:8787/` when testing passkeys.
+
+The separate `ALLOW_ADMIN_HEADER_AUTH` switch accepts the
+`Cf-Access-Authenticated-User-Email` header in controlled test fixtures; it is
+not the localhost development mechanism. Do not enable either bypass in
+production. If local recovery unexpectedly requires a JWT, check whether your
+untracked `.dev.vars` supplies `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD`:
+configured JWT validation takes precedence over the local identity.

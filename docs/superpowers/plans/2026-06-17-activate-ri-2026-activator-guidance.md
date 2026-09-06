@@ -1,6 +1,23 @@
 # Activate RI 2026 Activator Guidance Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> Historical implementation plan. Reviewed against repository source on 2026-09-06.
+> The original text, code examples, and checkboxes below preserve earlier
+> decisions; they are not current setup instructions or a live work queue.
+> See the [archive guide](../README.md) for how to use these records.
+
+## Current implementation status
+
+The [event overview](../../../src/pages/activate-ri-2026/index.astro),
+[volunteer page](../../../src/pages/activate-ri-2026/volunteer.astro), and
+[FAQ](../../../src/pages/activate-ri-2026/help.astro) contain participant guidance.
+The original help copy and resend-form layout below have since changed:
+“My Plan” now uses passkey sign-in or a 15-minute, single-use email link, while
+previous private links still work. The volunteer page places the map after the
+form and links to the shared sign-in page. See the
+[authentication runbook](../../activate-ri-2026/authentication.md) for current
+account and recovery behavior.
+
+## Original implementation plan
 
 **Goal:** Add layered public guidance so Activate RI activators understand the event goal, volunteer form fields, magic links, and self-service edits.
 

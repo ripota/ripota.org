@@ -5,6 +5,11 @@
 > links remain compatible, but new reusable links are not issued. See
 > [authentication.md](authentication.md) and
 > [email-flow-and-setup.md](email-flow-and-setup.md) for current behavior.
+> Migration `0006` merged plans into activator-owned itineraries, and `0007`
+> moved reusable token hashes into their own table. Approved public itinerary
+> changes now reach live D1-backed consumers without a deploy; the publishing
+> gap described at the end of this original proposal has been resolved. See
+> [data-flow.md](data-flow.md) for the implemented schema and publishing model.
 
 ## Goals
 

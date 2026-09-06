@@ -1,9 +1,24 @@
 # Activate All RI 2026 Design
 
-> Historical design for the initial release. The Access-based admin sign-in
-> described below was superseded by unified passkey authentication. See
-> [the authentication runbook](../../activate-ri-2026/authentication.md) for
-> current production behavior and recovery procedures.
+> Historical design. Reviewed against repository source on 2026-09-06.
+> The original text, code examples, and checkboxes below preserve earlier
+> decisions; they are not current setup instructions or a live work queue.
+> See the [archive guide](../README.md) for how to use these records.
+
+## Current implementation status
+
+Recruitment, moderation, self-service editing, and hunter tools exist. The
+hunter route is `/activate-ri-2026/hunter/` (singular); current event progress
+is at `/activate-ri-2026/progress/`. The proposed `/awards` claims, log-upload,
+and certificate workflow is not implemented by this repository. Public
+schedule and coverage use live D1 rather than regenerated schedule/coverage
+JSON. Park data comes from `@ripota/parks`; stop times use UTC instants.
+Administrators now use passkeys with Access only for recovery. Activators use
+passkeys or single-use email links; old private links remain supported. See the
+[data-flow overview](../../activate-ri-2026/data-flow.md) and
+[authentication runbook](../../activate-ri-2026/authentication.md).
+
+## Original design
 
 ## Summary
 

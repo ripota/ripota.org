@@ -2,6 +2,18 @@
 
 Reviewed September 5, 2026 using production pages, public schedule data, open GitHub issues, browser tests, and outside reporting. The review began on main `2a8276b5`; the final source check included concurrent commit `520b6e9c`, which shortened Progress notices. The findings below describe that baseline; implementation progress is recorded separately here.
 
+This is a dated review record, not the current backlog or an instruction to
+repeat completed work. The requested-parks agenda subsequently landed; issue
+[#5](https://github.com/ripota/ripota.org/issues/5) closed September 5 EDT
+(September 6 UTC). See [requested-parks-agenda.md](requested-parks-agenda.md)
+for blank checklists, requested-reference URLs, sharing, and PDF verification.
+The original recommendations and test totals below remain historical evidence.
+Use [data-flow.md](data-flow.md), [authentication.md](authentication.md), and
+the [Ops runbook](ops-room-launch-and-incident-response.md) for current behavior.
+The event-window decision, organizer coverage confirmation, and real-device
+rehearsal need their own operational evidence; this documentation audit does
+not mark them complete.
+
 ## Implementation update — September 5
 
 The first implementation covers:

@@ -43,4 +43,6 @@ The PDF regression generates actual Letter and A4 landscape PDFs for long, overn
 
 September 5 validation: Astro check reports zero errors, warnings, or hints. All 603 unit tests, 33 event browser tests (including the two focused PDF tests), and 34 desktop/mobile public-site tests pass. Ten Letter/A4 PDFs were generated; all 18 rendered pages were visually inspected. Hunter input and requested-agenda views were checked at 390 pixels and for horizontal overflow at 320 pixels.
 
-Publication and issue closure follow the signed push, deployment, and production verification.
+The implementation landed in `f3b3bb0e`; [issue #5](https://github.com/ripota/ripota.org/issues/5)
+closed September 5, 2026 EDT (September 6 UTC). The validation totals above are
+the implementation's recorded checks, not a fresh production smoke test.

@@ -1,5 +1,24 @@
 # Activate RI 2026 Unified Edit Form Design
 
+> Historical design. Reviewed against repository source on 2026-09-06.
+> The original text, code examples, and checkboxes below preserve earlier
+> decisions; they are not current setup instructions or a live work queue.
+> See the [archive guide](../README.md) for how to use these records.
+
+## Current implementation status
+
+Shared form controls, Turnstile, and the editor map are implemented. The
+[current editor](../../../src/components/activate-ri/ActivatorEditForm.astro)
+uses session-authenticated APIs from the tokenless
+[My Plan page](../../../src/pages/activate-ri-2026/activator/plan.astro).
+The private-token load path, multiple-plan picker, and separate resend form
+below describe earlier behavior. Cancelled and completed stops are now shown
+read-only; stop times are stored as UTC instants. See the
+[authentication runbook](../../activate-ri-2026/authentication.md) and
+[data-flow overview](../../activate-ri-2026/data-flow.md).
+
+## Original design
+
 ## Goal
 
 Make the private activator edit page use the same form fields, controls, and visual treatment as the public volunteer signup page.

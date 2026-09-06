@@ -43,6 +43,13 @@ Email-related activity entries include `details.emailAttemptId` so D1 activity
 can be correlated with Workers Logs. Recipient email addresses are not written
 to logs; the Worker records counts and SHA-256 hashes instead.
 
+Unified sign-in, passkey, recovery, and byline events have a separate D1 trail in
+`auth_audit_events`. A signup's single-use email outcome is nested under
+`plan-created.details.accessEmail`; legacy `edit-link-*` activity alone does
+not describe current production delivery. Use the aggregate auth queries in
+[authentication.md](authentication.md#operational-checks) when investigating
+sign-in without selecting credential or private metadata columns.
+
 ## Browser Error Reports
 
 Pages using `BaseLayout.astro` install a small error reporter in the document
@@ -99,16 +106,21 @@ npx wrangler tail ripota-org
 If you only care about email attempts, pipe the stream through `jq`:
 
 ```bash
-npx wrangler tail ripota-org \
-  | jq '.. | objects | select(.event? == "email_send_attempt")'
+npx wrangler tail ripota-org --format json \
+  | jq '.logs[]?.message[]? | if type == "string" then fromjson? else . end
+        | select(type == "object") | select(.event == "email_send_attempt")'
 ```
 
 For browser failures, filter on the client event instead:
 
 ```bash
-npx wrangler tail ripota-org \
-  | jq '.. | objects | select(.event? == "client-error")'
+npx wrangler tail ripota-org --format json \
+  | jq '.logs[]?.message[]? | if type == "string" then fromjson? else . end
+        | select(type == "object") | select(.event == "client-error")'
 ```
+
+Wrangler wraps console output in each invocation's `logs[].message[]`; decode
+the application's JSON string before filtering its `event` field.
 
 For high-volume debugging, prefer narrower filters in the Cloudflare dashboard
 or Wrangler tail options so log messages are less likely to be sampled or
@@ -118,6 +130,8 @@ dropped by the real-time stream.
 
 1. Open `/activate-ri-2026/admin/`.
 2. Find the relevant activity event:
+   - `plan-created` (inspect `details.accessEmail` for the signup email outcome)
+   - `email-login-sent` / `email-login-not-sent` (legacy recovery adapter)
    - `edit-link-sent`
    - `edit-link-send-failed`
    - `edit-link-send-skipped`
@@ -127,7 +141,8 @@ dropped by the real-time stream.
    - `admin-notification-sent`
    - `admin-notification-failed`
    - `admin-notification-skipped`
-3. Copy `details.emailAttemptId` when present.
+3. Copy `details.emailAttemptId`, or `details.accessEmail.emailAttemptId` for
+   signup, when present.
 4. In Cloudflare Dashboard, open the `ripota-org` Worker and go to
    **Observability**.
 5. Search Workers Logs for the `emailAttemptId` or for
@@ -172,8 +187,10 @@ rejection.
 
 ### An activator did not receive a sign-in link
 
-Check `plan-created.details.accessEmail` and the matching
-`auth-email-login`/`auth-activator-submission` Worker email attempt.
+For signup, check `plan-created.details.accessEmail` and the matching
+`auth-activator-submission` Worker email attempt. For a later sign-in request,
+check auth audit events and the `auth-email-login` Worker email attempt; it does
+not create another `plan-created` event.
 
 The activator can request a fresh 15-minute link from `/account/sign-in/`.
 If delivery failed or skipped, inspect `details.error` or `details.reason`.
@@ -192,6 +209,17 @@ curl -s https://ripota.org/api/activate-ri-2026/public/stops \
 If this endpoint has fresh data but the browser does not, investigate browser
 or edge caching. If this endpoint is stale, inspect D1 activity and Worker logs
 for the edit/approval request.
+
+### POTA activity or confirmation is delayed
+
+Use the admin POTA status panel for collection/reconciliation timestamps and
+the public `/api/activate-ri-2026/public/spot-activity` and `/public/park-status`
+endpoints under the same event prefix for rendered evidence. The minute cron
+logs `activate-ri-pota-scheduled`; the daily history cleanup logs
+`pota-spot-history-cleanup`. A history-sync failure can delay reports
+after a live spot is first seen or disappears. Persisted reports and official
+activation-history confirmation have separate collection paths; a spot is not
+proof of a qualifying activation. See [data-flow.md](data-flow.md#pota-live-activity-and-event-evidence).
 
 ## Logging Guidelines
 

@@ -1,5 +1,21 @@
 # GitHub Issues Feedback Link Design
 
+> Historical design. Reviewed against repository source on 2026-09-06.
+> The original text, code examples, and checkboxes below preserve earlier
+> decisions; they are not current setup instructions or a live work queue.
+> See the [archive guide](../README.md) for how to use these records.
+
+## Current implementation status
+
+Implemented: the [footer](../../../src/components/Footer.astro) includes
+“Suggest a site improvement,” backed by [site data](../../../src/data/site.ts)
+and the [site suggestion issue form](../../../.github/ISSUE_TEMPLATE/site-suggestion.yml).
+The missing-feedback-path context below describes the site before this change.
+Official POTA links remain separate. Current contribution guidance is in
+[CONTRIBUTING.md](../../../CONTRIBUTING.md).
+
+## Original design
+
 Date: 2026-06-16
 
 ## Context

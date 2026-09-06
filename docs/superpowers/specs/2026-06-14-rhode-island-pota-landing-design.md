@@ -1,5 +1,23 @@
 # Rhode Island POTA Landing Page Design
 
+> Historical design. Reviewed against repository source on 2026-09-06.
+> The original text, code examples, and checkboxes below preserve earlier
+> decisions; they are not current setup instructions or a live work queue.
+> See the [archive guide](../README.md) for how to use these records.
+
+## Current implementation status
+
+The launch foundation is implemented and has expanded beyond this scope.
+The current [homepage](../../../src/pages/index.astro) has three path cards,
+a Leaflet map, live on-air content, and an event navigation link; event-specific
+content lives at `/activate-ri-2026/`. The static-map-only, no-Worker-routing,
+and future-`/activate` assumptions below no longer describe the site. The
+unofficial community-site disclaimer and evergreen homepage guidance still
+apply. Use the [project README](../../../README.md) and
+[deployment guide](../../deployment.md) for current setup.
+
+## Original design
+
 Date: 2026-06-14
 
 ## Purpose

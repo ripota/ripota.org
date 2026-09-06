@@ -3,13 +3,20 @@
 > Historical implementation plan. Its Access-based organizer authentication
 > was superseded by the completed passkey rollout on 2026-09-06. Current admin
 > HTTP and WebSocket access requires a passkey-verified admin session; Access
-> protects emergency recovery only. Use [authentication.md](authentication.md)
+> protects emergency recovery only. The reusable-link issuance/replacement
+> proposals below are also superseded: production issues single-use email links,
+> accepts existing private links as unified-account bootstrap credentials, and
+> offers legacy-access revocation without minting replacements.
+> Use [authentication.md](authentication.md), [data-flow.md](data-flow.md),
 > and [the launch runbook](ops-room-launch-and-incident-response.md) for current
-> operating procedures. The status and decisions below describe the original plan.
+> operating procedures. SQL, file lists, checklists, and rollout language below
+> describe the original implementation plan, not instructions to rerun it.
 
-**Status:** Implemented; room remains off pending operational rollout  
+**Implementation status:** Implemented. Current room mode is operational D1 state;
+check the admin console rather than inferring rollout state from this document.
+
 **Tracking issue:** `ripota/ripota.org#6`  
-**Proposed design document:** `docs/activate-ri-2026/activator-ops-room-design.md`
+**Historical design document:** `docs/activate-ri-2026/activator-ops-room-design.md`
 
 ## 1. Outcome
 

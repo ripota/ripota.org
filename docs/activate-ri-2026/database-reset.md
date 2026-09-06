@@ -3,7 +3,11 @@
 This project uses the Cloudflare D1 database named `ripota-org`, bound to the
 Worker as `DB`.
 
-During setup and admin testing, reset only the Activate RI operational rows.
+The full reset task removes event registration data and the shared identity
+system, including administrator accounts. It is a setup/test reset, not an
+event-scoped archive operation. Use the narrower
+[Ops Room reset](ops-room-launch-and-incident-response.md#prelaunch-test-cleanup)
+to remove rehearsal room data while preserving registrations and accounts.
 Do not delete and recreate the D1 database unless the binding and
 `database_id` in `wrangler.jsonc` are intentionally being replaced.
 
@@ -19,8 +23,10 @@ moderation, broadcast, and activity/audit rows:
 - `activate_ri_ops_memberships`
 - `activate_ri_activator_sessions`
 - `activate_ri_edit_tokens`
-- unified authentication users, emails, passkeys, sessions, challenges,
+- all unified authentication users, emails, passkeys, sessions, challenges,
   email/recovery tokens, event roles, activator memberships, and audit events
+- community bylines (`auth_community_profiles`) and site moderator roles
+  (`auth_site_roles`), deleted by `auth_users` foreign-key cascades
 - `activate_ri_activity_events`
 - `activate_ri_audit_events`
 - `activate_ri_stops`
@@ -28,6 +34,15 @@ moderation, broadcast, and activity/audit rows:
 
 It intentionally keeps the D1 migration table and schema intact. The singleton
 Ops Room settings row is retained and reset to `room_mode = 'off'` with no pin.
+There is no `activate_ri_plans` table after migration `0006`; itineraries belong
+to activator rows.
+
+The task does not reset `analytics_feature_usage`, `pota_spots_cache`,
+`pota_spot_observations`, `pota_spot_collection_state`, `pota_spot_history_sync`,
+or the `activate_ri_pota_*` evidence/reconciliation tables. It is neither a full
+database wipe nor a POTA-evidence reset. Deleted accounts cannot sign in with
+their old passkeys; plan an administrator bootstrap/recovery setup from
+[authentication.md](authentication.md) before a production reset.
 
 ## Before resetting production
 
@@ -38,11 +53,8 @@ npx wrangler whoami
 ```
 
 If `CLOUDFLARE_API_TOKEN` is set, that token needs Cloudflare D1 edit access.
-The operational setup doc has the token troubleshooting details:
-
-```bash
-docs/activate-ri-2026/email-flow-and-setup.md
-```
+The [email setup runbook](email-flow-and-setup.md#1-confirm-wrangler-auth)
+has the token troubleshooting details.
 
 The production reset task backs up the database before deleting rows.
 
@@ -61,13 +73,16 @@ Save the bookmark printed by Wrangler outside the repo.
 Use this when clearing data created by `wrangler dev` or local API testing:
 
 ```bash
-npx wrangler d1 execute ripota-org --local --command="
+npx wrangler d1 execute ripota-org --local --env local --command="
 DELETE FROM activate_ri_ops_email_recipients;
 DELETE FROM activate_ri_ops_email_broadcasts;
 DELETE FROM activate_ri_ops_events;
 DELETE FROM activate_ri_ops_messages;
 DELETE FROM activate_ri_ops_memberships;
-UPDATE activate_ri_ops_settings SET room_mode = 'off', pinned_message_id = NULL;
+UPDATE activate_ri_ops_settings
+SET room_mode = 'off', pinned_message_id = NULL,
+    updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+    updated_by = 'database-reset';
 DELETE FROM activate_ri_activator_sessions;
 DELETE FROM activate_ri_edit_tokens;
 DELETE FROM auth_audit_events;
@@ -101,8 +116,8 @@ mise run activate-ri-2026:reset-production -- --confirm
 ```
 
 The task checks Wrangler authentication, runs `mise run backup-production`, then
-deletes only the current Activate RI operational rows from the remote
-`ripota-org` D1 database. Wrangler may prompt before executing against the remote
+deletes the registration and shared-authentication rows listed above from the
+remote `ripota-org` D1 database, without event-scoping those deletes. Wrangler may prompt before executing against the remote
 database. Read the target database in the prompt before confirming.
 
 ## Verify the reset
@@ -110,7 +125,7 @@ database. Read the target database in the prompt before confirming.
 Local:
 
 ```bash
-npx wrangler d1 execute ripota-org --local --command="
+npx wrangler d1 execute ripota-org --local --env local --command="
 SELECT 'edit_tokens' AS table_name, COUNT(*) AS row_count FROM activate_ri_edit_tokens
 UNION ALL
 SELECT 'activator_sessions', COUNT(*) FROM activate_ri_activator_sessions
@@ -144,7 +159,7 @@ SELECT 'activators', COUNT(*) FROM activate_ri_activators;
 Remote:
 
 ```bash
-npx wrangler d1 execute ripota-org --remote --command="
+npx wrangler d1 execute ripota-org --remote --env "" --command="
 SELECT 'edit_tokens' AS table_name, COUNT(*) AS row_count FROM activate_ri_edit_tokens
 UNION ALL
 SELECT 'activator_sessions', COUNT(*) FROM activate_ri_activator_sessions
@@ -184,7 +199,7 @@ If the deployed database was reset by mistake, use the bookmark captured before
 the reset:
 
 ```bash
-npx wrangler d1 time-travel restore ripota-org --bookmark "<bookmark>"
+npx wrangler d1 time-travel restore ripota-org --env "" --bookmark "<bookmark>"
 ```
 
 Cloudflare documents Time Travel restore as destructive because it overwrites
@@ -195,8 +210,13 @@ database should return to the captured point in time.
 
 Ops Room content is retained through the event and for 90 days afterward. The
 retention cutoff for this event is `2026-12-13T05:00:00.000Z`. The maintenance
-task clears retained message bodies and deletes expired activator sessions; it
+task clears message bodies created before the cutoff and deletes expired legacy
+activator sessions; it
 keeps message/event IDs and moderation/broadcast audit metadata.
+
+This task does not purge unified `auth_sessions` or the POTA history/evidence
+tables. Unified authentication cleanup and rolling POTA history cleanup run
+through their own scheduled handlers.
 
 Preview local candidate counts without changing data:
 

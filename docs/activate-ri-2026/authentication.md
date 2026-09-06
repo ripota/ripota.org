@@ -22,6 +22,14 @@ POTA accounts and credentials are never used here.
 - Security pages and APIs send private/no-store headers. State-changing requests
   require the exact trusted Origin.
 
+The optional **Community byline** on account security is stored separately from
+event registration. A callsign claim or site moderator role grants no Activate
+RI admin or activator access, and editing a byline does not rewrite event
+identity. Changing an existing active callsign requires a recent passkey
+verification or email reauthentication within 15 minutes. Initial byline creation
+and public-name-only edits require an authenticated account. See `src/worker/auth/community-profile.ts`
+and `src/worker/routes/auth.ts` for that separate authorization boundary.
+
 ## Sign-in and Recovery Paths
 
 ### Passkey
@@ -75,7 +83,9 @@ unified and related legacy sessions, disable an account after typing its callsig
 re-enable it for a subsequent recovery. Passkey replacement revokes old
 passkeys and unified/legacy sessions in one transaction. These controls do not revoke legacy private links;
 an explicit **Revoke legacy access** operation remains separate. It revokes
-legacy private links and browser sessions without minting a replacement.
+legacy private links and legacy browser sessions without minting a replacement;
+it does not revoke unified sessions or passkeys. Use **Revoke sessions** in
+**Account security** to end unified and related legacy sessions.
 
 ## Feature Flags
 
@@ -181,7 +191,7 @@ Review action counts without displaying private metadata:
 npx wrangler d1 execute ripota-org --remote --env "" --command="
 SELECT action, COUNT(*) AS count
 FROM auth_audit_events
-WHERE created_at >= datetime('now', '-1 day')
+WHERE created_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-1 day')
 GROUP BY action ORDER BY action;
 "
 ```
@@ -208,6 +218,8 @@ full admin surface, use the Access-protected recovery page, and leave
 `AUTH_ADMIN_MODE=access` until two administrators have completed the device and
 recovery checks. Do not narrow Access during an incident.
 
-Scheduled cleanup deletes expired challenges and email tokens in bounded
-batches. It does not delete audit history, passkeys, users, roles, event data,
-or legacy links.
+The minute cron cleans at most 100 rows per table per run: challenges and email
+tokens expired or consumed more than 24 hours ago, and unified sessions expired
+or revoked more than 30 days ago. It does not delete audit history, passkeys,
+users, roles, event data, or legacy links. Legacy activator-session retention is
+handled by the separate [Ops purge task](database-reset.md#ops-room-retention-purge).

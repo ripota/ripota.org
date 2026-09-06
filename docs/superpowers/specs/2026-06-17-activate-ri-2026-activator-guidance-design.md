@@ -1,5 +1,24 @@
 # Activate RI 2026 Activator Guidance Design
 
+> Historical design. Reviewed against repository source on 2026-09-06.
+> The original text, code examples, and checkboxes below preserve earlier
+> decisions; they are not current setup instructions or a live work queue.
+> See the [archive guide](../README.md) for how to use these records.
+
+## Current implementation status
+
+Participant guidance is implemented in the
+[event overview](../../../src/pages/activate-ri-2026/index.astro),
+[volunteer page](../../../src/pages/activate-ri-2026/volunteer.astro), shared form
+controls, and [FAQ](../../../src/pages/activate-ri-2026/help.astro). Copy and
+layout have evolved from this proposal. Passkeys and 15-minute single-use email
+links now lead to My Plan; reusable private links remain compatibility access,
+and the separate resend form is gone. Approved changes appear through the live
+public API. See the [authentication runbook](../../activate-ri-2026/authentication.md)
+and [data-flow overview](../../activate-ri-2026/data-flow.md).
+
+## Original design
+
 ## Goal
 
 Improve Activate All RI 2026 guidance for a mixed audience: experienced POTA
@@ -8,7 +27,7 @@ purpose, workflow, and field meanings explained. The guidance should make the
 volunteer flow self-explanatory without turning the form into a long instruction
 page.
 
-## Current State
+## State When Written
 
 The event overview explains that the Rhode Island POTA community is trying to
 cover all 61 Rhode Island references during one coordinated weekend. The

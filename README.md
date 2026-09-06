@@ -6,17 +6,35 @@ Rhode Island POTA is not an official Parks on the Air property. Official POTA re
 
 ## Local Development
 
-Install dependencies:
+Install the pinned Node.js toolchain and locked dependencies with mise available:
 
 ```bash
-npm install
+mise install
+mise exec -- npm ci
 ```
 
-Run the site:
+`mise.toml` and `mise.lock` pin Node.js 24.20.0; `package.json` declares
+npm 11.19.0. Use `mise exec --` for npm/Wrangler commands if mise is not activated
+in your shell.
+
+For Astro page and styling work, run:
 
 ```bash
 mise run dev
 ```
+
+This starts Astro at `http://localhost:4321/`. It does not run the Worker APIs,
+D1, authentication, or Ops Room. For those features, apply local migrations and
+start Wrangler:
+
+```bash
+mise run activate-ri-2026:d1-apply-local
+mise exec -- npx wrangler dev --env local --port 8787
+```
+
+Open `http://localhost:8787/`. Wrangler builds the static assets and uses local
+D1 storage, local administrator access, and the Turnstile test configuration.
+Use this environment for signup, account, and other write-flow testing.
 
 Run the local Worker against the remote production Activate RI D1 database:
 
@@ -24,8 +42,11 @@ Run the local Worker against the remote production Activate RI D1 database:
 mise run activate-ri-2026:dev-production-data
 ```
 
-This mode is for admin UI debugging with real data. It enables localhost-only
-admin access and blocks write requests before they can modify production data.
+This mode is for inspecting admin views with real data. It enables localhost-only
+admin access and rejects non-GET/HEAD requests in the event API. That guard is
+not a database-wide write barrier: authentication routes, GET side effects, and
+scheduled handlers have separate paths. Keep account and write-flow tests in
+the local environment above.
 
 Common checks:
 
@@ -44,25 +65,37 @@ to cover legacy-link account claiming, email fallback, unified sessions, and
 passkey-only account recovery controls. A browser test uses a virtual WebAuthn
 authenticator for enrollment and discoverable sign-in.
 
-Run it directly with:
+Run the signup/approval acceptance test directly with:
 
 ```bash
 mise run test-unit -- --run src/worker/activate-ri.acceptance.test.ts
 ```
 
-The normal test command also runs the Activate RI browser smoke test, which
-starts Wrangler and drives the volunteer/admin/schedule path in a real browser.
-Run it directly with:
+The normal test command also runs the Activate RI browser suite. Playwright
+builds with the Turnstile test key and uses isolated, migrated local D1 databases
+for signup, editing, authentication, Ops Room, hunter tools, progress, and printed
+schedules. Run it directly with:
 
 ```bash
 mise run e2e:activate-ri
 ```
 
-The site is built with Astro and outputs static files to `dist/`.
+The separate desktop/mobile park and public-event browser checks are:
+
+```bash
+mise run e2e:parks
+```
+
+Playwright needs Chromium installed (`mise exec -- npx playwright install chromium`).
+The suite also needs network access to load the Cloudflare Turnstile test widget.
+`mise run build` uses the local build wrapper and outputs Astro assets to `dist/`;
+the deployment build requires the real production Turnstile site key.
 
 ## Deployment
 
-The launch target is Cloudflare Workers Static Assets. `wrangler.jsonc` points Wrangler at the Astro `dist/` output through the `assets.directory` setting.
+The site runs on Cloudflare Workers Static Assets. `wrangler.jsonc` serves the
+Astro `dist/` output alongside the Worker APIs, account access, Ops Room Durable
+Object, and scheduled POTA collection.
 
 Deploy with:
 
@@ -70,8 +103,8 @@ Deploy with:
 mise run deploy
 ```
 
-The deploy task applies pending remote D1 migrations before deploying the base
-Worker. Do not use `wrangler deploy --env production`; production is the
+The deploy task backs up production D1, applies pending remote migrations, and
+builds and deploys the base Worker. Do not use `wrangler deploy --env production`; production is the
 top-level Worker config named `ripota-org`. See
 [docs/deployment.md](docs/deployment.md).
 
@@ -88,6 +121,12 @@ The [authentication runbook](docs/activate-ri-2026/authentication.md) documents
 passkeys, email/legacy compatibility, staged feature flags, safety gates, and
 rollback.
 
+The [documentation index](docs/README.md) links to current runbooks, feature
+status, and historical design records.
+
 ## Content Notes
 
-Keep homepage copy evergreen. Avoid date-forward event language on `/` such as upcoming campaign dates or year-specific project promises. Future project pages, including a possible `/activate` page, can carry event-specific details when they are ready.
+Keep homepage copy evergreen. Avoid date-forward event language on `/` such as
+upcoming campaign dates or year-specific project promises. Activate All RI 2026
+content belongs under `/activate-ri-2026/`; reusable park and live-spot features
+live under `/parks/` and `/on-air/`.

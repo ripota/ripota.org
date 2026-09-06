@@ -1,6 +1,21 @@
 # Rhode Island POTA Landing Page Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> Historical implementation plan. Reviewed against repository source on 2026-09-06.
+> The original text, code examples, and checkboxes below preserve earlier
+> decisions; they are not current setup instructions or a live work queue.
+> See the [archive guide](../README.md) for how to use these records.
+
+## Current implementation status
+
+The Astro foundation, homepage, theme, tests, and mise tasks exist. The current
+[homepage](../../../src/pages/index.astro) has three path cards, a Leaflet map,
+and a live on-air section. The event section is `/activate-ri-2026/`, not the
+proposed `/activate` route. The launch-only prohibition on Worker routes has
+been superseded by the API and authenticated page routing. Use the
+[project README](../../../README.md) and [deployment guide](../../deployment.md)
+for current setup and checks.
+
+## Original implementation plan
 
 **Goal:** Build the first static Astro landing page for `ripota.org`, with public-safe documentation, tests, mise tasks, and Cloudflare Workers Static Assets configuration.
 

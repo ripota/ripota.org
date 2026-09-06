@@ -1,6 +1,34 @@
 # Rhode Island Park Field Guide Pages
 
-Date: 2026-08-31
+Original design: 2026-08-31\
+Implementation reviewed: 2026-09-06
+
+## Current implementation
+
+The read-only field guides and the existing-account identity bridge are
+implemented. The contribution pipeline remains a proposal. Current source:
+
+- [`src/pages/parks/index.astro`](../src/pages/parks/index.astro) renders a
+  statewide map followed by name/reference search, a county filter, and a
+  **Possible 2-fers** filter. Rows show reference, name, county, grid, and any
+  same-source relationship badge; there is no geometry filter or report count.
+- [`src/pages/parks/[reference].astro`](../src/pages/parks/[reference].astro)
+  generates all 61 public, indexable field guides, including map facts, official
+  source links, same-source relationship guidance, and **No community reports
+  yet.** The earlier practical-note prompts, byline preview, and detailed
+  freshness ledger in the mockups below are not rendered by the current page.
+- Both directory and detail maps support location mode. The
+  [location implementation notes](live-location-design.md) describe canonical
+  geometry loading, accuracy handling, and navigation behavior.
+- Migration
+  [`0016_community_profiles.sql`](../migrations/0016_community_profiles.sql)
+  adds community profiles and site moderator roles. Existing accounts manage
+  their public byline from `/account/security/`; no new community enrollment
+  route, report storage, submission form, or moderation queue exists yet.
+
+The remaining sections preserve the design rationale and staged contribution
+roadmap. Layout mockups and suggested report models are design targets, not a
+description of every control or database table shipped today.
 
 ## Recommendation
 
@@ -8,12 +36,15 @@ Build durable park pages at `/parks/<lowercase-reference>/`, beginning with a
 map-first field-guide format. The page should help someone plan a real visit
 without trying to reproduce the official POTA app.
 
-The working visual prototype is `/parks/us-2878/`. Lincoln Woods is a useful
+The original visual prototype, now a public field guide, is
+`/parks/us-2878/`. Lincoln Woods is a useful
 stress test because the local catalog currently maps both Lincoln Woods State
 Park (`US-2878`) and Lincoln Woods State Forest (`US-5483`) from the same
 Rhode Island DEM boundary features. That lets the prototype demonstrate a
 reference-overlap research state while still showing an honest empty community
-layer.
+layer. The implemented relationship calculation matches mapped source feature
+IDs; containment, intersection, nearby, and trail-crossing relationship types
+below remain future work.
 
 The page's main promise is:
 
@@ -301,7 +332,9 @@ all contributors. The current `/account/sign-in/` email fallback only sends a
 link when the address belongs to an Activate RI activator. General community
 contribution therefore requires an additive self-service enrollment flow.
 
-### Account flow
+### Proposed general-community account flow
+
+`/account/join/` and first-report submission in this flow are not implemented.
 
 1. A new contributor starts at `/account/join/`, enters an email address, and
    passes Turnstile.
@@ -336,33 +369,19 @@ ownership of a callsign. Keep those ideas separate in the data and interface.
 - Callsign conflicts go to manual resolution rather than letting the newest
   claimant overwrite an existing profile.
 
-### Suggested additive identity tables
+### Implemented additive identity tables
 
-```sql
-CREATE TABLE auth_community_profiles (
-  user_id TEXT PRIMARY KEY REFERENCES auth_users(id) ON DELETE CASCADE,
-  callsign_normalized TEXT UNIQUE,
-  callsign_display TEXT,
-  public_name TEXT,
-  callsign_claim_status TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
-);
+[`0016_community_profiles.sql`](../migrations/0016_community_profiles.sql) is the
+schema source of truth. `auth_community_profiles` stores a required callsign,
+optional public name, claim status, and active/released claim history. A partial
+unique index reserves a normalized callsign only while the claim is active.
 
-CREATE TABLE auth_site_roles (
-  user_id TEXT NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
-  role TEXT NOT NULL,
-  granted_by_user_id TEXT REFERENCES auth_users(id) ON DELETE SET NULL,
-  created_at TEXT NOT NULL,
-  revoked_at TEXT,
-  PRIMARY KEY (user_id, role)
-);
-```
-
-`auth_site_roles` is site-wide and should not overload the existing
-event-scoped `auth_event_roles`. Initial roles are `moderator` and possibly
-`editor`; the presence of a valid community profile is enough to submit a
-report and does not require a permanent `contributor` role row.
+`auth_site_roles` is site-wide and separate from event-scoped
+`auth_event_roles`. It currently permits only `moderator`, with distinct grant
+rows, revocation metadata, and a unique index for active grants. There is no
+`editor` or `contributor` role. Moderator authorization requires an authenticated
+passkey session. Report submission authorization remains part of the future
+report pipeline.
 
 ### Report provenance
 
@@ -408,7 +427,7 @@ slice is operating cleanly.
 
 ### Phase 0 — validate the static prototype
 
-Ship only to the preview environment:
+Historical preview phase, superseded by the public routes. Its review scope was:
 
 - the generated 61-page park shell;
 - `/parks/`, homepage discovery, and event deep links;
@@ -416,13 +435,16 @@ Ship only to the preview environment:
 - calculated same-geometry relationships; and
 - the zero-report and account-provenance mockups.
 
-Do not add database migrations, public enrollment, or report forms. Keep the
-park routes `noindex` during review.
+This phase excluded database migrations, public enrollment, and report forms
+and kept park routes `noindex` during review. Current field guides are public
+and indexable; do not restore those preview restrictions.
 
 **Done when:** the page hierarchy, empty state, mobile layout, and source
 language are accepted using representative geometry types.
 
 ### Phase 1 — public read-only field guides
+
+**Status:** Implemented, with the simpler current page scope described above.
 
 Publish the useful part without any new write path:
 
@@ -445,6 +467,11 @@ not attract meaningful use, the project has not yet taken on community-content
 operations.
 
 ### Phase 2 — identity bridge for existing accounts
+
+**Status:** Implemented through migration `0016_community_profiles.sql`,
+`src/worker/auth/community-profile.ts`, and
+`src/components/auth/CommunityByline.astro`. General enrollment and reports
+remain unimplemented.
 
 Extend the unified account system without accepting reports yet:
 
@@ -582,10 +609,10 @@ for years. Topic-specific freshness rules can come after real notes exist.
   the Rhode Island references section into the main gateway by adding a
   prominent `Browse all 61 park field guides` action beside the existing map.
 - Add `Open local field guide` to each homepage and event-map popup.
-- `/parks/` is the list-first browse surface: a short introduction, park count,
-  search, county/geometry/relationship filters, then dense linked rows. Each
-  row shows only catalog/calculated facts and a community-report count.
-- Do not hide zero-report parks; `0 reports` is an honest contribution prompt.
+- `/parks/` opens with the statewide map, followed by search, county and
+  **Possible 2-fers** filters, then linked rows with catalog/calculated facts.
+- All references remain discoverable even without community reports. The
+  explicit empty report state appears on each field guide.
 - Search engines and share metadata should use the current park name while the
   path remains stable.
 
@@ -603,8 +630,8 @@ Recommended integration points:
 4. Preserve the volunteer action as the event-specific primary action; the
    field-guide link is secondary.
 
-The current prototype implements the first three connections and keeps the
-event volunteer action visually primary where both actions appear.
+The current site implements the first three connections. Event calls to action
+follow the event phase; volunteer entry points remain on the event surfaces.
 
 The canonical park page can optionally show a small current-event module below
 the evergreen planning snapshot. It should be driven by event phase and public
@@ -620,7 +647,7 @@ contribution prompts are useful:
 - one popular state park with many unanswered visitor-planning questions;
 - one wildlife management area with sparse visitor infrastructure;
 - one coastal reference with parking or seasonal pressure;
-- one point-only geometry record;
+- a synthetic point-only fallback (the current v3.1.1 catalog has none);
 - one trail activation zone; and
 - one same-geometry or contained reference pair.
 
@@ -637,24 +664,24 @@ first real practical detail still comes from an attributed contributor.
 
 None of these decisions blocks the static park shell or event deep links.
 
-## Prototype Scope
+## Current scope and next work
 
-The current park prototype implements:
+The current park pages implement:
 
 - a searchable, filterable `/parks/` directory for every catalog reference;
 - generated `/parks/<reference>/` shells for every catalog reference;
-- a focused Leaflet map with reviewed boundary geometry;
+- a focused Leaflet map with reviewed boundary, activation-zone, or point
+  geometry and location mode;
 - a toggleable related-reference overlay;
 - official POTA and geometry-source links;
 - only catalog-derived facts and calculated same-geometry relationships;
 - a true zero-report community state;
-- visible unanswered community-research prompts;
-- a multiple-reference verification checklist;
-- a unified-account/callsign provenance preview;
+- concise multiple-reference verification guidance;
 - homepage, global-navigation, footer, and map-popup discovery links; and
-- separate source/freshness language.
+- links to official POTA and geometry sources.
 
 It intentionally does not implement general-community enrollment,
-submissions, report storage, moderation, current spots, photos, or a community
-database. Existing RI POTA accounts can reach the current sign-in page, but
-the UI states plainly that new contributor enrollment is not live yet.
+submissions, report storage, moderation, park-page current spots, or photos.
+The shared account system does have a community-profile database and byline
+editor. Phases 3–7 above describe possible additions; they are not current
+capabilities or required parts of the read-only field guides.

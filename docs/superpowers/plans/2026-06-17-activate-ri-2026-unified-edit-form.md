@@ -1,6 +1,23 @@
 # Activate RI 2026 Unified Edit Form Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> Historical implementation plan. Reviewed against repository source on 2026-09-06.
+> The original text, code examples, and checkboxes below preserve earlier
+> decisions; they are not current setup instructions or a live work queue.
+> See the [archive guide](../README.md) for how to use these records.
+
+## Current implementation status
+
+Shared identity fields, stop cards, organizer notes, Turnstile, and map support
+are implemented. The current editor is
+[`/activate-ri-2026/activator/plan/`](../../../src/pages/activate-ri-2026/activator/plan.astro),
+which uses session-authenticated APIs. The token-bearing Astro page and its
+old test location below no longer exist; compatibility routing is covered by
+[edit-token-page.test.ts](../../../src/lib/activate-ri/edit-token-page.test.ts).
+[ActivatorEditForm](../../../src/components/activate-ri/ActivatorEditForm.astro)
+now preserves cancelled/completed stops as read-only and handles the consolidated
+plan. See the [authentication runbook](../../activate-ri-2026/authentication.md).
+
+## Original implementation plan
 
 **Goal:** Make the activator edit page use the same form fields, map, Turnstile protection, and visual treatment as the public volunteer page.
 

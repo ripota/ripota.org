@@ -1,6 +1,22 @@
 # Activate RI Map Hero Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> Historical implementation plan. Reviewed against repository source on 2026-09-06.
+> The original text, code examples, and checkboxes below preserve earlier
+> decisions; they are not current setup instructions or a live work queue.
+> See the [archive guide](../README.md) for how to use these records.
+
+## Current implementation status
+
+The map hero, shared coverage summary, and lower CTA band are implemented.
+Hero markup and phase behavior now live in
+[EventHeroContent](../../../src/components/activate-ri/EventHeroContent.astro)
+and [EventPhaseViews](../../../src/components/activate-ri/EventPhaseViews.astro).
+Planning stats fetch live D1 stops; event/results views use POTA-backed progress.
+The static `schedule.json` imports below are obsolete, and the hero map uses
+markers with boundaries disabled. See the
+[data-flow overview](../../activate-ri-2026/data-flow.md) for current data sources.
+
+## Original implementation plan
 
 **Goal:** Move the Activate All RI 2026 coverage map into the landing-page hero, add recruiting-phase coverage stats, and replace the lower duplicate map with a volunteer CTA band.
 

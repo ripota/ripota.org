@@ -1,6 +1,22 @@
 # Activate RI 2026 Park Row Volunteer CTA Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> Historical implementation plan. Reviewed against repository source on 2026-09-06.
+> The original text, code examples, and checkboxes below preserve earlier
+> decisions; they are not current setup instructions or a live work queue.
+> See the [archive guide](../README.md) for how to use these records.
+
+## Current implementation status
+
+Implemented in the [coverage helper](../../../src/lib/activate-ri/coverage.ts),
+[park table](../../../src/components/activate-ri/ParkCoverageTable.astro), and
+[volunteer form](../../../src/components/activate-ri/VolunteerForm.astro).
+Uncovered and replacement-needed rows link to `?park=US-XXXX`, and the form
+validates and preselects known references. Current prefill focuses identity
+fields rather than the date control described in the original implementation.
+Coverage is loaded from the live public API; use the
+[data-flow overview](../../activate-ri-2026/data-flow.md) for freshness behavior.
+
+## Original implementation plan
 
 **Goal:** Add a focused row-level volunteer CTA to actionable Activate RI park coverage gaps and preselect the park on the volunteer form.
 

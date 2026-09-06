@@ -1,5 +1,23 @@
 # Activate RI 2026 Map Hero Design
 
+> Historical design. Reviewed against repository source on 2026-09-06.
+> The original text, code examples, and checkboxes below preserve earlier
+> decisions; they are not current setup instructions or a live work queue.
+> See the [archive guide](../README.md) for how to use these records.
+
+## Current implementation status
+
+The map hero and lower CTA band are implemented, with no duplicate overview
+map. [EventHero](../../../src/components/activate-ri/EventHero.astro) now delegates
+to [EventHeroContent](../../../src/components/activate-ri/EventHeroContent.astro)
+and [EventPhaseViews](../../../src/components/activate-ri/EventPhaseViews.astro).
+Planning stats use live stops; event/results views use POTA-backed progress.
+The hero map uses markers with boundaries disabled, superseding the geometry
+requirements below. See the [data-flow overview](../../activate-ri-2026/data-flow.md)
+for current schedule and coverage behavior.
+
+## Original design
+
 ## Goal
 
 Refresh the `/activate-ri-2026/` landing page hero so the planning-phase page
@@ -12,7 +30,7 @@ Rhode Island POTA references during one coordinated weekend. It should also
 make the next action obvious while the event is in activator-recruiting mode:
 volunteer to activate one park or submit a multi-park route.
 
-## Current State
+## State When Written
 
 `src/pages/activate-ri-2026/index.astro` renders `EventHero` first, followed by
 an overview section containing `EventNav`, activator guidance, a coverage plan

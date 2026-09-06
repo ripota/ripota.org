@@ -42,9 +42,10 @@ mise run check
 mise run test-unit -- --run
 mise run build
 mise run e2e:activate-ri
+mise run e2e:parks
 ```
 
-The Playwright suite creates an ephemeral local Wrangler database, applies all
+The event Playwright suite creates an ephemeral local Wrangler database, applies all
 checked-in migrations, uses synthetic fixtures, and deletes the database on
 completion. If the browser runtime is unavailable, record
 `mise run e2e:activate-ri` as **not run**, include the exact setup error, and
@@ -88,10 +89,11 @@ Playwright suite succeeds.
 
 ## Schema and lifecycle boundary
 
-- The current park-write boundary is absence: #16 adds no park pages, APIs,
-  persistence, enrollment, moderation, or account fields. A later issue may add
-  a write path only behind an off-by-default flag or an equivalent server-side
-  deny boundary until that phase explicitly opens it.
+- The original #16 gate added no park feature write paths. Public `/parks/`
+  pages and account community bylines have since shipped; bylines and site
+  moderator roles remain separate from event identities and authorization.
+  Park-report submission/moderation APIs are still absent. A later park write
+  path must fail closed until its implementation phase explicitly opens it.
 - Park migrations must add new tables, columns, indexes, or role rows. While the
   event is live they must not rename, drop, narrow, repurpose, or backfill new
   meanings into `activate_ri_*`, unified auth, Ops Room, or POTA evidence data.

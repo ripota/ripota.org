@@ -1,6 +1,23 @@
 # Activate RI Fully Live D1 Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> Historical implementation plan. Reviewed against repository source on 2026-09-06.
+> The original text, code examples, and checkboxes below preserve earlier
+> decisions; they are not current setup instructions or a live work queue.
+> See the [archive guide](../README.md) for how to use these records.
+
+## Current implementation status
+
+Implemented: public schedule and coverage use the cached D1 stops endpoint,
+and publishing writes only stable event and park metadata. The
+[current client](../../../src/lib/activate-ri/public-stops-client.ts) reports
+production API outages rather than substituting stale data. Astro development
+alone may use `stops.json` when it has a valid `generatedAt` timestamp; the
+checked-in undated placeholder is not usable schedule data. Live public schedule
+state still requires JavaScript. See the
+[data-flow overview](../../activate-ri-2026/data-flow.md) for current cache,
+freshness, and publishing behavior.
+
+## Original implementation plan
 
 **Goal:** Make event-dynamic public Activate RI 2026 schedule and coverage data come from live D1 only, with short browser/shared-cache headers and local Worker Cache API caching for the public stops endpoint.
 

@@ -37,7 +37,8 @@ editing, and the public schedule operate independently of the room.
    Use separate mobile and desktop browsers, open the room in `full` mode, and
    exercise realtime chat, reconnect, park context, announcements, pin, remove,
    mute, ban, session revoke, and legacy-access revocation. Then invite a small
-   set of activators through their normal secure links to validate their view.
+   set of activators through normal passkey or email sign-in to validate their
+   view. Previously issued private links remain supported.
 7. Test one explicit announcement email, its recipient count, BCC batching, and
    failed-recipient retry.
 8. Move to `announcements` or `full` only after the soft launch succeeds.
@@ -56,9 +57,11 @@ mise run activate-ri-2026:reset-ops-room -- --remote
 The task prints candidate counts and makes no changes without `--confirm`. A
 confirmed production reset first creates a D1 backup and refuses to run unless
 the room is already off. It deletes Ops messages, events, broadcasts, recipients,
-Ops audit activity, and portal sessions; clears rule acceptance and test
+Ops audit activity, and legacy activator sessions; clears rule acceptance and test
 moderation state; and leaves the room off. It preserves activators, plans, stops,
-edit tokens, and secure links.
+edit tokens, secure links, and unified accounts/passkeys/sessions. This task does
+not sign out current unified-authentication users; use **Account security →
+Revoke sessions** when that is required.
 
 To perform the production cleanup after reviewing the preview:
 
@@ -79,14 +82,17 @@ are intentionally not server records and can be discarded in the room composer.
 | Stop one participant from posting | Mute the room membership |
 | Stop one participant from entering the room | Ban the room membership |
 | End currently open room connections | Disconnect active sockets |
-| End current portal browser sessions | Revoke portal sessions |
-| Invalidate both previously distributed private links and all sessions | Revoke legacy access |
+| End unified and related legacy browser sessions | Account security → Revoke sessions |
+| End legacy portal browser sessions only | Ops members → Revoke portal sessions |
+| Invalidate previously distributed private links and legacy sessions | Ops members → Revoke legacy access |
+| Invalidate private links and all browser sessions | Revoke legacy access, then Account security → Revoke sessions |
 | Remove exposed or inappropriate content | Remove the message; its body is cleared in D1 |
 | Recover a partial announcement send | Retry failed recipients only |
 
-A room ban affects only Ops Room access. Legacy-access revocation is the broader
-control: it invalidates previously issued links and existing portal sessions
-without generating another reusable link.
+A room ban affects only Ops Room access. Legacy-access revocation invalidates
+previously issued links and legacy sessions without generating another reusable
+link. It leaves unified sessions and passkeys usable; use Account security's
+session revocation or emergency disable when account access is implicated.
 
 ## Emergency rollback
 
@@ -111,6 +117,7 @@ mise run activate-ri-2026:purge-ops-room
 
 After the cutoff, preview production candidates with `--remote`, then run with
 both `--remote --confirm`. The confirmed production task first creates a D1
-backup, clears retained message bodies, records retention removal metadata, and
-deletes expired activator sessions. Keep the command output with the operational
+backup, clears message bodies created before the cutoff, records retention
+removal metadata, and deletes expired legacy activator sessions. Unified session
+cleanup runs separately through the minute cron. Keep the command output with the operational
 record, but do not add message or recipient data to it.

@@ -1,5 +1,22 @@
 # Activate RI 2026 Park Row Volunteer CTA Design
 
+> Historical design. Reviewed against repository source on 2026-09-06.
+> The original text, code examples, and checkboxes below preserve earlier
+> decisions; they are not current setup instructions or a live work queue.
+> See the [archive guide](../README.md) for how to use these records.
+
+## Current implementation status
+
+Implemented: the [park table](../../../src/components/activate-ri/ParkCoverageTable.astro)
+links uncovered and replacement-needed parks to the
+[volunteer form](../../../src/components/activate-ri/VolunteerForm.astro) with a
+`park` query parameter. Known references are preselected; unknown references
+are ignored. Current prefill focuses the identity fields, superseding the
+date-field focus proposed below. Public coverage comes from live D1, as described
+in the [data-flow overview](../../activate-ri-2026/data-flow.md).
+
+## Original design
+
 ## Summary
 
 Add a row-level volunteer CTA to the Activate All RI 2026 park coverage table

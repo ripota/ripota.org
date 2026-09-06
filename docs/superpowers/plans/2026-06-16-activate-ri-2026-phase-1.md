@@ -1,12 +1,24 @@
 # Activate All RI 2026 Phase 1 Implementation Plan
 
-> Historical implementation plan for the initial release. Its Access-based
-> admin authentication and related code examples were superseded by unified
-> passkey authentication. See
-> [the authentication runbook](../../activate-ri-2026/authentication.md) for
-> current production behavior and recovery procedures.
+> Historical implementation plan. Reviewed against repository source on 2026-09-06.
+> The original text, code examples, and checkboxes below preserve earlier
+> decisions; they are not current setup instructions or a live work queue.
+> See the [archive guide](../README.md) for how to use these records.
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+## Current implementation status
+
+The volunteer, moderation, schedule, coverage, and activator editing features
+exist, but the scaffold and deployment steps below must not be replayed.
+Public schedule and coverage now use live D1; publishing writes only stable
+`event.json` and `parks.json`. Park data comes from `@ripota/parks`, and stop
+times are stored as UTC `start_at`/`end_at` instants. Administrators use passkeys,
+Access is reserved for recovery, and My Plan uses a tokenless account session;
+old private links remain compatibility credentials. See the
+[data-flow overview](../../activate-ri-2026/data-flow.md),
+[authentication runbook](../../activate-ri-2026/authentication.md), and
+[deployment guide](../../deployment.md) for current behavior.
+
+## Original implementation plan
 
 **Goal:** Build the Phase 1 Activate All RI 2026 event section: activator recruitment, moderated submissions, public coverage views, and publishable static JSON.
 

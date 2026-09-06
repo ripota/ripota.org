@@ -1,6 +1,23 @@
 # Activate RI 2026 Signup Listing Review Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
+> Historical implementation plan. Reviewed against repository source on 2026-09-06.
+> The original text, code examples, and checkboxes below preserve earlier
+> decisions; they are not current setup instructions or a live work queue.
+> See the [archive guide](../README.md) for how to use these records.
+
+## Current implementation status
+
+Multi-stop signup, searchable park selection, private affiliation fields,
+county metadata, and filtered tables are implemented. The current
+[time-block helper](../../../src/lib/activate-ri/time-blocks.ts) offers eight
+three-hour EDT blocks covering the full day and converts them to UTC, including
+next-day rollover; the examples below predate that change. D1 stores UTC
+instants, park metadata comes from `@ripota/parks`, and public listings fetch
+live stops instead of generated `schedule.json`/`coverage.json`. See the
+[data-flow overview](../../activate-ri-2026/data-flow.md) and
+[current listing code](../../../src/lib/activate-ri/listing.ts).
+
+## Original implementation plan
 
 **Goal:** Implement the approved Activate RI signup and listing review: multi-stop signup, fixed three-hour blocks, searchable park selection, private affiliation collection, county-aware public data, and table filters.
 

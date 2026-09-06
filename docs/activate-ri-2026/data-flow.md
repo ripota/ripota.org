@@ -19,12 +19,19 @@ Primary runtime bindings:
   limits (5/10 seconds and 20/60 seconds).
 - `AUTH_RATE_LIMIT_BURST` and `AUTH_EMAIL_RATE_LIMIT`: passkey-ceremony and
   email-fallback limits.
+- `ANALYTICS`: privacy-bounded usage events in Analytics Engine;
+  `ANALYTICS_RATE_LIMIT` and `CLIENT_ERROR_RATE_LIMIT` protect public telemetry.
 
 Relevant Worker routing is in `src/worker/index.ts`:
 
 - `/api/activate-ri-2026/*` routes to the Activate RI API handler.
 - `/api/auth/*` handles unified sessions, passkeys, email fallback, legacy
-  upgrades, and Access bootstrap.
+  upgrades, and community bylines. Access bootstrap is under the event admin API.
+- `/api/pota/spots` serves the cached public RI live-spot feed.
+- `/api/activate-ri-2026/public/park-status` and `/public/spot-activity` under
+  the same event API prefix serve persisted POTA evidence and recent/event activity.
+- `/api/analytics/events` and `/api/client-errors` accept bounded public telemetry.
+- `/embed/activate-ri-2026/` serves an embeddable public event status page.
 - `/account/sign-in/`, `/account/access/`, and `/account/security/` are
   private/no-store account surfaces.
 - `/activate-ri-2026/admin/` requires a current passkey-verified admin session
@@ -50,12 +57,22 @@ D1 is the source of truth for operational event data:
   activator memberships
 - single-use passkey challenges and email/recovery token hashes
 - authentication audit events
-- submitted plans
+- activator-owned itineraries (the API still calls these plans)
 - activation stops
 - approval state
 - cancellation state
 - activity/audit events
 - Ops Room membership, settings, messages, durable change events, and broadcast state
+- community bylines and independent site moderator roles
+- authenticated feature-use aggregates
+- POTA live-spot cache, rolling spot observations/history synchronization, and
+  event-specific observations, activation evidence, and reconciliation state
+
+Migration `0006_activator_owned_stops.sql` removed `activate_ri_plans`.
+`activate_ri_activators` holds the review status and itinerary identity;
+`activate_ri_stops.activator_id` owns each stop. API `planId` values are activator
+IDs. Repeated submissions using the same normalized event email add stops to
+that itinerary; they do not create separate plan rows.
 
 Generated JSON files under `public/data/activate-ri-2026/` are build artifacts
 used by public pages for stable event and park reference data. They are not
@@ -80,7 +97,8 @@ stored UTC instants.
 
 ## Static Versus Live Data
 
-The current public site has two public data paths:
+The event's reference and itinerary data uses these paths. POTA activity has
+separate live and persisted paths described below.
 
 | Data path | Backing source | Updated by approval/edit? | Used for |
 | --- | --- | --- | --- |
@@ -133,12 +151,17 @@ site by itself.
 2. `POST /api/activate-ri-2026/plans` validates the JSON payload.
 3. Turnstile is verified unless disabled for local development.
 4. D1 upserts an activator by normalized email.
-5. Stops are inserted with `status = 'pending-review'`.
-6. A `plan-created` activity event is written.
+5. New/unapproved activators remain `pending` and their stops use
+   `pending-review`. An already-approved activator keeps approval; additional
+   submitted stops are immediately `scheduled`.
+6. A signed-in account using its own verified primary email is linked to the
+   event activator within the same D1 transaction; ownership conflicts fail closed.
 7. The Worker stores a hashed, 15-minute, single-use email token and attempts
    to send the fragment-based claim link.
 8. No reusable edit token is created while legacy-link issuance is disabled.
-9. Email success or failure is written to the activity and auth audit logs.
+9. `plan-created` records the access-email outcome. Pending submissions also
+   attempt the configured admin notification; email and authentication outcomes
+   are recorded in activity/auth audit logs.
 
 The submission succeeds even if email delivery fails. The email failure is
 visible to admins through the activity log.
@@ -156,8 +179,8 @@ D1 migrations to a temporary SQLite database. The browser path is covered by the
    `GET /api/activate-ri-2026/admin/plans`.
 4. Approval posts to
    `POST /api/activate-ri-2026/admin/plans/<plan-id>/approve`.
-5. D1 changes the plan from `pending` to `approved`.
-6. D1 changes pending-review stops for that plan to `scheduled`.
+5. D1 changes the activator's review status from `pending` to `approved`.
+6. D1 changes that activator's pending-review stops to `scheduled`.
 7. D1 creates an active Ops Room membership if one does not already exist.
    Existing muted or banned membership state is preserved.
 8. D1 writes a `plan-approved` activity event.
@@ -169,18 +192,22 @@ static JSON files.
 
 1. The activator signs in with a passkey or a 15-minute email link. A
    previously issued `/activate-ri-2026/access/#<token>` link remains valid.
-2. The access page removes the fragment and exchanges it for a hashed 14-day
-   HttpOnly legacy session cookie. Legacy `/edit/<token>/` links do the same in
-   the Worker. In dual/unified authentication mode, the credential also creates
-   a unified account session without consuming or rotating the link.
+2. Passkeys and `/account/access/#<token>` email links create a hashed 14-day
+   HttpOnly unified session. The legacy `/activate-ri-2026/access/` page removes
+   its fragment and creates a legacy session; `/edit/<token>/` does the same in
+   the Worker. In dual/unified mode, a valid legacy credential also creates a
+   unified session without consuming or rotating the reusable link.
 3. The browser lands on the tokenless `/activate-ri-2026/activator/plan/` page.
 4. The editor reads and mutates `/api/activate-ri-2026/activator/*` routes with
    the session cookie. State changes also require the exact configured Origin.
 5. Legacy token APIs remain compatibility adapters over the same domain helpers.
 
 Pending-plan edits keep stops in `pending-review`. Approved-plan edits keep
-active stops public by setting edited or added stops to `scheduled`, unless a
-stop is already `completed`.
+active stops public; new stops are `scheduled`, and existing delayed stops keep
+their status. Cancelled and completed stops are preserved across itinerary
+saves and cannot be reopened or rewritten through that form. Full cancellation
+keeps an approved activator approved while cancelling active stops; an
+unapproved activator becomes `withdrawn`.
 
 High-impact approved-plan changes attempt to notify admins by email. Those
 notifications are best-effort and do not roll back accepted edits.
@@ -247,6 +274,9 @@ of at most 49 recipients with the configured sender in `To`. Per-recipient state
 makes a retry target only failed recipients. Message removal clears the body in
 D1. Room moderation, active-socket disconnect, portal-session revocation, and
 legacy-access revocation remain distinct controls.
+The Ops members' session/link controls affect legacy credentials only. Account
+security's **Revoke sessions** ends unified and related legacy sessions; use
+that control to sign out a current production account.
 
 Participant message/removal/resolution HTTP mutations and admin room-mode
 changes are routed through the event Durable Object. The object serializes the
@@ -254,14 +284,42 @@ mutation, commits the authoritative message/change event to D1, and only then
 broadcasts the complete sanitized event to hibernating WebSockets. D1 remains
 the history store; Durable Object storage is not a second message database.
 
-`GET /api/activate-ri-2026/ops/socket` validates exact Origin, activator session
-or Access organizer identity, membership, effective room mode, and the hard
+`GET /api/activate-ri-2026/ops/socket` validates exact Origin, the configured
+activator or administrator authorization, membership, effective room mode, and the hard
 disable before obtaining the object. Activator sockets are tagged by opaque
 activator ID; organizer sockets carry no email. On connect the object sends a
 high-water cursor so the browser can apply bounded D1 catch-up before live
 events. The object has no heartbeat interval. Turning the room off broadcasts
 the durable mode event, closes participant sockets, and leaves organizer
 connections available for control.
+
+In production, participant authorization uses unified event membership and
+organizer authorization requires a recent passkey-verified event admin session.
+Access organizer authorization is available only in the configured rollback/dual
+modes described in [authentication.md](authentication.md).
+
+## POTA Live Activity and Event Evidence
+
+The minute cron fetches the cached official RI spot feed, persists rolling spot
+observations, and synchronizes per-callsign/park report history. History sync
+also performs a final bounded pass for recently closed activations, using the
+state added by migrations `0019` and `0021`. This supports public recent/event
+activity even after spots disappear from the live feed. Structured park spots
+and park references declared in multi-park spot text remain distinct evidence;
+neither confirms an activation.
+
+During the configured event capture window, the same collector writes
+event-specific spot observations. Activation-history reconciliation runs during
+its configured window through October 14, 2026 at 00:00 UTC; admins can request
+a protected reconciliation, including a deep history pass. The event window and
+qualification filters live in `src/lib/activate-ri/pota-event.ts`. Public park
+status distinguishes scheduled, observed, and POTA-confirmed activity using
+these persisted records. It does not treat a local completed stop or a spot as
+official log confirmation.
+
+The daily `17 5 * * *` cron performs rolling spot-history cleanup; rolling
+observations have a 14-day retention window. Event evidence and Ops Room
+retention are separate. The minute cron also runs bounded authentication cleanup.
 
 ## Public Schedule And Coverage Flow
 
@@ -292,7 +350,7 @@ changes without a deploy.
 
 The public D1 export includes stops only when:
 
-- the plan has `status = 'approved'`
+- the owning activator has `status = 'approved'`
 - the stop status is one of:
   - `scheduled`
   - `delayed`
@@ -324,8 +382,11 @@ responses do not intentionally use public caching.
 
 With this setup, approved D1 changes should appear on JavaScript-enhanced public
 views after the next client fetch, subject to the short browser, shared cache,
-and per-colo Worker Cache API freshness windows. Open pages do not poll;
-visitors must reload or navigate.
+and per-colo Worker Cache API freshness windows. Itinerary consumers do not poll;
+visitors reload or use **Reload schedule**. Schedule views warn after five
+minutes. This is separate from live spots, which refresh every 30 seconds, and
+POTA park status, which refreshes every 60 seconds while visible. Both stores
+also refresh when the page becomes visible again.
 
 ## Deployment Flow
 
@@ -373,7 +434,6 @@ For JavaScript-enabled public schedule and coverage surfaces, they become
 visible through the live public stops API without waiting for a deploy.
 No-JavaScript public pages do not receive live event schedule state.
 
-At the expected event scale, D1 public reads are comfortably within the paid
-plan limits, but the current design does mean public JavaScript traffic can
-query D1. A future static-first publishing model could materialize public JSON
-after public-data mutations and make D1 strictly an operational source of truth.
+Public JavaScript traffic can query D1 through cached endpoints. Assess actual
+usage with the [analytics runbook](../analytics.md); the architecture alone does
+not establish headroom against account limits.

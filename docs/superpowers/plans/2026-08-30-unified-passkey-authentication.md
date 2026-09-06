@@ -1,14 +1,24 @@
 # Unified Passkey Authentication Implementation Plan
 
-> Historical implementation plan; administrator rollout cleanup completed on
-> 2026-09-06. The checkboxes and cutover ordering below are not the current
-> operational checklist. Production requires admin passkeys, retains Access
-> only for recovery, and no longer has a first-time admin bootstrap allowlist.
-> Use [the authentication runbook](../../activate-ri-2026/authentication.md)
-> and [the Access guide](../../cloudflare-access.md) for current setup,
-> verification, and rollback ordering.
+> Historical implementation plan. Reviewed against repository source on 2026-09-06.
+> The original text, code examples, and checkboxes below preserve earlier
+> decisions; they are not current setup instructions or a live work queue.
+> See the [archive guide](../README.md) for how to use these records.
 
-> **For agentic workers:** Implement this plan task-by-task. Keep each task independently testable and deploy additive database changes before changing production routing. Steps use checkbox (`- [ ]`) syntax for tracking.
+## Current implementation status
+
+The unified auth modules, migrations, account pages, API acceptance tests,
+and virtual-authenticator browser tests exist. The checked-in production
+[configuration](../../../wrangler.jsonc) uses admin `passkey` mode, activator
+`unified` mode, email login enabled, and new reusable-link issuance disabled.
+The recorded administrator rollout cleanup completed on 2026-09-06: Access
+remains for recovery, and the first-time admin bootstrap allowlist was removed.
+The original staged rollout and checkboxes below are not an operational
+checklist or evidence that every proposed manual device check was performed.
+Use the [authentication runbook](../../activate-ri-2026/authentication.md) and
+[Access guide](../../cloudflare-access.md) for setup and rollback ordering.
+
+## Original implementation plan
 
 **Goal:** Replace routine Cloudflare Access and long-lived private-link authentication with one first-party identity and session system for Activate RI administrators and activators. Make passkeys the primary login method, retain email login for activators and recovery, preserve every existing private link, and give administrators safe passkey-reset and session-revocation controls.
 
@@ -33,7 +43,7 @@
 
 ---
 
-## Current State and Constraints
+## State and Constraints When Written
 
 The current system has two unrelated authentication mechanisms:
 

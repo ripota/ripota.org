@@ -1,6 +1,22 @@
 # Activate RI Real DB and Browser E2E Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> Historical implementation plan. Reviewed against repository source on 2026-09-06.
+> The original text, code examples, and checkboxes below preserve earlier
+> decisions; they are not current setup instructions or a live work queue.
+> See the [archive guide](../README.md) for how to use these records.
+
+## Current implementation status
+
+The [SQLite D1 adapter](../../../src/worker/test-utils/sqlite-d1.ts),
+[API acceptance test](../../../src/worker/activate-ri.acceptance.test.ts), and
+[browser harness](../../../e2e/helpers/activate-ri-server.ts) are implemented.
+Browser coverage now includes authentication, edits, schedule, hunter tools,
+and the Ops Room. It is part of `mise run test`, superseding the original
+opt-in-only requirement. Use `mise run test-unit -- --run <test-path>` for
+focused Vitest tests, or `mise run e2e:activate-ri` for the event browser suite.
+Current setup and checks are documented in the [project README](../../../README.md).
+
+## Original implementation plan
 
 **Goal:** Add one fast real-SQL API acceptance test and one slow opt-in browser E2E test for the Activate All RI 2026 volunteer submission flow.
 

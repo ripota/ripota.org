@@ -1,5 +1,30 @@
 # Activate RI Share Card Refresh Design
 
+> Historical design. Reviewed against repository source on 2026-09-06.
+> The original text, code examples, and checkboxes below preserve earlier
+> decisions; they are not current setup instructions or a live work queue.
+> See the [archive guide](../README.md) for how to use these records.
+
+## Current implementation status
+
+The [render task](../../../mise/tasks/assets/activate-ri-share-card),
+[renderer](../../../scripts/activate-ri-2026/render-share-card.mjs), and
+[three-hour GitHub workflow](../../../.github/workflows/activate-ri-share-card.yml)
+are implemented. The correct task name is `assets:activate-ri-share-card`.
+Both local and CI runs require a successful remote stops fetch by default;
+there is no automatic local fallback. `--local-stops` explicitly selects the
+committed snapshot and is for development only. The workflow commits the PNG
+and metadata; deployment is a separate step documented in the
+[deployment guide](../../deployment.md).
+
+Current limitation: the fingerprint lists specific template files, so it does
+not capture every transitive dependency (including `EventHeroContent.astro` and
+`EventPhaseViews.astro`) or POTA progress input used by later hero phases. Use
+`mise run assets:activate-ri-share-card -- --force` when refreshing after changes
+outside that list; an unchanged fingerprint alone does not establish freshness.
+
+## Original design
+
 Date: 2026-06-17
 
 ## Purpose

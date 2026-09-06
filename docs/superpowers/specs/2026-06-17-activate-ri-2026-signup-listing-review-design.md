@@ -1,5 +1,24 @@
 # Activate RI 2026 Signup and Listing Review Design
 
+> Historical design. Reviewed against repository source on 2026-09-06.
+> The original text, code examples, and checkboxes below preserve earlier
+> decisions; they are not current setup instructions or a live work queue.
+> See the [archive guide](../README.md) for how to use these records.
+
+## Current implementation status
+
+Multi-stop signup, park search, county-aware listings, and private affiliation
+collection are implemented. The current
+[time-block helper](../../../src/lib/activate-ri/time-blocks.ts) provides eight
+three-hour EDT blocks covering all 24 hours, rather than the five blocks below.
+D1 stores UTC instants, with date rollover handled during conversion. County
+metadata comes from `@ripota/parks`, and public listings use live D1 rather than
+generated schedule/coverage JSON. Live POTA spot integration has also been
+added since the original non-goals. See the
+[data-flow overview](../../activate-ri-2026/data-flow.md).
+
+## Original design
+
 ## Summary
 
 This design updates the Activate All RI 2026 activator signup and public

@@ -1,6 +1,23 @@
 # Activate RI 2026 Reference Map Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> Historical implementation plan. Reviewed against repository source on 2026-09-06.
+> The original text, code examples, and checkboxes below preserve earlier
+> decisions; they are not current setup instructions or a live work queue.
+> See the [archive guide](../README.md) for how to use these records.
+
+## Current implementation status
+
+The shared [ReferenceMap](../../../src/components/ReferenceMap.astro) and
+[map adapter](../../../src/lib/reference-map.ts) exist. The map now consumes
+package-backed references and display geometry from `@ripota/parks`; the local
+reference/boundary files and static schedule imports below were removed.
+The event hero, signup, and editor maps use `showBoundaries={false}`; the POTA
+progress, directory, and park detail views retain geometry. The volunteer map is below the form, and
+coverage comes from the live public API. See
+[parks package adoption](../../parks-v311-adoption.md) and the
+[data-flow overview](../../activate-ri-2026/data-flow.md).
+
+## Original implementation plan
 
 **Goal:** Build a shared boundary-first Rhode Island POTA reference map for the homepage, Activate RI overview, and volunteer signup flow.
 

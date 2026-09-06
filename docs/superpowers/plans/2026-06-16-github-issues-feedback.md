@@ -1,6 +1,20 @@
 # GitHub Issues Feedback Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
+> Historical implementation plan. Reviewed against repository source on 2026-09-06.
+> The original text, code examples, and checkboxes below preserve earlier
+> decisions; they are not current setup instructions or a live work queue.
+> See the [archive guide](../README.md) for how to use these records.
+
+## Current implementation status
+
+Implemented: [site feedback data](../../../src/data/site.ts), the global
+[footer](../../../src/components/Footer.astro), and the
+[GitHub issue form](../../../.github/ISSUE_TEMPLATE/site-suggestion.yml) provide
+the feedback path described here. The source still keeps site feedback separate
+from official POTA resources. For current checks and contribution guidance,
+use [CONTRIBUTING.md](../../../CONTRIBUTING.md).
+
+## Original implementation plan
 
 **Goal:** Add a global footer link that sends site suggestions and corrections to a guided GitHub issue form.
 

@@ -1,5 +1,24 @@
 # Activate RI 2026 Reference Map Design
 
+> Historical design. Reviewed against repository source on 2026-09-06.
+> The original text, code examples, and checkboxes below preserve earlier
+> decisions; they are not current setup instructions or a live work queue.
+> See the [archive guide](../README.md) for how to use these records.
+
+## Current implementation status
+
+The shared [ReferenceMap](../../../src/components/ReferenceMap.astro) is
+implemented and also supports a park-directory variant. References and reviewed
+geometry now come from the pinned `@ripota/parks` package, replacing the local
+boundary inventory described below. The event hero, signup, and editor maps
+use markers with boundaries off; POTA progress, directory, and detail maps
+retain geometry. The volunteer map is
+below the form. Live D1 supplies coverage, with no production static-schedule
+fallback. See [parks package adoption](../../parks-v311-adoption.md) and the
+[data-flow overview](../../activate-ri-2026/data-flow.md).
+
+## Original design
+
 ## Goal
 
 Add a richer Rhode Island POTA reference map that helps visitors understand
@@ -8,7 +27,7 @@ gaps, and lets volunteers start an activation stop directly from the map. The
 map should reuse the existing reference data, the reviewed local GeoJSON
 boundary inventory, and the public event schedule data.
 
-## Current State
+## State When Written
 
 The homepage uses `ResourceMapPreview` to render a Leaflet map with one circle
 marker per Rhode Island POTA reference. The popup shows the reference, park
