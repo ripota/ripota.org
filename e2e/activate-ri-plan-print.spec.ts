@@ -36,7 +36,7 @@ const privateEmail = "PRINT_EMAIL_MUST_NOT_EXPORT@example.invalid";
 const longNamedParks = [...parks].sort((left, right) => right.name.length - left.name.length);
 
 for (const format of ["Letter", "A4"] as const) {
-  test(`${format} activator plan PDF preserves complete saved stops across portrait pages`, async ({ page }, testInfo) => {
+  test(`${format} activator plan PDF omits cancelled stops and preserves other saved stops across portrait pages`, async ({ page }, testInfo) => {
     const server = await startActivateRiServer({ legacyLinkIssuanceEnabled: true });
     try {
       const { plan, token } = await signInWithPlan(page, server.origin);
@@ -69,8 +69,12 @@ for (const format of ["Letter", "A4"] as const) {
       await page.emulateMedia({ colorScheme: "dark" });
       await page.goto(`${server.origin}${planPath}`);
       await expect(page.locator("[data-print-plan]")).toBeEnabled();
-      await expect(page.locator("[data-plan-print-stop]")).toHaveCount(stops.length);
+      await expect(page.locator("[data-plan-print-stop]")).toHaveCount(stops.length - 1);
       await expect(page.locator("[data-activator-plan-print]")).toBeHidden();
+      const history = page.getByRole("region", { name: "Cancelled and completed stops", exact: true });
+      await expect(history).toBeVisible();
+      await expect(history.locator('[data-readonly-stop="cancelled"]')).toContainText(stops[2].park_reference);
+      await expect(history.locator('[data-readonly-stop="completed"]')).toContainText(stops[1].park_reference);
 
       await page.locator('[name="submitterName"]').fill("UNSAVED_NAME_MUST_NOT_EXPORT");
       await page.locator('[name="organizerNotes"]').fill("UNSAVED_NOTE_MUST_NOT_EXPORT");
@@ -91,7 +95,7 @@ for (const format of ["Letter", "A4"] as const) {
       for (const value of [
         "My activation plan", "Activate All RI 2026", printedPlan.submitter_callsign,
         printedPlan.submitter_name, printedPlan.club, "Approved", "Prepared", "EDT", "UTC",
-        printedPlan.public_notes, printedPlan.organizer_notes, "Delayed", "Cancelled", "Completed",
+        printedPlan.public_notes, printedPlan.organizer_notes, "Delayed", "Completed", "Scheduled",
         "23:45-01:15 UTC (+1 day)", "Sep 13, 2026", "not an official Parks on the Air property",
       ]) expect(text).toContain(value);
       expect(text).toMatch(/organizer/i);
@@ -112,6 +116,12 @@ for (const format of ["Letter", "A4"] as const) {
       }
       for (const [index, stop] of stops.entries()) {
         const marker = `PRINT_STOP_${String(index + 1).padStart(2, "0")}`;
+        if (stop.status === "cancelled") {
+          for (const value of ["Cancelled", stop.park_reference, longNamedParks[index].name, marker, stop.public_notes, stop.organizer_notes]) {
+            expect(text).not.toContain(value);
+          }
+          continue;
+        }
         const containingPages = printedPages.filter((printedPage) => printedPage.text.includes(marker));
         expect(containingPages, `${marker} remains with its complete stop`).toHaveLength(1);
         expect(containingPages[0].text).toContain(stop.park_reference);
@@ -207,10 +217,23 @@ test("Print my plan uses saved changes, handles native printing, and refreshes a
     page.once("dialog", (dialog) => dialog.accept());
     await page.getByRole("button", { name: "Cancel plan", exact: true }).click();
     await expect(page.locator("[data-edit-plan-state]")).toContainText("All stops cancelled");
-    await expect(page.locator("[data-plan-print-stop]")).toHaveCount(1);
-    await expect(printView).toContainText("Cancelled");
-    await expect(printView).toContainText("US-2868");
+    await expect(page.locator("[data-plan-print-stop]")).toHaveCount(0);
+    await expect(printView).toContainText("All stops cancelled");
+    await expect(printView).toContainText("No activation stops to print.");
+    await expect(printView).not.toContainText("US-2868");
+    const history = page.getByRole("region", { name: "Cancelled and completed stops", exact: true });
+    await expect(history).toBeVisible();
+    await expect(history.locator('[data-readonly-stop="cancelled"]')).toContainText("US-2868");
     await expect(printButton).toBeEnabled();
+    await page.emulateMedia({ media: "print" });
+    const cancelledPath = testInfo.outputPath("activator-plan-cancelled.pdf");
+    const cancelledBytes = await page.pdf({ path: cancelledPath, format: "Letter", preferCSSPageSize: true, printBackground: true });
+    await testInfo.attach("activator-plan-cancelled", { path: cancelledPath, contentType: "application/pdf" });
+    const cancelledPages = await readPrintedPdf(cancelledBytes);
+    const cancelledText = cancelledPages.map((printedPage) => printedPage.text).join(" ");
+    expect(cancelledText).toContain("No activation stops to print.");
+    expect(cancelledText).not.toContain("US-2868");
+    expect(cancelledText).not.toContain("Saved public stop note.");
   } finally {
     await server.stop();
   }

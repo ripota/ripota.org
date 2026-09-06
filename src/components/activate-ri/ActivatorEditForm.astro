@@ -367,8 +367,9 @@ const turnstileSiteKey =
     appendPrintNote(notes, "Plan notes", plan.public_notes);
     appendPrintNote(notes, "Notes to organizers", plan.organizer_notes);
     const list = printPlanRoot.querySelector("[data-plan-print-stops]");
-    if (stops.length === 0) list?.appendChild(printParagraph("No activation stops in this saved plan."));
-    for (const stop of stops) {
+    const printableStops = stops.filter((stop) => stop.status !== "cancelled");
+    if (printableStops.length === 0) list?.appendChild(printParagraph("No activation stops to print."));
+    for (const stop of printableStops) {
       const card = document.createElement("article");
       card.dataset.planPrintStop = "";
       const reference = stringValue(stop.park_reference);
