@@ -33,7 +33,7 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
     <div class="park-planning-personal">
       <label class="event-coverage-toggle">
         <input type="checkbox" data-my-parks disabled aria-describedby="my-parks-help" />
-        <span>My parks</span>
+        <span data-my-parks-label>My parks</span>
       </label>
       <p id="my-parks-help" data-my-parks-help>Checking sign-in…</p>
       <a data-my-parks-sign-in href="/account/sign-in/?returnTo=%2Factivate-ri-2026%2Fparks%2F%3Fmine%3D1" hidden>Sign in to see my parks</a>
@@ -69,7 +69,8 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
 
 <script>
   import { fetchPublicActivationStops } from "../../lib/activate-ri/public-stops-client";
-  import { deriveParkPlans, myScheduledParkReferences, type ParkPlanSummary, type PlanningSort } from "../../lib/activate-ri/planning";
+  import { deriveParkPlans, myScheduledParkReferences, type ParkPlanSummary } from "../../lib/activate-ri/planning";
+  import { readPlanningView, writePlanningView } from "../../lib/activate-ri/planning-view";
   import { filterPublicStops, uniqueSortedValues } from "../../lib/activate-ri/listing";
   import { formatActivationDate, formatActivationTimeRange } from "../../lib/activate-ri/time";
   import type { PublicActivationStop, PublicParkSummary } from "../../lib/activate-ri/types";
@@ -83,62 +84,115 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
     const form = root.querySelector<HTMLFormElement>("form")!;
     const controls = Array.from(form.querySelectorAll("[data-filter]")) as unknown as HTMLSelectElement[];
     const mine = root.querySelector<HTMLInputElement>("[data-my-parks]")!;
+    const mineLabel = root.querySelector<HTMLElement>("[data-my-parks-label]")!;
     const mineHelp = root.querySelector<HTMLElement>("[data-my-parks-help]")!;
+    const moreFilters = root.querySelector<HTMLDetailsElement>(".park-planning-more")!;
     const signIn = root.querySelector<HTMLAnchorElement>("[data-my-parks-sign-in]")!;
     const myPlan = root.querySelector<HTMLAnchorElement>("[data-my-plan]")!;
     const status = root.querySelector<HTMLElement>("[data-planning-status]")!;
     const refresh = root.querySelector<HTMLButtonElement>("[data-reload-planning]")!;
     const parks = JSON.parse(table.dataset.parks ?? "[]") as PublicParkSummary[];
-    const initialUrl = new URL(window.location.href);
+    let view = readPlanningView(new URL(window.location.href), parks);
     let stops: PublicActivationStop[] | null = null;
     let callsign = "";
     let sessionLoading = true;
     let loadedAt: Date | null = null;
     let loading = false;
-    let stopFiltersInitialized = false;
     let accountSignedIn = false;
-    const expanded = new Set<string>();
+    let sessionFailed = false;
 
-    for (const control of controls) {
-      const value = initialUrl.searchParams.get(control.dataset.filter!);
-      if (value && Array.from(control.options).some((option) => option.value === value)) control.value = value;
-    }
-    mine.checked = initialUrl.searchParams.get("mine") === "1";
+    syncControls();
+    updateUrl("replace");
     form.addEventListener("submit", (event) => event.preventDefault());
     form.addEventListener("change", (event) => {
-      mine.disabled = sessionLoading || (!callsign && !mine.checked);
+      const target = event.target;
+      if (target === mine) {
+        view.activator = mine.checked ? callsign : "";
+        view.mine = mine.checked && !callsign;
+      } else if (target instanceof HTMLSelectElement) {
+        const key = target.dataset.filter;
+        if (key === "sort") view.sort = target.value === "name" || target.value === "slots" ? target.value : "activators";
+        else if (key === "timeline" || key === "county" || key === "mode" || key === "band") view[key] = target.value;
+      }
+      syncControls();
       updateUrl();
       render();
-      const target = event.target;
       const category = target === mine ? "activator" : target instanceof HTMLSelectElement ? target.dataset.filter : "";
       if (category === "timeline" || category === "county" || category === "mode" || category === "band" || category === "activator") {
         void trackAnalyticsEvent("activate-ri-2026", "coverage_filter_used", { filterCategory: category });
       }
     });
+    moreFilters.addEventListener("toggle", () => {
+      // Hydration also queues toggle events; only record an actual user change.
+      if (moreFilters.open === view.moreFilters) return;
+      view.moreFilters = moreFilters.open;
+      updateUrl();
+    });
+    moreFilters.querySelector("summary")!.addEventListener("click", (event) => {
+      event.preventDefault();
+      view.moreFilters = !moreFilters.open;
+      moreFilters.open = view.moreFilters;
+      updateUrl();
+    });
+    window.addEventListener("popstate", () => {
+      view = readPlanningView(new URL(window.location.href), parks);
+      resolveMyParks();
+      syncControls();
+      updateUrl("replace");
+      render();
+    });
+    signIn.addEventListener("click", updateSignInLink);
     refresh.addEventListener("click", () => { void load(true); });
     void load();
 
-    function value(key: string): string {
-      return controls.find((control) => control.dataset.filter === key)?.value ?? "all";
+    function resolveMyParks(): void {
+      if (view.mine && callsign && !sessionLoading) {
+        view.activator = callsign;
+        view.mine = false;
+      }
     }
 
-    function updateUrl(): void {
-      const url = new URL(window.location.href);
-      url.searchParams.delete("coverage");
-      for (const control of controls) {
-        const key = control.dataset.filter!;
-        const isDefault = control.value === "all" || (key === "sort" && control.value === "activators");
-        if (isDefault) url.searchParams.delete(key);
-        else url.searchParams.set(key, control.value);
+    function syncControls(): void {
+      const active = (stops ?? []).filter((stop) => !stop.id.startsWith("sample-") && (stop.status === "scheduled" || stop.status === "delayed"));
+      for (const key of ["mode", "band"] as const) {
+        const control = controls.find((candidate) => candidate.dataset.filter === key)!;
+        const options = uniqueSortedValues(active.map((stop) => key === "mode" ? stop.modes : stop.bands));
+        // A shared filter remains useful even when there are no matching plans.
+        if (view[key] !== "all" && !options.includes(view[key])) options.push(view[key]);
+        control.replaceChildren(new Option(key === "mode" ? "Any mode" : "Any band", "all"), ...options.map((option) => new Option(option, option)));
       }
-      if (mine.checked) url.searchParams.set("mine", "1");
-      else url.searchParams.delete("mine");
-      window.history.replaceState({}, "", url);
+      for (const control of controls) {
+        const key = control.dataset.filter as "sort" | "timeline" | "county" | "mode" | "band";
+        control.value = view[key];
+      }
+      moreFilters.open = view.moreFilters;
+      mine.checked = !!view.activator || view.mine;
+      mine.disabled = !mine.checked && (sessionLoading || !callsign);
+      const sharedScope = view.activator && view.activator !== callsign;
+      mineLabel.textContent = sharedScope ? `${view.activator}'s parks` : "My parks";
+      mineHelp.textContent = sharedScope
+        ? `${view.activator}'s scheduled parks across the event, with counts for everyone.`
+        : sessionLoading ? "Checking sign-in…"
+        : sessionFailed ? "Could not check your account. Refresh plans to try again."
+        : callsign ? `Your scheduled parks across the event, with counts for everyone. Signed in as ${callsign}.`
+        : accountSignedIn ? "Your parks will appear after your activation plan is approved."
+        : "Sign in to filter to parks in your activation plan.";
+      signIn.hidden = sessionLoading || accountSignedIn;
+      myPlan.hidden = !callsign;
+    }
+
+    function updateUrl(mode: "push" | "replace" = "push"): void {
+      const url = writePlanningView(new URL(window.location.href), view);
+      if (url.href !== window.location.href) {
+        if (mode === "push") window.history.pushState(window.history.state, "", url);
+        else window.history.replaceState(window.history.state, "", url);
+      }
       updateSignInLink();
     }
 
     function updateSignInLink(): void {
       const returnTo = new URL(window.location.href);
+      returnTo.searchParams.delete("activator");
       returnTo.searchParams.set("mine", "1");
       signIn.href = `/account/sign-in/?returnTo=${encodeURIComponent(returnTo.pathname + returnTo.search + returnTo.hash)}`;
     }
@@ -161,20 +215,7 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
           return fetch(input, { ...init, headers, cache: "no-store" });
         } : undefined);
         loadedAt = new Date();
-        for (const key of ["mode", "band"] as const) {
-          const control = controls.find((candidate) => candidate.dataset.filter === key)!;
-          const selected = stopFiltersInitialized ? control.value : initialUrl.searchParams.get(key) ?? "all";
-          const active = stops.filter((stop) => !stop.id.startsWith("sample-") && (stop.status === "scheduled" || stop.status === "delayed"));
-          const options = uniqueSortedValues(active.map((stop) => key === "mode" ? stop.modes : stop.bands));
-          // Keep an active filter even if the last matching stop was removed.
-          // Zero-count parks are useful planning results, not a reason to broaden it.
-          if (stopFiltersInitialized && selected !== "all" && !options.includes(selected)) options.push(selected);
-          control.replaceChildren(new Option(key === "mode" ? "Any mode" : "Any band", "all"), ...options.map((option) => new Option(option, option)));
-          control.value = options.includes(selected) ? selected : "all";
-        }
-        stopFiltersInitialized = true;
-        updateUrl();
-        if (value("mode") !== "all" || value("band") !== "all") root.querySelector<HTMLDetailsElement>(".park-planning-more")!.open = true;
+        syncControls();
         render();
       } catch {
         stops = null;
@@ -185,7 +226,8 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
 
     async function loadSession(): Promise<void> {
       sessionLoading = true;
-      mine.disabled = true;
+      sessionFailed = false;
+      syncControls();
       try {
         const response = await fetch("/api/auth/session", { headers: { accept: "application/json" }, cache: "no-store" });
         if (!response.ok) throw new Error("Session unavailable");
@@ -193,46 +235,40 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
         if (!session || typeof session.signedIn !== "boolean") throw new Error("Invalid session response");
         accountSignedIn = session.signedIn === true;
         callsign = session.signedIn === true && typeof session.activator?.callsign === "string" ? session.activator.callsign.trim().toUpperCase() : "";
-        mineHelp.textContent = callsign
-          ? `Your scheduled parks across the event, with counts for everyone. Signed in as ${callsign}.`
-          : session.signedIn === true ? "Your parks will appear after your activation plan is approved." : "Sign in to filter to parks in your activation plan.";
-        signIn.hidden = session.signedIn === true;
-        myPlan.hidden = !callsign;
       } catch {
+        sessionFailed = true;
         accountSignedIn = false;
         callsign = "";
-        mineHelp.textContent = "Could not check your account. Refresh plans to try again.";
-        signIn.hidden = false;
-        myPlan.hidden = true;
       } finally {
         sessionLoading = false;
-        mine.disabled = !callsign && !mine.checked;
-        updateSignInLink();
+        resolveMyParks();
+        syncControls();
+        updateUrl("replace");
         render();
       }
     }
 
     function render(): void {
       if (!stops) return;
-      if (mine.checked && !callsign) {
+      if (view.mine) {
         const message = sessionLoading ? "Checking your activation plan…" : accountSignedIn ? "Your account has no published activation plan yet. Clear My parks to find a park to activate." : "Sign in with an activator account to see your scheduled parks, or clear My parks to see all parks.";
         status.textContent = message;
         showMessage(message);
         return;
       }
       const personalParks = callsign ? myScheduledParkReferences(stops, callsign) : new Set<string>();
-      const filteredStops = filterPublicStops(stops, parks, { mode: value("mode"), band: value("band") });
+      const filteredStops = filterPublicStops(stops, parks, { mode: view.mode, band: view.band });
       const rows = deriveParkPlans(parks, filteredStops, {
-        timeline: value("timeline"), county: value("county"), sort: value("sort") as PlanningSort,
-        ...(mine.checked ? { myParkReferences: personalParks } : {}),
+        timeline: view.timeline, county: view.county, sort: view.sort,
+        ...(view.activator ? { myParkReferences: myScheduledParkReferences(stops, view.activator) } : {}),
       });
       const selectedScope = controls.filter((control) => control.dataset.filter !== "sort" && control.value !== "all")
         .map((control) => control.selectedOptions[0]?.textContent ?? "");
       const scope = selectedScope.length ? selectedScope.join(" · ") : "All event dates";
       const loaded = loadedAt ? ` Updated ${new Intl.DateTimeFormat(undefined, { timeStyle: "short" }).format(loadedAt)}.` : "";
-      status.textContent = `${rows.length} ${rows.length === 1 ? "park" : "parks"} · ${mine.checked ? "My parks · " : ""}${scope}.${loaded}`;
+      status.textContent = `${rows.length} ${rows.length === 1 ? "park" : "parks"} · ${view.activator ? `${mineLabel.textContent} · ` : ""}${scope}.${loaded}`;
       if (!rows.length) {
-        showMessage(mine.checked ? "No published scheduled parks in your plan match these filters. Clear My parks to find another park to activate." : "No parks match these filters.");
+        showMessage(view.activator ? `No published scheduled parks in ${view.activator === callsign ? "your plan" : `${view.activator}'s plan`} match these filters. Clear ${mineLabel.textContent} to find another park to activate.` : "No parks match these filters.");
         return;
       }
       body.replaceChildren(...rows.map((park) => createRow(park, personalParks.has(park.reference))));
@@ -275,14 +311,21 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
       plans.dataset.label = "Scheduled plans";
       const details = document.createElement("details");
       details.className = "park-plan-details";
-      details.open = expanded.has(park.reference);
+      details.open = view.expanded.includes(park.reference);
       details.addEventListener("toggle", () => {
-        if (!details.isConnected) return;
-        if (details.open) expanded.add(park.reference);
-        else expanded.delete(park.reference);
+        if (!details.isConnected || details.open === view.expanded.includes(park.reference)) return;
+        view.expanded = details.open ? [...view.expanded, park.reference] : view.expanded.filter((reference) => reference !== park.reference);
+        updateUrl();
       });
       const summary = document.createElement("summary");
       summary.textContent = `${park.activatorCount} ${park.activatorCount === 1 ? "activator" : "activators"} · ${park.timeSlotCount} ${park.timeSlotCount === 1 ? "time slot" : "time slots"}`;
+      summary.addEventListener("click", (event) => {
+        // Record the choice before an in-flight response can replace this row.
+        event.preventDefault();
+        details.open = !details.open;
+        view.expanded = details.open ? [...view.expanded, park.reference] : view.expanded.filter((reference) => reference !== park.reference);
+        updateUrl();
+      });
       details.appendChild(summary);
       if (!park.stops.length) {
         const empty = document.createElement("p");
@@ -316,7 +359,7 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
       actions.dataset.label = "Your next activation";
       const add = document.createElement("a");
       const query = new URLSearchParams({ park: park.reference });
-      const day = value("timeline") === "soft-start" ? "2026-09-10" : value("timeline");
+      const day = view.timeline === "soft-start" ? "2026-09-10" : view.timeline;
       if (/^2026-09-1[0-3]$/.test(day)) query.set("date", day);
       add.href = `/activate-ri-2026/${callsign ? "activator/plan" : "volunteer"}/?${query}`;
       add.className = "button event-table-action";

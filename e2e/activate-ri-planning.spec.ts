@@ -39,6 +39,18 @@ function parkRow(page: Page, reference: string) {
   return page.locator(`[data-live-coverage] [data-filter-row][data-park-reference="${reference}"]`);
 }
 
+async function planningViewSnapshot(page: Page) {
+  return page.locator("[data-park-planning]").evaluate(root => ({
+    filters: (Array.from(root.querySelectorAll("[data-filter]")) as unknown as HTMLSelectElement[]).map(control => [control.dataset.filter, control.value]),
+    moreOpen: root.querySelector<HTMLDetailsElement>(".park-planning-more")?.open,
+    rows: Array.from(root.querySelectorAll<HTMLTableRowElement>("[data-filter-row]")).map(row => ({
+      park: row.dataset.parkReference,
+      count: row.querySelector("summary")?.textContent,
+      expanded: row.querySelector<HTMLDetailsElement>("details")?.open,
+    })),
+  }));
+}
+
 test("park planning compares distinct activators and time slots and expands existing plans", async ({ page }) => {
   const server = await startActivateRiServer();
   try {
@@ -220,6 +232,339 @@ test("a failed schedule request does not portray all parks as having zero activa
     await expect(page.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(0);
     await expect(page.locator("[data-live-coverage]")).not.toContainText("0 activators");
   } finally {
+    await server.stop();
+  }
+});
+
+test("shared planning URLs reproduce every filter, sort, and disclosure through reload and history", async ({ page }) => {
+  const server = await startActivateRiServer();
+  try {
+    await mockPlanning(page);
+    await page.goto(`${server.origin}/activate-ri-2026/parks/#park-planning`);
+    await expect(parkRow(page, "US-0513").locator("summary")).toHaveText("1 activator · 2 time slots");
+    await page.locator('[data-filter="sort"]').selectOption("slots");
+    await page.locator('[data-filter="timeline"]').selectOption("2026-09-11");
+    await page.locator('[data-filter="county"]').selectOption("Washington County");
+    const more = page.locator(".park-planning-more");
+    await more.locator("summary").click();
+    await page.locator('[data-filter="mode"]').selectOption("SSB");
+    await page.locator('[data-filter="band"]').selectOption("20m");
+    await parkRow(page, "US-0513").locator("summary").click();
+    await expect.poll(() => new URL(page.url()).searchParams.get("expanded")).toBe("US-0513");
+    await parkRow(page, "US-0514").locator("summary").click();
+    await expect.poll(() => new URL(page.url()).searchParams.get("expanded")).toBe("US-0513,US-0514");
+    await more.locator("summary").click();
+    await expect.poll(() => new URL(page.url()).searchParams.get("more")).toBe("0");
+    const sharedUrl = page.url();
+    const params = new URL(sharedUrl).searchParams;
+    expect(Object.fromEntries(params)).toMatchObject({
+      sort: "slots", timeline: "2026-09-11", county: "Washington County", mode: "SSB", band: "20m",
+      expanded: "US-0513,US-0514", more: "0",
+    });
+    expect(new URL(sharedUrl).hash).toBe("#park-planning");
+    const view = await planningViewSnapshot(page);
+    const historyLength = await page.evaluate(() => history.length);
+    await page.goBack();
+    await expect(more).toHaveAttribute("open", "");
+    await expect(parkRow(page, "US-0514").locator("details")).toHaveAttribute("open", "");
+    await page.goBack();
+    await expect(parkRow(page, "US-0514").locator("details")).not.toHaveAttribute("open", "");
+    await expect(parkRow(page, "US-0513").locator("details")).toHaveAttribute("open", "");
+    await page.goForward();
+    await expect(parkRow(page, "US-0514").locator("details")).toHaveAttribute("open", "");
+    await page.goForward();
+    await expect(more).not.toHaveAttribute("open", "");
+    await expect(page).toHaveURL(sharedUrl);
+    expect(await page.evaluate(() => history.length)).toBe(historyLength);
+    await expect.poll(() => planningViewSnapshot(page)).toEqual(view);
+    await page.reload();
+    await expect.poll(() => planningViewSnapshot(page)).toEqual(view);
+    expect(await page.evaluate(() => history.length)).toBe(historyLength);
+
+    const recipient = await page.context().newPage();
+    await mockPlanning(recipient);
+    await recipient.goto(sharedUrl);
+    await expect.poll(() => planningViewSnapshot(recipient)).toEqual(view);
+    await expect(recipient).toHaveURL(sharedUrl);
+    await recipient.close();
+
+    await page.locator('[data-filter="county"]').selectOption("Newport County");
+    await expect(parkRow(page, "US-0513")).toBeHidden();
+    expect(new URL(page.url()).searchParams.get("expanded")).toBe("US-0513,US-0514");
+    await page.goBack();
+    await expect.poll(() => planningViewSnapshot(page)).toEqual(view);
+  } finally {
+    await server.stop();
+  }
+});
+
+test("fresh shared links preserve bands and modes that have no published stops", async ({ page }) => {
+  const server = await startActivateRiServer();
+  try {
+    await mockPlanning(page);
+    await page.route("**/api/activate-ri-2026/public/stops", route => route.fulfill({ json: { ok: true, stops: [] } }));
+    await page.goto(`${server.origin}/activate-ri-2026/parks/?sort=name&mode=SSB&band=20m&more=0&expanded=US-0515`);
+    const rows = page.locator("[data-live-coverage] [data-filter-row]");
+    await expect(rows).toHaveCount(references.length);
+    await expect(page.locator('[data-filter="mode"]')).toHaveValue("SSB");
+    await expect(page.locator('[data-filter="band"]')).toHaveValue("20m");
+    await expect(page.locator(".park-planning-more")).not.toHaveAttribute("open", "");
+    await expect(parkRow(page, "US-0515").locator("details")).toHaveAttribute("open", "");
+    await expect(parkRow(page, "US-0515").locator("summary")).toHaveText("0 activators · 0 time slots");
+    await expect(page.locator("[data-planning-status]")).toContainText("SSB");
+    await expect(page.locator("[data-planning-status]")).toContainText("20m");
+    const sharedUrl = page.url();
+    await page.reload();
+    await expect(rows).toHaveCount(references.length);
+    await expect(page.locator('[data-filter="mode"]')).toHaveValue("SSB");
+    await expect(page.locator('[data-filter="band"]')).toHaveValue("20m");
+    await expect(page.locator(".park-planning-more")).not.toHaveAttribute("open", "");
+    await expect(page).toHaveURL(sharedUrl);
+  } finally {
+    await server.stop();
+  }
+});
+
+test("late schedule and account responses preserve view changes made during loading", async ({ page }) => {
+  const server = await startActivateRiServer();
+  let releaseStops!: () => void;
+  let releaseSession!: () => void;
+  const stopsReady = new Promise<void>(resolve => { releaseStops = resolve; });
+  const sessionReady = new Promise<void>(resolve => { releaseSession = resolve; });
+  try {
+    await mockPlanning(page);
+    await page.route("**/api/activate-ri-2026/public/stops", async route => {
+      await stopsReady;
+      await route.fulfill({ json: { ok: true, stops: planningStops } });
+    });
+    await page.route("**/api/auth/session", async route => {
+      await sessionReady;
+      await route.fulfill({ json: { ok: true, signedIn: true, activator: { callsign: "K1XYZ" } } });
+    });
+    await page.goto(`${server.origin}/activate-ri-2026/parks/?activator=N1RI&mode=SSB&band=20m`, { waitUntil: "domcontentloaded" });
+    await expect(page.locator('[data-filter="mode"]')).toHaveValue("SSB");
+    await expect(page.locator('[data-filter="band"]')).toHaveValue("20m");
+    await page.locator('[data-filter="sort"]').selectOption("slots");
+    await page.locator('[data-filter="timeline"]').selectOption("2026-09-12");
+    await page.locator('[data-filter="county"]').selectOption("Washington County");
+    await page.locator('[data-filter="mode"]').selectOption("all");
+    await page.locator(".park-planning-more > summary").click();
+    await expect.poll(() => new URL(page.url()).searchParams.get("more")).toBe("0");
+    const chosenUrl = page.url();
+    releaseStops();
+    await expect(page.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(2);
+    await expect(parkRow(page, "US-0514").locator("summary")).toHaveText("0 activators · 0 time slots");
+    await expect(page).toHaveURL(chosenUrl);
+    releaseSession();
+    await expect(page.locator("[data-my-parks-label]")).toHaveText("N1RI's parks");
+    await expect(page.locator('[data-filter="mode"]')).toHaveValue("all");
+    await expect(page.locator('[data-filter="band"]')).toHaveValue("20m");
+    await expect(page.locator('[data-filter="sort"]')).toHaveValue("slots");
+    await expect(page.locator('[data-filter="timeline"]')).toHaveValue("2026-09-12");
+    await expect(page.locator('[data-filter="county"]')).toHaveValue("Washington County");
+    await expect(page.locator(".park-planning-more")).not.toHaveAttribute("open", "");
+    await expect(page).toHaveURL(chosenUrl);
+    await page.reload();
+    await expect(page.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(2);
+    await expect(page.locator('[data-filter="mode"]')).toHaveValue("all");
+    await expect(page).toHaveURL(chosenUrl);
+  } finally {
+    releaseStops();
+    releaseSession();
+    await server.stop();
+  }
+});
+
+test("an activator's shared park scope shows the same parks and counts for every recipient", async ({ page }) => {
+  const server = await startActivateRiServer();
+  try {
+    await mockPlanning(page, "N1RI");
+    await page.goto(`${server.origin}/activate-ri-2026/parks/`);
+    await page.getByRole("checkbox", { name: "My parks", exact: true }).check();
+    await expect.poll(() => new URL(page.url()).searchParams.get("activator")).toBe("N1RI");
+    expect(new URL(page.url()).searchParams.has("mine")).toBe(false);
+    await page.locator('[data-filter="timeline"]').selectOption("2026-09-11");
+    await parkRow(page, "US-0514").locator("summary").click();
+    await expect.poll(() => new URL(page.url()).searchParams.get("expanded")).toBe("US-0514");
+    const sharedUrl = page.url();
+    const original = await planningViewSnapshot(page);
+    for (const recipientCallsign of [undefined, "N1RI", "K1XYZ"]) {
+      const recipient = await page.context().newPage();
+      await mockPlanning(recipient, recipientCallsign);
+      await recipient.goto(sharedUrl);
+      await expect.poll(() => planningViewSnapshot(recipient)).toEqual(original);
+      await expect(parkRow(recipient, "US-0514").locator("summary")).toHaveText("2 activators · 1 time slot");
+      await expect(recipient.locator("[data-my-parks-label]")).toHaveText(recipientCallsign === "N1RI" ? "My parks" : "N1RI's parks");
+      await expect(recipient.locator("[data-my-parks]")).toBeChecked();
+      await expect(recipient).toHaveURL(sharedUrl);
+      await recipient.locator("[data-my-parks]").uncheck();
+      await expect(recipient.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(references.length);
+      await expect(recipient.locator("[data-my-parks-label]")).toHaveText("My parks");
+      expect(new URL(recipient.url()).searchParams.has("activator")).toBe(false);
+      if (recipientCallsign === "K1XYZ") {
+        await recipient.getByRole("checkbox", { name: "My parks", exact: true }).check();
+        await expect.poll(() => new URL(recipient.url()).searchParams.get("activator")).toBe("K1XYZ");
+        await expect(recipient.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(1);
+        await expect(parkRow(recipient, "US-0515")).toBeVisible();
+        await expect(parkRow(recipient, "US-0515").locator("summary")).toHaveText("0 activators · 0 time slots");
+        await expect(parkRow(recipient, "US-0514")).toBeHidden();
+        await recipient.goBack();
+        await expect(recipient.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(references.length);
+        await recipient.goBack();
+        await expect(recipient.locator("[data-my-parks-label]")).toHaveText("N1RI's parks");
+        await expect.poll(() => planningViewSnapshot(recipient)).toEqual(original);
+        await expect(recipient).toHaveURL(sharedUrl);
+      }
+      await recipient.close();
+    }
+  } finally {
+    await server.stop();
+  }
+});
+
+test("legacy My parks links canonicalize the owner while explicit shared owners take precedence", async ({ page }) => {
+  const server = await startActivateRiServer();
+  try {
+    await mockPlanning(page, " n1ri ");
+    await page.goto(`${server.origin}/activate-ri-2026/parks/?mine=1&sort=slots&timeline=2026-09-12&expanded=US-0514`);
+    await expect.poll(() => new URL(page.url()).searchParams.get("activator")).toBe("N1RI");
+    expect(new URL(page.url()).searchParams.has("mine")).toBe(false);
+    await expect(page.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(2);
+    await expect(parkRow(page, "US-0514").locator("details")).toHaveAttribute("open", "");
+    await expect(parkRow(page, "US-0514").locator("summary")).toHaveText("0 activators · 0 time slots");
+    await expect(page.locator('[data-filter="sort"]')).toHaveValue("slots");
+    await expect(page.locator('[data-filter="timeline"]')).toHaveValue("2026-09-12");
+
+    await page.route("**/api/auth/session", route => route.fulfill({ json: {
+      ok: true, signedIn: true, activator: { callsign: "K1XYZ" },
+    } }));
+    await page.goto(`${server.origin}/activate-ri-2026/parks/?activator=n1ri&mine=1&timeline=2026-09-11`);
+    await expect.poll(() => new URL(page.url()).searchParams.get("activator")).toBe("N1RI");
+    expect(new URL(page.url()).searchParams.has("mine")).toBe(false);
+    await expect(page.locator("[data-my-parks-label]")).toHaveText("N1RI's parks");
+    await expect(page.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(2);
+    await expect(parkRow(page, "US-0514").locator("summary")).toHaveText("2 activators · 1 time slot");
+    await expect(parkRow(page, "US-0515")).toBeHidden();
+  } finally {
+    await server.stop();
+  }
+});
+
+test("Back to legacy My parks during refresh waits for the new account before choosing its owner", async ({ page }) => {
+  const server = await startActivateRiServer();
+  let releaseSession!: () => void;
+  const sessionReady = new Promise<void>(resolve => { releaseSession = resolve; });
+  let account: "signed-out" | "N1RI" | "K1XYZ" = "signed-out";
+  try {
+    await mockPlanning(page);
+    await page.route("**/api/auth/session", async route => {
+      const nextAccount = account;
+      if (nextAccount === "K1XYZ") await sessionReady;
+      await route.fulfill({ json: nextAccount === "signed-out"
+        ? { ok: true, signedIn: false }
+        : { ok: true, signedIn: true, activator: { callsign: nextAccount } },
+      });
+    });
+    await page.goto(`${server.origin}/activate-ri-2026/parks/?mine=1`);
+    const mine = page.locator("[data-my-parks]");
+    const refresh = page.getByRole("button", { name: "Refresh plans", exact: true });
+    await expect(page.getByRole("link", { name: "Sign in to see my parks", exact: true })).toBeVisible();
+    await mine.uncheck();
+    await expect(page.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(references.length);
+    account = "N1RI";
+    await refresh.click();
+    await expect(page.locator("[data-my-parks-help]")).toContainText("Signed in as N1RI");
+    await expect(refresh).toBeEnabled();
+
+    account = "K1XYZ";
+    const refreshingSession = page.waitForRequest("**/api/auth/session");
+    await refresh.click();
+    await refreshingSession;
+    await expect(refresh).toBeDisabled();
+    await page.goBack();
+    await expect.poll(() => new URL(page.url()).searchParams.get("mine")).toBe("1");
+    expect(new URL(page.url()).searchParams.has("activator")).toBe(false);
+    await expect(page.locator("[data-planning-status]")).toContainText("Checking your activation plan");
+    await expect(page.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(0);
+    releaseSession();
+    await expect.poll(() => new URL(page.url()).searchParams.get("activator")).toBe("K1XYZ");
+    expect(new URL(page.url()).searchParams.has("mine")).toBe(false);
+    await expect(page.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(1);
+    await expect(parkRow(page, "US-0515")).toBeVisible();
+    await expect(page.locator("[data-my-parks-label]")).toHaveText("My parks");
+    await expect(refresh).toBeEnabled();
+  } finally {
+    releaseSession();
+    await server.stop();
+  }
+});
+
+test("disclosure clicks update the shared view before late data can replace their elements", async ({ page }) => {
+  const server = await startActivateRiServer();
+  let releaseSession!: () => void;
+  let releaseStops!: () => void;
+  const sessionReady = new Promise<void>(resolve => { releaseSession = resolve; });
+  const stopsReady = new Promise<void>(resolve => { releaseStops = resolve; });
+  let refreshingStops = false;
+  try {
+    await mockPlanning(page);
+    await page.route("**/api/auth/session", async route => {
+      await sessionReady;
+      await route.fulfill({ json: { ok: true, signedIn: true, activator: { callsign: "N1RI" } } });
+    });
+    await page.route("**/api/activate-ri-2026/public/stops", async route => {
+      if (refreshingStops) await stopsReady;
+      await route.fulfill({ json: { ok: true, stops: planningStops } });
+    });
+    await page.goto(`${server.origin}/activate-ri-2026/parks/`, { waitUntil: "domcontentloaded" });
+    await expect(parkRow(page, "US-0513").locator("summary")).toHaveText("1 activator · 2 time slots");
+    // Read in the click's task, before the browser dispatches queued native toggle events.
+    const opened = await page.evaluate(() => {
+      (document.querySelector('[data-park-reference="US-0513"] summary') as HTMLElement).click();
+      (document.querySelector(".park-planning-more > summary") as HTMLElement).click();
+      const params = new URL(window.location.href).searchParams;
+      return { expanded: params.get("expanded"), more: params.get("more") };
+    });
+    expect(opened).toEqual({ expanded: "US-0513", more: "1" });
+    const openedUrl = page.url();
+    releaseSession();
+    const refresh = page.getByRole("button", { name: "Refresh plans", exact: true });
+    await expect(refresh).toBeEnabled();
+    await expect(parkRow(page, "US-0513").locator("details")).toHaveAttribute("open", "");
+    await expect(page.locator(".park-planning-more")).toHaveAttribute("open", "");
+    await expect(page).toHaveURL(openedUrl);
+
+    refreshingStops = true;
+    const reloadingStops = page.waitForRequest("**/api/activate-ri-2026/public/stops");
+    await refresh.click();
+    await reloadingStops;
+    const closed = await page.evaluate(() => {
+      (document.querySelector('[data-park-reference="US-0513"] summary') as HTMLElement).click();
+      (document.querySelector(".park-planning-more > summary") as HTMLElement).click();
+      const params = new URL(window.location.href).searchParams;
+      return { expanded: params.get("expanded"), more: params.get("more") };
+    });
+    expect(closed).toEqual({ expanded: null, more: null });
+    const closedUrl = page.url();
+    releaseStops();
+    await expect(refresh).toBeEnabled();
+    await expect(parkRow(page, "US-0513").locator("details")).not.toHaveAttribute("open", "");
+    await expect(page.locator(".park-planning-more")).not.toHaveAttribute("open", "");
+    await expect(page).toHaveURL(closedUrl);
+    await parkRow(page, "US-0513").locator("summary").press("Enter");
+    await expect(parkRow(page, "US-0513").locator("details")).toHaveAttribute("open", "");
+    await expect.poll(() => new URL(page.url()).searchParams.get("expanded")).toBe("US-0513");
+    await parkRow(page, "US-0513").locator("summary").press("Space");
+    await expect(parkRow(page, "US-0513").locator("details")).not.toHaveAttribute("open", "");
+    await page.locator(".park-planning-more > summary").press("Enter");
+    await expect(page.locator(".park-planning-more")).toHaveAttribute("open", "");
+    await expect.poll(() => new URL(page.url()).searchParams.get("more")).toBe("1");
+    await page.locator(".park-planning-more > summary").press("Space");
+    await expect(page.locator(".park-planning-more")).not.toHaveAttribute("open", "");
+    await expect(page).toHaveURL(closedUrl);
+  } finally {
+    releaseSession();
+    releaseStops();
     await server.stop();
   }
 });
