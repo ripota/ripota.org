@@ -526,6 +526,8 @@ for (const viewport of [
       const popup = page.locator(".leaflet-popup-content");
       await expect(popup).toContainText("US-2870");
       await expect(popup).toContainText("Needs coverage");
+      // The signup's real Turnstile challenge requires an accurate browser clock.
+      await page.clock.setSystemTime(new Date());
       await popup.getByRole("link", { name: "Volunteer for this park" }).click();
       await expect(page).toHaveURL(`${parksOrigin}/activate-ri-2026/volunteer/?park=US-2870`);
       await expect(page.getByRole("heading", { level: 1, name: "Volunteer to activate" })).toBeVisible();
@@ -572,6 +574,8 @@ for (const viewport of [
       await expect(page.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(0);
       await page.waitForLoadState("networkidle");
 
+      // Keep the event-phase fixture's clock out of the real Turnstile challenge.
+      await page.clock.setSystemTime(new Date());
       await page.goto(`${parksOrigin}/activate-ri-2026/volunteer/`);
       await readyMap(page, "[data-reference-map]");
       await expect(page.locator("[data-map-coverage-status]")).toContainText("The event schedule is unavailable");
