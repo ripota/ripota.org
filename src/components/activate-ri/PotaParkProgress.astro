@@ -56,6 +56,7 @@ import { activateRi2026Event } from "../../data/activate-ri-2026/event";
   import { fetchPublicActivationStops } from "../../lib/activate-ri/public-stops-client";
   import type { PublicActivationStop } from "../../lib/activate-ri/types";
   import { formatActivationDate, formatActivationTimeRange } from "../../lib/activate-ri/time";
+  import { readProgressView, writeProgressView, type ProgressView } from "../../lib/activate-ri/progress-view";
 
   document.querySelectorAll<HTMLElement>("[data-pota-progress]").forEach(setupPotaProgress);
 
@@ -65,9 +66,26 @@ import { activateRi2026Event } from "../../data/activate-ri-2026/event";
     const filters = root.querySelector("[data-pota-filters]") as HTMLFieldSetElement | null;
     let snapshot: PublicPotaParkStatusSnapshot | undefined;
     let stops: PublicActivationStop[] = [];
+    let searchEditing = false;
 
-    search?.addEventListener("input", render);
-    filters?.addEventListener("change", render);
+    restoreFilters();
+    updateUrl("replace");
+    search?.addEventListener("input", () => {
+      searchEditing = updateUrl(searchEditing ? "replace" : "push") || searchEditing;
+      render();
+    });
+    search?.addEventListener("blur", () => { searchEditing = false; });
+    search?.addEventListener("change", () => { searchEditing = false; });
+    filters?.addEventListener("change", () => {
+      searchEditing = false;
+      updateUrl();
+      render();
+    });
+    window.addEventListener("popstate", () => {
+      searchEditing = false;
+      restoreFilters();
+      render();
+    });
     void fetchPublicActivationStops().then((value) => {
       stops = value;
       render();
@@ -89,6 +107,26 @@ import { activateRi2026Event } from "../../data/activate-ri-2026/event";
       if (phase === "event-live" || phase === "post-event") potaParkStatusStore.start();
       if (snapshot) renderSummary(snapshot, false);
     });
+
+    function restoreFilters(): void {
+      const view = readProgressView(new URL(window.location.href));
+      if (search) search.value = view.query;
+      filters?.querySelectorAll<HTMLInputElement>('input[name="pota-status-filter"]').forEach((control) => {
+        control.checked = control.value === view.status;
+      });
+    }
+
+    function updateUrl(mode: "push" | "replace" = "push"): boolean {
+      const view: ProgressView = {
+        status: filters?.querySelector<HTMLInputElement>('input[name="pota-status-filter"]:checked')?.value as ProgressView["status"] ?? "all",
+        query: search?.value ?? "",
+      };
+      const url = writeProgressView(new URL(window.location.href), view);
+      if (url.href === window.location.href) return false;
+      if (mode === "push") window.history.pushState(window.history.state, "", url);
+      else window.history.replaceState(window.history.state, "", url);
+      return true;
+    }
 
     function renderSummary(value: PublicPotaParkStatusSnapshot, refreshFailed: boolean): void {
       setText("[data-pota-confirmed]", `${value.summary.confirmed} / ${value.summary.total}`);
