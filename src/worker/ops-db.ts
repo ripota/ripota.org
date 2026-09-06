@@ -773,7 +773,7 @@ export async function getOpsAdminState(env: Env) {
        ) AND event_id = ?`,
     ).bind(env.ACTIVATE_RI_EVENT_ID, env.ACTIVATE_RI_EVENT_ID),
     env.DB.prepare(
-      `SELECT id, message_id, status, recipient_count, sent_count, failed_count,
+      `SELECT id, message_id, status, recipient_count, sent_count, failed_count, skipped_count,
               created_at, completed_at, last_error
        FROM activate_ri_ops_email_broadcasts
        WHERE event_id = ? ORDER BY created_at DESC LIMIT 25`,
@@ -781,7 +781,7 @@ export async function getOpsAdminState(env: Env) {
     env.DB.prepare(
       `SELECT m.activator_id, m.status, m.accepted_rules_version,
               m.accepted_rules_at, m.moderation_reason,
-              a.primary_callsign, a.name
+              m.email_announcements, a.primary_callsign, a.name
        FROM activate_ri_ops_memberships m
        INNER JOIN activate_ri_activators a ON a.id = m.activator_id
        WHERE m.event_id = ? ORDER BY a.primary_callsign`,

@@ -27,6 +27,38 @@ export async function handleActivateRiOpsApi(
     return identity;
   }
 
+  const url = new URL(request.url);
+  if (url.pathname === "/api/activate-ri-2026/ops/preferences") {
+    const membership = await env.DB.prepare(
+      `SELECT email_announcements FROM activate_ri_ops_memberships
+       WHERE event_id = ? AND activator_id = ?`,
+    ).bind(env.ACTIVATE_RI_EVENT_ID, identity.activatorId)
+      .first<{ email_announcements: number }>();
+    if (!membership) return privateJson({ ok: false, error: "Ops Room membership unavailable" }, { status: 403 });
+    if (request.method === "GET") {
+      return privateJson({ ok: true, emailAnnouncements: membership.email_announcements === 1 });
+    }
+    if (request.method === "PATCH") {
+      if (!hasTrustedOrigin(request, env)) return privateJson({ ok: false, error: "Forbidden" }, { status: 403 });
+      let payload: unknown;
+      try {
+        payload = await readJson(request);
+      } catch {
+        return privateJson({ ok: false, error: "Expected valid JSON." }, { status: 400 });
+      }
+      if (!payload || typeof payload !== "object" ||
+          !("emailAnnouncements" in payload) || typeof payload.emailAnnouncements !== "boolean") {
+        return privateJson({ ok: false, error: "Choose whether to receive announcement emails." }, { status: 400 });
+      }
+      await env.DB.prepare(
+        `UPDATE activate_ri_ops_memberships SET email_announcements = ?, updated_at = ?
+         WHERE event_id = ? AND activator_id = ?`,
+      ).bind(Number(payload.emailAnnouncements), new Date().toISOString(), env.ACTIVATE_RI_EVENT_ID, identity.activatorId).run();
+      return privateJson({ ok: true, emailAnnouncements: payload.emailAnnouncements });
+    }
+    return privateJson({ ok: false, error: "Method not allowed" }, { status: 405 });
+  }
+
   const access = await getOpsAccess(env, identity.activatorId);
   if (!access || access.membership.status === "banned") {
     return privateJson({ ok: false, error: "Ops Room access unavailable" }, { status: 403 });
@@ -35,7 +67,6 @@ export async function handleActivateRiOpsApi(
     return privateJson({ ok: false, error: "Ops Room unavailable" }, { status: 503 });
   }
 
-  const url = new URL(request.url);
   if (request.method === "GET" && url.pathname === "/api/activate-ri-2026/ops/bootstrap") {
     const bootstrap = await getOpsBootstrap(env, identity.activatorId);
     if (bootstrap) {

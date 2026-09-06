@@ -1,0 +1,70 @@
+<details class="ops-email-preferences" id="ops-email-notifications" data-ops-email-preferences>
+  <summary>Email notifications <span data-ops-email-summary></span></summary>
+  <form data-ops-email-form>
+    <label>
+      <input type="checkbox" name="emailAnnouncements" disabled />
+      Email me organizer announcements
+    </label>
+    <p>Occasional event updates selected by the organizers. General chat stays in the room. Turn these emails off here anytime.</p>
+    <button class="button" data-variant="light" type="submit" disabled>Save preference</button>
+    <p class="form-status" data-ops-email-status aria-live="polite">Loading preference…</p>
+  </form>
+</details>
+
+<script>
+  const preferences = document.querySelector<HTMLDetailsElement>("[data-ops-email-preferences]");
+  const form = preferences?.querySelector<HTMLFormElement>("[data-ops-email-form]");
+  const checkbox = form?.querySelector<HTMLInputElement>("input");
+  const button = form?.querySelector<HTMLButtonElement>("button");
+  const status = preferences?.querySelector<HTMLElement>("[data-ops-email-status]");
+  const summary = preferences?.querySelector<HTMLElement>("[data-ops-email-summary]");
+  const endpoint = "/api/activate-ri-2026/ops/preferences";
+
+  if (preferences) {
+    if (location.hash === "#ops-email-notifications") preferences.open = true;
+    void loadPreference();
+  }
+
+  async function loadPreference(): Promise<void> {
+    try {
+      const response = await fetch(endpoint);
+      if (!response.ok) throw new Error("Unable to load your email preference. Reload to try again.");
+      const result = await response.json() as { emailAnnouncements: boolean };
+      showPreference(result.emailAnnouncements);
+      if (checkbox) checkbox.disabled = false;
+      if (button) button.disabled = false;
+      status?.replaceChildren();
+    } catch (error) {
+      status?.replaceChildren(error instanceof Error ? error.message : "Unable to load preference.");
+    }
+  }
+
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!checkbox || !button) return;
+    checkbox.disabled = button.disabled = true;
+    status?.replaceChildren("Saving…");
+    try {
+      const response = await fetch(endpoint, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ emailAnnouncements: checkbox.checked }),
+      });
+      if (!response.ok) throw new Error("Could not save. Please try again.");
+      const result = await response.json() as { emailAnnouncements: boolean };
+      showPreference(result.emailAnnouncements);
+      status?.replaceChildren(result.emailAnnouncements
+        ? "Saved. Organizer announcement emails are on."
+        : "Saved. Organizer announcement emails are off.");
+    } catch (error) {
+      status?.replaceChildren(error instanceof Error ? error.message : "Could not save.");
+    } finally {
+      checkbox.disabled = button.disabled = false;
+    }
+  });
+
+  function showPreference(enabled: boolean): void {
+    if (checkbox) checkbox.checked = enabled;
+    summary?.replaceChildren(enabled ? "On" : "Off");
+  }
+</script>

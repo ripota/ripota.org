@@ -47,8 +47,8 @@ describe("Ops announcement email broadcasts", () => {
         ),
         env.DB.prepare(
           `INSERT INTO activate_ri_ops_memberships (
-             event_id, activator_id, status, created_at, updated_at
-           ) VALUES (?, ?, 'active', ?, ?)`,
+             event_id, activator_id, status, created_at, updated_at, email_announcements
+           ) VALUES (?, ?, 'active', ?, ?, 1)`,
         ).bind(env.ACTIVATE_RI_EVENT_ID, id, now, now),
       );
     }
@@ -60,6 +60,14 @@ describe("Ops announcement email broadcasts", () => {
          'announcement', 'Wind advisory.', 'nonce-1', ?)`,
     ).bind(env.ACTIVATE_RI_EVENT_ID, now));
     await env.DB.batch(statements);
+
+    await env.DB.prepare(`UPDATE activate_ri_ops_memberships SET email_announcements = 0`).run();
+    const emptyBroadcast = await createOpsEmailBroadcast(env, "announcement-1", "organizer@example.com", now);
+    expect(emptyBroadcast.recipientCount).toBe(0);
+    await sendOpsEmailBroadcast(env, emptyBroadcast.id);
+    expect(send).not.toHaveBeenCalled();
+    await env.DB.prepare(`DELETE FROM activate_ri_ops_email_broadcasts WHERE id = ?`).bind(emptyBroadcast.id).run();
+    await env.DB.prepare(`UPDATE activate_ri_ops_memberships SET email_announcements = 1`).run();
 
     const broadcast = await createOpsEmailBroadcast(
       env,
@@ -92,6 +100,14 @@ describe("Ops announcement email broadcasts", () => {
       sent_count: 50,
       failed_count: 0,
     });
+
+    // A delayed retry must honor an opt-out after the broadcast was queued.
+    await env.DB.prepare(`UPDATE activate_ri_ops_email_recipients SET status = 'failed' WHERE broadcast_id = ?`).bind(broadcast.id).run();
+    await env.DB.prepare(`UPDATE activate_ri_ops_memberships SET email_announcements = 0`).run();
+    await sendOpsEmailBroadcast(env, broadcast.id, true);
+    expect(send).toHaveBeenCalledTimes(3);
+    const skipped = await env.DB.prepare(`SELECT skipped_count FROM activate_ri_ops_email_broadcasts WHERE id = ?`).bind(broadcast.id).first<{ skipped_count: number }>();
+    expect(skipped?.skipped_count).toBe(50);
   });
 });
 

@@ -54,6 +54,7 @@ import AdminOpsModeration from "./AdminOpsModeration.astro";
     moderation_reason?: string;
     primary_callsign: string;
     name: string;
+    email_announcements: number;
   };
   type Message = {
     id: string;
@@ -72,6 +73,7 @@ import AdminOpsModeration from "./AdminOpsModeration.astro";
     recipient_count: number;
     sent_count: number;
     failed_count: number;
+    skipped_count: number;
     created_at: string;
   };
   type AdminOpsState = {
@@ -125,9 +127,9 @@ import AdminOpsModeration from "./AdminOpsModeration.astro";
     const data = new FormData(announcementForm);
     const body = String(data.get("body") ?? "").trim();
     const email = data.get("email") === "on";
-    const eligible = state?.members.filter((member) => member.status !== "banned").length ?? 0;
+    const eligible = state?.members.filter((member) => member.status !== "banned" && member.email_announcements === 1).length ?? 0;
     const confirmation = email
-      ? `Post this announcement and send an email copy to ${eligible} eligible activator${eligible === 1 ? "" : "s"}?`
+      ? `Post this announcement and send an email copy to ${eligible} subscribed activator${eligible === 1 ? "" : "s"}?`
       : "Post this announcement to the Ops Room?";
     if (!body || !window.confirm(confirmation)) return;
     setStatus("Posting announcement…");
@@ -172,9 +174,9 @@ import AdminOpsModeration from "./AdminOpsModeration.astro";
     renderPinnedAnnouncement();
     root?.querySelector("[data-admin-message-count]")?.replaceChildren(state.messages.length ? String(state.messages.length) : "");
     root?.querySelector("[data-admin-member-count]")?.replaceChildren(state.members.length ? String(state.members.length) : "");
-    const eligible = state.members.filter((member) => member.status !== "banned").length;
+    const eligible = state.members.filter((member) => member.status !== "banned" && member.email_announcements === 1).length;
     recipientPreview?.replaceChildren(
-      `${eligible} activator${eligible === 1 ? "" : "s"} currently eligible for an email copy (active and muted; banned excluded).`,
+      `${eligible} activator${eligible === 1 ? "" : "s"} opted in to announcement emails. Banned members are excluded.`,
     );
   }
 
@@ -285,7 +287,7 @@ import AdminOpsModeration from "./AdminOpsModeration.astro";
     }
     state.broadcasts.forEach((broadcast) => {
       const card = adminCard(`Broadcast ${broadcast.status}`);
-      addText(card.body, `${broadcast.sent_count} sent · ${broadcast.failed_count} failed · ${broadcast.recipient_count} recipients`);
+      addText(card.body, `${broadcast.sent_count} sent · ${broadcast.failed_count} failed · ${broadcast.skipped_count} skipped · ${broadcast.recipient_count} original recipients`);
       addText(card.body, formatTime(broadcast.created_at));
       if (broadcast.status === "failed" || broadcast.status === "partial") {
         card.actions.appendChild(actionButton("Retry failed recipients", () => simpleConfirmMutation(

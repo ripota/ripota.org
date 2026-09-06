@@ -330,6 +330,27 @@ describe("Activate RI Ops Room D1 flow", () => {
     const send = vi.fn(async () => ({ messageId: "announcement-email" }));
     const { cookie, activatorId } = await approvedActivator(env);
     env.EMAIL = { send } as unknown as SendEmail;
+    const preferencePath = "/api/activate-ri-2026/ops/preferences";
+    const preference = await handleActivateRiApi(sessionRequest(preferencePath, cookie), env);
+    await expect(preference.json()).resolves.toMatchObject({ emailAnnouncements: false });
+    const optIn = await handleActivateRiApi(sessionRequest(preferencePath, cookie, {
+      method: "PATCH", headers: jsonHeaders(), body: JSON.stringify({ emailAnnouncements: true }),
+    }), env);
+    expect(optIn.status).toBe(200);
+    const forbidden = await handleActivateRiApi(sessionRequest(preferencePath, cookie, {
+      method: "PATCH", headers: { ...jsonHeaders(), origin: "https://attacker.example" },
+      body: JSON.stringify({ emailAnnouncements: false }),
+    }), env);
+    expect(forbidden.status).toBe(403);
+    env.ACTIVATE_RI_OPS_HARD_DISABLED = "true";
+    const optOut = await handleActivateRiApi(sessionRequest(preferencePath, cookie, {
+      method: "PATCH", headers: jsonHeaders(), body: JSON.stringify({ emailAnnouncements: false }),
+    }), env);
+    await expect(optOut.json()).resolves.toMatchObject({ emailAnnouncements: false });
+    env.ACTIVATE_RI_OPS_HARD_DISABLED = "false";
+    await handleActivateRiApi(sessionRequest(preferencePath, cookie, {
+      method: "PATCH", headers: jsonHeaders(), body: JSON.stringify({ emailAnnouncements: true }),
+    }), env);
     env.ACTIVATE_RI_EMAIL_FROM = "activate-ri-2026@ripota.org";
     const background: Promise<unknown>[] = [];
     const ctx = {
