@@ -142,6 +142,7 @@ const parkNames = Object.fromEntries(
   let hiddenCloseTimer: number | undefined;
   let intentionalClose = false;
   let lastSynchronizedAt: Date | null = null;
+  let linkedMessage = location.hash.startsWith("#ops-message-") ? location.hash.slice(1) : null;
 
   if (room) {
     void initialize();
@@ -189,7 +190,17 @@ const parkNames = Object.fromEntries(
       data.messages.forEach((message) => messages.set(message.id, message));
       cursor = data.cursor;
       localStorage.setItem(cursorKey, String(cursor));
+      if (linkedMessage) {
+        const all = room?.querySelector<HTMLInputElement>('input[name="ops-filter"][value="all"]');
+        if (all) all.checked = true;
+      }
       renderAll();
+      if (linkedMessage) {
+        const target = document.getElementById(linkedMessage);
+        target?.scrollIntoView({ block: "nearest" });
+        target?.focus({ preventScroll: true });
+        linkedMessage = null;
+      }
       if (data.membership.acceptedRulesVersion !== data.rulesVersion) {
         rulesDialog?.showModal();
       }
@@ -506,6 +517,7 @@ const parkNames = Object.fromEntries(
   function messageItem(message: Message): HTMLLIElement {
     const item = document.createElement("li");
     item.className = `ops-message ops-message--${message.kind}`;
+    item.id = `ops-message-${message.id}`;
     item.dataset.messageId = message.id;
     item.dataset.unread = String(isUnread(message));
     item.tabIndex = -1;

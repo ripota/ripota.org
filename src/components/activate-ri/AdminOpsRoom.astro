@@ -4,6 +4,7 @@ import AdminOpsBroadcasts from "./AdminOpsBroadcasts.astro";
 import AdminOpsLiveRoom from "./AdminOpsLiveRoom.astro";
 import AdminOpsMembers from "./AdminOpsMembers.astro";
 import AdminOpsModeration from "./AdminOpsModeration.astro";
+import OpsEmailPreferences from "./OpsEmailPreferences.astro";
 ---
 
 <section class="admin-panel admin-view admin-ops" id="admin-ops" aria-labelledby="admin-ops-title" data-admin-ops data-admin-view="ops">
@@ -38,11 +39,16 @@ import AdminOpsModeration from "./AdminOpsModeration.astro";
       <dl class="admin-ops-metrics" data-admin-ops-summary></dl>
     </section>
     <AdminOpsLiveRoom />
+    <OpsEmailPreferences admin />
     <AdminOpsAnnouncement />
   </div>
   <div class="admin-ops-view" data-admin-ops-view="messages" hidden><AdminOpsModeration /></div>
   <div class="admin-ops-view" data-admin-ops-view="people" hidden><AdminOpsMembers /></div>
-  <div class="admin-ops-view" data-admin-ops-view="broadcasts" hidden><AdminOpsBroadcasts /></div>
+  <div class="admin-ops-view" data-admin-ops-view="broadcasts" hidden>
+    <p data-admin-email-delivery-summary></p>
+    <button class="button" data-variant="light" type="button" data-admin-retry-notifications hidden>Retry failed notification emails</button>
+    <AdminOpsBroadcasts />
+  </div>
 </section>
 
 <script>
@@ -54,7 +60,7 @@ import AdminOpsModeration from "./AdminOpsModeration.astro";
     moderation_reason?: string;
     primary_callsign: string;
     name: string;
-    email_announcements: number;
+    email_enabled: number;
   };
   type Message = {
     id: string;
@@ -90,6 +96,7 @@ import AdminOpsModeration from "./AdminOpsModeration.astro";
     members: Member[];
     messages: Message[];
     broadcasts: Broadcast[];
+    notifications: { pending: number; failed: number; sent: number };
   };
 
   const root = document.querySelector<HTMLElement>("[data-admin-ops]");
@@ -121,15 +128,18 @@ import AdminOpsModeration from "./AdminOpsModeration.astro";
   root?.querySelector("[data-admin-clear-announcement]")?.addEventListener("click", () => {
     void clearPinnedAnnouncement();
   });
+  root?.querySelector("[data-admin-retry-notifications]")?.addEventListener("click", () => {
+    void simpleConfirmMutation("/api/activate-ri-2026/admin/ops/notifications/retry", "Retry failed notification emails? Current email preferences will be respected.");
+  });
 
   announcementForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const data = new FormData(announcementForm);
     const body = String(data.get("body") ?? "").trim();
     const email = data.get("email") === "on";
-    const eligible = state?.members.filter((member) => member.status !== "banned" && member.email_announcements === 1).length ?? 0;
+    const eligible = state?.members.filter((member) => member.status !== "banned" && member.email_enabled === 1).length ?? 0;
     const confirmation = email
-      ? `Post this announcement and send an email copy to ${eligible} subscribed activator${eligible === 1 ? "" : "s"}?`
+      ? `Post this announcement and send an email copy to ${eligible} activator${eligible === 1 ? "" : "s"} with Ops Room emails enabled?`
       : "Post this announcement to the Ops Room?";
     if (!body || !window.confirm(confirmation)) return;
     setStatus("Posting announcement…");
@@ -174,9 +184,9 @@ import AdminOpsModeration from "./AdminOpsModeration.astro";
     renderPinnedAnnouncement();
     root?.querySelector("[data-admin-message-count]")?.replaceChildren(state.messages.length ? String(state.messages.length) : "");
     root?.querySelector("[data-admin-member-count]")?.replaceChildren(state.members.length ? String(state.members.length) : "");
-    const eligible = state.members.filter((member) => member.status !== "banned" && member.email_announcements === 1).length;
+    const eligible = state.members.filter((member) => member.status !== "banned" && member.email_enabled === 1).length;
     recipientPreview?.replaceChildren(
-      `${eligible} activator${eligible === 1 ? "" : "s"} opted in to announcement emails. Banned members are excluded.`,
+      `${eligible} activator${eligible === 1 ? "" : "s"} can receive this announcement. People who turned off all Ops Room emails and banned members are excluded.`,
     );
   }
 
@@ -280,6 +290,12 @@ import AdminOpsModeration from "./AdminOpsModeration.astro";
 
   function renderBroadcasts(): void {
     if (!broadcastsList || !state) return;
+    const notifications = state.notifications;
+    root?.querySelector("[data-admin-email-delivery-summary]")?.replaceChildren(
+      `Notification delivery: ${notifications.sent} sent · ${notifications.pending} pending · ${notifications.failed} failed. Temporary failures retry automatically.`,
+    );
+    const retry = root?.querySelector<HTMLElement>("[data-admin-retry-notifications]");
+    if (retry) retry.hidden = notifications.failed === 0;
     broadcastsList.replaceChildren();
     if (state.broadcasts.length === 0) {
       broadcastsList.replaceChildren("No announcement email broadcasts.");

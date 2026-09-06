@@ -1,70 +1,88 @@
-<details class="ops-email-preferences" id="ops-email-notifications" data-ops-email-preferences>
-  <summary>Email notifications <span data-ops-email-summary></span></summary>
+---
+interface Props { admin?: boolean }
+const { admin = false } = Astro.props;
+const endpoint = admin ? "/api/activate-ri-2026/admin/ops/preferences" : "/api/activate-ri-2026/ops/preferences";
+---
+
+<details class="ops-email-preferences" id="ops-email-notifications" data-ops-email-preferences data-endpoint={endpoint}>
+  <summary>My email notifications <span data-ops-email-summary></span></summary>
   <form data-ops-email-form>
+    <p><strong>Organizer announcements</strong> are emailed to approved activators when organizers choose to send an email.</p>
     <label>
-      <input type="checkbox" name="emailAnnouncements" disabled />
-      Email me organizer announcements
+      <input type="checkbox" name="chatMessages" disabled />
+      Email me every new room message
     </label>
-    <p>Occasional event updates selected by the organizers. General chat stays in the room. Turn these emails off here anytime.</p>
-    <button class="button" data-variant="light" type="submit" disabled>Save preference</button>
-    <p class="form-status" data-ops-email-status aria-live="polite">Loading preference…</p>
+    <p>Get each new message from other people, including its text and a link to reply in the room. Your own messages do not send you a chat alert.</p>
+    <label>
+      <input type="checkbox" name="emailDisabled" disabled />
+      Turn off all Ops Room emails
+    </label>
+    <p>This turns off both organizer announcements and chat alerts. Account sign-in and plan emails are separate.</p>
+    <button class="button" data-variant="light" type="submit" disabled>Save preferences</button>
+    <p class="form-status" data-ops-email-status aria-live="polite">Loading preferences…</p>
   </form>
 </details>
 
 <script>
+  type Preferences = { emailEnabled: boolean; chatMessages: boolean };
   const preferences = document.querySelector<HTMLDetailsElement>("[data-ops-email-preferences]");
   const form = preferences?.querySelector<HTMLFormElement>("[data-ops-email-form]");
-  const checkbox = form?.querySelector<HTMLInputElement>("input");
+  const chat = form?.querySelector<HTMLInputElement>('[name="chatMessages"]');
+  const disabled = form?.querySelector<HTMLInputElement>('[name="emailDisabled"]');
   const button = form?.querySelector<HTMLButtonElement>("button");
   const status = preferences?.querySelector<HTMLElement>("[data-ops-email-status]");
   const summary = preferences?.querySelector<HTMLElement>("[data-ops-email-summary]");
-  const endpoint = "/api/activate-ri-2026/ops/preferences";
+  const endpoint = preferences?.dataset.endpoint ?? "";
 
   if (preferences) {
     if (location.hash === "#ops-email-notifications") preferences.open = true;
-    void loadPreference();
+    void loadPreferences();
   }
 
-  async function loadPreference(): Promise<void> {
+  async function loadPreferences(): Promise<void> {
     try {
       const response = await fetch(endpoint);
-      if (!response.ok) throw new Error("Unable to load your email preference. Reload to try again.");
-      const result = await response.json() as { emailAnnouncements: boolean };
-      showPreference(result.emailAnnouncements);
-      if (checkbox) checkbox.disabled = false;
-      if (button) button.disabled = false;
+      if (!response.ok) throw new Error("Unable to load email preferences. Reload to try again.");
+      showPreferences(await response.json() as Preferences);
+      setBusy(false);
       status?.replaceChildren();
     } catch (error) {
-      status?.replaceChildren(error instanceof Error ? error.message : "Unable to load preference.");
+      status?.replaceChildren(error instanceof Error ? error.message : "Unable to load preferences.");
     }
   }
 
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (!checkbox || !button) return;
-    checkbox.disabled = button.disabled = true;
+    if (!chat || !disabled) return;
+    const payload = { emailEnabled: !disabled.checked, chatMessages: chat.checked };
+    setBusy(true);
     status?.replaceChildren("Saving…");
     try {
       const response = await fetch(endpoint, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ emailAnnouncements: checkbox.checked }),
+        method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(payload),
       });
       if (!response.ok) throw new Error("Could not save. Please try again.");
-      const result = await response.json() as { emailAnnouncements: boolean };
-      showPreference(result.emailAnnouncements);
-      status?.replaceChildren(result.emailAnnouncements
-        ? "Saved. Organizer announcement emails are on."
-        : "Saved. Organizer announcement emails are off.");
+      const result = await response.json() as Preferences;
+      showPreferences(result);
+      status?.replaceChildren(!result.emailEnabled ? "Saved. All Ops Room emails are off."
+        : result.chatMessages ? "Saved. You’ll receive organizer announcements and every new room message."
+        : "Saved. Organizer announcements are on; chat alerts are off.");
     } catch (error) {
       status?.replaceChildren(error instanceof Error ? error.message : "Could not save.");
-    } finally {
-      checkbox.disabled = button.disabled = false;
-    }
+    } finally { setBusy(false); }
   });
 
-  function showPreference(enabled: boolean): void {
-    if (checkbox) checkbox.checked = enabled;
-    summary?.replaceChildren(enabled ? "On" : "Off");
+  disabled?.addEventListener("change", () => { if (chat) chat.disabled = disabled.checked; });
+
+  function setBusy(busy: boolean): void {
+    if (chat) chat.disabled = busy || Boolean(disabled?.checked);
+    if (disabled) disabled.disabled = busy;
+    if (button) button.disabled = busy;
+  }
+
+  function showPreferences(value: Preferences): void {
+    if (chat) chat.checked = value.chatMessages;
+    if (disabled) disabled.checked = !value.emailEnabled;
+    summary?.replaceChildren(!value.emailEnabled ? "All off" : value.chatMessages ? "Every message" : "Announcements");
   }
 </script>

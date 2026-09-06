@@ -73,6 +73,7 @@ import { references } from "@ripota/parks";
   let liveCursor = 0;
   let liveMode: RoomMode = "off";
   let liveSocket: WebSocket | null = null;
+  let linkedMessage = location.hash.startsWith("#ops-message-") ? location.hash.slice(1) : null;
 
   if (liveRoom) void initializeLiveRoom();
   liveComposer?.addEventListener("submit", (event) => void sendLiveMessage(event));
@@ -165,6 +166,12 @@ import { references } from "@ripota/parks";
     } else {
       for (const message of messages) liveFeed.appendChild(liveMessageElement(message));
       liveFeed.scrollTop = liveFeed.scrollHeight;
+      if (linkedMessage) {
+        const target = document.getElementById(linkedMessage);
+        target?.scrollIntoView({ block: "nearest" });
+        target?.focus({ preventScroll: true });
+        linkedMessage = null;
+      }
     }
     setLiveStatus(liveMode === "full" ? "Live" : liveMode === "announcements" ? "Announcements only" : "Room off");
     disableLiveComposer(liveMode !== "full");
@@ -173,6 +180,8 @@ import { references } from "@ripota/parks";
   function liveMessageElement(message: Message): HTMLLIElement {
     const item = document.createElement("li");
     item.className = "admin-live-message";
+    item.id = `ops-message-${message.id}`;
+    item.tabIndex = -1;
     item.dataset.author = message.authorType;
     const header = document.createElement("div");
     const author = document.createElement("strong");

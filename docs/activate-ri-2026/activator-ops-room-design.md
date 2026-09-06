@@ -65,7 +65,8 @@ The room must continue to state that RI POTA is an unofficial community site and
 | Room operating modes | `full`, `announcements`, and `off`, controlled from the admin panel. A deployment-level hard-disable remains available. |
 | Participant deletion | Participants may remove their own messages. No message editing; delete and repost instead. |
 | Organizer moderation | Remove messages, mute, ban, unmute, unban, disconnect active room sessions, and separately revoke portal sessions or secure links. |
-| Email announcements | An organizer may explicitly email an announcement to eligible activators who opted in. Preferences default off. Ordinary messages never generate email. |
+| Email announcements | Explicit organizer broadcasts reach eligible activators by default, except those who turned off all Ops Room emails. |
+| Chat email alerts | Activators and administrators can independently opt in to email for every new message from someone else. This defaults off. |
 | Retention | Keep room data through the event and for 90 days after the event, then purge message bodies and expired sessions according to a documented maintenance task. |
 | Attachments and formatting | Plain text only. No images, files, Markdown, rich previews, reactions, presence, typing indicators, or read receipts. |
 
@@ -103,9 +104,13 @@ state for the recent feed, independent of the synchronization cursor; it is not
 a read receipt and does not sync between devices. The bootstrap contains the
 latest 50 messages, so unread counts describe that recent window on return.
 
-An expandable Email notifications control lives below the feed and on Account.
-Announcement emails link to Account so people can turn them off even when the
-room is unavailable. No installation or browser notification permission is needed.
+An expandable My email notifications control lives below both participant and
+administrator feeds, and on the activator Account page. It offers an optional
+email for every new room message and an overall switch to turn off all Ops Room
+emails. Organizer-selected email announcements are included by default for
+eligible activators. Account sign-in and plan emails remain separate.
+Emails include message text and a link back to the appropriate room to reply.
+No installation or browser notification permission is needed.
 
 The main screen contains:
 
@@ -1133,7 +1138,7 @@ Fields:
 - announcement text
 - optional park/stop context
 - `Pin this announcement`
-- `Also email subscribed activators`, with the opted-in recipient count
+- `Also email this announcement to activators`, with the eligible recipient count
 - recipient criteria preview
 - final confirmation
 
@@ -1232,8 +1237,8 @@ It is not:
 
 ### 13.1 Eligible recipients
 
-Require `email_announcements = 1` (default `0`) and an approved activator,
-with membership in:
+Organizer broadcasts require an approved activator with Ops Room emails enabled
+(the default), and membership in:
 
 ```text
 active
@@ -1249,10 +1254,27 @@ rejected
 ```
 
 A participant who withdrew their itinerary after prior approval remains eligible
-while their activator approval and membership remain active and they are opted in.
-Recheck consent and eligibility before each delivery batch, including retries.
-Record recipients who opted out or lost eligibility as skipped; do not retry them.
-Migration `0022_ops_email_preferences.sql` adds the preference and skip tracking.
+while their activator approval and membership remain active and overall emails
+are enabled. Chat notifications additionally require explicit `chat_messages`
+opt-in. Administrators can subscribe without an activator record; their current
+verified email, administrator grant, and account status are checked before sending.
+
+Migration `0023_ops_notification_categories.sql` supersedes the earlier
+announcement-only opt-in. Preferences are keyed by event and verified email so
+an administrator who is also an activator has one overall preference. The old
+`email_announcements` column is retained for migration compatibility but unused.
+
+Queue recipients in the same D1 transaction as each new message. A unique
+message/email key avoids duplicate category deliveries and nonce replays do not
+resnapshot recipients. Exclude the sender from chat alerts. Recheck consent,
+membership, admin grants, and message removal immediately before delivery.
+Record ineligible deliveries as skipped. Send promptly after posting and drain
+pending work on the existing minute cron. Claims prevent concurrent drains from
+sending the same delivery; expired claims recover interrupted work. Retry
+temporary failures with exponential backoff, up to eight attempts. Admins can
+inspect pending/failed counts and manually retry failures from the Email tab.
+Provider acceptance followed by a crash before recording success can still
+cause a duplicate retry; email delivery cannot promise exactly-once receipt.
 
 ### 13.2 Privacy
 
@@ -1263,7 +1285,9 @@ Use either:
 - individual sends, or
 - BCC batches that stay within the provider’s combined-recipient limit
 
-For the current expected group, BCC batches are adequate. Use an event address as `To` and at most 49 activator addresses as BCC so the combined address count remains at most 50.
+New notifications use individual sends. Historical announcement broadcasts retain
+their BCC delivery and retry support, with the current overall email preference
+checked before delivery.
 
 ### 13.3 Delivery state
 

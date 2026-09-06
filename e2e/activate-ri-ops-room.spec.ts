@@ -78,16 +78,16 @@ test("approved activators acknowledge rules and exchange a live room message", a
     await expect(second.locator("[data-ops-connection-label]")).toHaveText("Live");
 
     await second.locator("[data-ops-email-preferences] summary").click();
-    const emailPreference = second.getByLabel("Email me organizer announcements");
+    const emailPreference = second.getByLabel("Email me every new room message");
     await expect(emailPreference).not.toBeChecked();
     await emailPreference.check();
-    await second.getByRole("button", { name: "Save preference" }).click();
-    await expect(second.locator("[data-ops-email-status]")).toHaveText("Saved. Organizer announcement emails are on.");
+    await second.getByRole("button", { name: "Save preferences" }).click();
+    await expect(second.locator("[data-ops-email-status]")).toContainText("every new room message");
     await second.goto(`${server.origin}/activate-ri-2026/activator/account/#ops-email-notifications`);
-    await expect(second.getByLabel("Email me organizer announcements")).toBeChecked();
-    await second.getByLabel("Email me organizer announcements").uncheck();
-    await second.getByRole("button", { name: "Save preference" }).click();
-    await expect(second.locator("[data-ops-email-status]")).toHaveText("Saved. Organizer announcement emails are off.");
+    await expect(second.getByLabel("Email me every new room message")).toBeChecked();
+    await second.getByLabel("Turn off all Ops Room emails").check();
+    await second.getByRole("button", { name: "Save preferences" }).click();
+    await expect(second.locator("[data-ops-email-status]")).toHaveText("Saved. All Ops Room emails are off.");
     await second.goto(`${server.origin}/activate-ri-2026/activator/`);
     await expect(second.locator("[data-ops-connection-label]")).toHaveText("Live");
 
@@ -121,6 +121,25 @@ test("approved activators acknowledge rules and exchange a live room message", a
     await expect(admin.locator("[data-admin-ops-status]")).toHaveText(
       "Ops Room state is current.",
     );
+    await admin.locator("[data-ops-email-preferences] summary").click();
+    await admin.getByLabel("Email me every new room message").check();
+    await admin.getByRole("button", { name: "Save preferences" }).click();
+    await expect(admin.locator("[data-ops-email-status]")).toContainText("every new room message");
+    await admin.reload();
+    await admin.locator("[data-ops-email-preferences] summary").click();
+    await expect(admin.getByLabel("Email me every new room message")).toBeChecked();
+    await first.locator("[data-ops-body]").fill("Can an organizer help with my next stop?");
+    await first.getByRole("button", { name: "Send", exact: true }).click();
+    await expect(first.locator("[data-ops-send-state]")).toHaveText("Sent");
+    const notificationMessage = first.locator("[data-ops-feed] > li").filter({ hasText: "Can an organizer help with my next stop?" });
+    const notificationId = await notificationMessage.getAttribute("id");
+    const notificationEmail = await server.waitForEmailText(`Ops Room: ${callsign} - Ops posted a new message`);
+    expect(notificationEmail).toContain("Can an organizer help with my next stop?");
+    expect(notificationEmail).toContain(`/activate-ri-2026/admin/?view=ops#${notificationId}`);
+    await admin.evaluate(() => localStorage.setItem("activate-ri-admin-workspace", "plans"));
+    await admin.goto(`${server.origin}/activate-ri-2026/admin/?view=ops#${notificationId}`);
+    await expect(admin.locator(`#${notificationId}`)).toBeInViewport();
+    await expect(admin.locator("[data-admin-ops-status]")).toHaveText("Ops Room state is current.");
     await admin.locator("[data-admin-ops-announcement] textarea").fill(
       "Organizer test announcement.",
     );

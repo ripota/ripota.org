@@ -76,6 +76,6 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     if (button?.dataset.adminWorkspace) showWorkspace(button.dataset.adminWorkspace);
   });
 
-  const requested = location.hash.slice(1);
+  const requested = new URL(location.href).searchParams.get("view") ?? location.hash.slice(1);
   showWorkspace(validWorkspaces.has(requested) ? requested : localStorage.getItem(workspaceKey) ?? "ops", false);
 </script>
