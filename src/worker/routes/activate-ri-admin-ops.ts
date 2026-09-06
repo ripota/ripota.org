@@ -16,6 +16,7 @@ import type { Env } from "../env";
 import { json, readJson } from "../http";
 import { getOpsAdminState, listOpsEvents } from "../ops-db";
 import {
+  clearPinnedOpsAnnouncementThroughRoom,
   disconnectOpsMember,
   getOpsRoomStats,
   moderateOpsMessageThroughRoom,
@@ -132,6 +133,14 @@ export async function handleActivateRiAdminOpsApi(
       if (ctx) ctx.waitUntil(send); else await send;
     }
     return privateJson({ ...body, ...(broadcast ? { broadcast } : {}) });
+  }
+
+  if (request.method === "DELETE" && url.pathname === "/api/activate-ri-2026/admin/ops/pin") {
+    const originError = requireMutationOrigin(request, env);
+    if (originError) return originError;
+    return withPrivateHeaders(
+      await clearPinnedOpsAnnouncementThroughRoom(env, identity.email),
+    );
   }
 
   const moderation = url.pathname.match(

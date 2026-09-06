@@ -84,6 +84,7 @@ import AdminOpsModeration from "./AdminOpsModeration.astro";
     } | null;
     hardDisabled: boolean;
     connectedClients: number;
+    pinnedMessage: Message | null;
     members: Member[];
     messages: Message[];
     broadcasts: Broadcast[];
@@ -97,6 +98,8 @@ import AdminOpsModeration from "./AdminOpsModeration.astro";
   const broadcastsList = root?.querySelector<HTMLElement>("[data-admin-ops-broadcasts]");
   const announcementForm = root?.querySelector<HTMLFormElement>("[data-admin-ops-announcement]");
   const recipientPreview = root?.querySelector<HTMLElement>("[data-admin-ops-recipient-preview]");
+  const currentAnnouncement = root?.querySelector<HTMLElement>("[data-admin-current-announcement]");
+  const currentAnnouncementBody = root?.querySelector<HTMLElement>("[data-admin-current-announcement-body]");
   const opsTabs = root?.querySelector<HTMLElement>("[data-admin-ops-tabs]");
   const opsViews = root?.querySelectorAll<HTMLElement>("[data-admin-ops-view]") ?? [];
   let state: AdminOpsState | null = null;
@@ -112,6 +115,10 @@ import AdminOpsModeration from "./AdminOpsModeration.astro";
     if (button?.dataset.adminOpsTab) showOpsView(button.dataset.adminOpsTab);
   });
   showOpsView("room");
+
+  root?.querySelector("[data-admin-clear-announcement]")?.addEventListener("click", () => {
+    void clearPinnedAnnouncement();
+  });
 
   announcementForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -162,12 +169,23 @@ import AdminOpsModeration from "./AdminOpsModeration.astro";
     renderMembers();
     renderMessages();
     renderBroadcasts();
+    renderPinnedAnnouncement();
     root?.querySelector("[data-admin-message-count]")?.replaceChildren(state.messages.length ? String(state.messages.length) : "");
     root?.querySelector("[data-admin-member-count]")?.replaceChildren(state.members.length ? String(state.members.length) : "");
     const eligible = state.members.filter((member) => member.status !== "banned").length;
     recipientPreview?.replaceChildren(
       `${eligible} activator${eligible === 1 ? "" : "s"} currently eligible for an email copy (active and muted; banned excluded).`,
     );
+  }
+
+  function renderPinnedAnnouncement(): void {
+    const pinned = state?.pinnedMessage;
+    if (!currentAnnouncement || !currentAnnouncementBody || !pinned || pinned.removed) {
+      if (currentAnnouncement) currentAnnouncement.hidden = true;
+      return;
+    }
+    currentAnnouncementBody.textContent = pinned.body;
+    currentAnnouncement.hidden = false;
   }
 
   function renderSummary(): void {
@@ -285,6 +303,17 @@ import AdminOpsModeration from "./AdminOpsModeration.astro";
     await loadState();
   }
 
+  async function clearPinnedAnnouncement(): Promise<void> {
+    if (!window.confirm(
+      "Clear the pinned announcement from the top of every Ops Room? It will remain in message history.",
+    )) return;
+    const response = await jsonMutation(
+      "/api/activate-ri-2026/admin/ops/pin",
+      "DELETE",
+    );
+    if (response.ok) await loadState();
+  }
+
   async function memberMutation(member: Member, nextStatus: string): Promise<void> {
     const needsReason = nextStatus === "muted" || nextStatus === "banned";
     const reason = needsReason ? window.prompt(`Reason to mark ${member.primary_callsign} ${nextStatus}:`) : "";
@@ -314,12 +343,16 @@ import AdminOpsModeration from "./AdminOpsModeration.astro";
     await loadState();
   }
 
-  async function jsonMutation(path: string, method: string, body: unknown): Promise<Response> {
+  async function jsonMutation(path: string, method: string, body?: unknown): Promise<Response> {
     setStatus("Saving…");
     const response = await fetch(path, {
       method,
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
+      ...(body === undefined
+        ? {}
+        : {
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(body),
+          }),
     });
     if (!response.ok) {
       const result = await response.json() as { error?: string; errors?: string[] };

@@ -17,8 +17,8 @@ export async function postOpsMessageThroughRoom(
 ): Promise<Response> {
   return opsRoomStub(env).fetch("https://ops.internal/messages", {
     method: "POST",
-    headers: actorHeaders(actor),
-    body: JSON.stringify(input),
+    headers: actorHeaders({ ...actor, label: "Activator" }),
+    body: JSON.stringify({ ...input, authorLabel: actor.label }),
   });
 }
 
@@ -94,6 +94,20 @@ export async function postOpsAnnouncementThroughRoom(
       "x-ops-label": "Organizer",
     },
     body: JSON.stringify(input),
+  });
+}
+
+export async function clearPinnedOpsAnnouncementThroughRoom(
+  env: Env,
+  actorEmail: string,
+): Promise<Response> {
+  return opsRoomStub(env).fetch("https://ops.internal/pin", {
+    method: "DELETE",
+    headers: {
+      "x-ops-actor-type": "admin",
+      "x-ops-admin-email": actorEmail,
+      "x-ops-label": "Organizer",
+    },
   });
 }
 

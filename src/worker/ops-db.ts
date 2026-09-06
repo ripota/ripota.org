@@ -410,6 +410,71 @@ export async function createAdminOpsAnnouncement(
   return pinEvent ? [created, pinEvent] : [created];
 }
 
+export async function clearPinnedOpsAnnouncement(
+  env: Env,
+  actorEmail: string,
+  expectedMessageId?: string,
+  now = new Date().toISOString(),
+): Promise<OpsEvent | null> {
+  const settings = await env.DB.prepare(
+    `SELECT pinned_message_id FROM activate_ri_ops_settings WHERE event_id = ?`,
+  ).bind(env.ACTIVATE_RI_EVENT_ID).first<{ pinned_message_id: string | null }>();
+  const pinnedMessageId = settings?.pinned_message_id;
+  if (!pinnedMessageId || (expectedMessageId && pinnedMessageId !== expectedMessageId)) {
+    return null;
+  }
+
+  const operationId = crypto.randomUUID();
+  const metadata = JSON.stringify({ operationId });
+  const [, , update] = await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO activate_ri_ops_events (
+         event_id, event_type, message_id, metadata_json, created_at
+       )
+       SELECT ?, 'pin-changed', NULL, ?, ?
+       FROM activate_ri_ops_settings
+       WHERE event_id = ? AND pinned_message_id = ?`,
+    ).bind(
+      env.ACTIVATE_RI_EVENT_ID,
+      metadata,
+      now,
+      env.ACTIVATE_RI_EVENT_ID,
+      pinnedMessageId,
+    ),
+    env.DB.prepare(
+      `INSERT INTO activate_ri_activity_events (
+         id, event_id, actor_type, actor_email, action, summary, details_json, created_at
+       )
+       SELECT ?, ?, 'admin', ?, 'ops-announcement-unpinned',
+         'Organizer cleared the pinned Ops Room announcement.', ?, ?
+       FROM activate_ri_ops_settings
+       WHERE event_id = ? AND pinned_message_id = ?`,
+    ).bind(
+      crypto.randomUUID(),
+      env.ACTIVATE_RI_EVENT_ID,
+      actorEmail,
+      JSON.stringify({ messageId: pinnedMessageId }),
+      now,
+      env.ACTIVATE_RI_EVENT_ID,
+      pinnedMessageId,
+    ),
+    env.DB.prepare(
+      `UPDATE activate_ri_ops_settings
+       SET pinned_message_id = NULL, updated_at = ?, updated_by = ?
+       WHERE event_id = ? AND pinned_message_id = ?`,
+    ).bind(now, actorEmail, env.ACTIVATE_RI_EVENT_ID, pinnedMessageId),
+  ]);
+  if ((update.meta?.changes ?? 0) === 0) return null;
+
+  const row = await env.DB.prepare(
+    `${eventSelectSql}
+     WHERE e.event_id = ? AND e.event_type = 'pin-changed'
+       AND e.message_id IS NULL AND e.metadata_json = ?
+     ORDER BY e.sequence DESC LIMIT 1`,
+  ).bind(env.ACTIVATE_RI_EVENT_ID, metadata).first<EventRow>();
+  return row ? toOpsEvent(row) : null;
+}
+
 export async function moderateOpsMessage(
   env: Env,
   messageId: string,
@@ -692,7 +757,7 @@ export async function setOwnOpsMessageResolved(
 }
 
 export async function getOpsAdminState(env: Env) {
-  const [settings, messages, broadcasts, members, cursor] = await env.DB.batch([
+  const [settings, messages, pinned, broadcasts, members, cursor] = await env.DB.batch([
     env.DB.prepare(
       `SELECT room_mode, pinned_message_id, rules_version, updated_at, updated_by
        FROM activate_ri_ops_settings WHERE event_id = ?`,
@@ -701,6 +766,12 @@ export async function getOpsAdminState(env: Env) {
       `${messageSelectSql}
        WHERE event_id = ? ORDER BY created_at DESC, id DESC LIMIT 100`,
     ).bind(env.ACTIVATE_RI_EVENT_ID),
+    env.DB.prepare(
+      `${messageSelectSql}
+       WHERE id = (
+         SELECT pinned_message_id FROM activate_ri_ops_settings WHERE event_id = ?
+       ) AND event_id = ?`,
+    ).bind(env.ACTIVATE_RI_EVENT_ID, env.ACTIVATE_RI_EVENT_ID),
     env.DB.prepare(
       `SELECT id, message_id, status, recipient_count, sent_count, failed_count,
               created_at, completed_at, last_error
@@ -721,8 +792,10 @@ export async function getOpsAdminState(env: Env) {
     ).bind(env.ACTIVATE_RI_EVENT_ID),
   ]);
   const settingsRow = (settings.results?.[0] ?? null) as SettingsRow | null;
+  const pinnedRow = (pinned.results?.[0] ?? null) as MessageRow | null;
   return {
     settings: settingsRow,
+    pinnedMessage: pinnedRow ? toMessageDto(pinnedRow) : null,
     hardDisabled: env.ACTIVATE_RI_OPS_HARD_DISABLED === "true",
     members: members.results ?? [],
     messages: ((messages.results ?? []) as MessageRow[]).map(toMessageDto),

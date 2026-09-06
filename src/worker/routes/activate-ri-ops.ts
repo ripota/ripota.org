@@ -1,4 +1,5 @@
 import { validateOpsMessage } from "../../lib/activate-ri/ops-validation";
+import { opsActivatorAuthorLabel } from "../../lib/activate-ri/ops-author";
 import { requireActivator } from "../auth/authorization";
 import type { Env } from "../env";
 import { json, readJson } from "../http";
@@ -97,7 +98,7 @@ export async function handleActivateRiOpsApi(
     const actor = {
       type: "activator",
       activatorId: identity.activatorId,
-      label: identity.callsign,
+      label: opsActivatorAuthorLabel(identity.callsign, identity.name),
     } as const;
     if (!await withinOpsRateLimits(env, `activator:${identity.activatorId}`)) {
       return privateJson({ ok: false, error: "Too many room updates" }, { status: 429 });

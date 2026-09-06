@@ -113,6 +113,7 @@ describe("Activate RI Ops Room D1 flow", () => {
         type: "message-created",
         message: expect.objectContaining({
           id: firstBody.event.message.id,
+          authorLabel: "N1RWJ - Rob",
           parkReference: "US-2868",
           body: "Vehicle trouble; I may not reach this stop.",
         }),
@@ -365,9 +366,49 @@ describe("Activate RI Ops Room D1 flow", () => {
       bcc: ["rob@example.com"],
     }));
 
+    const pinnedState = await handleActivateRiApi(
+      adminRequest("/api/activate-ri-2026/admin/ops"),
+      env,
+    );
+    await expect(pinnedState.json()).resolves.toMatchObject({
+      pinnedMessage: {
+        id: announcementBody.event.message.id,
+        body: "Coastal winds are increasing after 6 PM.",
+      },
+    });
+    const clearPin = await handleActivateRiApi(
+      adminRequest("/api/activate-ri-2026/admin/ops/pin", {
+        method: "DELETE",
+        headers: jsonHeaders(),
+      }),
+      env,
+    );
+    expect(clearPin.status).toBe(200);
+    await expect(clearPin.json()).resolves.toMatchObject({
+      event: { type: "pin-changed", pinnedMessage: null },
+    });
+
+    const replacement = await handleActivateRiApi(
+      adminRequest("/api/activate-ri-2026/admin/ops/announcements", {
+        method: "POST",
+        headers: jsonHeaders(),
+        body: JSON.stringify({
+          clientNonce: "66cd9f85-9729-4860-ae6c-69244b73883a",
+          body: "Replacement organizer announcement.",
+          context: null,
+          pin: true,
+          emailEligibleActivators: false,
+        }),
+      }),
+      env,
+    );
+    const replacementBody = await replacement.json() as {
+      event: { message: { id: string } };
+    };
+
     const remove = await handleActivateRiApi(
       adminRequest(
-        `/api/activate-ri-2026/admin/ops/messages/${announcementBody.event.message.id}/remove`,
+        `/api/activate-ri-2026/admin/ops/messages/${replacementBody.event.message.id}/remove`,
         {
           method: "POST",
           headers: jsonHeaders(),
@@ -377,9 +418,15 @@ describe("Activate RI Ops Room D1 flow", () => {
       env,
     );
     expect(remove.status).toBe(200);
+    await expect(remove.clone().json()).resolves.toMatchObject({
+      events: [
+        { type: "message-removed" },
+        { type: "pin-changed", pinnedMessage: null },
+      ],
+    });
     const stored = await env.DB.prepare(
       `SELECT body, removal_reason FROM activate_ri_ops_messages WHERE id = ?`,
-    ).bind(announcementBody.event.message.id).first<{
+    ).bind(replacementBody.event.message.id).first<{
       body: string;
       removal_reason: string;
     }>();
@@ -387,6 +434,10 @@ describe("Activate RI Ops Room D1 flow", () => {
       body: "",
       removal_reason: "Superseded by a newer wind update.",
     });
+    const settings = await env.DB.prepare(
+      `SELECT pinned_message_id FROM activate_ri_ops_settings WHERE event_id = ?`,
+    ).bind(env.ACTIVATE_RI_EVENT_ID).first<{ pinned_message_id: string | null }>();
+    expect(settings?.pinned_message_id).toBeNull();
     const audits = await env.DB.prepare(
       `SELECT details_json FROM activate_ri_activity_events
        WHERE action = 'ops-message-removed'`,

@@ -2,6 +2,7 @@ import type { CreateOpsMessageInput, OpsActor, OpsEvent, OpsMembershipStatus } f
 import {
   createAdminOpsMessage,
   createAdminOpsAnnouncement,
+  clearPinnedOpsAnnouncement,
   createOpsMessage,
   moderateOpsMessage,
   removeOwnOpsMessage,
@@ -43,6 +44,9 @@ export class ActivateRiOpsRoom implements DurableObject {
     }
     if (request.method === "POST" && url.pathname === "/announcements") {
       return this.createAnnouncement(request);
+    }
+    if (request.method === "DELETE" && url.pathname === "/pin") {
+      return this.clearPinnedAnnouncement(request);
     }
     const moderation = url.pathname.match(/^\/moderation\/messages\/([^/]+)\/(remove|resolve|reopen)$/);
     if (request.method === "POST" && moderation) {
@@ -114,9 +118,22 @@ export class ActivateRiOpsRoom implements DurableObject {
     if (!actor) {
       return json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
-    const input = await request.json<CreateOpsMessageInput>();
+    const payload = await request.json<CreateOpsMessageInput & { authorLabel?: string }>();
+    const input: CreateOpsMessageInput = {
+      clientNonce: payload.clientNonce,
+      kind: payload.kind,
+      body: payload.body,
+      context: payload.context,
+    };
     const event = actor.type === "activator"
-      ? await createOpsMessage(this.env, actor, input)
+      ? await createOpsMessage(
+          this.env,
+          {
+            ...actor,
+            label: payload.authorLabel?.trim().slice(0, 100) || actor.label,
+          },
+          input,
+        )
       : await createAdminOpsMessage(this.env, actor.key, actor.label, input);
     if (!event) {
       return json({ ok: false, error: "Message could not be posted" }, { status: 403 });
@@ -187,6 +204,16 @@ export class ActivateRiOpsRoom implements DurableObject {
     return json({ ok: true, event: events[0], events });
   }
 
+  private async clearPinnedAnnouncement(request: Request): Promise<Response> {
+    const actorEmail = adminEmail(request.headers);
+    if (!actorEmail) {
+      return json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    }
+    const event = await clearPinnedOpsAnnouncement(this.env, actorEmail);
+    if (event) this.broadcast(event);
+    return json({ ok: true, event });
+  }
+
   private async moderateMessage(
     request: Request,
     encodedMessageId: string,
@@ -204,7 +231,15 @@ export class ActivateRiOpsRoom implements DurableObject {
     );
     if (!event) return json({ ok: false, error: "Message not found" }, { status: 404 });
     this.broadcast(event);
-    return json({ ok: true, event });
+    const pinEvent = action === "remove"
+      ? await clearPinnedOpsAnnouncement(
+          this.env,
+          actorEmail,
+          decodePathSegment(encodedMessageId),
+        )
+      : null;
+    if (pinEvent) this.broadcast(pinEvent);
+    return json({ ok: true, event, events: pinEvent ? [event, pinEvent] : [event] });
   }
 
   private async updateMember(request: Request, encodedActivatorId: string): Promise<Response> {

@@ -4019,6 +4019,27 @@ p {
   font-size: 0.8rem;
 }
 
+.admin-current-announcement {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.85rem;
+  border-left: 3px solid var(--accent);
+  padding-left: 0.75rem;
+}
+
+.admin-current-announcement > p:not(.eyebrow) {
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.admin-current-announcement .button {
+  justify-self: start;
+  min-height: 2.2rem;
+  padding: 0.38rem 0.6rem;
+  font-size: 0.74rem;
+}
+
 .admin-announcement .admin-ops-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr)) auto;

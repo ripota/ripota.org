@@ -89,6 +89,9 @@ test("approved activators acknowledge rules and exchange a live room message", a
       "Checking in from Beavertail.",
     );
     await expect(second.locator("[data-ops-feed]")).toContainText("US-2868");
+    await expect(second.locator("[data-ops-feed]")).toContainText(
+      `${callsign} - Ops`,
+    );
 
     await firstContext.setOffline(true);
     await first.locator("[data-ops-body]").fill("Drafted while offline.");
@@ -113,6 +116,13 @@ test("approved activators acknowledge rules and exchange a live room message", a
     await expect(second.locator("[data-ops-pin]")).toContainText(
       "Organizer test announcement.",
     );
+    await expect(admin.locator("[data-admin-current-announcement]")).toContainText(
+      "Organizer test announcement.",
+    );
+    admin.once("dialog", (dialog) => dialog.accept());
+    await admin.getByRole("button", { name: "Clear pinned announcement" }).click();
+    await expect(second.locator("[data-ops-pin]")).toBeHidden();
+    await expect(admin.locator("[data-admin-current-announcement]")).toBeHidden();
 
     await admin.getByRole("button", { name: /Messages/ }).click();
     const messageCard = admin.locator("[data-admin-ops-messages] .admin-card").filter({
