@@ -85,6 +85,21 @@ describe("deriveParkPlans", () => {
     expect(plan.timeSlotCount).toBe(1);
   });
 
+  it("orders detail windows chronologically across UTC midnight within the event day", () => {
+    const [plan] = deriveParkPlans([parks[0]], [
+      stop("late-evening", { startTime: "01:00", endTime: "02:00" }),
+      stop("evening-long", { startTime: "23:00", endTime: "01:00" }),
+      stop("following-day", { plannedDate: "2026-09-13", startTime: "05:00", endTime: "06:00" }),
+      stop("morning", { startTime: "10:00", endTime: "12:00" }),
+      stop("evening-short", { startTime: "23:00", endTime: "23:59" }),
+      stop("afternoon", { startTime: "17:00", endTime: "19:00" }),
+    ]);
+
+    expect(plan.stops.map((entry) => entry.id)).toEqual([
+      "morning", "afternoon", "evening-short", "evening-long", "late-evening", "following-day",
+    ]);
+  });
+
   it("filters parks by county, including parks without plans and parks spanning counties", () => {
     const spanningCountyPark = { ...parks[1], counties: ["Bristol County", "Newport County"] };
     const plans = deriveParkPlans([parks[0], spanningCountyPark, parks[2]], [], { county: "Newport County" });

@@ -29,20 +29,31 @@ import EventPhaseViews from "../../components/activate-ri/EventPhaseViews.astro"
             and modes are welcome at parks already scheduled.
           </p>
         </div>
-        <ParkCoverageTable />
         </div>
         <div slot="results">
           <div class="section-header">
             <p class="eyebrow">Park coverage</p>
             <h1>Event progress by park</h1>
             <p class="lead">Follow current spots, planned activations, and POTA confirmations across Rhode Island.</p>
+            <p><a class="button" href="#park-planning">Plan another activation</a></p>
           </div>
           <PotaParkProgress />
         </div>
         </EventPhaseViews>
+        <section id="park-planning" aria-labelledby="park-planning-title">
+          <h2 id="park-planning-title">Choose a park to activate</h2>
+          <p>Start with parks with fewer activators, or compare time slots to give hunters another opportunity.</p>
+          <ParkCoverageTable />
+        </section>
       </div>
     </section>
     <Notice />
   </main>
   <Footer />
 </BaseLayout>
+
+<style>
+  #park-planning { scroll-margin-top: 2rem; }
+  #park-planning > h2 { font-size: clamp(1.65rem, 3vw, 2.3rem); margin-bottom: 0.5rem; }
+  #park-planning > p { margin-bottom: 1.4rem; }
+</style>

@@ -56,6 +56,10 @@ for (const path of ["/activate-ri-2026/", "/activate-ri-2026/parks/"]) {
       const results = page.locator('[data-event-view="results"]');
       await expect(planning).toBeVisible();
       await expect(results).toBeHidden();
+      if (path.endsWith("/parks/")) {
+        await expect(page.locator("#park-planning")).toBeVisible();
+        await expect(page.locator("[data-live-coverage]")).toBeVisible();
+      }
       if (!path.endsWith("/parks/")) {
         await expect(planning.getByRole("link", { name: "Add an activation", exact: true })).toHaveAttribute("href", "/activate-ri-2026/volunteer/");
         await expect(planning.getByRole("link", { name: "Get ready to hunt", exact: true })).toHaveAttribute("href", "/activate-ri-2026/hunter/");
@@ -72,6 +76,9 @@ for (const path of ["/activate-ri-2026/", "/activate-ri-2026/parks/"]) {
       await expect(results).toContainText("Confirmed by POTA");
       if (path.endsWith("/parks/")) {
         await expect(results.locator(".pota-park-card")).toHaveCount(61);
+        await expect(page.locator("#park-planning")).toBeVisible();
+        await expect(page.locator("[data-live-coverage]")).toBeVisible();
+        await expect(results.getByRole("link", { name: "Plan another activation", exact: true })).toHaveAttribute("href", "#park-planning");
       } else {
         await expect(results.locator("[data-hero-pota-updated]")).toContainText("Sep 10");
         await expect(results.getByRole("link", { name: "See RI on air now", exact: true })).toHaveAttribute("href", "/on-air/");
@@ -81,6 +88,10 @@ for (const path of ["/activate-ri-2026/", "/activate-ri-2026/parks/"]) {
       await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
       await expect(page.locator("[data-event-phase-views]")).toHaveAttribute("data-phase", "post-event");
       await expect(progressLink).toBeVisible();
+      if (path.endsWith("/parks/")) {
+        await expect(page.locator("#park-planning")).toBeVisible();
+        await expect(page.locator("[data-live-coverage]")).toBeVisible();
+      }
       if (!path.endsWith("/parks/")) {
         const progressAction = results.getByRole("link", { name: "View event progress", exact: true });
         await expect(progressAction).toBeVisible();

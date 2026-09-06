@@ -13,10 +13,10 @@ describe("ScheduleTable markup", () => {
     expect(source).not.toContain('`${stop.startTime}-${stop.endTime} UTC`');
   });
 
-  it("links directly to the parks that still need coverage", () => {
-    expect(source).toContain('href="/activate-ri-2026/parks/?coverage=needed"');
-    expect(source).toContain('Find parks that still need coverage');
-    expect(source).toContain('summarizeParkCoverage(parks, stops).gaps');
+  it("keeps the park planning shortcut available after every park is scheduled", () => {
+    expect(source).toContain('href="/activate-ri-2026/parks/#park-planning"');
+    expect(source).toContain('Find parks with fewer activators');
+    expect(source).not.toContain('shortcut.hidden = gapCount === 0');
   });
 
   it("filters by activator and keeps schedule controls in the URL", () => {

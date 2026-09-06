@@ -1,4 +1,5 @@
 import { matchesTimeline, parkCounties } from "./listing";
+import { stopTimeRangeToInstants } from "./time";
 import type { PublicActivationStop, PublicParkSummary } from "./types";
 
 export type PlanningSort = "activators" | "slots" | "name";
@@ -102,9 +103,19 @@ function compareParks(left: ParkPlanSummary, right: ParkPlanSummary): number {
 }
 
 function compareStops(left: PublicActivationStop, right: PublicActivationStop): number {
-  return left.plannedDate.localeCompare(right.plannedDate) ||
-    left.startTime.localeCompare(right.startTime) ||
-    left.endTime.localeCompare(right.endTime) ||
+  const leftTimes = stopInstants(left);
+  const rightTimes = stopInstants(right);
+
+  return leftTimes.startAt.localeCompare(rightTimes.startAt) ||
+    leftTimes.endAt.localeCompare(rightTimes.endAt) ||
     normalizeCallsign(left.activatorCallsign).localeCompare(normalizeCallsign(right.activatorCallsign)) ||
     left.id.localeCompare(right.id);
+}
+
+function stopInstants(stop: PublicActivationStop): { startAt: string; endAt: string } {
+  // Public stops pair a Rhode Island calendar date with UTC clock times.
+  // During this September event, 00:00–03:59 UTC is the local evening.
+  return stopTimeRangeToInstants(stop.plannedDate, stop.startTime, stop.endTime, {
+    utcDateOffset: stop.startTime < "04:00" ? 1 : 0,
+  });
 }

@@ -1,7 +1,33 @@
 import { expect, test } from "@playwright/test";
+import { references } from "@ripota/parks";
 import { startActivateRiServer } from "./helpers/activate-ri-server";
 
 test.setTimeout(60_000);
+
+test("schedule offers park planning even when every park already has an activator", async ({ page }) => {
+  const server = await startActivateRiServer();
+  try {
+    await page.clock.install({ time: new Date("2026-09-06T12:00:00Z") });
+    await page.route("**/api/activate-ri-2026/public/stops", route => route.fulfill({ json: {
+      ok: true,
+      stops: references.map(park => ({
+        id: `covered-${park.reference}`, parkReference: park.reference,
+        plannedDate: "2026-09-11", startTime: "13:00", endTime: "15:00",
+        activatorCallsign: "N1RI", bands: ["20m"], modes: ["SSB"], publicNotes: "", status: "scheduled",
+      })),
+    } }));
+    await page.goto(`${server.origin}/activate-ri-2026/schedule/`);
+    await expect(page.locator("[data-filter-row]:visible")).toHaveCount(references.length);
+    const shortcut = page.getByRole("link", { name: /Find parks with fewer activators/ });
+    await expect(shortcut).toBeVisible();
+    await shortcut.click();
+    await expect(page).toHaveURL(/\/activate-ri-2026\/parks\//);
+    await expect(page.locator("[data-live-coverage] [data-filter-row]:visible")).toHaveCount(references.length);
+    await expect(page.locator('[data-filter="sort"]')).toHaveValue("activators");
+  } finally {
+    await server.stop();
+  }
+});
 
 test("schedule search preserves deep links, mobile secondary filters, and print context", async ({ page }) => {
   const server = await startActivateRiServer();

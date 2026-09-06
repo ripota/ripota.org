@@ -25,9 +25,9 @@ const countyOptions = uniqueSortedValues(
   <p>{siteIdentity.disclaimer}</p>
 </header>
 
-<p class="event-coverage-shortcut" data-coverage-shortcut-wrap hidden>
-  <a href="/activate-ri-2026/parks/?coverage=needed" data-coverage-shortcut>
-    Find parks that still need coverage <span data-coverage-gap-count></span><span aria-hidden="true"> →</span>
+<p class="event-coverage-shortcut" data-coverage-shortcut-wrap>
+  <a href="/activate-ri-2026/parks/#park-planning" data-coverage-shortcut>
+    Find parks with fewer activators<span aria-hidden="true"> →</span>
   </a>
 </p>
 
@@ -174,7 +174,6 @@ const countyOptions = uniqueSortedValues(
 <script>
   import type { PublicActivationStop, PublicParkSummary } from "../../lib/activate-ri/types";
   import { buildRequestedAgendaUrl, parseRequestedReferences, requestedAgendaStops } from "../../lib/activate-ri/requested-parks";
-  import { summarizeParkCoverage } from "../../lib/activate-ri/coverage";
   import {
     hasHunterChecklistData,
     readHunterChecklistState,
@@ -458,13 +457,6 @@ const countyOptions = uniqueSortedValues(
     try {
       const stops = await fetchPublicActivationStops();
       const visibleStops = requestedAgendaStops([...new Set(stops.map((stop) => stop.parkReference))], stops);
-      const gapCount = summarizeParkCoverage(parks, stops).gaps;
-      document.querySelectorAll<HTMLElement>("[data-coverage-gap-count]").forEach((count) => {
-        count.textContent = `(${gapCount})`;
-      });
-      document.querySelectorAll<HTMLElement>("[data-coverage-shortcut-wrap]").forEach((shortcut) => {
-        shortcut.hidden = gapCount === 0;
-      });
       const loaded = document.querySelector<HTMLElement>("[data-schedule-loaded]");
       if (loaded) {
         const loadedAt = new Date();

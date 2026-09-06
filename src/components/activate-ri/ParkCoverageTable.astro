@@ -1,643 +1,376 @@
 ---
 import parks from "../../../public/data/activate-ri-2026/parks.json";
-import { isParkVolunteerActionable } from "../../lib/activate-ri/coverage";
-import {
-  formatActivatorModes,
-  timelineOptions,
-  uniqueSortedValues,
-} from "../../lib/activate-ri/listing";
-import {
-  formatActivationDate,
-  formatActivationTimeRange,
-} from "../../lib/activate-ri/time";
-import type { ParkCoverage, PublicParkSummary } from "../../lib/activate-ri/types";
+import { timelineOptions, uniqueSortedValues } from "../../lib/activate-ri/listing";
+import type { PublicParkSummary } from "../../lib/activate-ri/types";
 
 const publicParks = parks as PublicParkSummary[];
-// Coverage is unknown until the live request succeeds; an empty placeholder
-// must not make every park look like it needs a volunteer while loading.
-const visibleCoverage: ParkCoverage[] = [];
-const countyOptions = uniqueSortedValues(
-  publicParks.map((park) => (park.counties?.length ? park.counties : ["Unknown county"])),
-);
-
-const statusLabels: Record<string, string> = {
-  uncovered: "Needs coverage",
-  scheduled: "Scheduled",
-  "multiple-scheduled": "Multiple scheduled",
-  "cancelled-needs-replacement": "Needs replacement",
-  completed: "Completed",
-};
-
-function formatStop(stop: ParkCoverage["nextStop"]) {
-  if (!stop) {
-    return "TBD";
-  }
-
-  return `${formatActivationDate(stop)}, ${formatActivationTimeRange(stop)}`;
-}
-
-function formatList(items: string[]) {
-  return items.length > 0 ? items.join(", ") : "TBD";
-}
-
-function dataList(items: string[]) {
-  return items.join("|");
-}
-
-function volunteerHref(reference: string) {
-  return `/activate-ri-2026/volunteer/?park=${encodeURIComponent(reference)}`;
-}
-
-function parkGuideHref(reference: string) {
-  return `/parks/${encodeURIComponent(reference.toLowerCase())}/`;
-}
-
-function parkCounties(park: ParkCoverage) {
-  const source = publicParks.find((candidate) => candidate.reference === park.reference);
-  const counties = source?.counties ?? [];
-
-  return counties.length > 0 ? counties : ["Unknown county"];
-}
+const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
 ---
 
-<form class="event-filters" data-event-filters aria-label="Park coverage filters">
-  <label class="event-coverage-toggle">
-    <input type="checkbox" value="needed" data-coverage-filter />
-    <span>Only parks needing coverage</span>
-  </label>
-  <label class="event-filter">
-    Mode
-    <select class="event-filter__control" data-filter="mode">
-      <option value="all">Any mode</option>
-    </select>
-  </label>
-  <label class="event-filter">
-    Band
-    <select class="event-filter__control" data-filter="band">
-      <option value="all">Any band</option>
-    </select>
-  </label>
-  <label class="event-filter">
-    Timeline
-    <select class="event-filter__control" data-filter="timeline">
-      {timelineOptions.map((option) => <option value={option.value}>{option.label}</option>)}
-    </select>
-  </label>
-  <label class="event-filter">
-    County
-    <select class="event-filter__control" data-filter="county">
-      <option value="all">Any county</option>
-      {countyOptions.map((county) => <option value={county}>{county}</option>)}
-    </select>
-  </label>
-</form>
-
-<div class="event-table-wrap">
-  <table class="event-table" data-filtered-table data-live-coverage data-parks={JSON.stringify(publicParks)}>
-    <thead>
-      <tr>
-        <th scope="col">Park</th>
-        <th scope="col">Status</th>
-        <th scope="col">Next activation</th>
-        <th scope="col">Activator</th>
-        <th scope="col">Bands / modes</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr><td colspan="5" data-label="Park coverage">Loading the event schedule…</td></tr>
-      {
-        visibleCoverage.map((park) => (
-          <tr
-            data-filter-row
-            data-counties={dataList(parkCounties(park))}
-            data-has-stops={park.stops.length > 0 ? "true" : "false"}
-            data-needs-coverage={isParkVolunteerActionable(park.status) ? "true" : "false"}
-          >
-            <th scope="row" data-label="Park">
-              <a class="event-table-park-link" href={parkGuideHref(park.reference)}>
-                {park.name}
-              </a>
-              <span>{park.reference}</span>
-              <span>{formatList(parkCounties(park))}</span>
-            </th>
-            <td data-label="Status">
-              {!isParkVolunteerActionable(park.status) && (statusLabels[park.status] ?? park.status)}
-              {isParkVolunteerActionable(park.status) && (
-                <a class="button event-table-action" data-variant="primary" href={volunteerHref(park.reference)} data-analytics-event="event_cta_clicked" data-analytics-feature="coverage" data-analytics-placement="coverage" data-analytics-action="volunteer">
-                  Volunteer
-                </a>
-              )}
-            </td>
-            <td data-label="Next activation">
-              {park.stops.length > 0 ? (
-                <div class="event-stop-list">
-                  {park.stops.map((stop) => (
-                    <div
-                      class="event-stop-list__item"
-                      data-filter-stop
-                      data-bands={dataList(stop.bands)}
-                      data-date={stop.plannedDate}
-                      data-modes={dataList(stop.modes)}
-                    >
-                      {formatStop(stop)}
-                      <span>{statusLabels[stop.status] ?? stop.status}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                "TBD"
-              )}
-            </td>
-            <td data-label="Activator">
-              {park.stops.length > 0 ? (
-                <div class="event-stop-list">
-                  {park.stops.map((stop) => (
-                    <div
-                      class="event-stop-list__item"
-                      data-filter-stop
-                      data-bands={dataList(stop.bands)}
-                      data-date={stop.plannedDate}
-                      data-modes={dataList(stop.modes)}
-                    >
-                      {formatActivatorModes(stop)}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                "TBD"
-              )}
-            </td>
-            <td data-label="Bands / modes">
-              {park.stops.length > 0 ? (
-                <div class="event-stop-list">
-                  {park.stops.map((stop) => (
-                    <div
-                      class="event-stop-list__item"
-                      data-filter-stop
-                      data-bands={dataList(stop.bands)}
-                      data-date={stop.plannedDate}
-                      data-modes={dataList(stop.modes)}
-                    >
-                      {formatList(stop.bands)} / {formatList(stop.modes)}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                "TBD"
-              )}
-            </td>
-          </tr>
-        ))
-      }
-      <tr data-filter-empty hidden>
-        <td colspan="5" data-label="Park coverage">No parks match these filters.</td>
-      </tr>
-    </tbody>
-  </table>
+<div data-park-planning>
+  <form class="event-filters park-planning-filters" data-event-filters aria-label="Park planning filters">
+    <label class="event-filter">
+      Sort parks
+      <select class="event-filter__control" data-filter="sort">
+        <option value="activators">Fewest activators</option>
+        <option value="slots">Fewest time slots</option>
+        <option value="name">Park name</option>
+      </select>
+    </label>
+    <label class="event-filter">
+      Event day (Rhode Island time)
+      <select class="event-filter__control" data-filter="timeline">
+        {timelineOptions.map((option) => <option value={option.value}>{option.label}</option>)}
+      </select>
+    </label>
+    <label class="event-filter">
+      County
+      <select class="event-filter__control" data-filter="county">
+        <option value="all">Any county</option>
+        {counties.map((county) => <option value={county}>{county}</option>)}
+      </select>
+    </label>
+    <div class="park-planning-personal">
+      <label class="event-coverage-toggle">
+        <input type="checkbox" data-my-parks disabled aria-describedby="my-parks-help" />
+        <span>My parks</span>
+      </label>
+      <p id="my-parks-help" data-my-parks-help>Checking sign-in…</p>
+      <a data-my-parks-sign-in href="/account/sign-in/?returnTo=%2Factivate-ri-2026%2Fparks%2F%3Fmine%3D1" hidden>Sign in to see my parks</a>
+      <a data-my-plan href="/activate-ri-2026/activator/plan/" hidden>Edit my plan</a>
+    </div>
+    <details class="park-planning-more">
+      <summary>More filters</summary>
+      <div class="event-filters">
+        <label class="event-filter">
+          Mode
+          <select class="event-filter__control" data-filter="mode"><option value="all">Any mode</option></select>
+        </label>
+        <label class="event-filter">
+          Band
+          <select class="event-filter__control" data-filter="band"><option value="all">Any band</option></select>
+        </label>
+      </div>
+    </details>
+  </form>
+  <p class="park-planning-note">Counts include published scheduled and delayed plans for the selected dates, bands, and modes. Parks with no matching plans stay in the list. Expand a count to see the planned times.</p>
+  <div class="park-planning-status">
+    <p data-planning-status role="status">Loading the event schedule…</p>
+    <button class="button" type="button" data-reload-planning>Refresh plans</button>
+  </div>
+  <div class="event-table-wrap">
+    <table class="event-table park-planning-table" data-live-coverage data-parks={JSON.stringify(publicParks)}>
+      <thead><tr><th scope="col">Park</th><th scope="col">Scheduled plans</th><th scope="col">Your next activation</th></tr></thead>
+      <tbody><tr><td colspan="3">Loading the event schedule…</td></tr></tbody>
+    </table>
+  </div>
+  <noscript><p>Enable JavaScript to compare current plans, or <a href="/activate-ri-2026/volunteer/">add an activation</a>.</p></noscript>
 </div>
 
 <script>
   import { fetchPublicActivationStops } from "../../lib/activate-ri/public-stops-client";
-  import {
-    formatActivationDate,
-    formatActivationTimeRange,
-  } from "../../lib/activate-ri/time";
+  import { deriveParkPlans, myScheduledParkReferences, type ParkPlanSummary, type PlanningSort } from "../../lib/activate-ri/planning";
+  import { filterPublicStops, uniqueSortedValues } from "../../lib/activate-ri/listing";
+  import { formatActivationDate, formatActivationTimeRange } from "../../lib/activate-ri/time";
+  import type { PublicActivationStop, PublicParkSummary } from "../../lib/activate-ri/types";
   import { trackAnalyticsEvent } from "../../lib/analytics/client";
 
-  const volunteerActionableStatuses = new Set(["uncovered", "cancelled-needs-replacement"]);
+  document.querySelectorAll<HTMLElement>("[data-park-planning]").forEach(setupPlanning);
 
-  document.querySelectorAll("[data-event-filters]").forEach(setupParkFilters);
-  document.querySelectorAll<HTMLTableElement>("[data-live-coverage]").forEach(setupLiveCoverage);
+  function setupPlanning(root: HTMLElement): void {
+    const table = root.querySelector<HTMLTableElement>("[data-live-coverage]")!;
+    const body = table.querySelector("tbody")!;
+    const form = root.querySelector<HTMLFormElement>("form")!;
+    const controls = Array.from(form.querySelectorAll("[data-filter]")) as unknown as HTMLSelectElement[];
+    const mine = root.querySelector<HTMLInputElement>("[data-my-parks]")!;
+    const mineHelp = root.querySelector<HTMLElement>("[data-my-parks-help]")!;
+    const signIn = root.querySelector<HTMLAnchorElement>("[data-my-parks-sign-in]")!;
+    const myPlan = root.querySelector<HTMLAnchorElement>("[data-my-plan]")!;
+    const status = root.querySelector<HTMLElement>("[data-planning-status]")!;
+    const refresh = root.querySelector<HTMLButtonElement>("[data-reload-planning]")!;
+    const parks = JSON.parse(table.dataset.parks ?? "[]") as PublicParkSummary[];
+    const initialUrl = new URL(window.location.href);
+    let stops: PublicActivationStop[] | null = null;
+    let callsign = "";
+    let sessionLoading = true;
+    let loadedAt: Date | null = null;
+    let loading = false;
+    let stopFiltersInitialized = false;
+    let accountSignedIn = false;
+    const expanded = new Set<string>();
 
-  function setupParkFilters(root: Element): void {
-    const filters = root as HTMLFormElement;
-    const table = filters.nextElementSibling?.querySelector("[data-filtered-table]");
-    const coverageFilter = filters.querySelector<HTMLInputElement>("[data-coverage-filter]");
-    const stopControls = Array.from(
-      filters.querySelectorAll(
-        '[data-filter="mode"], [data-filter="band"], [data-filter="timeline"]',
-      ),
-    ) as unknown as HTMLSelectElement[];
-
-    if (coverageFilter) {
-      coverageFilter.checked = new URL(window.location.href).searchParams.get("coverage") === "needed";
+    for (const control of controls) {
+      const value = initialUrl.searchParams.get(control.dataset.filter!);
+      if (value && Array.from(control.options).some((option) => option.value === value)) control.value = value;
     }
-
-    const syncCoverageControls = () => {
-      const needsCoverage = coverageFilter?.checked ?? false;
-      for (const control of stopControls) {
-        if (needsCoverage) {
-          control.value = "all";
-        }
-        control.disabled = needsCoverage;
-      }
-    };
-
-    const applyFilters = () => {
-      const rows = Array.from(table?.querySelectorAll<HTMLElement>("[data-filter-row]") ?? []);
-      const empty = table?.querySelector<HTMLElement>("[data-filter-empty]");
-      const controls = Array.from(
-        filters.querySelectorAll("[data-filter]"),
-      ) as unknown as HTMLSelectElement[];
-      const values = Object.fromEntries(
-        controls.map((control) => [control.dataset.filter ?? "", control.value]),
-      );
-      const needsCoverage = coverageFilter?.checked ?? false;
-      const hasStopFilters =
-        active(values.mode) || active(values.band) || active(values.timeline);
-      let visibleCount = 0;
-
-      for (const row of rows) {
-        const countyMatches = matchesList(row.dataset.counties, values.county);
-        const coverageMatches = !needsCoverage || row.dataset.needsCoverage === "true";
-        const stops = Array.from(row.querySelectorAll<HTMLElement>("[data-filter-stop]"));
-        const matchingStops = stops.filter(
-          (stop) =>
-            matchesList(stop.dataset.modes, values.mode) &&
-            matchesList(stop.dataset.bands, values.band) &&
-            matchesTimeline(stop.dataset.date, values.timeline),
-        );
-
-        for (const stop of stops) {
-          stop.hidden = hasStopFilters && !matchingStops.includes(stop);
-        }
-
-        const isVisible =
-          countyMatches && coverageMatches && (!hasStopFilters || matchingStops.length > 0);
-        row.hidden = !isVisible;
-        visibleCount += isVisible ? 1 : 0;
-      }
-
-      if (empty) {
-        empty.hidden = visibleCount > 0 || rows.length === 0;
-        const cell = empty.querySelector("td");
-        if (cell) {
-          cell.textContent = needsCoverage
-            ? "No parks needing coverage match these filters."
-            : "No parks match these filters.";
-        }
-      }
-    };
-
-    filters.onchange = (event) => {
-      syncCoverageControls();
-      updateCoverageUrl(coverageFilter?.checked ?? false);
-      applyEasternTime(table);
-      applyFilters();
+    mine.checked = initialUrl.searchParams.get("mine") === "1";
+    form.addEventListener("submit", (event) => event.preventDefault());
+    form.addEventListener("change", (event) => {
+      mine.disabled = sessionLoading || (!callsign && !mine.checked);
+      updateUrl();
+      render();
       const target = event.target;
-      const filterCategory = target instanceof HTMLElement && target.hasAttribute("data-coverage-filter")
-        ? "coverage"
-        : target instanceof HTMLElement
-          ? target.dataset.filter
-          : undefined;
-      if (filterCategory === "coverage" || filterCategory === "mode" || filterCategory === "band" || filterCategory === "timeline" || filterCategory === "county") {
-        void trackAnalyticsEvent("activate-ri-2026", "coverage_filter_used", {
-          filterCategory,
-        });
+      const category = target === mine ? "activator" : target instanceof HTMLSelectElement ? target.dataset.filter : "";
+      if (category === "timeline" || category === "county" || category === "mode" || category === "band" || category === "activator") {
+        void trackAnalyticsEvent("activate-ri-2026", "coverage_filter_used", { filterCategory: category });
       }
-    };
-    syncCoverageControls();
-    applyEasternTime(table);
-    applyFilters();
-  }
-
-  async function setupLiveCoverage(table: HTMLTableElement): Promise<void> {
-    const body = table.querySelector("tbody");
-    if (!body) {
-      return;
-    }
-
-    let parks: PublicPark[] = [];
-    try {
-      parks = JSON.parse(table.dataset.parks ?? "[]");
-    } catch {
-      parks = [];
-    }
-
-    try {
-      const stops = await fetchPublicActivationStops();
-      const visibleStops = stops.filter((stop) => !stop.id.startsWith("sample-"));
-      const filters = document.querySelector("[data-event-filters]") as HTMLFormElement | null;
-      renderLiveCoverage(body, parks, visibleStops);
-      if (filters) {
-        updateSelectOptions(filters, "mode", uniqueSortedValues(visibleStops.map((stop) => stop.modes)));
-        updateSelectOptions(filters, "band", uniqueSortedValues(visibleStops.map((stop) => stop.bands)));
-        setupParkFilters(filters);
-      }
-    } catch {
-      renderCoverageUnavailable(body);
-      const filters = document.querySelector("[data-event-filters]") as HTMLFormElement | null;
-      if (filters) {
-        setupParkFilters(filters);
-      }
-    }
-  }
-
-  function updateSelectOptions(
-    filters: HTMLFormElement,
-    filterName: "mode" | "band",
-    values: string[],
-  ): void {
-    const control = filters.querySelector(`[data-filter="${filterName}"]`) as HTMLSelectElement | null;
-    if (!control) {
-      return;
-    }
-
-    const current = control.value;
-    control.replaceChildren(new Option(filterName === "mode" ? "Any mode" : "Any band", "all"));
-    for (const value of values) {
-      control.appendChild(new Option(value, value));
-    }
-    control.value = values.includes(current) ? current : "all";
-  }
-
-  function uniqueSortedValues(values: string[][]): string[] {
-    return [...new Set(values.flat().filter(Boolean))].sort((left, right) =>
-      left.localeCompare(right),
-    );
-  }
-
-  type PublicPark = {
-    reference: string;
-    name: string;
-    counties?: string[];
-  };
-
-  type PublicStop = {
-    id: string;
-    parkReference: string;
-    plannedDate: string;
-    startTime: string;
-    endTime: string;
-    activatorCallsign: string;
-    bands: string[];
-    modes: string[];
-    status: string;
-  };
-
-  type CoverageRow = PublicPark & {
-    status: string;
-    stops: PublicStop[];
-  };
-
-  function renderLiveCoverage(
-    body: HTMLTableSectionElement,
-    parks: PublicPark[],
-    stops: PublicStop[],
-  ): void {
-    body.replaceChildren(
-      ...deriveCoverage(parks, stops).map(createCoverageRow),
-      createCoverageEmptyRow(),
-    );
-  }
-
-  function renderCoverageUnavailable(body: HTMLTableSectionElement): void {
-    const row = document.createElement("tr");
-    const cell = document.createElement("td");
-    cell.colSpan = 5;
-    cell.dataset.label = "Park coverage";
-    cell.textContent = "Live coverage is unavailable. Try refreshing this page.";
-    row.appendChild(cell);
-    body.replaceChildren(row);
-  }
-
-  function deriveCoverage(parks: PublicPark[], stops: PublicStop[]): CoverageRow[] {
-    return parks.map((park) => {
-      const parkStops = stops
-        .filter((stop) => stop.parkReference === park.reference)
-        .sort((left, right) =>
-          `${left.plannedDate}T${left.startTime}`.localeCompare(`${right.plannedDate}T${right.startTime}`),
-        );
-      const scheduledCount = parkStops.filter((stop) => stop.status === "scheduled" || stop.status === "delayed").length;
-      const cancelledCount = parkStops.filter((stop) => stop.status === "cancelled").length;
-      const completedCount = parkStops.filter((stop) => stop.status === "completed").length;
-
-      return {
-        ...park,
-        stops: parkStops,
-        status: coverageStatus(scheduledCount, cancelledCount, completedCount),
-      };
     });
-  }
+    refresh.addEventListener("click", () => { void load(true); });
+    void load();
 
-  function createCoverageRow(park: CoverageRow): HTMLTableRowElement {
-    const row = document.createElement("tr");
-    row.dataset.filterRow = "";
-    row.dataset.counties = countyList(park).join("|");
-    row.dataset.hasStops = park.stops.length > 0 ? "true" : "false";
-    row.dataset.needsCoverage = isParkVolunteerActionable(park.status) ? "true" : "false";
-
-    const heading = document.createElement("th");
-    heading.scope = "row";
-    heading.dataset.label = "Park";
-    const guideLink = document.createElement("a");
-    guideLink.className = "event-table-park-link";
-    guideLink.href = parkGuideHref(park.reference);
-    guideLink.textContent = park.name;
-    heading.appendChild(guideLink);
-    for (const value of [park.reference, countyList(park).join(", ")]) {
-      const span = document.createElement("span");
-      span.textContent = value;
-      heading.appendChild(span);
-    }
-    row.appendChild(heading);
-
-    appendStatusCell(row, park);
-    appendStopListCell(row, "Next activation", park.stops, formatStopDetails);
-    appendStopListCell(row, "Activator", park.stops, (stop) => [
-      `${stop.activatorCallsign}${stop.modes.length > 0 ? ` (${stop.modes.join(", ")})` : ""}`,
-    ]);
-    appendStopListCell(row, "Bands / modes", park.stops, (stop) => [
-      `${stop.bands.length ? stop.bands.join(", ") : "TBD"} / ${stop.modes.length ? stop.modes.join(", ") : "TBD"}`,
-    ]);
-
-    return row;
-  }
-
-  function parkGuideHref(reference: string): string {
-    return `/parks/${encodeURIComponent(reference.toLowerCase())}/`;
-  }
-
-  function appendStatusCell(row: HTMLTableRowElement, park: CoverageRow): void {
-    const cell = document.createElement("td");
-    cell.dataset.label = "Status";
-
-    if (!isParkVolunteerActionable(park.status)) {
-      cell.append(coverageStatusLabel(park.status));
-    } else {
-      const link = document.createElement("a");
-      link.className = "button event-table-action";
-      link.dataset.variant = "primary";
-      link.dataset.analyticsEvent = "event_cta_clicked";
-      link.dataset.analyticsFeature = "coverage";
-      link.dataset.analyticsPlacement = "coverage";
-      link.dataset.analyticsAction = "volunteer";
-      link.href = volunteerHref(park.reference);
-      link.textContent = "Volunteer";
-      cell.appendChild(link);
+    function value(key: string): string {
+      return controls.find((control) => control.dataset.filter === key)?.value ?? "all";
     }
 
-    row.appendChild(cell);
-  }
-
-  function appendStopListCell(
-    row: HTMLTableRowElement,
-    label: string,
-    stops: PublicStop[],
-    format: (stop: PublicStop) => string[],
-  ): void {
-    const cell = document.createElement("td");
-    cell.dataset.label = label;
-    if (stops.length === 0) {
-      cell.textContent = "TBD";
-      row.appendChild(cell);
-      return;
-    }
-
-    const list = document.createElement("div");
-    list.className = "event-stop-list";
-    for (const stop of stops) {
-      const item = document.createElement("div");
-      item.className = "event-stop-list__item";
-      item.dataset.filterStop = "";
-      item.dataset.bands = stop.bands.join("|");
-      item.dataset.date = stop.plannedDate;
-      item.dataset.startTime = stop.startTime;
-      item.dataset.endTime = stop.endTime;
-      item.dataset.modes = stop.modes.join("|");
-      const [primary, secondary] = format(stop);
-      if (label === "Next activation") {
-        item.dataset.coverageTime = "";
+    function updateUrl(): void {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("coverage");
+      for (const control of controls) {
+        const key = control.dataset.filter!;
+        const isDefault = control.value === "all" || (key === "sort" && control.value === "activators");
+        if (isDefault) url.searchParams.delete(key);
+        else url.searchParams.set(key, control.value);
       }
-      item.append(primary);
-      if (secondary) {
-        const span = document.createElement("span");
-        span.textContent = secondary;
-        item.appendChild(span);
-      }
-      list.appendChild(item);
+      if (mine.checked) url.searchParams.set("mine", "1");
+      else url.searchParams.delete("mine");
+      window.history.replaceState({}, "", url);
+      updateSignInLink();
     }
-    cell.appendChild(list);
-    row.appendChild(cell);
-  }
 
-  function formatStopDetails(stop: PublicStop): string[] {
-    return [
-      `${formatActivationDate(stop)}, ${formatActivationTimeRange(stop)}`,
-      stopStatusLabel(stop.status),
-    ];
-  }
+    function updateSignInLink(): void {
+      const returnTo = new URL(window.location.href);
+      returnTo.searchParams.set("mine", "1");
+      signIn.href = `/account/sign-in/?returnTo=${encodeURIComponent(returnTo.pathname + returnTo.search + returnTo.hash)}`;
+    }
 
-  function applyEasternTime(table: Element | null | undefined): void {
-    table?.querySelectorAll<HTMLElement>("[data-coverage-time]").forEach((item) => {
-      const plannedDate = item.dataset.date;
-      const startTime = item.dataset.startTime;
-      const endTime = item.dataset.endTime;
-      if (!plannedDate || !startTime || !endTime) {
+    async function load(force = false): Promise<void> {
+      if (loading) return;
+      loading = true;
+      refresh.disabled = true;
+      status.textContent = "Loading the event schedule…";
+      await Promise.all([loadStops(force), loadSession()]);
+      loading = false;
+      refresh.disabled = false;
+    }
+
+    async function loadStops(force: boolean): Promise<void> {
+      try {
+        stops = await fetchPublicActivationStops(force ? (input, init) => {
+          const headers = new Headers(init?.headers);
+          headers.set("cache-control", "no-cache");
+          return fetch(input, { ...init, headers, cache: "no-store" });
+        } : undefined);
+        loadedAt = new Date();
+        for (const key of ["mode", "band"] as const) {
+          const control = controls.find((candidate) => candidate.dataset.filter === key)!;
+          const selected = stopFiltersInitialized ? control.value : initialUrl.searchParams.get(key) ?? "all";
+          const active = stops.filter((stop) => !stop.id.startsWith("sample-") && (stop.status === "scheduled" || stop.status === "delayed"));
+          const options = uniqueSortedValues(active.map((stop) => key === "mode" ? stop.modes : stop.bands));
+          // Keep an active filter even if the last matching stop was removed.
+          // Zero-count parks are useful planning results, not a reason to broaden it.
+          if (stopFiltersInitialized && selected !== "all" && !options.includes(selected)) options.push(selected);
+          control.replaceChildren(new Option(key === "mode" ? "Any mode" : "Any band", "all"), ...options.map((option) => new Option(option, option)));
+          control.value = options.includes(selected) ? selected : "all";
+        }
+        stopFiltersInitialized = true;
+        updateUrl();
+        if (value("mode") !== "all" || value("band") !== "all") root.querySelector<HTMLDetailsElement>(".park-planning-more")!.open = true;
+        render();
+      } catch {
+        stops = null;
+        status.textContent = "Live coverage is unavailable. Try refreshing this page.";
+        showMessage("Live coverage is unavailable. Try refreshing this page.");
+      }
+    }
+
+    async function loadSession(): Promise<void> {
+      sessionLoading = true;
+      mine.disabled = true;
+      try {
+        const response = await fetch("/api/auth/session", { headers: { accept: "application/json" }, cache: "no-store" });
+        if (!response.ok) throw new Error("Session unavailable");
+        const session = await response.json() as { signedIn?: boolean; activator?: { callsign?: string } | null };
+        if (!session || typeof session.signedIn !== "boolean") throw new Error("Invalid session response");
+        accountSignedIn = session.signedIn === true;
+        callsign = session.signedIn === true && typeof session.activator?.callsign === "string" ? session.activator.callsign.trim().toUpperCase() : "";
+        mineHelp.textContent = callsign
+          ? `Your scheduled parks across the event, with counts for everyone. Signed in as ${callsign}.`
+          : session.signedIn === true ? "Your parks will appear after your activation plan is approved." : "Sign in to filter to parks in your activation plan.";
+        signIn.hidden = session.signedIn === true;
+        myPlan.hidden = !callsign;
+      } catch {
+        accountSignedIn = false;
+        callsign = "";
+        mineHelp.textContent = "Could not check your account. Refresh plans to try again.";
+        signIn.hidden = false;
+        myPlan.hidden = true;
+      } finally {
+        sessionLoading = false;
+        mine.disabled = !callsign && !mine.checked;
+        updateSignInLink();
+        render();
+      }
+    }
+
+    function render(): void {
+      if (!stops) return;
+      if (mine.checked && !callsign) {
+        const message = sessionLoading ? "Checking your activation plan…" : accountSignedIn ? "Your account has no published activation plan yet. Clear My parks to find a park to activate." : "Sign in with an activator account to see your scheduled parks, or clear My parks to see all parks.";
+        status.textContent = message;
+        showMessage(message);
         return;
       }
-
-      const primary = item.firstChild;
-      const text = `${formatActivationDate({ plannedDate, startTime })}, ${formatActivationTimeRange({ plannedDate, startTime, endTime })}`;
-      if (primary instanceof Text) {
-        primary.data = text;
-      } else {
-        item.prepend(text);
+      const personalParks = callsign ? myScheduledParkReferences(stops, callsign) : new Set<string>();
+      const filteredStops = filterPublicStops(stops, parks, { mode: value("mode"), band: value("band") });
+      const rows = deriveParkPlans(parks, filteredStops, {
+        timeline: value("timeline"), county: value("county"), sort: value("sort") as PlanningSort,
+        ...(mine.checked ? { myParkReferences: personalParks } : {}),
+      });
+      const selectedScope = controls.filter((control) => control.dataset.filter !== "sort" && control.value !== "all")
+        .map((control) => control.selectedOptions[0]?.textContent ?? "");
+      const scope = selectedScope.length ? selectedScope.join(" · ") : "All event dates";
+      const loaded = loadedAt ? ` Updated ${new Intl.DateTimeFormat(undefined, { timeStyle: "short" }).format(loadedAt)}.` : "";
+      status.textContent = `${rows.length} ${rows.length === 1 ? "park" : "parks"} · ${mine.checked ? "My parks · " : ""}${scope}.${loaded}`;
+      if (!rows.length) {
+        showMessage(mine.checked ? "No published scheduled parks in your plan match these filters. Clear My parks to find another park to activate." : "No parks match these filters.");
+        return;
       }
-    });
-  }
-
-  function createCoverageEmptyRow(): HTMLTableRowElement {
-    const row = document.createElement("tr");
-    row.dataset.filterEmpty = "";
-    row.hidden = true;
-    const cell = document.createElement("td");
-    cell.colSpan = 5;
-    cell.dataset.label = "Park coverage";
-    cell.textContent = "No parks match these filters.";
-    row.appendChild(cell);
-    return row;
-  }
-
-  function coverageStatus(scheduledCount: number, cancelledCount: number, completedCount: number): string {
-    if (scheduledCount > 1) {
-      return "multiple-scheduled";
-    }
-    if (scheduledCount === 1) {
-      return "scheduled";
-    }
-    if (completedCount > 0) {
-      return "completed";
-    }
-    if (cancelledCount > 0) {
-      return "cancelled-needs-replacement";
-    }
-    return "uncovered";
-  }
-
-  function countyList(park: PublicPark): string[] {
-    return park.counties?.length ? park.counties : ["Unknown county"];
-  }
-
-  function coverageStatusLabel(status: string): string {
-    return {
-      uncovered: "Needs coverage",
-      scheduled: "Scheduled",
-      "multiple-scheduled": "Multiple scheduled",
-      "cancelled-needs-replacement": "Needs replacement",
-      completed: "Completed",
-    }[status] ?? status;
-  }
-
-  function isParkVolunteerActionable(status: string): boolean {
-    return volunteerActionableStatuses.has(status);
-  }
-
-  function volunteerHref(reference: string): string {
-    return `/activate-ri-2026/volunteer/?park=${encodeURIComponent(reference)}`;
-  }
-
-  function stopStatusLabel(status: string): string {
-    return {
-      "pending-review": "Pending review",
-      scheduled: "Scheduled",
-      delayed: "Delayed",
-      cancelled: "Cancelled",
-      completed: "Completed",
-    }[status] ?? status;
-  }
-
-  function active(value: string | undefined): boolean {
-    return Boolean(value && value !== "all");
-  }
-
-  function updateCoverageUrl(needsCoverage: boolean): void {
-    const url = new URL(window.location.href);
-    if (needsCoverage) {
-      url.searchParams.set("coverage", "needed");
-    } else {
-      url.searchParams.delete("coverage");
-    }
-    window.history.replaceState({}, "", url);
-  }
-
-  function matchesList(value: string | undefined, filter: string | undefined): boolean {
-    return !filter || filter === "all" || String(value ?? "").split("|").includes(filter);
-  }
-
-  function matchesTimeline(date: string | undefined, filter: string | undefined): boolean {
-    if (!filter || filter === "all") {
-      return true;
+      body.replaceChildren(...rows.map((park) => createRow(park, personalParks.has(park.reference))));
     }
 
-    if (filter === "soft-start") {
-      return date === "2026-09-10";
+    function showMessage(message: string): void {
+      const row = document.createElement("tr");
+      row.dataset.filterEmpty = "";
+      const cell = document.createElement("td");
+      cell.colSpan = 3;
+      cell.textContent = message;
+      row.appendChild(cell);
+      body.replaceChildren(row);
     }
 
-    if (filter === "main") {
-      return date === "2026-09-11" || date === "2026-09-12" || date === "2026-09-13";
+    function createRow(park: ParkPlanSummary, isMine: boolean): HTMLTableRowElement {
+      const row = document.createElement("tr");
+      row.dataset.filterRow = "";
+      row.dataset.parkReference = park.reference;
+      const heading = document.createElement("th");
+      heading.scope = "row";
+      heading.dataset.label = "Park";
+      const guideLink = document.createElement("a");
+      guideLink.className = "event-table-park-link";
+      guideLink.href = `/parks/${encodeURIComponent(park.reference.toLowerCase())}/`;
+      guideLink.textContent = park.name;
+      heading.appendChild(guideLink);
+      for (const text of [park.reference, park.counties.join(", ")]) {
+        const line = document.createElement("span");
+        line.textContent = text;
+        heading.appendChild(line);
+      }
+      if (isMine) {
+        const badge = document.createElement("span");
+        badge.className = "park-planning-mine";
+        badge.textContent = "In my plan";
+        heading.appendChild(badge);
+      }
+      const plans = document.createElement("td");
+      plans.dataset.label = "Scheduled plans";
+      const details = document.createElement("details");
+      details.className = "park-plan-details";
+      details.open = expanded.has(park.reference);
+      details.addEventListener("toggle", () => {
+        if (!details.isConnected) return;
+        if (details.open) expanded.add(park.reference);
+        else expanded.delete(park.reference);
+      });
+      const summary = document.createElement("summary");
+      summary.textContent = `${park.activatorCount} ${park.activatorCount === 1 ? "activator" : "activators"} · ${park.timeSlotCount} ${park.timeSlotCount === 1 ? "time slot" : "time slots"}`;
+      details.appendChild(summary);
+      if (!park.stops.length) {
+        const empty = document.createElement("p");
+        empty.textContent = "No scheduled activations match these dates, bands, and modes. Add an activation to give hunters another opportunity.";
+        details.appendChild(empty);
+      } else {
+        const list = document.createElement("ul");
+        list.className = "park-plan-stops";
+        for (const stop of park.stops) {
+          const item = document.createElement("li");
+          const operator = document.createElement("strong");
+          operator.textContent = stop.activatorCallsign;
+          const time = document.createElement("span");
+          time.textContent = `${formatActivationDate(stop)}, ${formatActivationTimeRange(stop)}${stop.status === "delayed" ? " · Delayed" : ""}`;
+          const radio = document.createElement("span");
+          radio.textContent = `${stop.bands.join(", ") || "Bands TBD"} · ${stop.modes.join(", ") || "Modes TBD"}`;
+          item.appendChild(operator);
+          item.appendChild(time);
+          item.appendChild(radio);
+          if (stop.publicNotes.trim()) {
+            const note = document.createElement("span");
+            note.textContent = stop.publicNotes;
+            item.appendChild(note);
+          }
+          list.appendChild(item);
+        }
+        details.appendChild(list);
+      }
+      plans.appendChild(details);
+      const actions = document.createElement("td");
+      actions.dataset.label = "Your next activation";
+      const add = document.createElement("a");
+      const query = new URLSearchParams({ park: park.reference });
+      const day = value("timeline") === "soft-start" ? "2026-09-10" : value("timeline");
+      if (/^2026-09-1[0-3]$/.test(day)) query.set("date", day);
+      add.href = `/activate-ri-2026/${callsign ? "activator/plan" : "volunteer"}/?${query}`;
+      add.className = "button event-table-action";
+      add.dataset.variant = "primary";
+      add.dataset.analyticsEvent = "event_cta_clicked";
+      add.dataset.analyticsFeature = "coverage";
+      add.dataset.analyticsPlacement = "coverage";
+      add.dataset.analyticsAction = "volunteer";
+      add.textContent = "Add an activation";
+      actions.appendChild(add);
+      if (isMine) {
+        const edit = document.createElement("a");
+        edit.className = "park-planning-edit";
+        edit.href = "/activate-ri-2026/activator/plan/";
+        edit.textContent = "Edit my plan";
+        actions.appendChild(edit);
+      }
+      row.appendChild(heading);
+      row.appendChild(plans);
+      row.appendChild(actions);
+      return row;
     }
-
-    return date === filter;
   }
 </script>
+
+<style is:global>
+  .park-planning-filters { align-items: start; }
+  .park-planning-filters .event-filter { align-content: start; }
+  .park-planning-filters .event-filter__control { min-height: 46px; }
+  .park-planning-personal { display: grid; align-content: start; gap: 0.4rem; }
+  .park-planning-personal p { margin: 0; color: var(--text-muted); font-size: 0.85rem; }
+  .park-planning-personal a { font-size: 0.9rem; }
+  .park-planning-more { grid-column: 1 / -1; }
+  .park-planning-more > summary { cursor: pointer; font-weight: 700; }
+  .park-planning-more .event-filters { margin: 0.7rem 0 0; }
+  .park-planning-note { color: var(--text-muted); font-size: 0.9rem; }
+  .park-planning-status { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 1rem 0; }
+  .park-planning-status p { margin: 0; color: var(--text-muted); }
+  .park-planning-table { table-layout: fixed; }
+  .park-planning-table th:first-child { width: 38%; }
+  .park-planning-table th:nth-child(2) { width: 38%; }
+  .park-planning-table td, .park-planning-table th { overflow-wrap: anywhere; }
+  .park-plan-details summary { cursor: pointer; color: var(--link-strong); font-weight: 800; }
+  .park-plan-details summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+  .park-plan-stops { display: grid; gap: 0.85rem; padding: 0; margin: 0.9rem 0 0; list-style: none; }
+  .park-plan-stops li { display: grid; gap: 0.2rem; padding-top: 0.7rem; border-top: 1px solid var(--border-subtle); }
+  .park-plan-stops span { color: var(--text-muted); font-size: 0.9rem; }
+  .park-planning-table .event-table-action { margin: 0; min-height: 44px; }
+  .park-planning-edit { display: block; margin-top: 0.65rem; }
+  .park-planning-table th .park-planning-mine { margin-top: 0.45rem; color: var(--link-strong); font-weight: 800; }
+  @media (max-width: 700px) {
+    .park-planning-status { align-items: stretch; flex-direction: column; }
+    .park-planning-table th:first-child { width: auto; }
+    .park-planning-table { table-layout: auto; }
+    .park-plan-details summary { padding: 0.4rem 0; }
+  }
+</style>
