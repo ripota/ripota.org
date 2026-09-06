@@ -157,15 +157,14 @@ const countyOptions = uniqueSortedValues(
         <th scope="col">Activator</th>
         <th scope="col">Bands</th>
         <th scope="col">Modes</th>
-        <th scope="col">Status</th>
       </tr>
     </thead>
     <tbody>
       <tr data-live-loading>
-        <td colspan="7" data-label="Schedule">Loading approved activation windows...</td>
+        <td colspan="6" data-label="Schedule">Loading approved activation windows...</td>
       </tr>
       <tr data-filter-empty hidden>
-        <td colspan="7" data-label="Schedule">No scheduled activation windows match these filters.</td>
+        <td colspan="6" data-label="Schedule">No scheduled activation windows match these filters.</td>
       </tr>
     </tbody>
   </table>
@@ -533,7 +532,7 @@ const countyOptions = uniqueSortedValues(
     if (stops.length === 0) {
       const row = document.createElement("tr");
       const cell = document.createElement("td");
-      cell.colSpan = 7;
+      cell.colSpan = 6;
       cell.dataset.label = "Schedule";
       cell.textContent = "Approved activation windows will appear here after organizer review.";
       row.appendChild(cell);
@@ -551,7 +550,7 @@ const countyOptions = uniqueSortedValues(
     empty.dataset.filterEmpty = "";
     empty.hidden = true;
     const emptyCell = document.createElement("td");
-    emptyCell.colSpan = 7;
+    emptyCell.colSpan = 6;
     emptyCell.dataset.label = "Schedule";
     emptyCell.textContent = "No scheduled activation windows match these filters.";
     empty.appendChild(emptyCell);
@@ -561,7 +560,7 @@ const countyOptions = uniqueSortedValues(
   function renderScheduleUnavailable(body: HTMLTableSectionElement): void {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
-    cell.colSpan = 7;
+    cell.colSpan = 6;
     cell.dataset.label = "Schedule";
     cell.append("The schedule is temporarily unavailable. Reload to try again, or check ");
     const officialSpots = document.createElement("a");
@@ -606,7 +605,9 @@ const countyOptions = uniqueSortedValues(
     guideLink.textContent = park?.name ?? stop.parkReference;
     parkHeader.appendChild(guideLink);
     const reference = document.createElement("span");
-    reference.textContent = stop.parkReference;
+    reference.textContent = stop.status === "scheduled"
+      ? stop.parkReference
+      : `${stop.parkReference} · ${statusLabel(stop.status)}`;
     parkHeader.appendChild(reference);
     row.appendChild(parkHeader);
 
@@ -619,7 +620,6 @@ const countyOptions = uniqueSortedValues(
     );
     appendCell(row, "Bands", stop.bands.length > 0 ? stop.bands.join(", ") : "TBD");
     appendCell(row, "Modes", stop.modes.length > 0 ? stop.modes.join(", ") : "TBD");
-    appendCell(row, "Status", statusLabel(stop.status));
 
     return row;
   }
