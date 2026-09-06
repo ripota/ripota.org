@@ -13,7 +13,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         <p class="eyebrow">RI POTA account</p>
         <h1 id="access-title">Opening your account</h1>
         <p data-account-access-status aria-live="polite">Checking this access link…</p>
-        <p><a href="/account/sign-in/">Return to sign in</a></p>
+        <p><a data-return-sign-in href="/account/sign-in/">Return to sign in</a></p>
       </div>
     </section>
     <Notice />
@@ -22,8 +22,13 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 </BaseLayout>
 
 <script>
+  import { safeLocalReturnPath } from "../../lib/auth-return-path";
+
   const status = document.querySelector<HTMLElement>("[data-account-access-status]");
   const token = decodeURIComponent(window.location.hash.slice(1));
+  const returnTo = safeLocalReturnPath(new URLSearchParams(window.location.search).get("returnTo"));
+  const signIn = document.querySelector<HTMLAnchorElement>("[data-return-sign-in]");
+  if (signIn && returnTo) signIn.href = `/account/sign-in/?${new URLSearchParams({ returnTo })}`;
   window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
   void consume();
   async function consume(): Promise<void> {
@@ -35,20 +40,14 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       const response = await fetch("/api/auth/email-login/consume", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ token }),
+        body: JSON.stringify({ token, returnTo }),
       });
       const body: unknown = await response.json();
       if (!response.ok || !isRecord(body)) throw new Error("invalid");
-      window.location.replace(safeNextPath(body.nextPath));
+      window.location.replace(safeLocalReturnPath(body.nextPath) ?? "/account/security/");
     } catch {
       status?.replaceChildren("This access link is invalid, expired, or already used.");
     }
-  }
-
-  function safeNextPath(value: unknown): string {
-    return typeof value === "string" && value.startsWith("/") && !value.startsWith("//")
-      ? value
-      : "/account/security/";
   }
 
   function isRecord(value: unknown): value is Record<string, unknown> {

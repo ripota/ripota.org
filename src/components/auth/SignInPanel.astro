@@ -39,6 +39,7 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY;
 </section>
 
 <script>
+  import { safeLocalReturnPath } from "../../lib/auth-return-path";
   import { startAuthentication } from "@simplewebauthn/browser";
   import type { PublicKeyCredentialRequestOptionsJSON } from "@simplewebauthn/browser";
 
@@ -89,6 +90,7 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY;
         body: JSON.stringify({
           email: data.get("email"),
           turnstileToken: data.get("cf-turnstile-response"),
+          returnTo: safeLocalReturnPath(new URLSearchParams(window.location.search).get("returnTo")),
         }),
       });
       const body = await response.json();
@@ -102,9 +104,7 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY;
 
   function safeReturnPath(): string {
     const requested = new URLSearchParams(window.location.search).get("returnTo");
-    return requested && requested.startsWith("/") && !requested.startsWith("//")
-      ? requested
-      : "/account/security/";
+    return safeLocalReturnPath(requested) ?? "/account/security/";
   }
 
   function isOptionsBody(value: unknown): value is {

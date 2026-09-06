@@ -101,24 +101,11 @@ const payload = JSON.stringify({
     "reference-map-preview",
     `reference-map-preview--legend-${legendPlacement}`,
     {
-      "reference-map-preview--has-toolbar": variant === "volunteer",
       "reference-map-preview--has-location": variant === "directory",
     },
   ]}
   aria-label={title}
 >
-  {
-    variant === "volunteer" && (
-      <div class="reference-map-toolbar">
-        <label class="event-coverage-toggle">
-          <input type="checkbox" data-map-coverage-filter disabled />
-          <span>
-            Only show parks needing coverage <span data-map-coverage-count></span>
-          </span>
-        </label>
-      </div>
-    )
-  }
   {
     showLegend && legendPlacement === "overlay" && (
       <div class="map-legend" aria-label={legendTitle ?? "Coverage status legend"}>
@@ -326,7 +313,6 @@ const payload = JSON.stringify({
     boundaries: L.Path[];
     markers: L.CircleMarker[];
     symbols: L.Marker[];
-    displayLayers: L.Layer[];
   };
 
   document.querySelectorAll<HTMLElement>("[data-reference-map]").forEach(setupReferenceMap);
@@ -384,12 +370,6 @@ const payload = JSON.stringify({
     }
     setupPopupActions(mapElement);
     updateMapLegend(mapElement, payload);
-    const applyCoverageFilter = setupCoverageFilter(
-      mapElement,
-      map,
-      payload,
-      layersByReference,
-    );
 
     if (payload.variant === "directory") {
       void import("../lib/location/reference-map-location").then((locationMap) => {
@@ -425,7 +405,7 @@ const payload = JSON.stringify({
       });
       potaParkStatusStore.start();
     } else if (payload.variant === "coverage" || payload.variant === "volunteer") {
-      refreshLiveCoverage(mapElement, payload, layersByReference, applyCoverageFilter);
+      refreshLiveCoverage(mapElement, payload, layersByReference);
     }
   }
 
@@ -438,11 +418,10 @@ const payload = JSON.stringify({
     const boundaries: L.Path[] = [];
     const markers: L.CircleMarker[] = [];
     const symbols: L.Marker[] = [];
-    const displayLayers: L.Layer[] = [];
     const style = itemStyle(payload, item);
 
     if (item.geojson) {
-      const layer = L.geoJSON(item.geojson as GeoJSON.GeoJsonObject, {
+      L.geoJSON(item.geojson as GeoJSON.GeoJsonObject, {
         style: () => ({
           color: style.color,
           fillColor: style.fillColor,
@@ -457,7 +436,6 @@ const payload = JSON.stringify({
           }
         },
       }).addTo(map);
-      displayLayers.push(layer);
 
       if (item.bbox) {
         const [west, south, east, north] = item.bbox;
@@ -478,7 +456,6 @@ const payload = JSON.stringify({
         .addTo(map)
         .bindPopup(() => popupHtml(payload, item));
       markers.push(marker);
-      displayLayers.push(marker);
       if (payload.resultsMode) {
         const symbol = L.marker([item.marker.latitude, item.marker.longitude], {
           icon: resultStatusIcon(item.potaStatus?.status),
@@ -486,12 +463,11 @@ const payload = JSON.stringify({
           keyboard: false,
         }).addTo(map);
         symbols.push(symbol);
-        displayLayers.push(symbol);
       }
       bounds.extend([item.marker.latitude, item.marker.longitude]);
     }
 
-    return { boundaries, markers, symbols, displayLayers };
+    return { boundaries, markers, symbols };
   }
 
   function itemStyle(payload: MapPayload, item: MapItem) {
@@ -651,68 +627,10 @@ const payload = JSON.stringify({
     });
   }
 
-  function setupCoverageFilter(
-    mapElement: HTMLElement,
-    map: L.Map,
-    payload: MapPayload,
-    layersByReference: Map<string, MapItemLayers>,
-  ): () => void {
-    const mapPreview = mapElement.closest(".map-preview");
-    const filter = mapPreview?.querySelector<HTMLInputElement>("[data-map-coverage-filter]");
-    const count = mapPreview?.querySelector<HTMLElement>("[data-map-coverage-count]");
-
-    const applyFilter = () => {
-      const onlyNeedsCoverage = payload.coverageState === "ready" && (filter?.checked ?? false);
-      if (filter) filter.disabled = payload.coverageState !== "ready";
-      let coverageGapCount = 0;
-
-      for (const item of payload.items) {
-        const needsCoverage =
-          item.coverage?.status === "uncovered" ||
-          item.coverage?.status === "cancelled-needs-replacement";
-        coverageGapCount += needsCoverage ? 1 : 0;
-
-        for (const layer of layersByReference.get(item.reference)?.displayLayers ?? []) {
-          if (!onlyNeedsCoverage || needsCoverage) {
-            if (!map.hasLayer(layer)) {
-              layer.addTo(map);
-            }
-          } else if (map.hasLayer(layer)) {
-            map.removeLayer(layer);
-          }
-        }
-      }
-
-      if (count) {
-        count.textContent = payload.coverageState === "ready" ? `(${coverageGapCount})` : "";
-      }
-    };
-
-    filter?.addEventListener("change", () => {
-      applyFilter();
-      document.dispatchEvent(
-        new CustomEvent("activate-ri:coverage-filter-change", {
-          detail: { enabled: filter.checked },
-        }),
-      );
-    });
-    document.addEventListener("activate-ri:coverage-filter-change", (event) => {
-      if (!filter) {
-        return;
-      }
-      filter.checked =
-        (event as CustomEvent<{ enabled?: boolean }>).detail?.enabled ?? false;
-      applyFilter();
-    });
-    applyFilter();
-    return applyFilter;
-  }
-
   async function refreshLiveCoverage(
     mapElement: HTMLElement,
     payload: MapPayload,
     layersByReference: Map<string, MapItemLayers>,
-    applyCoverageFilter: () => void,
   ): Promise<void> {
     try {
       const stops = await fetchPublicActivationStops();
@@ -731,7 +649,6 @@ const payload = JSON.stringify({
       const status = mapElement.closest(".map-preview")?.querySelector<HTMLElement>("[data-map-coverage-status]");
       if (status) status.hidden = true;
       updateMapLegend(mapElement, payload);
-      applyCoverageFilter();
     } catch {
       payload.coverageState = "unavailable";
       for (const item of payload.items) {
@@ -740,7 +657,6 @@ const payload = JSON.stringify({
       const status = mapElement.closest(".map-preview")?.querySelector<HTMLElement>("[data-map-coverage-status]");
       if (status) status.textContent = "The event schedule is unavailable. Try refreshing this page. Park locations are still shown.";
       updateMapLegend(mapElement, payload);
-      applyCoverageFilter();
     }
   }
 

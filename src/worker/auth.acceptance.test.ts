@@ -195,6 +195,48 @@ describe("unified authentication acceptance", () => {
     ), env);
     expect(reset.status).toBe(200);
   });
+
+  it.each([
+    "/activate-ri-2026/activator/plan/?park=US-2868&date=2026-09-12",
+    "/activate-ri-2026/parks/?mine=1&timeline=2026-09-12&county=Newport+County",
+  ])("preserves the requested local destination through an emailed sign-in: %s", async (returnTo) => {
+    const requested = await worker.fetch(jsonRequest("/api/auth/email-login", {
+      email: "user@example.com", turnstileToken: "", returnTo,
+    }), env);
+    expect(requested.status).toBe(200);
+    const message = send.mock.calls[0][0] as { text: string };
+    const link = message.text.split("\n").find((line) => line.startsWith(`${origin}/account/access/`));
+    const accessUrl = new URL(link!);
+    expect(accessUrl.searchParams.get("returnTo")).toBe(returnTo);
+
+    const consumed = await worker.fetch(jsonRequest("/api/auth/email-login/consume", {
+      token: accessUrl.hash.slice(1),
+      returnTo: accessUrl.searchParams.get("returnTo"),
+    }), env);
+    expect(consumed.status).toBe(200);
+    await expect(consumed.json()).resolves.toMatchObject({ ok: true, nextPath: returnTo });
+    expect(consumed.headers.get("set-cookie")).toContain("__Host-ripota-session=");
+    const replay = await worker.fetch(jsonRequest("/api/auth/email-login/consume", {
+      token: accessUrl.hash.slice(1), returnTo,
+    }), env);
+    expect(replay.status).toBe(400);
+  });
+
+  it.each(["https://example.com/", "//example.com/", "/\\example.com/", "/path/..//example.com/"])("rejects unsafe email return destinations at issuance and consumption: %s", async (returnTo) => {
+    await worker.fetch(jsonRequest("/api/auth/email-login", {
+      email: "user@example.com", turnstileToken: "", returnTo,
+    }), env);
+    const message = send.mock.calls[0][0] as { text: string };
+    const link = message.text.split("\n").find((line) => line.startsWith(`${origin}/account/access/`));
+    const accessUrl = new URL(link!);
+    expect(accessUrl.searchParams.has("returnTo")).toBe(false);
+
+    const consumed = await worker.fetch(jsonRequest("/api/auth/email-login/consume", {
+      token: accessUrl.hash.slice(1), returnTo,
+    }), env);
+    expect(consumed.status).toBe(200);
+    await expect(consumed.json()).resolves.toMatchObject({ ok: true, nextPath: "/activate-ri-2026/activator/plan/" });
+  });
 });
 
 function request(path: string, init: RequestInit = {}): Request {

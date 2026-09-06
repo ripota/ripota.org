@@ -13,13 +13,10 @@ describe("ReferenceMap volunteer links", () => {
     );
   });
 
-  it("lets volunteers hide parks that already have coverage", () => {
-    expect(referenceMapSource).toContain("Only show parks needing coverage");
-    expect(referenceMapSource).toContain("data-map-coverage-filter");
-    expect(referenceMapSource).toContain('item.coverage?.status === "uncovered"');
-    expect(referenceMapSource).toContain('item.coverage?.status === "cancelled-needs-replacement"');
-    expect(referenceMapSource).toContain("map.removeLayer(layer)");
-    expect(referenceMapSource).toContain("applyCoverageFilter();");
+  it("keeps parks visible regardless of existing event coverage", () => {
+    expect(referenceMapSource).not.toContain("Only show parks needing coverage");
+    expect(referenceMapSource).not.toContain("data-map-coverage-filter");
+    expect(referenceMapSource).not.toContain("setupCoverageFilter");
   });
 
   it("keeps the event volunteer action last when local field-guide links are added", () => {

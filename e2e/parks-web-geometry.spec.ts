@@ -507,7 +507,7 @@ for (const viewport of [
       expect(browser.errors).toEqual([]);
     });
 
-    test("event maps and coverage retain lightweight filters and primary volunteer actions", async ({ page, parksOrigin }) => {
+    test("event maps and planning retain lightweight parks and primary activation actions", async ({ page, parksOrigin }) => {
       const browser = observeBrowser(page);
       await page.route("**/api/activate-ri-2026/public/stops", (route) => route.fulfill({
         contentType: "application/json", body: JSON.stringify({ ok: true, stops: syntheticStops }),
@@ -532,17 +532,14 @@ for (const viewport of [
       await expect(page).toHaveURL(`${parksOrigin}/activate-ri-2026/volunteer/?park=US-2870`);
       await expect(page.getByRole("heading", { level: 1, name: "Volunteer to activate" })).toBeVisible();
       await readyMap(page, "[data-reference-map]");
-      await page.locator("[data-map-coverage-filter]").check();
-      await expect(page.locator("[data-reference-map] .reference-map-marker")).toHaveCount(60);
-      await page.locator("[data-map-coverage-filter]").uncheck();
+      await expect(page.locator("[data-map-coverage-filter]")).toHaveCount(0);
       await expect(page.locator("[data-reference-map] .reference-map-marker")).toHaveCount(61);
 
       await page.goto(`${parksOrigin}/activate-ri-2026/parks/`);
-      await expect(page.locator('[data-filter-row][data-needs-coverage="false"]')).toHaveCount(1);
-      await page.getByLabel("Only parks needing coverage", { exact: true }).check();
-      await expect(page.locator("[data-filter-row]:visible")).toHaveCount(60);
+      await expect(page.getByLabel("Only parks needing coverage", { exact: true })).toHaveCount(0);
+      await expect(page.locator("[data-live-coverage] [data-filter-row]:visible")).toHaveCount(61);
       const row = page.locator("[data-filter-row]").filter({ hasText: "US-2870" });
-      const volunteer = row.getByRole("link", { name: "Volunteer", exact: true });
+      const volunteer = row.getByRole("link", { name: "Add an activation", exact: true });
       await expect(volunteer).toHaveAttribute("data-variant", "primary");
       await expect(volunteer).toHaveAttribute("href", "/activate-ri-2026/volunteer/?park=US-2870");
       await page.waitForLoadState("networkidle");
@@ -678,7 +675,7 @@ for (const viewport of [
       await page.waitForLoadState("networkidle");
       await page.goto(`${parksOrigin}/activate-ri-2026/schedule/`);
       await expect(page.locator("[data-live-schedule]")).toContainText("The schedule is temporarily unavailable");
-      await expect(page.locator("[data-coverage-shortcut-wrap]")).toBeHidden();
+      await expect(page.locator("[data-coverage-shortcut-wrap]")).toBeVisible();
       await page.waitForLoadState("networkidle");
       await page.goto(`${parksOrigin}/activate-ri-2026/parks/`);
       await expect(page.locator("[data-live-coverage]")).toContainText("Live coverage is unavailable");
@@ -690,8 +687,7 @@ for (const viewport of [
       await page.goto(`${parksOrigin}/activate-ri-2026/volunteer/`);
       await readyMap(page, "[data-reference-map]");
       await expect(page.locator("[data-map-coverage-status]")).toContainText("The event schedule is unavailable");
-      await expect(page.locator("[data-map-coverage-filter]")).toBeDisabled();
-      await expect(page.locator("[data-map-coverage-count]")).toBeEmpty();
+      await expect(page.locator("[data-map-coverage-filter]")).toHaveCount(0);
       await expect(page.locator("[data-reference-map] .reference-map-marker")).toHaveCount(61);
       await expect(page.locator("[data-map-legend-item]:visible")).toHaveCount(0);
       const payload = await referencePayload(page);

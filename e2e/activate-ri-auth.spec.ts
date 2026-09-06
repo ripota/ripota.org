@@ -90,7 +90,7 @@ test("an activator can use only an emailed sign-in link", async ({ page }) => {
     const requested = await requestedPromise;
     expect(requested.ok()).toBe(true);
     const email = await server.waitForEmailText("Your RI POTA sign-in link");
-    const link = email.split("\n").find((line) => line.startsWith(`${server.origin}/account/access/#`));
+    const link = email.split("\n").find((line) => line.startsWith(`${server.origin}/account/access/`));
     if (!link) throw new Error("Local sign-in email did not contain its fragment link.");
     await page.goto(link);
     await expect(page).toHaveURL(`${server.origin}/activate-ri-2026/activator/plan/`);

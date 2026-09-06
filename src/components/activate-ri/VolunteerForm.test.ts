@@ -4,6 +4,7 @@ import frequencyNoteSource from "./ActivateRiFrequencyNote.astro?raw";
 import organizerNotesSource from "./ActivateRiOrganizerNotesField.astro?raw";
 import requiredNoteSource from "./ActivateRiRequiredNote.astro?raw";
 import stopsSectionSource from "./ActivateRiStopsSection.astro?raw";
+import stopCardSource from "./ActivateRiStopCard.astro?raw";
 import volunteerFormSource from "./VolunteerForm.astro?raw";
 
 describe("VolunteerForm required field indicators", () => {
@@ -48,7 +49,7 @@ describe("VolunteerForm existing activation hint", () => {
 describe("VolunteerForm park prefill workflow", () => {
   it("scrolls URL park prefill to the first identity field", () => {
     expect(volunteerFormSource).toContain(
-      "addParkReferenceToForm(reference.toUpperCase(), { silentInvalid: true, focusIdentity: true });",
+      "addParkReferenceToForm(planningPrefill.parkReference, {",
     );
     expect(volunteerFormSource).toContain("focusVolunteerIdentityFields();");
   });
@@ -61,10 +62,9 @@ describe("VolunteerForm park prefill workflow", () => {
 });
 
 describe("VolunteerForm coverage filtering", () => {
-  it("loads live coverage for the park suggestion filter", () => {
-    expect(volunteerFormSource).toContain("setupParkCoverageFilters");
-    expect(volunteerFormSource).toContain("deriveParkCoverage");
-    expect(volunteerFormSource).toContain("data-park-coverage-filter");
-    expect(volunteerFormSource).toContain("activate-ri:coverage-filter-change");
+  it("keeps the park suggestions available regardless of existing coverage", () => {
+    expect(volunteerFormSource).not.toContain("setupParkCoverageFilters");
+    expect(volunteerFormSource).not.toContain("data-park-coverage-filter");
+    expect(stopCardSource).not.toContain("Only parks needing coverage");
   });
 });

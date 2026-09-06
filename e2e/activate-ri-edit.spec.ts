@@ -189,6 +189,57 @@ test("removed and cancelled stops stay cancelled after later plan saves", async 
   }
 });
 
+test("planning links add a new window at an existing park once across saves and reloads", async ({ page }) => {
+  const server = await startActivateRiServer({ legacyLinkIssuanceEnabled: true });
+  const callsign = randomCallsign();
+  const email = `${callsign.toLowerCase()}@example.com`;
+
+  try {
+    const editUrl = await submitVolunteerStop(page, server.origin, {
+      callsign,
+      email,
+      park: "US-2868",
+      date: "2026-09-11",
+      timeBlock: "09:00-12:00",
+      band: "40m",
+      mode: "SSB",
+    });
+    await page.goto(editUrl);
+    await expect(page.locator("[data-stop-card]")).toHaveCount(1);
+
+    await page.goto(`${server.origin}/activate-ri-2026/activator/plan/?park=US-2868&date=2026-09-12&source=parks`);
+    await expect(page.locator("[data-stop-card]")).toHaveCount(2);
+    await expectParkReferences(page, ["US-2868", "US-2868"]);
+    await expect(page.locator("[data-plan-print-stop]")).toHaveCount(1);
+    const addedStop = page.locator("[data-stop-card]").last();
+    await expect(addedStop.locator("[data-stop-id]")).toHaveValue("");
+    await expect(addedStop.locator("[data-planned-date]")).toHaveValue("2026-09-12");
+    await expect(addedStop.locator("[data-time-block]")).toHaveValue("");
+    await expect(addedStop.locator("[data-time-block]")).toBeFocused();
+    await addedStop.locator("[data-time-block]").selectOption("12:00-15:00");
+
+    await page.getByRole("button", { name: "Save changes", exact: true }).click();
+    const confirmation = page.locator("[data-edit-confirmation]");
+    await expect(confirmation).toBeVisible();
+    await confirmation.getByRole("button", { name: "Keep editing" }).click();
+    await expect(page.locator("[data-stop-card]")).toHaveCount(2);
+    await expect(page.locator("[data-plan-print-stop]")).toHaveCount(2);
+    await expect(page).toHaveURL(`${server.origin}/activate-ri-2026/activator/plan/?source=parks`);
+
+    await page.reload();
+    await expect(page.locator("[data-stop-card]")).toHaveCount(2);
+    await expect(page.locator("[data-plan-print-stop]")).toHaveCount(2);
+    await expectParkReferences(page, ["US-2868", "US-2868"]);
+    await expect(page.locator("[data-stop-card]").last().locator("[data-planned-date]")).toHaveValue("2026-09-12");
+    await expect(page.locator("[data-stop-card]").last().locator("[data-time-block]")).toHaveValue("12:00-15:00");
+
+    await page.goto(`${server.origin}/activate-ri-2026/activator/plan/?park=US-UNKNOWN&date=2026-09-12`);
+    await expect(page.locator("[data-stop-card]")).toHaveCount(2);
+  } finally {
+    await server.stop();
+  }
+});
+
 async function approvePendingActivator(
   request: APIRequestContext,
   origin: string,

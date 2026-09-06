@@ -17,6 +17,7 @@ import {
   prepareUserWithVerifiedEmail,
 } from "./db";
 import { authSessionCookie, prepareAuthSession } from "./session";
+import { safeLocalReturnPath } from "../../lib/auth-return-path";
 
 export const genericEmailLoginMessage = "If we found an account that can use email sign-in, we sent a link.";
 export const genericAccountReauthMessage = "If your verified email can receive account links, we sent a fresh reauthentication link.";
@@ -38,7 +39,7 @@ type ActivatorEmailRow = {
 export async function requestEmailLogin(
   request: Request,
   env: Env,
-  input: { email: unknown; turnstileToken: unknown },
+  input: { email: unknown; turnstileToken: unknown; returnTo?: unknown },
 ): Promise<{ ok: true; message: string }> {
   const config = getAuthConfig(env, request);
   if (!config.emailLoginEnabled || typeof input.email !== "string") {
@@ -52,6 +53,7 @@ export async function requestEmailLogin(
     email,
     purpose: "login",
     rateLimit: true,
+    returnTo: safeLocalReturnPath(input.returnTo) ?? undefined,
   });
   return genericResponse();
 }
@@ -124,6 +126,7 @@ export async function issueActivatorEmailLogin(
     activatorId?: string;
     purpose?: "login" | "activator-submission";
     rateLimit?: boolean;
+    returnTo?: string;
   },
 ): Promise<SendEmailResult | null> {
   const config = getAuthConfig(env, request);
@@ -167,6 +170,8 @@ export async function issueActivatorEmailLogin(
   ).bind(hash, email, user?.id ?? null, activator.id, now.toISOString(), expiresAt).run();
 
   const accessUrl = trustedSiteUrl(request, env, "/account/access/");
+  const returnTo = safeLocalReturnPath(input.returnTo);
+  if (returnTo) accessUrl.searchParams.set("returnTo", returnTo);
   accessUrl.hash = rawToken;
   const delivery = await sendAuthAccessEmail(env, {
     to: email,

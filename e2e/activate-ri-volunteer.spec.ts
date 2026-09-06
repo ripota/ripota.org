@@ -268,6 +268,70 @@ test("volunteer map add activation scrolls to identity fields and skips duplicat
   }
 });
 
+test("planning links prefill a park and event day and preserve them through sign-in", async ({ page, request }) => {
+  const server = await startActivateRiServer();
+  const callsign = randomCallsign();
+  const email = `${callsign.toLowerCase()}@example.com`;
+
+  try {
+    const response = await request.post(`${server.origin}/api/activate-ri-2026/plans`, {
+      headers: { origin: server.origin },
+      data: {
+        submitterCallsign: callsign,
+        submitterName: "Planning Test",
+        submitterEmail: email,
+        stops: [{
+          parkReference: "US-2868",
+          plannedDate: "2026-09-11",
+          timeBlock: "09:00-12:00",
+          bands: ["40m"],
+          modes: ["SSB"],
+        }],
+      },
+    });
+    expect(response.status(), await response.text()).toBe(202);
+
+    await page.goto(`${server.origin}/activate-ri-2026/volunteer/?park=us-2868&date=2026-09-12`);
+    await expect(page.locator("[data-park-reference]")).toHaveValue("US-2868");
+    await expect(page.locator("[data-planned-date]")).toHaveValue("2026-09-12");
+    await expect(page.locator("[data-time-block]")).toHaveValue("");
+    await expect(page.getByLabel(/Callsign/).first()).toBeFocused();
+    await expect(page.getByLabel("Only parks needing coverage")).toHaveCount(0);
+
+    await page.getByLabel(/Callsign/).first().fill(callsign);
+    await page.getByLabel(/Email/).first().fill(email);
+    await page.getByLabel(/Email/).first().blur();
+    const signIn = page.locator("[data-existing-activation-sign-in]");
+    await expect(signIn).toBeVisible();
+    const signInUrl = new URL(await signIn.getAttribute("href") ?? "", server.origin);
+    expect(signInUrl.searchParams.get("returnTo")).toBe("/activate-ri-2026/activator/plan/?park=US-2868&date=2026-09-12");
+
+    await signIn.click();
+    await page.getByText("Email me a sign-in link", { exact: true }).click();
+    await page.getByLabel("Email address").fill(email);
+    const requestedPromise = page.waitForResponse(`${server.origin}/api/auth/email-login`);
+    await page.getByRole("button", { name: "Send sign-in link" }).click();
+    expect((await requestedPromise).ok()).toBe(true);
+    const signInEmail = await server.waitForEmailText("Your RI POTA sign-in link");
+    const link = signInEmail.split("\n").find((line) => line.startsWith(`${server.origin}/account/access/?returnTo=`));
+    if (!link) throw new Error("Local sign-in email did not contain its fragment link.");
+    await page.goto(link);
+    await expect(page).toHaveURL(`${server.origin}/activate-ri-2026/activator/plan/?park=US-2868&date=2026-09-12`);
+    await expect(page.locator("[data-stop-card]")).toHaveCount(2);
+    await expect(page.locator("[data-stop-card]").last().locator("[data-planned-date]")).toHaveValue("2026-09-12");
+
+    await page.goto(`${server.origin}/activate-ri-2026/volunteer/?park=US-2868&date=2026-09-14`);
+    await expect(page.locator("[data-park-reference]")).toHaveValue("US-2868");
+    await expect(page.locator("[data-planned-date]")).toHaveValue("");
+    await page.goto(`${server.origin}/activate-ri-2026/volunteer/?park=US-UNKNOWN&date=2026-09-12`);
+    await expect(page.locator("[data-stop-card]")).toHaveCount(1);
+    await expect(page.locator("[data-park-reference]")).toHaveValue("");
+    await expect(page.locator("[data-planned-date]")).toHaveValue("");
+  } finally {
+    await server.stop();
+  }
+});
+
 test("additional parks inherit date, bands, and modes without copying stop details", async ({
   page,
 }) => {

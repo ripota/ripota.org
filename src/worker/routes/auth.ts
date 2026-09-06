@@ -1,4 +1,5 @@
 import type { Env } from "../env";
+import { safeLocalReturnPath } from "../../lib/auth-return-path";
 import { json, readJson } from "../http";
 import { hasTrustedOrigin } from "../origin";
 import { withPrivateHeaders } from "../private-response";
@@ -122,6 +123,7 @@ export async function handleAuthApi(request: Request, env: Env): Promise<Respons
       return privateJson(await requestEmailLogin(request, env, {
         email: input.email,
         turnstileToken: input.turnstileToken,
+        returnTo: input.returnTo,
       }));
     }
     if (
@@ -197,12 +199,15 @@ export async function handleAuthApi(request: Request, env: Env): Promise<Respons
     if (request.method === "POST" && url.pathname === "/api/auth/email-login/consume") {
       const payload = await readJson(request);
       const token = isRecord(payload) && typeof payload.token === "string" ? payload.token : "";
-      const result = await consumeEmailLogin(env, token) ?? await consumePasskeyReset(env, token);
+      const login = await consumeEmailLogin(env, token);
+      const result = login ?? await consumePasskeyReset(env, token);
       return result
         ? privateJson({
             ok: true,
             expiresAt: result.expiresAt,
-            nextPath: "nextPath" in result ? result.nextPath : "/account/security/",
+            nextPath: login
+              ? safeLocalReturnPath(isRecord(payload) ? payload.returnTo : null) ?? login.nextPath
+              : "/account/security/",
           }, { headers: { "set-cookie": result.cookie } })
         : privateJson({ ok: false, error: "Access link invalid or expired" }, { status: 400 });
     }

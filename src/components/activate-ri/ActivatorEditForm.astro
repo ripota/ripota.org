@@ -90,6 +90,7 @@ const turnstileSiteKey =
 </template>
 
 <script>
+  import { readPlanningPrefill } from "../../lib/activate-ri/planning-prefill";
   import {
     applyRepeatedStopPreferences,
     clearFieldError,
@@ -169,6 +170,8 @@ const turnstileSiteKey =
   const printPlanButton = document.querySelector<HTMLButtonElement>("[data-print-plan]");
   const printPlanRoot = document.querySelector<HTMLElement>("[data-activator-plan-print]");
   const parkNames: Record<string, string> = JSON.parse(printPlanRoot?.dataset.parkNames ?? "{}");
+  const planningPrefill = readPlanningPrefill(window.location.search);
+  let planningPrefillApplied = false;
   let isSaving = false;
   let plans: PlanDto[] = [];
   let selectedPlanId = "";
@@ -228,6 +231,12 @@ const turnstileSiteKey =
       }
 
       setEditStatus("Changes saved. Your activation plan was updated.", "success");
+      if (planningPrefillApplied) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("park");
+        url.searchParams.delete("date");
+        window.history.replaceState(window.history.state, "", url);
+      }
       resetTurnstile();
       await loadPlan(false);
       showEditConfirmation();
@@ -321,6 +330,7 @@ const turnstileSiteKey =
       if (showLoading) {
         editStatus?.replaceChildren("Loaded. Make any changes and save.");
       }
+      prefillParkFromUrl();
     } catch {
       editStatus?.replaceChildren("Unable to load your activation plan.");
     }
@@ -576,6 +586,23 @@ const turnstileSiteKey =
       focusActivatorIdentityFields();
     }
     editStatus?.replaceChildren(`${normalizedReference} added to the activation plan. Choose the date, time, bands, and modes before saving.`);
+  }
+
+  function prefillParkFromUrl(): void {
+    if (!planningPrefill || planningPrefillApplied) return;
+
+    // A park planning link requests another window, even at an existing park.
+    const targetStop = firstEmptyStopCard(editForm ?? document) ?? appendRepeatedStop();
+    if (!targetStop || !selectParkReference(targetStop, planningPrefill.parkReference)) return;
+
+    if (planningPrefill.date) {
+      setValue(targetStop, "[data-planned-date]", planningPrefill.date);
+    }
+    planningPrefillApplied = true;
+    setupStopCards({ validatePark: true, setupErrorDescriptions: true, allowRemoveLastStop: readonlyStops.length > 0 });
+    targetStop.scrollIntoView({ behavior: "smooth", block: "center" });
+    (targetStop.querySelector(planningPrefill.date ? "[data-time-block]" : "[data-planned-date]") as HTMLSelectElement | null)?.focus({ preventScroll: true });
+    setEditStatus(`${planningPrefill.parkReference} added as a new activation. Choose its time, bands, and modes, then save your plan.`);
   }
 
   function setupRequiredFieldValidation(): void {
