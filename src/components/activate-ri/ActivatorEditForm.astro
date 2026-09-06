@@ -117,7 +117,7 @@ const turnstileSiteKey =
     timeBlockToRange,
     utcRangeToTimeBlockValue,
   } from "../../lib/activate-ri/time-blocks";
-  import { formatActivationDateTimeRange } from "../../lib/activate-ri/time";
+  import { formatActivationDateTimeRange, timeZoneOptionForValue } from "../../lib/activate-ri/time";
   import {
     formatVolunteerMissingFieldSummary,
     formatVolunteerProblemFieldSummary,
@@ -166,6 +166,9 @@ const turnstileSiteKey =
   const savePlanButton = editForm?.querySelector("[data-save-plan]") as HTMLButtonElement | null | undefined;
   const cancelPlanButton = editForm?.querySelector<HTMLButtonElement>("[data-cancel-plan]");
   const stopTemplate = document.querySelector("[data-stop-template]") as HTMLTemplateElement | null;
+  const printPlanButton = document.querySelector<HTMLButtonElement>("[data-print-plan]");
+  const printPlanRoot = document.querySelector<HTMLElement>("[data-activator-plan-print]");
+  const parkNames: Record<string, string> = JSON.parse(printPlanRoot?.dataset.parkNames ?? "{}");
   let isSaving = false;
   let plans: PlanDto[] = [];
   let selectedPlanId = "";
@@ -178,6 +181,11 @@ const turnstileSiteKey =
   void loadPlan();
   setupDocumentPopupDismissal();
   document.querySelector("[data-edit-keep-editing]")?.addEventListener("click", () => editConfirmation?.close());
+  printPlanButton?.addEventListener("click", () => {
+    if (!printPlanButton.disabled) window.print();
+  });
+  window.addEventListener("beforeprint", updatePrintPreparedTime);
+  window.addEventListener("activate-ri:logout", clearPrintPlan);
 
   document.addEventListener("activate-ri:add-park", (event) => {
     const reference = (event as CustomEvent<{ reference?: string }>).detail?.reference;
@@ -278,6 +286,7 @@ const turnstileSiteKey =
     if (showLoading) {
       editStatus?.replaceChildren("Loading plan...");
     }
+    clearPrintPlan();
 
     try {
       const response = await fetch(apiUrl(), {
@@ -300,6 +309,7 @@ const turnstileSiteKey =
       selectedPlanId = stringValue(selectedPlan?.id);
       selectedPlanPublicNotes = stringValue(selectedPlan?.public_notes);
       renderPlan(selectedPlan);
+      renderPrintPlan(selectedPlan);
       editFields.hidden = false;
       editStops.hidden = false;
       editAddStopActions.hidden = false;
@@ -314,6 +324,74 @@ const turnstileSiteKey =
     } catch {
       editStatus?.replaceChildren("Unable to load your activation plan.");
     }
+  }
+
+  function clearPrintPlan(): void {
+    if (printPlanButton) printPlanButton.disabled = true;
+    for (const selector of ["identity", "notes", "stops", "prepared"]) {
+      printPlanRoot?.querySelector(`[data-plan-print-${selector}]`)?.replaceChildren();
+    }
+    printPlanRoot?.querySelector("[data-plan-print-state]")?.replaceChildren("Load your saved plan before printing.");
+  }
+
+  function updatePrintPreparedTime(): void {
+    if (!printPlanRoot || printPlanButton?.disabled) return;
+    const prepared = new Intl.DateTimeFormat("en-US", {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone: "America/New_York",
+    }).format(new Date());
+    printPlanRoot.querySelector("[data-plan-print-prepared]")?.replaceChildren(`Prepared ${prepared} (Rhode Island time)`);
+  }
+
+  function renderPrintPlan(plan: PlanDto): void {
+    if (!printPlanRoot) return;
+    const stops = Array.isArray(plan.stops)
+      ? plan.stops.filter((stop): stop is StopDto => typeof stop === "object" && stop !== null)
+      : [];
+    printPlanRoot.querySelector("[data-plan-print-identity]")?.replaceChildren(
+      [stringValue(plan.submitter_callsign).toUpperCase(), stringValue(plan.submitter_name), stringValue(plan.club)].filter(Boolean).join(" · "),
+    );
+    printPlanRoot.querySelector("[data-plan-print-state]")?.replaceChildren(planStatusMessage(plan, stops));
+    const notes = printPlanRoot.querySelector("[data-plan-print-notes]");
+    appendPrintNote(notes, "Plan notes", plan.public_notes);
+    appendPrintNote(notes, "Notes to organizers", plan.organizer_notes);
+    const list = printPlanRoot.querySelector("[data-plan-print-stops]");
+    if (stops.length === 0) list?.appendChild(printParagraph("No activation stops in this saved plan."));
+    for (const stop of stops) {
+      const card = document.createElement("article");
+      card.dataset.planPrintStop = "";
+      const reference = stringValue(stop.park_reference);
+      const heading = document.createElement("h2");
+      heading.textContent = [reference, parkNames[reference]].filter(Boolean).join(" · ");
+      const status = stringValue(stop.status);
+      const timing = {
+        plannedDate: stringValue(stop.planned_date),
+        startTime: stringValue(stop.start_time),
+        endTime: stringValue(stop.end_time),
+      };
+      card.appendChild(heading);
+      card.appendChild(printParagraph(`Status: ${status ? status[0].toUpperCase() + status.slice(1) : "Not specified"}`));
+      card.appendChild(printParagraph(formatActivationDateTimeRange(timing)));
+      card.appendChild(printParagraph(formatActivationDateTimeRange(timing, timeZoneOptionForValue("utc"))));
+      card.appendChild(printParagraph(`Bands: ${arrayValue(stop.bands).join(", ") || "Not specified"} · Modes: ${arrayValue(stop.modes).join(", ") || "Not specified"}`));
+      appendPrintNote(card, "Public notes", stop.public_notes);
+      appendPrintNote(card, "Notes to organizers", stop.organizer_notes);
+      list?.appendChild(card);
+    }
+    if (printPlanButton) printPlanButton.disabled = false;
+    updatePrintPreparedTime();
+  }
+
+  function printParagraph(text: string): HTMLParagraphElement {
+    const paragraph = document.createElement("p");
+    paragraph.textContent = text;
+    return paragraph;
+  }
+
+  function appendPrintNote(parent: Element | null, label: string, value: unknown): void {
+    const note = stringValue(value).trim();
+    if (note) parent?.appendChild(printParagraph(`${label}: ${note}`));
   }
 
   function renderPlan(plan: PlanDto): void {

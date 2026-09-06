@@ -1,5 +1,6 @@
 ---
 import ActivatorEditForm from "../../../components/activate-ri/ActivatorEditForm.astro";
+import ActivatorPlanPrint from "../../../components/activate-ri/ActivatorPlanPrint.astro";
 import ActivatorPortalNav from "../../../components/activate-ri/ActivatorPortalNav.astro";
 import EventNav from "../../../components/activate-ri/EventNav.astro";
 import Footer from "../../../components/Footer.astro";
@@ -13,6 +14,7 @@ import BaseLayout from "../../../layouts/BaseLayout.astro";
   title="Edit Activate All RI 2026 Plan"
   description="Private Activate All RI 2026 activator plan editor."
   privatePage
+  bodyClass="activator-plan-page"
 >
   <SiteHeader variant="solid" showEventLink />
   <main id="main">
@@ -27,6 +29,12 @@ import BaseLayout from "../../../layouts/BaseLayout.astro";
             Update your Activate All RI 2026 plan before or after organizer
             approval.
           </p>
+          <div class="button-row">
+            <button class="button" data-variant="light" type="button" data-print-plan disabled aria-describedby="plan-print-help">
+              Print my plan
+            </button>
+          </div>
+          <p class="form-help" id="plan-print-help">Prints your saved plan. Save changes before printing.</p>
         </div>
         <ReferenceMap
           id="activate-ri-edit-map"
@@ -42,4 +50,5 @@ import BaseLayout from "../../../layouts/BaseLayout.astro";
     <Notice />
   </main>
   <Footer />
+  <ActivatorPlanPrint />
 </BaseLayout>

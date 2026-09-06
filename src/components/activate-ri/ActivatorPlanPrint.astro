@@ -1,0 +1,110 @@
+---
+import { references } from "@ripota/parks";
+import { siteIdentity } from "../../data/site";
+
+const parkNames = Object.fromEntries(
+  references.map((park) => [park.reference, park.name]),
+);
+---
+
+<section class="plan-print" data-activator-plan-print data-park-names={JSON.stringify(parkNames)} aria-labelledby="plan-print-title">
+  <header>
+    <p>Activate All RI 2026 · September 11–13</p>
+    <h1 id="plan-print-title">My activation plan</h1>
+    <p class="plan-print__identity" data-plan-print-identity></p>
+    <p data-plan-print-state>Load your saved plan before printing.</p>
+    <p data-plan-print-prepared></p>
+    <p>Saved plan · Times shown in Rhode Island time and UTC. Plans may change.</p>
+  </header>
+  <div data-plan-print-notes></div>
+  <div data-plan-print-stops></div>
+  <p class="plan-print__disclaimer">{siteIdentity.disclaimer}</p>
+</section>
+
+<style>
+  .plan-print {
+    display: none;
+  }
+
+  @media print {
+    @page activator-plan {
+      size: portrait;
+      margin: 0.5in;
+    }
+
+    :global(html:has(.activator-plan-page)) {
+      color-scheme: light;
+      background: #fff;
+    }
+
+    :global(body.activator-plan-page) {
+      page: activator-plan;
+      margin: 0;
+      background: #fff;
+      color: #111;
+    }
+
+    :global(.activator-plan-page > :not([data-activator-plan-print])) {
+      display: none !important;
+    }
+
+    .plan-print {
+      page: activator-plan;
+      display: block;
+      font: 10pt/1.4 Arial, sans-serif;
+      overflow-wrap: anywhere;
+    }
+
+    .plan-print header {
+      border-bottom: 2px solid #333;
+      margin-bottom: 12pt;
+      padding-bottom: 8pt;
+      break-inside: avoid;
+    }
+
+    .plan-print h1 {
+      max-width: none;
+      margin: 4pt 0;
+      font-size: 23pt;
+      color: #111;
+      letter-spacing: normal;
+    }
+
+    .plan-print__identity {
+      font-weight: 700;
+      font-size: 12pt;
+    }
+
+    :global(.plan-print p) {
+      max-width: none;
+      margin: 3pt 0;
+      color: #111;
+      white-space: pre-wrap;
+      orphans: 3;
+      widows: 3;
+    }
+
+    :global(.plan-print article) {
+      border-top: 1px solid #999;
+      margin-top: 10pt;
+      padding-top: 8pt;
+      break-inside: avoid;
+    }
+
+    :global(.plan-print h2) {
+      margin: 0 0 4pt;
+      font-size: 13pt;
+      color: #111;
+      letter-spacing: normal;
+      break-after: avoid;
+    }
+
+    .plan-print__disclaimer {
+      border-top: 1px solid #999;
+      margin-top: 14pt;
+      padding-top: 8pt;
+      font-size: 8pt;
+      break-inside: avoid;
+    }
+  }
+</style>

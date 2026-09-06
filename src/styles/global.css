@@ -3388,7 +3388,7 @@ p {
 }
 
 @media print {
-  @page {
+  @page event-schedule {
     size: landscape;
     margin: 0.45in;
   }
@@ -3399,6 +3399,7 @@ p {
   }
 
   body:has(.schedule-print-heading) {
+    page: event-schedule;
     background: #fff;
     color: #111;
   }
