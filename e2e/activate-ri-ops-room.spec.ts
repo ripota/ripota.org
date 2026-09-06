@@ -85,6 +85,18 @@ test("approved activators acknowledge rules and exchange a live room message", a
     await expect(second.locator("[data-ops-email-status]")).toContainText("every new room message");
     await second.goto(`${server.origin}/activate-ri-2026/activator/account/#ops-email-notifications`);
     await expect(second.getByLabel("Email me every new room message")).toBeChecked();
+    await expect(second.locator("[data-ops-email-preferences] ~ section #passkeys-title")).toHaveText("Passkeys");
+    for (const width of [390, 1280]) {
+      await second.setViewportSize({ width, height: 844 });
+      const emailBox = await second.locator("[data-ops-email-preferences]").boundingBox();
+      const passkeysBox = await second.getByRole("heading", { name: "Passkeys", exact: true }).boundingBox();
+      expect(emailBox).not.toBeNull();
+      expect(passkeysBox).not.toBeNull();
+      expect(emailBox!.y + emailBox!.height).toBeLessThan(passkeysBox!.y);
+    }
+    await second.setViewportSize({ width: 390, height: 844 });
+    await expect(second.getByText("Claim status:")).toHaveCount(0);
+    await expect(second.getByText("This is separate from your Activate RI registration and Ops Room name.", { exact: false })).toBeVisible();
     await second.getByLabel("Turn off all Ops Room emails").check();
     await second.getByRole("button", { name: "Save preferences" }).click();
     await expect(second.locator("[data-ops-email-status]")).toHaveText("Saved. All Ops Room emails are off.");

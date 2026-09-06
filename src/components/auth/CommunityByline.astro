@@ -1,8 +1,9 @@
 <section class="form-card community-byline" id="community-byline" aria-labelledby="community-byline-title" data-community-byline>
-  <h2 id="community-byline-title">Community byline</h2>
+  <h2 id="community-byline-title">Public contribution profile</h2>
   <p>
-    This callsign and optional name will identify future public park contributions.
-    Your verified email stays private and is never part of the byline.
+    Choose the callsign and optional name to show alongside future public park contributions—your community byline.
+    This is separate from your Activate RI registration and Ops Room name.
+    Your verified email stays private.
   </p>
   <p class="community-byline__proposal" data-callsign-proposal hidden></p>
   <form class="community-byline__form" data-community-byline-form>
@@ -28,13 +29,8 @@
       </label>
     </div>
     <p id="community-callsign-help" class="community-byline__help">
-      Use letters, numbers, and portable slashes. Confirming an Activate RI suggestion does not change the event registration.
+      Use letters, numbers, and portable slashes. Saving a callsign here is not official POTA or FCC verification.
     </p>
-    <div class="community-byline__claim">
-      <strong>Claim status:</strong>
-      <span data-claim-status>Not yet saved</span>
-      <span data-claim-explanation>This status describes how the byline was added; it is not official POTA or FCC verification.</span>
-    </div>
     <div class="community-byline__preview" aria-labelledby="community-preview-label">
       <strong id="community-preview-label">Public preview</strong>
       <output data-byline-preview aria-live="polite">Enter a callsign to preview the byline.</output>
@@ -74,8 +70,6 @@
   const callsignInput = form?.elements.namedItem("callsign") as HTMLInputElement | null;
   const publicNameInput = form?.elements.namedItem("publicName") as HTMLInputElement | null;
   const preview = panel?.querySelector<HTMLOutputElement>("[data-byline-preview]");
-  const claimStatus = panel?.querySelector<HTMLElement>("[data-claim-status]");
-  const claimExplanation = panel?.querySelector<HTMLElement>("[data-claim-explanation]");
   const proposal = panel?.querySelector<HTMLElement>("[data-callsign-proposal]");
   const save = panel?.querySelector<HTMLButtonElement>("[data-save-community-byline]");
   const status = panel?.querySelector<HTMLElement>("[data-community-byline-status]");
@@ -110,7 +104,6 @@
     if (body.profile) {
       if (callsignInput) callsignInput.value = draft?.callsign ?? body.profile.callsign;
       if (publicNameInput) publicNameInput.value = draft?.publicName ?? body.profile.publicName;
-      showClaimStatus(body.profile.claimStatus);
     } else {
       if (callsignInput) callsignInput.value = draft?.callsign ?? body.proposedCallsign ?? "";
       if (publicNameInput && draft) publicNameInput.value = draft.publicName;
@@ -158,7 +151,6 @@
       callsignInput.removeAttribute("aria-invalid");
       callsignInput.value = body.profile.callsign;
       publicNameInput.value = body.profile.publicName;
-      showClaimStatus(body.profile.claimStatus);
       if (reauth) reauth.hidden = true;
       sessionStorage.removeItem(draftKey);
       updatePreview();
@@ -226,20 +218,6 @@
       : "Enter a callsign to preview the byline.");
   }
 
-  function showClaimStatus(value: ClaimStatus): void {
-    const labels: Record<ClaimStatus, string> = {
-      "self-asserted": "Self-asserted",
-      "event-linked": "Event-linked",
-      "moderator-reviewed": "Moderator-reviewed",
-    };
-    claimStatus?.replaceChildren(labels[value]);
-    claimExplanation?.replaceChildren(value === "event-linked"
-      ? "Matched to your existing Activate RI membership; this is not official POTA or FCC verification."
-      : value === "moderator-reviewed"
-        ? "Reviewed by a site moderator; this is not official POTA or FCC verification."
-        : "Saved by you; this is not official POTA or FCC verification.");
-  }
-
   function setStatus(message: string, state?: "error" | "success"): void {
     status?.replaceChildren(message);
     if (status) status.dataset.status = state ?? "";
@@ -301,7 +279,6 @@
 <style>
   .community-byline__form,
   .community-byline__reauth,
-  .community-byline__claim,
   .community-byline__preview {
     display: grid;
     gap: 0.75rem;
@@ -339,14 +316,12 @@
   }
 
   .community-byline__optional,
-  .community-byline__help,
-  .community-byline__claim span:last-child {
+  .community-byline__help {
     color: var(--text-muted);
     font-weight: 500;
   }
 
   .community-byline__proposal,
-  .community-byline__claim,
   .community-byline__preview,
   .community-byline__reauth {
     border: 1px solid var(--border-subtle);

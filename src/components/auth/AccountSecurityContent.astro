@@ -17,7 +17,18 @@ const { eyebrow = "RI POTA account" } = Astro.props;
   <p>Manage your passkeys and signed-in browsers.</p>
   <p data-account-admin-guidance hidden>Administrator actions require signing in with a passkey.</p>
 </div>
-<AccountIdentity />
-<CommunityByline />
-<PasskeyManager />
-<SessionManager />
+<div class="account-settings">
+  <AccountIdentity />
+  <CommunityByline />
+  <slot name="before-passkeys" />
+  <PasskeyManager />
+  <SessionManager />
+</div>
+
+<style>
+  .account-settings {
+    display: grid;
+    gap: 1.5rem;
+    min-width: 0;
+  }
+</style>

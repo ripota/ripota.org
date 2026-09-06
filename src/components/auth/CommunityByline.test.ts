@@ -14,7 +14,11 @@ describe("CommunityByline", () => {
     expect(source).toContain('aria-live="polite"');
   });
 
-  it("explains privacy, claim provenance, and the account-continuity boundary", () => {
+  it("explains the public profile without exposing internal claim labels", () => {
+    expect(source).toContain("Public contribution profile");
+    expect(source).toContain("This is separate from your Activate RI registration and Ops Room name.");
+    expect(source).not.toContain("Claim status:");
+    expect(source).not.toContain("data-claim-status");
     expect(source).toContain("Your verified email stays private");
     expect(source).toContain("not official POTA or FCC verification");
     expect(source).toContain("A passkey proves continuity with this account—it does not prove callsign ownership.");

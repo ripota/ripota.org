@@ -20,8 +20,9 @@ import BaseLayout from "../../../layouts/BaseLayout.astro";
       <div class="container stack">
         <EventNav />
         <ActivatorPortalNav />
-        <AccountSecurityContent eyebrow="Activator account" />
-        <OpsEmailPreferences />
+        <AccountSecurityContent eyebrow="Activator account">
+          <OpsEmailPreferences slot="before-passkeys" />
+        </AccountSecurityContent>
       </div>
     </section>
     <Notice />

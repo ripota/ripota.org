@@ -27,7 +27,9 @@ test("an activator confirms a proposed byline and reauthenticates a callsign cha
     await expect(page.getByRole("button", { name: "Save community byline" })).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(page.getByText("Community byline saved.")).toBeVisible();
-    await expect(page.getByText("Event-linked", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Public contribution profile" })).toBeVisible();
+    await expect(page.getByText("Claim status:")).toHaveCount(0);
+    await expect(page.getByText("Event-linked", { exact: true })).toHaveCount(0);
 
     await callsign.fill("W1MOBILE");
     await page.getByRole("button", { name: "Save community byline" }).click();
@@ -79,7 +81,7 @@ test("an account-only user deliberately creates a byline without gaining event n
     await page.getByLabel("Public name (optional)").fill("Account Only");
     await page.getByRole("button", { name: "Save community byline" }).click();
     await expect(page.getByText("Community byline saved.")).toBeVisible();
-    await expect(page.getByText("Self-asserted", { exact: true })).toBeVisible();
+    await expect(page.getByText("Self-asserted", { exact: true })).toHaveCount(0);
 
     const session = await page.request.get(`${server.origin}/api/auth/session`);
     const body = await session.json() as { nextRoutes: Array<{ label: string }> };
