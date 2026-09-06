@@ -332,24 +332,24 @@ describe("Activate RI Ops Room D1 flow", () => {
     env.EMAIL = { send } as unknown as SendEmail;
     const preferencePath = "/api/activate-ri-2026/ops/preferences";
     const preference = await handleActivateRiApi(sessionRequest(preferencePath, cookie), env);
-    await expect(preference.json()).resolves.toMatchObject({ emailAnnouncements: false });
+    await expect(preference.json()).resolves.toMatchObject({ emailEnabled: true, chatMessages: false });
     const optIn = await handleActivateRiApi(sessionRequest(preferencePath, cookie, {
-      method: "PATCH", headers: jsonHeaders(), body: JSON.stringify({ emailAnnouncements: true }),
+      method: "PATCH", headers: jsonHeaders(), body: JSON.stringify({ emailEnabled: true, chatMessages: true }),
     }), env);
     expect(optIn.status).toBe(200);
     const forbidden = await handleActivateRiApi(sessionRequest(preferencePath, cookie, {
       method: "PATCH", headers: { ...jsonHeaders(), origin: "https://attacker.example" },
-      body: JSON.stringify({ emailAnnouncements: false }),
+      body: JSON.stringify({ emailEnabled: false, chatMessages: true }),
     }), env);
     expect(forbidden.status).toBe(403);
     env.ACTIVATE_RI_OPS_HARD_DISABLED = "true";
     const optOut = await handleActivateRiApi(sessionRequest(preferencePath, cookie, {
-      method: "PATCH", headers: jsonHeaders(), body: JSON.stringify({ emailAnnouncements: false }),
+      method: "PATCH", headers: jsonHeaders(), body: JSON.stringify({ emailEnabled: false, chatMessages: true }),
     }), env);
-    await expect(optOut.json()).resolves.toMatchObject({ emailAnnouncements: false });
+    await expect(optOut.json()).resolves.toMatchObject({ emailEnabled: false, chatMessages: true });
     env.ACTIVATE_RI_OPS_HARD_DISABLED = "false";
     await handleActivateRiApi(sessionRequest(preferencePath, cookie, {
-      method: "PATCH", headers: jsonHeaders(), body: JSON.stringify({ emailAnnouncements: true }),
+      method: "PATCH", headers: jsonHeaders(), body: JSON.stringify({ emailEnabled: true, chatMessages: true }),
     }), env);
     env.ACTIVATE_RI_EMAIL_FROM = "activate-ri-2026@ripota.org";
     const background: Promise<unknown>[] = [];
@@ -383,8 +383,7 @@ describe("Activate RI Ops Room D1 flow", () => {
     await Promise.all(background);
     expect(send).toHaveBeenCalledOnce();
     expect(send).toHaveBeenCalledWith(expect.objectContaining({
-      to: "activate-ri-2026@ripota.org",
-      bcc: ["rob@example.com"],
+      to: "rob@example.com",
     }));
 
     const pinnedState = await handleActivateRiApi(

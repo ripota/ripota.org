@@ -29,6 +29,8 @@ import { createOpsEmailBroadcast, sendOpsEmailBroadcast } from "../ops-email";
 import { hasTrustedOrigin } from "../origin";
 import { trustedSiteUrl } from "../origin";
 import { withPrivateHeaders } from "../private-response";
+import { opsEmailPreferencesResponse } from "../ops-email-preferences";
+import { retryOpsMessageEmails, scheduleOpsMessageEmails } from "../ops-notifications";
 
 export async function handleActivateRiAdminOpsApi(
   request: Request,
@@ -41,6 +43,22 @@ export async function handleActivateRiAdminOpsApi(
   }
 
   const url = new URL(request.url);
+  if (url.pathname === "/api/activate-ri-2026/admin/ops/preferences") {
+    const localAdmin = env.ALLOW_LOCAL_ADMIN_AUTH === "true" || env.ALLOW_ADMIN_HEADER_AUTH === "true";
+    if (!identity.userId && !localAdmin) {
+      return privateJson({ ok: false, error: "Sign in with your administrator passkey to manage email notifications." }, { status: 403 });
+    }
+    return opsEmailPreferencesResponse(request, env, {
+      email: identity.email, adminUserId: identity.userId, localAdmin: !identity.userId && localAdmin,
+    });
+  }
+  if (request.method === "POST" && url.pathname === "/api/activate-ri-2026/admin/ops/notifications/retry") {
+    const originError = requireMutationOrigin(request, env);
+    if (originError) return originError;
+    const retry = retryOpsMessageEmails(env);
+    if (ctx) ctx.waitUntil(retry); else await retry;
+    return privateJson({ ok: true });
+  }
   if (request.method === "GET" && url.pathname === "/api/activate-ri-2026/admin/ops") {
     const [state, stats] = await Promise.all([
       getOpsAdminState(env),
@@ -71,13 +89,15 @@ export async function handleActivateRiAdminOpsApi(
     const normalizedEmail = identity.email.trim().toLowerCase();
     const actorKey = `admin:${await tokenHash(normalizedEmail)}`;
     const localPart = normalizedEmail.split("@")[0] || "organizer";
-    return withPrivateHeaders(await postAdminOpsMessageThroughRoom(
+    const response = await postAdminOpsMessageThroughRoom(
       env,
       actorKey,
       `Organizer (${localPart})`,
       identity.email,
       validation.value,
-    ));
+    );
+    if (response.ok) await scheduleOpsMessageEmails(env, ctx);
+    return withPrivateHeaders(response);
   }
 
   if (request.method === "PATCH" && url.pathname === "/api/activate-ri-2026/admin/ops/settings") {
@@ -132,6 +152,7 @@ export async function handleActivateRiAdminOpsApi(
       const send = sendOpsEmailBroadcast(env, broadcast.id);
       if (ctx) ctx.waitUntil(send); else await send;
     }
+    await scheduleOpsMessageEmails(env, ctx);
     return privateJson({ ...body, ...(broadcast ? { broadcast } : {}) });
   }
 

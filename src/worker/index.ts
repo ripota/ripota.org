@@ -1,4 +1,5 @@
 import type { Env } from "./env";
+import { scheduleOpsMessageEmails } from "./ops-notifications";
 import {
   activatorSessionCookie,
   createActivatorSession,
@@ -219,6 +220,7 @@ export default {
       ctx.waitUntil(runPotaSpotCleanupSchedule(controller, env));
       return;
     }
+    ctx.waitUntil(scheduleOpsMessageEmails(env));
     ctx.waitUntil(runActivateRiPotaSchedule(controller, env));
     ctx.waitUntil(cleanupAuthData(env).then((result) => {
       console.log(JSON.stringify({ event: "auth-cleanup", ...result }));

@@ -1,6 +1,7 @@
 import type { Env } from "./env";
 import { logActivityEvent } from "./db";
 import { logWorkerError } from "./logging";
+import { deliverOpsMessageEmails, retryOpsMessageEmails } from "./ops-notifications";
 
 type RecipientRow = {
   activator_id: string;
@@ -13,6 +14,13 @@ export async function createOpsEmailBroadcast(
   requestedBy: string,
   now = new Date().toISOString(),
 ): Promise<{ id: string; recipientCount: number }> {
+  const queued = await env.DB.prepare(
+    `SELECT m.id, COUNT(d.message_id) AS recipient_count FROM activate_ri_ops_messages m
+     LEFT JOIN activate_ri_ops_email_deliveries d ON d.message_id = m.id
+     WHERE m.event_id = ? AND m.id = ? AND m.email_broadcast_requested = 1 GROUP BY m.id`,
+  ).bind(env.ACTIVATE_RI_EVENT_ID, messageId).first<{ id: string; recipient_count: number }>();
+  if (queued) return { id: queued.id, recipientCount: queued.recipient_count };
+
   const existing = await env.DB.prepare(
     `SELECT id, recipient_count FROM activate_ri_ops_email_broadcasts
      WHERE event_id = ? AND message_id = ?`,
@@ -24,8 +32,9 @@ export async function createOpsEmailBroadcast(
     `SELECT m.activator_id, a.email_normalized
      FROM activate_ri_ops_memberships m
      INNER JOIN activate_ri_activators a ON a.id = m.activator_id
+     LEFT JOIN activate_ri_ops_email_preferences p ON p.event_id = m.event_id AND p.email_normalized = a.email_normalized
      WHERE m.event_id = ? AND m.status IN ('active', 'muted')
-       AND m.email_announcements = 1 AND a.status = 'approved'
+       AND COALESCE(p.email_enabled, 1) = 1 AND a.status = 'approved'
      ORDER BY m.activator_id`,
   ).bind(env.ACTIVATE_RI_EVENT_ID).all<RecipientRow>();
   const broadcastId = crypto.randomUUID();
@@ -57,7 +66,7 @@ export async function createOpsEmailBroadcast(
       crypto.randomUUID(),
       env.ACTIVATE_RI_EVENT_ID,
       requestedBy,
-      `Announcement email requested for ${recipients.results.length} subscribed activators.`,
+      `Announcement email requested for ${recipients.results.length} eligible activators.`,
       JSON.stringify({ messageId, broadcastId, recipientCount: recipients.results.length }),
       now,
     ),
@@ -81,7 +90,11 @@ export async function sendOpsEmailBroadcast(
     body: string;
     created_at: string;
   }>();
-  if (!broadcast) return;
+  if (!broadcast) {
+    if (retryFailedOnly) await retryOpsMessageEmails(env, broadcastId);
+    else await deliverOpsMessageEmails(env, broadcastId);
+    return;
+  }
 
   await env.DB.prepare(
     `UPDATE activate_ri_ops_email_broadcasts
@@ -104,8 +117,9 @@ export async function sendOpsEmailBroadcast(
        FROM activate_ri_ops_email_recipients r
        INNER JOIN activate_ri_ops_memberships m ON m.activator_id = r.activator_id AND m.event_id = ?
        INNER JOIN activate_ri_activators a ON a.id = r.activator_id
+       LEFT JOIN activate_ri_ops_email_preferences p ON p.event_id = m.event_id AND p.email_normalized = a.email_normalized
        WHERE r.broadcast_id = ? AND r.batch_number = ?
-         AND m.email_announcements = 1 AND m.status IN ('active', 'muted')
+         AND COALESCE(p.email_enabled, 1) = 1 AND m.status IN ('active', 'muted')
          AND a.status = 'approved'`,
     ).bind(env.ACTIVATE_RI_EVENT_ID, broadcastId, batch[0].batch_number).all<RecipientRow>();
     const current = new Map(eligible.results.map((recipient) => [recipient.activator_id, recipient]));
@@ -197,7 +211,7 @@ async function sendAnnouncementBatch(
     `Posted: ${createdAt}`,
     `Activator portal: ${portalUrl}`,
     "",
-    "You received this email because you opted in to organizer announcements.",
+    "The organizers selected this announcement for email delivery.",
     `Turn off these emails in your account: ${portalUrl}account/#ops-email-notifications`,
     "If prompted, sign in with a passkey or an email sign-in link.",
     "This room and email are not monitored emergency services.",
@@ -213,7 +227,7 @@ async function sendAnnouncementBatch(
       bcc: recipients,
       subject: "Activate All RI 2026 organizer announcement",
       text,
-      html: `<p><strong>Activate All RI 2026 organizer announcement</strong></p><p>${escapeHtml(announcement).replaceAll("\n", "<br>")}</p><p><a href="${portalUrl}">Open the activator portal</a></p><p>You received this email because you opted in to organizer announcements. <a href="${portalUrl}account/#ops-email-notifications">Manage or turn off announcement emails</a>.</p><p>If prompted, sign in with a passkey or an email sign-in link.</p><p>This room and email are not monitored emergency services.</p><p>RI POTA is an unofficial community site; official POTA resources remain authoritative.</p>`,
+      html: `<p><strong>Activate All RI 2026 organizer announcement</strong></p><p>${escapeHtml(announcement).replaceAll("\n", "<br>")}</p><p><a href="${portalUrl}">Open the activator portal</a></p><p>The organizers selected this announcement for email delivery. <a href="${portalUrl}account/#ops-email-notifications">Manage email notifications</a>.</p><p>If prompted, sign in with a passkey or an email sign-in link.</p><p>This room and email are not monitored emergency services.</p><p>RI POTA is an unofficial community site; official POTA resources remain authoritative.</p>`,
     });
     console.log(JSON.stringify({
       event: "ops_announcement_email_batch",

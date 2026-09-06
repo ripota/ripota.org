@@ -9,6 +9,7 @@ import type {
   OpsRoomMode,
 } from "../lib/activate-ri/ops-types";
 import type { Env } from "./env";
+import { queueOpsMessageEmails } from "./ops-notifications";
 
 type MembershipRow = {
   status: OpsMembershipStatus;
@@ -253,6 +254,7 @@ export async function createOpsMessage(
        FROM activate_ri_ops_messages
        WHERE event_id = ? AND author_key = ? AND client_nonce = ?`,
     ).bind(env.ACTIVATE_RI_EVENT_ID, authorKey, input.clientNonce),
+    queueOpsMessageEmails(env, messageId),
   ]);
 
   return getMessageCreatedEvent(env, authorKey, input.clientNonce);
@@ -306,6 +308,7 @@ export async function createAdminOpsMessage(
        FROM activate_ri_ops_messages
        WHERE event_id = ? AND author_key = ? AND client_nonce = ?`,
     ).bind(env.ACTIVATE_RI_EVENT_ID, actorKey, input.clientNonce),
+    queueOpsMessageEmails(env, messageId),
   ]);
   return getMessageCreatedEvent(env, actorKey, input.clientNonce);
 }
@@ -319,6 +322,7 @@ export async function createAdminOpsAnnouncement(
     body: string;
     context: { type: "park"; parkReference: string } | null;
     pin: boolean;
+    emailEligibleActivators?: boolean;
   },
   now = new Date().toISOString(),
 ): Promise<OpsEvent[] | null> {
@@ -327,8 +331,8 @@ export async function createAdminOpsAnnouncement(
     env.DB.prepare(
       `INSERT OR IGNORE INTO activate_ri_ops_messages (
          id, event_id, author_type, author_key, author_label, kind, body,
-         park_reference, client_nonce, created_at
-       ) VALUES (?, ?, 'admin', ?, 'Organizer', 'announcement', ?, ?, ?, ?)`,
+         park_reference, client_nonce, created_at, email_broadcast_requested
+       ) VALUES (?, ?, 'admin', ?, 'Organizer', 'announcement', ?, ?, ?, ?, ?)`,
     ).bind(
       messageId,
       env.ACTIVATE_RI_EVENT_ID,
@@ -337,6 +341,7 @@ export async function createAdminOpsAnnouncement(
       input.context?.parkReference ?? null,
       input.clientNonce,
       now,
+      Number(input.emailEligibleActivators ?? false),
     ),
     env.DB.prepare(
       `INSERT OR IGNORE INTO activate_ri_ops_events (
@@ -397,6 +402,7 @@ export async function createAdminOpsAnnouncement(
       input.clientNonce,
       now,
     ),
+    queueOpsMessageEmails(env, messageId),
   ]);
   const created = await getMessageCreatedEvent(env, actorKey, input.clientNonce);
   if (!created || created.type !== "message-created") return null;
@@ -757,7 +763,7 @@ export async function setOwnOpsMessageResolved(
 }
 
 export async function getOpsAdminState(env: Env) {
-  const [settings, messages, pinned, broadcasts, members, cursor] = await env.DB.batch([
+  const [settings, messages, pinned, broadcasts, members, notifications, cursor] = await env.DB.batch([
     env.DB.prepare(
       `SELECT room_mode, pinned_message_id, rules_version, updated_at, updated_by
        FROM activate_ri_ops_settings WHERE event_id = ?`,
@@ -776,15 +782,33 @@ export async function getOpsAdminState(env: Env) {
       `SELECT id, message_id, status, recipient_count, sent_count, failed_count, skipped_count,
               created_at, completed_at, last_error
        FROM activate_ri_ops_email_broadcasts
-       WHERE event_id = ? ORDER BY created_at DESC LIMIT 25`,
-    ).bind(env.ACTIVATE_RI_EVENT_ID),
+       WHERE event_id = ?
+       UNION ALL
+       SELECT m.id, m.id,
+         CASE WHEN SUM(d.status IN ('pending', 'sending')) > 0 THEN 'sending'
+           WHEN SUM(d.status = 'failed') > 0 THEN 'partial' ELSE 'sent' END,
+         COUNT(d.message_id), COALESCE(SUM(d.status = 'sent'), 0),
+         COALESCE(SUM(d.status = 'failed'), 0), COALESCE(SUM(d.status = 'skipped'), 0),
+         m.created_at, MAX(d.sent_at), COALESCE(MAX(d.last_error), '')
+       FROM activate_ri_ops_messages m
+       LEFT JOIN activate_ri_ops_email_deliveries d ON d.message_id = m.id
+       WHERE m.event_id = ? AND m.email_broadcast_requested = 1
+       GROUP BY m.id ORDER BY created_at DESC LIMIT 25`,
+    ).bind(env.ACTIVATE_RI_EVENT_ID, env.ACTIVATE_RI_EVENT_ID),
     env.DB.prepare(
       `SELECT m.activator_id, m.status, m.accepted_rules_version,
               m.accepted_rules_at, m.moderation_reason,
-              m.email_announcements, a.primary_callsign, a.name
+              COALESCE(p.email_enabled, 1) AS email_enabled, a.primary_callsign, a.name
        FROM activate_ri_ops_memberships m
        INNER JOIN activate_ri_activators a ON a.id = m.activator_id
+       LEFT JOIN activate_ri_ops_email_preferences p ON p.event_id = m.event_id AND p.email_normalized = a.email_normalized
        WHERE m.event_id = ? ORDER BY a.primary_callsign`,
+    ).bind(env.ACTIVATE_RI_EVENT_ID),
+    env.DB.prepare(
+      `SELECT COALESCE(SUM(status IN ('pending', 'sending')), 0) AS pending,
+              COALESCE(SUM(status = 'failed'), 0) AS failed,
+              COALESCE(SUM(status = 'sent'), 0) AS sent
+       FROM activate_ri_ops_email_deliveries WHERE event_id = ?`,
     ).bind(env.ACTIVATE_RI_EVENT_ID),
     env.DB.prepare(
       `SELECT COALESCE(MAX(sequence), 0) AS cursor
@@ -800,6 +824,7 @@ export async function getOpsAdminState(env: Env) {
     members: members.results ?? [],
     messages: ((messages.results ?? []) as MessageRow[]).map(toMessageDto),
     broadcasts: broadcasts.results ?? [],
+    notifications: notifications.results?.[0] ?? { pending: 0, failed: 0, sent: 0 },
     cursor: (cursor.results?.[0] as { cursor?: number } | undefined)?.cursor ?? 0,
   };
 }
