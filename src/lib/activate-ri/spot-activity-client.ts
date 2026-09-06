@@ -3,6 +3,7 @@ import type {
   PublicPotaSpotActivityPark as ActivityPark,
 } from "../../worker/pota-spot-activity";
 import { spotCoverageLabels } from "./spot-coverage";
+import { replaceLiveContent } from "./live-content";
 
 type ActivityView = "all" | "spotted" | "unspotted";
 const refreshIntervalMilliseconds = 60_000;
@@ -12,6 +13,8 @@ export function setupSpotActivity(root: HTMLElement): void {
   let refreshing = false;
   const search = root.querySelector<HTMLInputElement>("[data-activity-search]");
   const filters = root.querySelector("[data-activity-filters]");
+  const clear = root.querySelector<HTMLButtonElement>("[data-clear-activity]");
+  const refreshButton = root.querySelector<HTMLButtonElement>("[data-refresh-activity]");
   const selectedView = (): ActivityView => {
     const value = root.querySelector<HTMLInputElement>('input[name="activity-view"]:checked')?.value;
     return value === "all" || value === "unspotted" ? value : "spotted";
@@ -21,18 +24,23 @@ export function setupSpotActivity(root: HTMLElement): void {
     const view = requested === "all" || requested === "unspotted" ? requested : "spotted";
     const input = root.querySelector<HTMLInputElement>(`input[value="${view}"]`);
     if (input) input.checked = true;
+    if (search) search.value = new URL(window.location.href).searchParams.get("q") ?? "";
     renderRows();
   };
   const renderRows = () => {
-    if (!snapshot) return;
     const view = selectedView();
     const query = search?.value.trim().toLowerCase() ?? "";
+    if (clear) clear.disabled = !query && view === "spotted";
+    const orderNote = root.querySelector<HTMLElement>("[data-activity-order-note]");
+    if (orderNote) orderNote.hidden = !snapshot || view === "spotted" || snapshot.unspottedParks.length === 0;
+    if (!snapshot) return;
     const candidates = view === "spotted" ? snapshot.parks : view === "unspotted"
       ? snapshot.unspottedParks : [...snapshot.unspottedParks, ...snapshot.parks];
     const parks = candidates.filter(park =>
       !query || park.reference.toLowerCase().includes(query) || park.name.toLowerCase().includes(query),
     );
-    root.querySelector("[data-pota-activity-rows]")?.replaceChildren(...parks.map(parkRow));
+    const rows = root.querySelector<HTMLElement>("[data-pota-activity-rows]");
+    if (rows) replaceLiveContent(rows, parks.map(parkRow));
     setText(root, "[data-activity-filter-status]",
       `Showing ${parks.length} of ${candidates.length} ${view === "unspotted" ? "parks not yet spotted" : view === "spotted" ? "spotted parks" : "parks"}.`);
     const table = root.querySelector<HTMLElement>("[data-pota-activity-table]");
@@ -45,19 +53,30 @@ export function setupSpotActivity(root: HTMLElement): void {
           : "No Rhode Island spots have been collected in this window yet.";
     }
   };
-  filters?.addEventListener("change", () => {
+  const updateFilters = () => {
     const url = new URL(window.location.href);
     url.searchParams.set("view", selectedView());
+    if (search?.value.trim()) url.searchParams.set("q", search.value.trim());
+    else url.searchParams.delete("q");
     window.history.replaceState(null, "", url);
     renderRows();
+  };
+  filters?.addEventListener("change", updateFilters);
+  search?.addEventListener("input", updateFilters);
+  clear?.addEventListener("click", () => {
+    if (search) search.value = "";
+    const spotted = root.querySelector<HTMLInputElement>('input[name="activity-view"][value="spotted"]');
+    if (spotted) spotted.checked = true;
+    updateFilters();
+    search?.focus();
   });
-  search?.addEventListener("input", renderRows);
   window.addEventListener("popstate", restoreView);
   restoreView();
 
   const refresh = async () => {
     if (refreshing) return;
     refreshing = true;
+    if (refreshButton) refreshButton.disabled = true;
     try {
       const response = await fetch("/api/activate-ri-2026/public/spot-activity", {
         headers: { accept: "application/json" }, cache: "no-store",
@@ -69,11 +88,13 @@ export function setupSpotActivity(root: HTMLElement): void {
     } catch {
       setText(root, "[data-pota-activity-status]", snapshot
         ? "Refresh failed. Showing the last successful result; missing-park status may be out of date."
-        : "Collected spot activity is temporarily unavailable. Try again shortly.");
+        : "Collected spot activity is temporarily unavailable. Use Refresh progress to try again.");
     } finally {
       refreshing = false;
+      if (refreshButton) refreshButton.disabled = false;
     }
   };
+  refreshButton?.addEventListener("click", () => { void refresh(); });
   document.addEventListener("visibilitychange", () => { if (!document.hidden) void refresh(); });
   window.setInterval(() => { if (!document.hidden) void refresh(); }, refreshIntervalMilliseconds);
   void refresh();
@@ -106,6 +127,7 @@ function parkRow(park: ActivityPark): HTMLTableRowElement {
   link.target = "_blank";
   link.rel = "noopener noreferrer";
   link.textContent = `${park.reference} · ${park.name}`;
+  link.dataset.liveKey = `${park.reference}-official`;
   parkCell.appendChild(link);
   if (park.live) {
     const badge = document.createElement("span");

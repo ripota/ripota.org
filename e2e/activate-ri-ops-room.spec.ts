@@ -64,10 +64,14 @@ test("approved activators acknowledge rules and exchange a live room message", a
 
     await first.goto(submitBody.editUrl);
     await expect(first).toHaveURL(`${server.origin}/activate-ri-2026/activator/plan/`);
+    await first.route("**/api/activate-ri-2026/ops/bootstrap", (route) => route.abort(), { times: 1 });
     await first.goto(`${server.origin}/activate-ri-2026/activator/`);
     await expect(first.locator(".event-nav").first().getByRole("link", { name: "Activator", exact: true })).toHaveAttribute("aria-current", "page");
     await expect(first.getByRole("navigation", { name: "Activator tools" })).toBeVisible();
     await expect(first.getByRole("dialog", { name: "Coordinate clearly. Operate safely." })).toBeVisible();
+    await first.route("**/api/activate-ri-2026/ops/rules/accept", (route) => route.abort(), { times: 1 });
+    await first.getByRole("button", { name: "Enter the Ops Room" }).click();
+    await expect(first.locator("[data-ops-rules-status]")).toHaveText("Unable to save acknowledgement. Please try again.");
     await first.getByRole("button", { name: "Enter the Ops Room" }).click();
     await expect(first.getByRole("dialog", { name: "Coordinate clearly. Operate safely." })).toBeHidden();
     await expect(first.locator("[data-ops-connection-label]")).toHaveText("Live");
@@ -88,11 +92,14 @@ test("approved activators acknowledge rules and exchange a live room message", a
     await expect(second.locator("[data-ops-email-preferences] ~ section #passkeys-title")).toHaveText("Passkeys");
     for (const width of [390, 1280]) {
       await second.setViewportSize({ width, height: 844 });
-      const emailBox = await second.locator("[data-ops-email-preferences]").boundingBox();
-      const passkeysBox = await second.getByRole("heading", { name: "Passkeys", exact: true }).boundingBox();
-      expect(emailBox).not.toBeNull();
-      expect(passkeysBox).not.toBeNull();
-      expect(emailBox!.y + emailBox!.height).toBeLessThan(passkeysBox!.y);
+      // Read both positions together so an in-progress hash scroll cannot move
+      // the viewport between measurements and look like overlapping content.
+      const layout = await second.evaluate(() => {
+        const email = document.querySelector("[data-ops-email-preferences]")!.getBoundingClientRect();
+        const passkeys = document.querySelector("#passkeys-title")!.getBoundingClientRect();
+        return { emailBottom: email.bottom + scrollY, passkeysTop: passkeys.top + scrollY };
+      });
+      expect(layout.emailBottom).toBeLessThan(layout.passkeysTop);
     }
     await second.setViewportSize({ width: 390, height: 844 });
     await expect(second.getByText("Claim status:")).toHaveCount(0);
@@ -215,7 +222,7 @@ test("approved activators acknowledge rules and exchange a live room message", a
     expect(smallScreenLayout.width, JSON.stringify(smallScreenLayout)).toBeLessThanOrEqual(320);
     await second.setViewportSize({ width: 390, height: 844 });
 
-    await admin.getByRole("button", { name: /Messages/ }).click();
+    await admin.getByRole("tab", { name: /Messages/ }).click();
     const messageCard = admin.locator("[data-admin-ops-messages] .admin-card").filter({
       hasText: "Checking in from Beavertail.",
     });
@@ -223,12 +230,12 @@ test("approved activators acknowledge rules and exchange a live room message", a
     await messageCard.getByRole("button", { name: "Remove" }).click();
     await expect(second.locator("[data-ops-feed]")).toContainText("Message removed.");
 
-    await admin.getByRole("button", { name: /People/ }).click();
+    await admin.getByRole("tab", { name: /People/ }).click();
     const memberCard = admin.locator("[data-admin-ops-members] .admin-card").filter({
       hasText: callsign,
     });
     admin.once("dialog", (dialog) => dialog.accept("E2E mute check."));
-    await memberCard.getByRole("button", { name: "Mute", exact: true }).click();
+    await memberCard.getByRole("button", { name: /^Mute / }).click();
     await expect(second.locator("[data-ops-send]")).toBeDisabled();
 
     await first.getByRole("button", { name: "Sign out", exact: true }).click();

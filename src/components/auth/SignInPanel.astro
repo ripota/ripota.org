@@ -23,7 +23,7 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY;
     <form class="stack" data-email-sign-in>
       <label>
         Email address
-        <input name="email" type="email" autocomplete="email" required />
+        <input name="email" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" required />
       </label>
       <p>Each email link works once and expires in 15 minutes.</p>
       <div
@@ -42,11 +42,14 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY;
   import { safeLocalReturnPath } from "../../lib/auth-return-path";
   import { startAuthentication } from "@simplewebauthn/browser";
   import type { PublicKeyCredentialRequestOptionsJSON } from "@simplewebauthn/browser";
+  import { resetTurnstile } from "../../lib/activate-ri/form-client";
 
   const button = document.querySelector<HTMLButtonElement>("[data-passkey-sign-in]");
   const status = document.querySelector<HTMLElement>("[data-sign-in-status]");
   const emailForm = document.querySelector<HTMLFormElement>("[data-email-sign-in]");
   const emailStatus = document.querySelector<HTMLElement>("[data-email-status]");
+  const emailButton = emailForm?.querySelector<HTMLButtonElement>('button[type="submit"]');
+  let requestingEmail = false;
 
   button?.addEventListener("click", async () => {
     button.disabled = true;
@@ -81,6 +84,11 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY;
 
   emailForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (requestingEmail) return;
+    requestingEmail = true;
+    if (emailButton) emailButton.disabled = true;
+    emailForm.setAttribute("aria-busy", "true");
+    if (emailStatus) delete emailStatus.dataset.status;
     emailStatus?.replaceChildren("Requesting a sign-in link…");
     const data = new FormData(emailForm);
     try {
@@ -94,11 +102,26 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY;
         }),
       });
       const body = await response.json();
+      if (!response.ok) {
+        const message = isRecord(body) && typeof body.error === "string" ? body.error
+          : isRecord(body) && typeof body.message === "string" ? body.message
+          : "Email sign-in is temporarily unavailable. Please try again.";
+        if (emailStatus) emailStatus.dataset.status = "error";
+        emailStatus?.replaceChildren(message);
+        return;
+      }
+      if (emailStatus) emailStatus.dataset.status = "success";
       emailStatus?.replaceChildren(isRecord(body) && typeof body.message === "string"
         ? body.message
         : "If this account can use email sign-in, we sent a link.");
     } catch {
+      if (emailStatus) emailStatus.dataset.status = "error";
       emailStatus?.replaceChildren("Email sign-in is temporarily unavailable. Please try again.");
+    } finally {
+      resetTurnstile();
+      requestingEmail = false;
+      if (emailButton) emailButton.disabled = false;
+      emailForm.removeAttribute("aria-busy");
     }
   });
 

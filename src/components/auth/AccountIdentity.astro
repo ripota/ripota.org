@@ -1,6 +1,7 @@
 <section class="form-card" aria-labelledby="account-identity-title" data-account-identity>
   <h2 id="account-identity-title">Signed-in account</h2>
   <p data-account-identity-status aria-live="polite">Loading account details…</p>
+  <button class="button" data-variant="light" type="button" data-retry-account-identity hidden>Try again</button>
   <p data-email-passkey-prompt hidden>
     You signed in by email. Activator access is ready now; adding a passkey makes future sign-in faster.
   </p>
@@ -10,21 +11,30 @@
   const panel = document.querySelector<HTMLElement>("[data-account-identity]");
   const status = panel?.querySelector<HTMLElement>("[data-account-identity-status]");
   const prompt = panel?.querySelector<HTMLElement>("[data-email-passkey-prompt]");
+  const retry = panel?.querySelector<HTMLButtonElement>("[data-retry-account-identity]");
   void loadIdentity();
+  retry?.addEventListener("click", () => void loadIdentity());
 
   async function loadIdentity(): Promise<void> {
-    const response = await fetch("/api/auth/session", { headers: { accept: "application/json" } });
-    const body = await response.json().catch(() => null);
-    if (!response.ok || !isSession(body) || !body.signedIn) {
-      window.location.replace(`/account/sign-in/?returnTo=${encodeURIComponent(window.location.pathname)}`);
-      return;
+    if (retry) retry.hidden = true;
+    try {
+      const response = await fetch("/api/auth/session", { headers: { accept: "application/json" } });
+      const body = await response.json().catch(() => null);
+      if (response.status === 401 || (response.ok && isRecord(body) && body.signedIn === false)) {
+        window.location.replace(`/account/sign-in/?returnTo=${encodeURIComponent(window.location.pathname)}`);
+        return;
+      }
+      if (!response.ok || !isSession(body)) throw new Error("Account unavailable");
+      const email = body.user.email ?? "No verified email";
+      const roles = body.roles.length > 0 ? body.roles.join(" and ") : "account holder";
+      status?.replaceChildren(`Verified email (kept private): ${email} · signed in with ${methodLabel(body.authenticationMethod)} · ${roles}`);
+      if (prompt) prompt.hidden = body.authenticationMethod !== "email";
+      const adminGuidance = document.querySelector<HTMLElement>("[data-account-admin-guidance]");
+      if (adminGuidance) adminGuidance.hidden = !body.roles.includes("administrator");
+    } catch {
+      status?.replaceChildren("Unable to load account details. Check your connection and try again.");
+      if (retry) retry.hidden = false;
     }
-    const email = body.user.email ?? "No verified email";
-    const roles = body.roles.length > 0 ? body.roles.join(" and ") : "account holder";
-    status?.replaceChildren(`Verified email (kept private): ${email} · signed in with ${methodLabel(body.authenticationMethod)} · ${roles}`);
-    if (prompt) prompt.hidden = body.authenticationMethod !== "email";
-    const adminGuidance = document.querySelector<HTMLElement>("[data-account-admin-guidance]");
-    if (adminGuidance) adminGuidance.hidden = !body.roles.includes("administrator");
   }
 
   function methodLabel(method: string): string {

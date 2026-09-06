@@ -89,6 +89,26 @@ test("park planning compares distinct activators and time slots and expands exis
     await expect(block.locator("details")).toContainText("Sep 12");
     await expect(rows.getByRole("link", { name: "Add an activation", exact: true })).toHaveCount(references.length);
     await expect(block.getByRole("link", { name: "Add an activation", exact: true })).toHaveAttribute("href", "/activate-ri-2026/volunteer/?park=US-0513");
+    const search = page.locator("[data-planning-search]");
+    await search.fill("US-0513");
+    await expect(rows).toHaveCount(1);
+    await expect(page.locator("[data-planning-status]")).toContainText("1 park matching “US-0513”");
+    await page.reload();
+    await expect(search).toHaveValue("US-0513");
+    await expect(rows).toHaveCount(1);
+    await search.fill("no matching park");
+    await expect(rows).toHaveCount(0);
+    await page.locator("[data-clear-planning]").click();
+    await expect(search).toBeFocused();
+    await expect(rows).toHaveCount(references.length);
+    await expect(page.locator('[data-filter="sort"]')).toHaveValue("activators");
+    await page.goBack();
+    await expect(search).toHaveValue("no matching park");
+    await expect(page.locator('[data-filter="sort"]')).toHaveValue("name");
+    await expect(rows).toHaveCount(0);
+    await page.goBack();
+    await expect(search).toHaveValue("US-0513");
+    await expect(rows).toHaveCount(1);
   } finally {
     await server.stop();
   }

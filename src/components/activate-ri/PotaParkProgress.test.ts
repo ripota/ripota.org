@@ -42,7 +42,7 @@ describe("Activate RI POTA result surfaces", () => {
   it("provides protected organizer observability and a deep reconciliation control", () => {
     expect(admin).toContain("Last live-spot ingest");
     expect(admin).toContain("Last successful history sync");
-    expect(admin).toContain("Start final deep reconciliation");
+    expect(admin).toContain("Recheck all event parks");
     expect(admin).toContain("/api/activate-ri-2026/admin/pota-reconcile");
   });
 });

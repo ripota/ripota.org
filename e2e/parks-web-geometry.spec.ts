@@ -434,12 +434,23 @@ for (const viewport of [
         { path: "parks/", heading: "Activation plans by park", nav: "Parks" },
         { path: "schedule/", heading: "Event schedule", nav: "Schedule" },
         { path: "hunter/", heading: "Plan your Worked All RI hunt", nav: "Hunter" },
+        { path: "progress/", heading: "Event progress", nav: "Progress" },
       ]) {
         await page.goto(`${parksOrigin}/activate-ri-2026/${route.path}`);
         await page.waitForLoadState("networkidle");
         await expect(page.getByRole("heading", { level: 1, name: route.heading, exact: true })).toBeVisible();
         const nav = page.getByRole("navigation", { name: "Activate All RI navigation" });
-        await expect(nav.getByRole("link", { name: route.nav, exact: true })).toHaveAttribute("aria-current", "page");
+        const currentLink = nav.getByRole("link", { name: route.nav, exact: true });
+        await expect(currentLink).toHaveAttribute("aria-current", "page");
+        await expect(currentLink).toBeInViewport({ ratio: 1 });
+        await page.setViewportSize({ width: 320, height: viewport.height });
+        await expect(currentLink).toBeInViewport({ ratio: 1 });
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+        await page.setViewportSize({ width: viewport.width, height: viewport.height });
+        const navBounds = await nav.boundingBox();
+        const headingBounds = await page.getByRole("heading", { level: 1, name: route.heading, exact: true }).boundingBox();
+        expect(navBounds!.y + navBounds!.height).toBeLessThan(headingBounds!.y);
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
         await expect(page.locator("body")).toContainText("not an official Parks on the Air property");
         await expect(page.locator('a[href^="https://pota.app/"]').first()).toHaveAttribute("href", /^https:\/\/pota\.app\//);
         await page.getByRole("navigation", { name: "Primary navigation", exact: true }).getByRole("link", { name: "Activate All RI", exact: true }).click();
@@ -449,6 +460,33 @@ for (const viewport of [
       await page.waitForLoadState("networkidle");
       expect(browser.canonicalRequests).toEqual([]);
       expect(browser.errors).toEqual([]);
+    });
+
+    test("event primary actions retain contrast in both themes and on hover", async ({ page, parksOrigin }) => {
+      await page.goto(`${parksOrigin}/activate-ri-2026/`);
+      const action = page.locator('[aria-label="Event actions"] a[data-variant="primary"]:visible');
+      for (const colorScheme of ["light", "dark"] as const) {
+        await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
+        await expect(page.locator("html")).toHaveCSS("scroll-behavior", "auto");
+        for (const hovered of [false, true]) {
+          if (hovered) await action.hover();
+          else await page.mouse.move(0, 0);
+          const ratio = await action.evaluate((element) => {
+            const style = getComputedStyle(element);
+            const luminance = (color: string) => {
+              const rgb = color.match(/[\d.]+/g)!.slice(0, 3).map(Number).map((value) => {
+                const channel = value / 255;
+                return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+              });
+              return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
+            };
+            const text = luminance(style.color);
+            const background = luminance(style.backgroundColor);
+            return (Math.max(text, background) + 0.05) / (Math.min(text, background) + 0.05);
+          });
+          expect(ratio).toBeGreaterThanOrEqual(4.5);
+        }
+      }
     });
 
     test("schedule search deep links and secondary filters remain usable", async ({ page, parksOrigin }) => {

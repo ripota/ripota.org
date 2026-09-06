@@ -31,6 +31,11 @@ const turnstileSiteKey =
   <ActivateRiRequiredNote />
   <p class="form-help" data-edit-plan-state aria-live="polite"></p>
   <p class="form-status" data-edit-status aria-live="polite">Loading plan...</p>
+  <div class="form-actions" data-edit-recovery hidden>
+    <button class="button" data-variant="light" type="button" data-retry-plan>Try again</button>
+    <a href="/account/sign-in/?returnTo=%2Factivate-ri-2026%2Factivator%2Fplan%2F">Sign in to My Plan</a>
+    <a href="/activate-ri-2026/volunteer/">Plan an activation</a>
+  </div>
 
   <div data-edit-fields hidden>
     <ActivateRiIdentityFields clubDatalistId="activate-ri-edit-clubs" />
@@ -71,15 +76,15 @@ const turnstileSiteKey =
   </div>
 </form>
 
-<dialog class="form-confirmation" data-edit-confirmation>
+<dialog class="form-confirmation" data-edit-confirmation aria-labelledby="edit-confirmation-title">
   <div class="form-confirmation__body">
     <p class="eyebrow">Changes saved</p>
-    <h2>Your activation plan was updated</h2>
+    <h2 id="edit-confirmation-title">Your activation plan was updated</h2>
     <p data-edit-confirmation-message>The latest version is saved.</p>
     <div class="form-actions">
       <button class="button" data-variant="light" type="button" data-edit-keep-editing>Keep editing</button>
       <a class="button" data-variant="primary" href="/activate-ri-2026/activator/" data-edit-confirmation-overview>
-        Back to activator portal
+        Back to Ops Room
       </a>
     </div>
   </div>
@@ -96,6 +101,7 @@ const turnstileSiteKey =
     clearFieldError,
     fieldErrorElement,
     firstEmptyStopCard,
+    lockFormControls,
     parkReferenceAlreadySelected,
     populateClubDatalist,
     reportControlValidity,
@@ -154,6 +160,8 @@ const turnstileSiteKey =
   const editForm = document.querySelector("[data-activator-edit]") as HTMLFormElement | null;
   const editStatus = editForm?.querySelector("[data-edit-status]");
   const planState = editForm?.querySelector<HTMLElement>("[data-edit-plan-state]");
+  const recovery = editForm?.querySelector<HTMLElement>("[data-edit-recovery]");
+  const retryPlanButton = editForm?.querySelector<HTMLButtonElement>("[data-retry-plan]");
   const readonlyStopsSection = editForm?.querySelector<HTMLElement>("[data-edit-readonly-stops]");
   const readonlyStopList = editForm?.querySelector<HTMLElement>("[data-edit-readonly-stop-list]");
   const editFields = editForm?.querySelector("[data-edit-fields]") as HTMLElement | null | undefined;
@@ -173,15 +181,18 @@ const turnstileSiteKey =
   const planningPrefill = readPlanningPrefill(window.location.search);
   let planningPrefillApplied = false;
   let isSaving = false;
+  let isLoading = false;
   let plans: PlanDto[] = [];
   let selectedPlanId = "";
   let selectedPlanPublicNotes = "";
   let readonlyStops: StopDto[] = [];
+  let hasActiveStops = false;
 
   setupCallsignFields(editForm ?? document);
   setupRequiredFieldValidation();
   void populateClubDatalist("activate-ri-edit-clubs");
   void loadPlan();
+  retryPlanButton?.addEventListener("click", () => void loadPlan());
   setupDocumentPopupDismissal();
   document.querySelector("[data-edit-keep-editing]")?.addEventListener("click", () => editConfirmation?.close());
   printPlanButton?.addEventListener("click", () => {
@@ -191,6 +202,7 @@ const turnstileSiteKey =
   window.addEventListener("activate-ri:logout", clearPrintPlan);
 
   document.addEventListener("activate-ri:add-park", (event) => {
+    if (isSaving || isLoading || !selectedPlanId) return;
     const reference = (event as CustomEvent<{ reference?: string }>).detail?.reference;
     if (!reference) {
       return;
@@ -202,7 +214,7 @@ const turnstileSiteKey =
   editForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
 
-    if (!editForm || isSaving) {
+    if (!editForm || isSaving || isLoading || !selectedPlanId) {
       return;
     }
 
@@ -210,17 +222,16 @@ const turnstileSiteKey =
       return;
     }
 
-    isSaving = true;
-    if (savePlanButton) {
-      savePlanButton.disabled = true;
-    }
+    const payload = formToPayload(new FormData(editForm));
+    const unlockControls = lockFormControls(editForm);
+    setSaving(true);
     setEditStatus("Saving changes...");
 
     try {
       const response = await fetch(selectedPlanUrl(), {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(formToPayload(new FormData(editForm))),
+        body: JSON.stringify(payload),
       });
       const data = await parseResponse(response);
 
@@ -238,16 +249,13 @@ const turnstileSiteKey =
         window.history.replaceState(window.history.state, "", url);
       }
       resetTurnstile();
-      await loadPlan(false);
-      showEditConfirmation();
+      if (await loadPlan(false)) showEditConfirmation();
     } catch {
       setEditStatus("Unable to save changes. Please try again later.", "error");
       resetTurnstile();
     } finally {
-      isSaving = false;
-      if (savePlanButton) {
-        savePlanButton.disabled = false;
-      }
+      unlockControls();
+      setSaving(false);
     }
   });
 
@@ -256,44 +264,61 @@ const turnstileSiteKey =
   });
 
   cancelPlanButton?.addEventListener("click", async () => {
+    if (!editForm || isSaving || isLoading || !selectedPlanId) return;
     if (!window.confirm("Cancel this activation plan? This will mark active stops as cancelled.")) {
       return;
     }
 
-    editStatus?.replaceChildren("Cancelling plan...");
+    const turnstileToken = new FormData(editForm).get("cf-turnstile-response");
+    const unlockControls = lockFormControls(editForm);
+    setSaving(true);
+    setEditStatus("Cancelling plan...");
     try {
       const response = await fetch(`${selectedPlanUrl()}/cancel`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           cancelReason: "Cancelled by activator.",
-          turnstileToken: new FormData(editForm ?? undefined).get("cf-turnstile-response"),
+          turnstileToken,
         }),
       });
       const data = await parseResponse(response);
 
       if (!response.ok || !data.ok) {
-        editStatus?.replaceChildren(data.errors?.join(" ") ?? data.error ?? "Unable to cancel plan.");
+        setEditStatus(data.errors?.join(" ") ?? data.error ?? "Unable to cancel plan.", "error");
         resetTurnstile();
         return;
       }
 
-      editStatus?.replaceChildren("Plan cancelled.");
+      setEditStatus("Plan cancelled.", "success");
       resetTurnstile();
       await loadPlan(false);
     } catch {
-      editStatus?.replaceChildren("Unable to cancel plan. Please try again later.");
+      setEditStatus("Unable to cancel plan. Please try again.", "error");
       resetTurnstile();
+    } finally {
+      unlockControls();
+      setSaving(false);
     }
   });
 
-  async function loadPlan(showLoading = true): Promise<void> {
-    if (!editForm || !editFields || !editStops || !editActions || !editAddStopActions) {
-      return;
+  function setSaving(saving: boolean): void {
+    isSaving = saving;
+    editForm?.setAttribute("aria-busy", String(saving));
+    if (savePlanButton) savePlanButton.disabled = saving;
+    if (cancelPlanButton) cancelPlanButton.disabled = saving || !hasActiveStops;
+  }
+
+  async function loadPlan(showLoading = true): Promise<boolean> {
+    if (!editForm || !editFields || !editStops || !editActions || !editAddStopActions || isLoading) {
+      return false;
     }
 
+    isLoading = true;
+    if (retryPlanButton) retryPlanButton.disabled = true;
+    if (recovery) recovery.hidden = true;
     if (showLoading) {
-      editStatus?.replaceChildren("Loading plan...");
+      setEditStatus("Loading plan...");
     }
     clearPrintPlan();
 
@@ -304,14 +329,18 @@ const turnstileSiteKey =
       const data = await parseResponse(response);
 
       if (!response.ok || !data.ok || !Array.isArray(data.plans)) {
-        editStatus?.replaceChildren(data.error ?? "Unable to load your activation plan.");
-        return;
+        setEditStatus(response.status === 401
+          ? "Your session has expired. Sign in again to open My Plan."
+          : data.error ?? (showLoading ? "Unable to load your activation plan. Try again." : "Your changes were saved, but the updated plan could not be loaded. Try again before printing."), "error");
+        if (recovery) recovery.hidden = false;
+        return false;
       }
 
       plans = data.plans.filter((plan): plan is PlanDto => typeof plan === "object" && plan !== null);
       if (plans.length === 0) {
         editStatus?.replaceChildren("No activation plans were found for this account.");
-        return;
+        if (recovery) recovery.hidden = false;
+        return false;
       }
 
       const selectedPlan = plans[0];
@@ -331,8 +360,15 @@ const turnstileSiteKey =
         editStatus?.replaceChildren("Loaded. Make any changes and save.");
       }
       prefillParkFromUrl();
+      return true;
     } catch {
-      editStatus?.replaceChildren("Unable to load your activation plan.");
+      setEditStatus(showLoading ? "Unable to load your activation plan. Check your connection and try again."
+        : "Your changes were saved, but the updated plan could not be loaded. Try again before printing.", "error");
+      if (recovery) recovery.hidden = false;
+      return false;
+    } finally {
+      isLoading = false;
+      if (retryPlanButton) retryPlanButton.disabled = false;
     }
   }
 
@@ -419,6 +455,7 @@ const turnstileSiteKey =
     readonlyStops = stops.filter(isReadonlyStop);
     renderReadonlyStops();
     const activeStops = stops.filter((stop) => !isReadonlyStop(stop));
+    hasActiveStops = activeStops.length > 0;
     if (cancelPlanButton) cancelPlanButton.disabled = activeStops.length === 0;
     const state = planStatusMessage(plan, stops);
     planState?.replaceChildren(state);

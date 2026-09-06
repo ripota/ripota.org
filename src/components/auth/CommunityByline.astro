@@ -87,6 +87,7 @@
   void loadProfile();
 
   async function loadProfile(): Promise<void> {
+    try {
     const response = await fetch("/api/auth/community-profile", {
       headers: { accept: "application/json" },
     });
@@ -115,6 +116,9 @@
       );
     }
     updatePreview();
+    } catch {
+      setStatus("Community byline settings are temporarily unavailable. Reload to try again.", "error");
+    }
   }
 
   async function saveProfile(event: SubmitEvent): Promise<void> {

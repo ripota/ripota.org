@@ -8,15 +8,17 @@ import { references } from "@ripota/parks";
       <p class="eyebrow">Test drive and operate</p>
       <h3 id="admin-live-room-title">Live room</h3>
     </div>
-    <span class="admin-live-room__status" data-admin-live-status>Connecting…</span>
+    <span class="admin-live-room__status" data-admin-live-status role="status">Connecting…</span>
   </div>
-  <ol class="admin-live-feed" data-admin-live-feed aria-live="polite">
+  <button class="button" data-variant="light" type="button" data-admin-live-retry hidden>Retry room connection</button>
+  <ol class="admin-live-feed" data-admin-live-feed aria-label="Live room messages" tabindex="0">
     <li class="admin-live-empty">Loading room messages…</li>
   </ol>
+  <button class="button" data-variant="light" type="button" data-admin-live-latest hidden>Jump to latest messages</button>
   <form class="admin-live-composer" data-admin-live-composer>
     <label class="sr-only" for="admin-live-message">Message the room as an organizer</label>
-    <textarea id="admin-live-message" name="body" rows="2" maxlength="1000" required placeholder="Message the room as an organizer…"></textarea>
-    <button class="button" data-variant="primary" type="submit">Send</button>
+    <textarea id="admin-live-message" name="body" rows="2" maxlength="1000" required disabled placeholder="Message the room as an organizer…"></textarea>
+    <button class="button" data-variant="primary" type="submit" disabled>Send</button>
     <details>
       <summary>Message options</summary>
       <div class="admin-live-options">
@@ -69,6 +71,8 @@ import { references } from "@ripota/parks";
   const liveComposer = liveRoom?.querySelector<HTMLFormElement>("[data-admin-live-composer]");
   const liveBody = liveComposer?.querySelector<HTMLTextAreaElement>("textarea[name=body]");
   const liveSend = liveComposer?.querySelector<HTMLButtonElement>("button[type=submit]");
+  const liveRetry = liveRoom?.querySelector<HTMLButtonElement>("[data-admin-live-retry]");
+  const liveLatest = liveRoom?.querySelector<HTMLButtonElement>("[data-admin-live-latest]");
   const liveMessages = new Map<string, Message>();
   let liveCursor = 0;
   let liveMode: RoomMode = "off";
@@ -76,9 +80,19 @@ import { references } from "@ripota/parks";
   let linkedMessage = location.hash.startsWith("#ops-message-") ? location.hash.slice(1) : null;
 
   if (liveRoom) void initializeLiveRoom();
+  liveRetry?.addEventListener("click", () => void initializeLiveRoom());
+  liveLatest?.addEventListener("click", () => {
+    if (liveFeed) {
+      liveFeed.scrollTop = liveFeed.scrollHeight;
+      liveFeed.focus();
+    }
+    liveLatest.hidden = true;
+  });
   liveComposer?.addEventListener("submit", (event) => void sendLiveMessage(event));
 
   async function initializeLiveRoom(): Promise<void> {
+    if (liveRetry) liveRetry.hidden = true;
+    setLiveStatus("Connecting…");
     try {
       const response = await fetch("/api/activate-ri-2026/admin/ops", { headers: { accept: "application/json" } });
       const data = await response.json() as {
@@ -95,6 +109,8 @@ import { references } from "@ripota/parks";
       connectLiveSocket();
     } catch {
       setLiveStatus("Room unavailable");
+      if (liveRetry) liveRetry.hidden = false;
+      liveFeed?.replaceChildren("Unable to load messages. Retry the room connection.");
       disableLiveComposer(true);
     }
   }
@@ -156,6 +172,8 @@ import { references } from "@ripota/parks";
 
   function renderLiveRoom(): void {
     if (!liveFeed) return;
+    const previousTop = liveFeed.scrollTop;
+    const followingLatest = liveFeed.scrollHeight - liveFeed.clientHeight - previousTop < 64;
     const messages = [...liveMessages.values()].slice(-50);
     liveFeed.replaceChildren();
     if (messages.length === 0) {
@@ -165,7 +183,8 @@ import { references } from "@ripota/parks";
       liveFeed.appendChild(item);
     } else {
       for (const message of messages) liveFeed.appendChild(liveMessageElement(message));
-      liveFeed.scrollTop = liveFeed.scrollHeight;
+      liveFeed.scrollTop = followingLatest ? liveFeed.scrollHeight : previousTop;
+      if (liveLatest) liveLatest.hidden = followingLatest;
       if (linkedMessage) {
         const target = document.getElementById(linkedMessage);
         target?.scrollIntoView({ block: "nearest" });

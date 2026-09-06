@@ -29,6 +29,7 @@ const links = [
   <div class="button-row">
     <button class="button" data-variant="primary" type="button" data-upgrade-account>Set up a passkey</button>
   </div>
+  <p class="form-status" data-upgrade-account-status aria-live="polite"></p>
 </aside>
 
 <dialog
@@ -88,23 +89,35 @@ const links = [
   });
 
   upgradeAccount?.addEventListener("click", async () => {
-    const response = await fetch("/api/auth/legacy/upgrade-session", { method: "POST" });
-    window.location.assign(response.ok
-      ? "/activate-ri-2026/activator/account/"
-      : "/account/sign-in/?returnTo=%2Factivate-ri-2026%2Factivator%2Faccount%2F");
+    upgradeAccount.disabled = true;
+    try {
+      const response = await fetch("/api/auth/legacy/upgrade-session", { method: "POST" });
+      window.location.assign(response.ok
+        ? "/activate-ri-2026/activator/account/"
+        : "/account/sign-in/?returnTo=%2Factivate-ri-2026%2Factivator%2Faccount%2F");
+    } catch {
+      document.querySelector("[data-upgrade-account-status]")?.replaceChildren("Unable to open passkey setup. Check your connection and try again.");
+      upgradeAccount.disabled = false;
+    }
   });
 
   async function showEnrollmentPrompt(): Promise<void> {
-    const session = await fetch("/api/auth/session");
-    const sessionBody = await session.json();
-    if (!isRecord(sessionBody) || sessionBody.signedIn !== true) {
-      enrollmentPrompt?.removeAttribute("hidden");
-      return;
-    }
-    const passkeys = await fetch("/api/auth/passkeys");
-    const passkeyBody = await passkeys.json();
-    if (isRecord(passkeyBody) && Array.isArray(passkeyBody.passkeys) && passkeyBody.passkeys.length === 0) {
-      enrollmentPrompt?.removeAttribute("hidden");
+    try {
+      const session = await fetch("/api/auth/session");
+      if (!session.ok) return;
+      const sessionBody = await session.json();
+      if (!isRecord(sessionBody) || sessionBody.signedIn !== true) {
+        enrollmentPrompt?.removeAttribute("hidden");
+        return;
+      }
+      const passkeys = await fetch("/api/auth/passkeys");
+      if (!passkeys.ok) return;
+      const passkeyBody = await passkeys.json();
+      if (isRecord(passkeyBody) && Array.isArray(passkeyBody.passkeys) && passkeyBody.passkeys.length === 0) {
+        enrollmentPrompt?.removeAttribute("hidden");
+      }
+    } catch {
+      // Account setup is optional; a failed check must not interrupt the portal.
     }
   }
 

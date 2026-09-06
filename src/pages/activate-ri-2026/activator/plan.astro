@@ -24,7 +24,7 @@ import BaseLayout from "../../../layouts/BaseLayout.astro";
         <ActivatorPortalNav />
         <div class="section-header">
           <p class="eyebrow">My activation plan</p>
-          <h1 id="edit-title">Activator plan editor</h1>
+          <h1 id="edit-title">My Plan</h1>
           <p class="lead">
             Update your Activate All RI 2026 plan before or after organizer
             approval.
@@ -36,15 +36,15 @@ import BaseLayout from "../../../layouts/BaseLayout.astro";
           </div>
           <p class="form-help" id="plan-print-help">Prints your saved plan. Save changes before printing.</p>
         </div>
+        <ActivatorEditForm />
         <ReferenceMap
           id="activate-ri-edit-map"
           variant="volunteer"
           title="Choose a park from the map"
-          caption="Use the map to add a stop to your activation plan below. Adding a park only edits this form; save changes when your plan is ready."
+          caption="Use the map to add a stop to your activation plan above. Save changes when your plan is ready."
           phaseFocus="volunteer"
           showBoundaries={false}
         />
-        <ActivatorEditForm />
       </div>
     </section>
     <Notice />

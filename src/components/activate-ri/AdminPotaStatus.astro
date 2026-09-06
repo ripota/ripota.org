@@ -9,13 +9,13 @@
   <div class="admin-panel__header">
     <div>
       <p class="eyebrow">POTA evidence</p>
-      <h2 id="admin-pota-title">Reconciliation status</h2>
-      <p class="lead">Persisted public evidence and bounded upstream synchronization health.</p>
+      <h2 id="admin-pota-title">POTA confirmation sync</h2>
+      <p class="lead">Check when official POTA spots and activation history were last synchronized.</p>
     </div>
     <div class="button-row">
       <button class="button" data-variant="light" type="button" data-pota-admin-refresh>Refresh status</button>
       <button class="button" data-variant="primary" type="button" data-pota-admin-reconcile>
-        Start final deep reconciliation
+        Recheck all event parks
       </button>
     </div>
   </div>
@@ -23,17 +23,17 @@
   <dl class="coverage-summary" data-pota-admin-summary hidden>
     <div><dt>Confirmed parks</dt><dd data-admin-pota-confirmed>—</dd></div>
     <div><dt>Observed parks</dt><dd data-admin-pota-observed>—</dd></div>
-    <div><dt>Attempt rows</dt><dd data-admin-pota-attempts>—</dd></div>
-    <div><dt>Failures</dt><dd data-admin-pota-failures>—</dd></div>
+    <div><dt>Activation attempts</dt><dd data-admin-pota-attempts>—</dd></div>
+    <div><dt>Consecutive sync failures</dt><dd data-admin-pota-failures>—</dd></div>
   </dl>
   <dl class="admin-meta admin-pota-meta" data-pota-admin-details hidden>
     <dt>Last live-spot ingest</dt><dd data-admin-pota-spot-ingest>—</dd>
     <dt>Last history batch</dt><dd data-admin-pota-history-batch>—</dd>
     <dt>Last successful history sync</dt><dd data-admin-pota-history-success>—</dd>
-    <dt>Next park cursor</dt><dd data-admin-pota-cursor>—</dd>
+    <dt>Next park to check</dt><dd data-admin-pota-cursor>—</dd>
     <dt>Retry after</dt><dd data-admin-pota-retry>—</dd>
     <dt>Last error category</dt><dd data-admin-pota-error>—</dd>
-    <dt>Deep reconciliation</dt><dd data-admin-pota-deep>—</dd>
+    <dt>Full event recheck</dt><dd data-admin-pota-deep>—</dd>
   </dl>
 </section>
 
@@ -58,6 +58,7 @@
   const refresh = root?.querySelector<HTMLButtonElement>("[data-pota-admin-refresh]");
   const reconcile = root?.querySelector<HTMLButtonElement>("[data-pota-admin-reconcile]");
   const message = root?.querySelector<HTMLElement>("[data-pota-admin-message]");
+  let reconciliationPending = false;
   refresh?.addEventListener("click", () => void loadStatus());
   reconcile?.addEventListener("click", () => void startReconciliation());
   void loadStatus();
@@ -65,6 +66,7 @@
   async function loadStatus(): Promise<void> {
     if (!root || !message) return;
     if (refresh) refresh.disabled = true;
+    message.textContent = "Loading POTA sync status…";
     try {
       const response = await fetch("/api/activate-ri-2026/admin/pota-status", {
         headers: { accept: "application/json" },
@@ -72,7 +74,7 @@
       const data = await response.json() as { ok?: boolean; status?: PotaAdminStatus; error?: string };
       if (!response.ok || !data.ok || !data.status) throw new Error(data.error ?? "Unable to load POTA status.");
       render(data.status);
-      message.textContent = "POTA reconciliation status loaded.";
+      message.textContent = "POTA sync status loaded.";
     } catch (error) {
       message.textContent = error instanceof Error ? error.message : "Unable to load POTA status.";
     } finally {
@@ -81,9 +83,9 @@
   }
 
   async function startReconciliation(): Promise<void> {
-    if (!reconcile || !message) return;
+    if (!reconcile || !message || reconciliationPending) return;
     reconcile.disabled = true;
-    message.textContent = "Starting deep reconciliation…";
+    message.textContent = "Starting a recheck of all event parks…";
     try {
       const response = await fetch("/api/activate-ri-2026/admin/pota-reconcile", {
         method: "POST",
@@ -92,16 +94,22 @@
       });
       const data = await response.json() as { ok?: boolean; message?: string; error?: string };
       if (!response.ok || !data.ok) throw new Error(data.error ?? "Unable to start reconciliation.");
-      message.textContent = data.message ?? "Deep reconciliation started.";
+      reconciliationPending = true;
+      message.textContent = data.message ?? "Event park recheck started.";
       window.setTimeout(() => void loadStatus(), 1_000);
     } catch (error) {
       message.textContent = error instanceof Error ? error.message : "Unable to start reconciliation.";
     } finally {
-      reconcile.disabled = false;
+      reconcile.disabled = reconciliationPending;
     }
   }
 
   function render(status: PotaAdminStatus): void {
+    reconciliationPending = status.deepReconciliationPending === true;
+    if (reconcile) {
+      reconcile.disabled = reconciliationPending;
+      reconcile.textContent = reconciliationPending ? "Event park recheck in progress" : "Recheck all event parks";
+    }
     setText("[data-admin-pota-confirmed]", status.confirmed);
     setText("[data-admin-pota-observed]", status.observed);
     setText("[data-admin-pota-attempts]", status.attempts);

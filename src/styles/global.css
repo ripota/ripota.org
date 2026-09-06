@@ -13,6 +13,8 @@
   --link-strong: #063f4c;
   --accent: #a87338;
   --accent-strong: #765124;
+  --button-primary-background: #765124;
+  --button-primary-text: #fffaf0;
   --focus-ring: #d7913a;
   --hero-overlay: linear-gradient(90deg, rgba(9, 23, 25, 0.78), rgba(9, 23, 25, 0.46) 46%, rgba(9, 23, 25, 0.12));
   --notice-surface: #eef2e5;
@@ -43,6 +45,8 @@
     --link-strong: #b5e1e8;
     --accent: #d5a764;
     --accent-strong: #f0c27c;
+    --button-primary-background: #d5a764;
+    --button-primary-text: #17221f;
     --focus-ring: #f4bd5f;
     --hero-overlay: linear-gradient(90deg, rgba(7, 14, 15, 0.86), rgba(7, 14, 15, 0.55) 48%, rgba(7, 14, 15, 0.2));
     --notice-surface: #1d2c25;
@@ -90,7 +94,11 @@ a:hover {
 }
 
 a:focus-visible,
-button:focus-visible {
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible {
   outline: 3px solid var(--focus-ring);
   outline-offset: 4px;
 }
@@ -210,8 +218,8 @@ p {
 }
 
 .button[data-variant="primary"] {
-  background: var(--accent);
-  color: #fffaf0;
+  background: var(--button-primary-background);
+  color: var(--button-primary-text);
 }
 
 .button[data-variant="secondary"] {
@@ -221,7 +229,6 @@ p {
 }
 
 .button:hover {
-  color: #fffaf0;
   filter: brightness(1.05);
 }
 
@@ -267,6 +274,12 @@ p {
 
 .site-header__nav a {
   text-decoration: none;
+}
+
+.site-header a:hover,
+.event-hero a:not(.button):hover {
+  color: var(--text-on-hero);
+  text-decoration: underline;
 }
 
 .hero {
@@ -606,6 +619,10 @@ p {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
   .ri-reference-map path.reference-map-marker--live {
     animation: none;
   }
@@ -1024,6 +1041,14 @@ p {
   margin-bottom: 1.5rem;
 }
 
+.event-overview-nav {
+  padding-top: 1rem;
+}
+
+.event-overview-nav .event-nav {
+  margin-bottom: 1rem;
+}
+
 .event-nav a,
 .button[data-variant="light"] {
   border: 1px solid var(--border-subtle);
@@ -1032,7 +1057,7 @@ p {
   text-decoration: none;
 }
 
-.event-nav a[aria-current="page"] {
+.event-nav a[aria-current] {
   border-color: var(--accent);
   background: var(--surface-brand);
   color: var(--text-on-hero);
@@ -3152,7 +3177,7 @@ p {
     margin-inline: -1rem;
     overflow-x: auto;
     flex-wrap: nowrap;
-    padding: 0 1rem 0.35rem;
+    padding: 0.5rem 1rem;
     scrollbar-width: thin;
   }
 
@@ -4170,16 +4195,16 @@ p {
   }
 
   .admin-app .event-nav {
-    width: auto;
+    width: 100%;
     margin: 0 0 0.65rem;
-    padding: 0;
-    overflow: visible;
+    padding: 0.5rem 0;
+    overflow-x: auto;
   }
 
   .admin-app .event-nav a,
   .admin-app .event-nav .button {
     width: auto;
-    min-height: 2.2rem;
+    min-height: 44px;
     padding: 0.4rem 0.56rem;
     font-size: 0.76rem;
   }
@@ -4203,11 +4228,15 @@ p {
     top: 3.55rem;
     z-index: 12;
     width: 100%;
+    overflow-x: auto;
+    scrollbar-width: thin;
   }
 
   .admin-workspace-tabs button {
-    flex: 1;
+    flex: 0 0 auto;
+    min-height: 44px;
     padding-inline: 0.45rem;
+    white-space: nowrap;
   }
 
   .admin-view.admin-panel {
@@ -4218,6 +4247,7 @@ p {
   .admin-view .admin-panel__header {
     align-items: center;
     flex-direction: row;
+    flex-wrap: wrap;
   }
 
   .admin-view .admin-panel__header .lead {
@@ -4231,7 +4261,8 @@ p {
 
   .admin-view .admin-panel__header h2 {
     font-size: 1.6rem;
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 
   .admin-ops-tabs {
@@ -5122,7 +5153,7 @@ p {
   .activator-tools-nav .button {
     flex: 0 0 auto;
     width: auto;
-    min-height: 2.2rem;
+    min-height: 44px;
     padding: 0.42rem 0.58rem;
     font-size: 0.78rem;
   }

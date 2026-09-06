@@ -187,6 +187,8 @@ test("schedule search preserves typing and Enter while activation windows are lo
     const scheduleRequest = page.waitForRequest("**/api/activate-ri-2026/public/stops");
     await page.goto(`${server.origin}/activate-ri-2026/schedule/?q=US-0513&timezone=utc`, { waitUntil: "domcontentloaded" });
     await scheduleRequest;
+    await expect(page.locator("[data-print-schedule]")).toBeDisabled();
+    await expect(page.locator("[data-live-schedule]")).toHaveAttribute("aria-busy", "true");
 
     const search = page.locator("[data-schedule-search]");
     await expect(page.locator("[data-live-loading]")).toBeVisible();
@@ -197,6 +199,8 @@ test("schedule search preserves typing and Enter while activation windows are lo
 
     releaseStops();
     await expect(page.locator("[data-schedule-loaded]")).toContainText("Schedule loaded");
+    await expect(page.locator("[data-print-schedule]")).toBeEnabled();
+    await expect(page.locator("[data-live-schedule]")).toHaveAttribute("aria-busy", "false");
     await expect(search).toHaveValue("US-0514");
     await expect(page.locator("[data-filter-row]:visible")).toHaveCount(1);
     await expect(page.locator("[data-filter-row]:visible")).toContainText("US-0514");

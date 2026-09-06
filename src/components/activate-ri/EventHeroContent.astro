@@ -85,7 +85,7 @@ function formatDateRange(startDate: string, endDate: string) {
       )}
       {showPotaResults && (
         <div class="event-hero__progress">
-          <progress max={activateRi2026Event.goalParkCount} value="0" data-hero-pota-progress>
+          <progress aria-label="Parks confirmed by POTA" max={activateRi2026Event.goalParkCount} value="0" data-hero-pota-progress>
             0 of {activateRi2026Event.goalParkCount}
           </progress>
           <p data-hero-pota-updated aria-live="polite">Loading event progress…</p>
@@ -171,6 +171,8 @@ function formatDateRange(startDate: string, endDate: string) {
           );
         } else if (state.status === "unavailable") {
           setHeroCoverageText(summary, "Unavailable", "Unavailable");
+          summary.querySelector("[data-hero-without-confirmation]")?.replaceChildren("Unavailable");
+          document.querySelector("[data-hero-pota-progress]")?.removeAttribute("value");
           document.querySelector("[data-hero-pota-updated]")?.replaceChildren(
             "Event progress is temporarily unavailable. Try again shortly.",
           );

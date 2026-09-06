@@ -92,6 +92,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
   const message = document.querySelector<HTMLElement>("[data-volunteer-account-message]");
   void showAccountState();
   async function showAccountState(): Promise<void> {
+    try {
     const response = await fetch("/api/auth/session", { headers: { accept: "application/json" } });
     const body = await response.json().catch(() => null);
     if (!isRecord(body) || body.signedIn !== true || !isRecord(body.user)) return;
@@ -100,6 +101,9 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     planLink.href = planUrl;
     planLink.textContent = "Open My Plan";
     message?.replaceChildren(`Signed in as ${email}. Use the same email to keep your stops together. `, planLink);
+    } catch {
+      // The signup form remains usable when the optional account hint cannot load.
+    }
   }
   function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);

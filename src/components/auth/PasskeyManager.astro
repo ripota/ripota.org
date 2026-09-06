@@ -2,10 +2,12 @@
   <h2 id="passkeys-title">Passkeys</h2>
   <p>Save a passkey for faster sign-in. A second passkey gives you a backup way to sign in.</p>
   <ul data-passkey-list><li>Loading passkeys…</li></ul>
+  <button class="button" data-variant="light" type="button" data-retry-passkeys hidden>Try again</button>
   <button class="button" data-variant="primary" type="button" data-add-passkey>
     Add a passkey
   </button>
   <p class="form-status" data-passkey-status aria-live="polite"></p>
+  <a data-passkey-reauth hidden>Sign in again with a passkey</a>
 </section>
 
 <script>
@@ -15,8 +17,15 @@
   const list = document.querySelector<HTMLElement>("[data-passkey-list]");
   const status = document.querySelector<HTMLElement>("[data-passkey-status]");
   const add = document.querySelector<HTMLButtonElement>("[data-add-passkey]");
+  const retry = document.querySelector<HTMLButtonElement>("[data-retry-passkeys]");
+  const signIn = document.querySelector<HTMLAnchorElement>("[data-passkey-reauth]");
+  if (signIn) signIn.href = `/account/sign-in/?returnTo=${encodeURIComponent(window.location.pathname)}`;
 
   void loadPasskeys();
+  retry?.addEventListener("click", () => {
+    status?.replaceChildren();
+    void loadPasskeys();
+  });
 
   add?.addEventListener("click", async () => {
     add.disabled = true;
@@ -42,20 +51,54 @@
   });
 
   async function loadPasskeys(): Promise<void> {
-    const response = await fetch("/api/auth/passkeys", { headers: { accept: "application/json" } });
-    if (!response.ok) {
-      window.location.replace(`/account/sign-in/?returnTo=${encodeURIComponent(window.location.pathname)}`);
-      return;
+    if (retry) retry.hidden = true;
+    try {
+      const response = await fetch("/api/auth/passkeys", { headers: { accept: "application/json" } });
+      if (response.status === 401) {
+        window.location.replace(`/account/sign-in/?returnTo=${encodeURIComponent(window.location.pathname)}`);
+        return;
+      }
+      if (!response.ok) throw new Error("Passkeys unavailable");
+      const body = await response.json();
+      if (!isRecord(body) || !Array.isArray(body.passkeys)) throw new Error("Invalid passkey list");
+      const passkeys = body.passkeys.filter(isPasskey);
+      list?.replaceChildren(...passkeys.map(passkeyItem));
+      add?.replaceChildren(passkeys.length > 0 ? "Add another passkey" : "Add a passkey");
+      if (passkeys.length === 0) {
+        const empty = document.createElement("li");
+        empty.textContent = "No passkeys saved yet.";
+        list?.appendChild(empty);
+      }
+    } catch {
+      if (list?.textContent === "Loading passkeys…") list.replaceChildren();
+      status?.replaceChildren("Unable to load passkeys. Check your connection and try again.");
+      if (retry) retry.hidden = false;
     }
-    const body = await response.json();
-    if (!isRecord(body) || !Array.isArray(body.passkeys)) return;
-    const passkeys = body.passkeys.filter(isPasskey);
-    list?.replaceChildren(...passkeys.map(passkeyItem));
-    add?.replaceChildren(passkeys.length > 0 ? "Add another passkey" : "Add a passkey");
-    if (passkeys.length === 0) {
-      const empty = document.createElement("li");
-      empty.textContent = "No passkeys saved yet.";
-      list?.appendChild(empty);
+  }
+
+  async function changePasskey(button: HTMLButtonElement, passkey: Passkey, method: "PATCH" | "DELETE", label?: string): Promise<void> {
+    button.disabled = true;
+    if (signIn) signIn.hidden = true;
+    try {
+      const response = await fetch(`/api/auth/passkeys/${encodeURIComponent(passkey.id)}`, {
+        method,
+        ...(label ? { headers: { "content-type": "application/json" }, body: JSON.stringify({ label }) } : {}),
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok) {
+        const needsSignIn = response.status === 401 || response.status === 403;
+        if (signIn) signIn.hidden = !needsSignIn;
+        status?.replaceChildren(needsSignIn
+          ? "Sign in again with a passkey, then retry this change."
+          : isRecord(body) && typeof body.error === "string" ? body.error : "The passkey was not changed. Please try again.");
+        return;
+      }
+      status?.replaceChildren(method === "PATCH" ? "Passkey renamed." : "Passkey removed.");
+      await loadPasskeys();
+    } catch {
+      status?.replaceChildren("The passkey was not changed. Check your connection and try again.");
+    } finally {
+      button.disabled = false;
     }
   }
 
@@ -70,29 +113,21 @@
     rename.className = "button";
     rename.dataset.variant = "light";
     rename.textContent = "Rename";
+    rename.setAttribute("aria-label", `Rename ${passkey.label || "passkey"}`);
     rename.addEventListener("click", async () => {
       const next = window.prompt("Passkey name", passkey.label || "Passkey")?.trim();
       if (!next) return;
-      const response = await fetch(`/api/auth/passkeys/${encodeURIComponent(passkey.id)}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ label: next }),
-      });
-      status?.replaceChildren(response.ok ? "Passkey renamed." : "Passkey reauthentication is required.");
-      if (response.ok) await loadPasskeys();
+      await changePasskey(rename, passkey, "PATCH", next);
     });
     const remove = document.createElement("button");
     remove.type = "button";
     remove.className = "button";
     remove.dataset.variant = "light";
     remove.textContent = "Remove";
+    remove.setAttribute("aria-label", `Remove ${passkey.label || "passkey"}`);
     remove.addEventListener("click", async () => {
       if (!window.confirm(`Remove ${passkey.label || "this passkey"}?`)) return;
-      const response = await fetch(`/api/auth/passkeys/${encodeURIComponent(passkey.id)}`, { method: "DELETE" });
-      const body = await response.json().catch(() => null);
-      const message = isRecord(body) && typeof body.error === "string" ? body.error : "Passkey was not removed.";
-      status?.replaceChildren(response.ok ? "Passkey removed." : message);
-      if (response.ok) await loadPasskeys();
+      await changePasskey(remove, passkey, "DELETE");
     });
     item.appendChild(rename);
     item.appendChild(remove);

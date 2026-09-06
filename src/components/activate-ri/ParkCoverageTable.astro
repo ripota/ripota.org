@@ -10,6 +10,10 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
 <div data-park-planning>
   <form class="event-filters park-planning-filters" data-event-filters aria-label="Park planning filters">
     <label class="event-filter">
+      Search parks
+      <input class="event-filter__control" type="search" data-planning-search placeholder="Reference or park name" />
+    </label>
+    <label class="event-filter">
       Sort parks
       <select class="event-filter__control" data-filter="sort">
         <option value="activators">Fewest activators</option>
@@ -40,7 +44,7 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
       <a data-my-plan href="/activate-ri-2026/activator/plan/" hidden>Edit my plan</a>
     </div>
     <details class="park-planning-more">
-      <summary>More filters</summary>
+      <summary data-planning-more-summary>More filters</summary>
       <div class="event-filters">
         <label class="event-filter">
           Mode
@@ -56,7 +60,10 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
   <p class="park-planning-note">Counts include published scheduled and delayed plans for the selected dates, bands, and modes. Parks with no matching plans stay in the list. Expand a count to see the planned times.</p>
   <div class="park-planning-status">
     <p data-planning-status role="status">Loading the event schedule…</p>
-    <button class="button" type="button" data-reload-planning>Refresh plans</button>
+    <div class="park-planning-actions">
+      <button class="button" data-variant="light" type="button" data-clear-planning disabled>Clear filters</button>
+      <button class="button" data-variant="light" type="button" data-reload-planning>Refresh plans</button>
+    </div>
   </div>
   <div class="event-table-wrap">
     <table class="event-table park-planning-table" data-live-coverage data-parks={JSON.stringify(publicParks)}>
@@ -75,6 +82,7 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
   import { formatActivationDate, formatActivationTimeRange } from "../../lib/activate-ri/time";
   import type { PublicActivationStop, PublicParkSummary } from "../../lib/activate-ri/types";
   import { trackAnalyticsEvent } from "../../lib/analytics/client";
+  import { replaceLiveContent } from "../../lib/activate-ri/live-content";
 
   document.querySelectorAll<HTMLElement>("[data-park-planning]").forEach(setupPlanning);
 
@@ -91,6 +99,8 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
     const myPlan = root.querySelector<HTMLAnchorElement>("[data-my-plan]")!;
     const status = root.querySelector<HTMLElement>("[data-planning-status]")!;
     const refresh = root.querySelector<HTMLButtonElement>("[data-reload-planning]")!;
+    const clear = root.querySelector<HTMLButtonElement>("[data-clear-planning]")!;
+    const search = root.querySelector<HTMLInputElement>("[data-planning-search]")!;
     const parks = JSON.parse(table.dataset.parks ?? "[]") as PublicParkSummary[];
     let view = readPlanningView(new URL(window.location.href), parks);
     let stops: PublicActivationStop[] | null = null;
@@ -100,11 +110,30 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
     let loading = false;
     let accountSignedIn = false;
     let sessionFailed = false;
+    let searchEditing = false;
 
+    search.value = new URL(window.location.href).searchParams.get("q")?.trim() ?? "";
     syncControls();
     updateUrl("replace");
+    render();
     form.addEventListener("submit", (event) => event.preventDefault());
+    search.addEventListener("input", () => {
+      searchEditing = updateUrl(searchEditing ? "replace" : "push") || searchEditing;
+      render();
+    });
+    search.addEventListener("blur", () => { searchEditing = false; });
+    search.addEventListener("change", () => { searchEditing = false; });
+    clear.addEventListener("click", () => {
+      search.value = "";
+      searchEditing = false;
+      view = { ...view, sort: "activators", timeline: "all", county: "all", mode: "all", band: "all", activator: "", mine: false };
+      syncControls();
+      updateUrl();
+      render();
+      search.focus();
+    });
     form.addEventListener("change", (event) => {
+      searchEditing = false;
       const target = event.target;
       if (target === mine) {
         view.activator = mine.checked ? callsign : "";
@@ -135,6 +164,8 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
       updateUrl();
     });
     window.addEventListener("popstate", () => {
+      searchEditing = false;
+      search.value = new URL(window.location.href).searchParams.get("q")?.trim() ?? "";
       view = readPlanningView(new URL(window.location.href), parks);
       resolveMyParks();
       syncControls();
@@ -181,13 +212,17 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
       myPlan.hidden = !callsign;
     }
 
-    function updateUrl(mode: "push" | "replace" = "push"): void {
+    function updateUrl(mode: "push" | "replace" = "push"): boolean {
       const url = writePlanningView(new URL(window.location.href), view);
-      if (url.href !== window.location.href) {
+      if (search.value.trim()) url.searchParams.set("q", search.value.trim());
+      else url.searchParams.delete("q");
+      const changed = url.href !== window.location.href;
+      if (changed) {
         if (mode === "push") window.history.pushState(window.history.state, "", url);
         else window.history.replaceState(window.history.state, "", url);
       }
       updateSignInLink();
+      return changed;
     }
 
     function updateSignInLink(): void {
@@ -219,8 +254,8 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
         render();
       } catch {
         stops = null;
-        status.textContent = "Live coverage is unavailable. Try refreshing this page.";
-        showMessage("Live coverage is unavailable. Try refreshing this page.");
+        status.textContent = "Live coverage is unavailable. Use Refresh plans to try again.";
+        showMessage("Live coverage is unavailable. Use Refresh plans to try again.");
       }
     }
 
@@ -249,6 +284,10 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
     }
 
     function render(): void {
+      const query = search.value.trim().toLowerCase();
+      clear.disabled = !query && !mine.checked && controls.every((control) => control.value === "all" || (control.dataset.filter === "sort" && control.value === "activators"));
+      const activeMore = (["mode", "band"] as const).filter((key) => view[key] !== "all").length;
+      root.querySelector("[data-planning-more-summary]")!.textContent = activeMore ? `More filters (${activeMore} active)` : "More filters";
       if (!stops) return;
       if (view.mine) {
         const message = sessionLoading ? "Checking your activation plan…" : accountSignedIn ? "Your account has no published activation plan yet. Clear My parks to find a park to activate." : "Sign in with an activator account to see your scheduled parks, or clear My parks to see all parks.";
@@ -261,17 +300,17 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
       const rows = deriveParkPlans(parks, filteredStops, {
         timeline: view.timeline, county: view.county, sort: view.sort,
         ...(view.activator ? { myParkReferences: myScheduledParkReferences(stops, view.activator) } : {}),
-      });
+      }).filter((park) => !query || `${park.reference} ${park.name}`.toLowerCase().includes(query));
       const selectedScope = controls.filter((control) => control.dataset.filter !== "sort" && control.value !== "all")
         .map((control) => control.selectedOptions[0]?.textContent ?? "");
       const scope = selectedScope.length ? selectedScope.join(" · ") : "All event dates";
       const loaded = loadedAt ? ` Updated ${new Intl.DateTimeFormat(undefined, { timeStyle: "short" }).format(loadedAt)}.` : "";
-      status.textContent = `${rows.length} ${rows.length === 1 ? "park" : "parks"} · ${view.activator ? `${mineLabel.textContent} · ` : ""}${scope}.${loaded}`;
+      status.textContent = `${rows.length} ${rows.length === 1 ? "park" : "parks"}${query ? ` matching “${search.value.trim()}”` : ""} · ${view.activator ? `${mineLabel.textContent} · ` : ""}${scope}.${loaded}`;
       if (!rows.length) {
         showMessage(view.activator ? `No published scheduled parks in ${view.activator === callsign ? "your plan" : `${view.activator}'s plan`} match these filters. Clear ${mineLabel.textContent} to find another park to activate.` : "No parks match these filters.");
         return;
       }
-      body.replaceChildren(...rows.map((park) => createRow(park, personalParks.has(park.reference))));
+      replaceLiveContent(body, rows.map((park) => createRow(park, personalParks.has(park.reference))));
     }
 
     function showMessage(message: string): void {
@@ -293,6 +332,7 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
       heading.dataset.label = "Park";
       const guideLink = document.createElement("a");
       guideLink.className = "event-table-park-link";
+      guideLink.dataset.liveKey = `${park.reference}-guide`;
       guideLink.href = `/parks/${encodeURIComponent(park.reference.toLowerCase())}/`;
       guideLink.textContent = park.name;
       heading.appendChild(guideLink);
@@ -319,6 +359,7 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
       });
       const summary = document.createElement("summary");
       summary.textContent = `${park.activatorCount} ${park.activatorCount === 1 ? "activator" : "activators"} · ${park.timeSlotCount} ${park.timeSlotCount === 1 ? "time slot" : "time slots"}`;
+      summary.dataset.liveKey = `${park.reference}-plans`;
       summary.addEventListener("click", (event) => {
         // Record the choice before an in-flight response can replace this row.
         event.preventDefault();
@@ -369,12 +410,14 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
       add.dataset.analyticsPlacement = "coverage";
       add.dataset.analyticsAction = "volunteer";
       add.textContent = "Add an activation";
+      add.dataset.liveKey = `${park.reference}-add`;
       actions.appendChild(add);
       if (isMine) {
         const edit = document.createElement("a");
         edit.className = "park-planning-edit";
         edit.href = "/activate-ri-2026/activator/plan/";
         edit.textContent = "Edit my plan";
+        edit.dataset.liveKey = `${park.reference}-edit`;
         actions.appendChild(edit);
       }
       row.appendChild(heading);
@@ -398,6 +441,7 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
   .park-planning-note { color: var(--text-muted); font-size: 0.9rem; }
   .park-planning-status { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 1rem 0; }
   .park-planning-status p { margin: 0; color: var(--text-muted); }
+  .park-planning-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; }
   .park-planning-table { table-layout: fixed; }
   .park-planning-table th:first-child { width: 38%; }
   .park-planning-table th:nth-child(2) { width: 38%; }

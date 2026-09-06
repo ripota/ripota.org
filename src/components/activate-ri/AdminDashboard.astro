@@ -5,7 +5,7 @@
       <p class="eyebrow">Organizer tools</p>
       <h2 id="admin-dashboard-title">Activation review queue</h2>
       <p class="lead">
-        This admin queue is protected by Cloudflare Access in production.
+        Approve new activation plans to publish their stops on the event schedule.
       </p>
     </div>
     <button class="button" data-variant="light" type="button" data-load-plans>
@@ -23,7 +23,7 @@
   <section class="admin-panel admin-view" id="admin-activity" aria-labelledby="admin-activity-title" data-admin-view="activity" hidden>
     <div class="admin-panel__header">
       <div>
-        <h3 id="admin-activity-title">Activity log</h3>
+        <h2 id="admin-activity-title">Activity log</h2>
         <p class="lead">Recent submissions, approvals, email events, and activator changes.</p>
       </div>
       <button class="button" data-variant="light" type="button" data-load-activity>
@@ -226,7 +226,7 @@
     const meta = document.createElement("dl");
     meta.className = "admin-meta admin-meta--compact";
     addMeta(meta, "Date", stringValue(stop.planned_date) || "Not provided");
-    addMeta(meta, "Time", timeRange(stop));
+    addMeta(meta, "Time (UTC)", timeRange(stop));
     addMeta(meta, "Bands", arrayValue(stop.bands).join(", ") || "Not provided");
     addMeta(meta, "Modes", arrayValue(stop.modes).join(", ") || "Not provided");
     addMeta(meta, "Public notes", stringValue(stop.public_notes) || "None");
@@ -319,9 +319,10 @@
       return;
     }
 
-    status.replaceChildren(
-      remainingCount === 0 ? "No pending submissions." : "Submission approved.",
-    );
+    document.querySelector("[data-admin-plan-count]")?.replaceChildren(remainingCount > 0 ? String(remainingCount) : "");
+    status.replaceChildren(remainingCount === 0
+      ? "Submission approved. No pending submissions."
+      : `Submission approved. ${remainingCount} pending submission${remainingCount === 1 ? "" : "s"} remaining.`);
   }
 
   async function loadActivity() {
@@ -507,7 +508,7 @@
 
     if (response.status === 401 || response.status === 403) {
       status.replaceChildren(
-        "Admin access is protected. Sign in with an authorized Cloudflare Access account, then try again.",
+        "Administrator access requires a passkey. Sign in with your administrator account, then refresh this page.",
       );
       return;
     }
@@ -522,7 +523,7 @@
 
     if (response.status === 401 || response.status === 403) {
       activityStatus.replaceChildren(
-        "Admin access is protected. Sign in with an authorized Cloudflare Access account, then try again.",
+        "Administrator access requires a passkey. Sign in with your administrator account, then refresh this page.",
       );
       return;
     }

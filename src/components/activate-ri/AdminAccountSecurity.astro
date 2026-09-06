@@ -1,35 +1,54 @@
-<section class="admin-workspace" id="admin-security" data-admin-view="security" hidden>
-  <div class="admin-panel">
-    <p class="eyebrow">Account safety</p>
-    <h2>Administrator and activator accounts</h2>
-    <p>
-      Reset links are non-destructive until the replacement passkey is installed.
-      Emergency disable immediately revokes credentials and sessions but preserves event data.
-    </p>
-    <div data-admin-account-list>Loading account security status…</div>
-    <p class="form-status" data-admin-account-status aria-live="polite"></p>
+<section class="admin-panel admin-view" id="admin-security" aria-labelledby="admin-security-title" data-admin-view="security" hidden>
+  <div class="admin-panel__header">
+    <div>
+      <p class="eyebrow">Account safety</p>
+      <h2 id="admin-security-title">Administrator and activator accounts</h2>
+      <p>
+        Reset links are non-destructive until the replacement passkey is installed.
+        Emergency disable immediately revokes credentials and sessions but preserves event data.
+      </p>
+    </div>
+    <button class="button" data-variant="light" type="button" data-admin-account-refresh>Refresh accounts</button>
   </div>
+  <p class="admin-status" data-admin-account-status aria-live="polite">Loading account security status…</p>
+  <div class="admin-list" data-admin-account-list></div>
 </section>
 
 <script>
   const list = document.querySelector<HTMLElement>("[data-admin-account-list]");
   const status = document.querySelector<HTMLElement>("[data-admin-account-status]");
+  const refresh = document.querySelector<HTMLButtonElement>("[data-admin-account-refresh]");
+  refresh?.addEventListener("click", () => void loadAccounts());
   void loadAccounts();
 
-  async function loadAccounts(): Promise<void> {
-    const response = await fetch("/api/activate-ri-2026/admin/accounts");
-    const body = await response.json();
-    if (!response.ok || !isRecord(body) || !Array.isArray(body.accounts)) {
-      status?.replaceChildren("Passkey administrator authentication is required.");
-      return;
+  async function loadAccounts(successMessage?: string): Promise<void> {
+    if (refresh) refresh.disabled = true;
+    status?.replaceChildren("Loading account security status…");
+    try {
+      const response = await fetch("/api/activate-ri-2026/admin/accounts");
+      if (response.status === 401 || response.status === 403) {
+        status?.replaceChildren("Sign in with your administrator passkey, then refresh accounts.");
+        return;
+      }
+      const body = await response.json();
+      if (!response.ok || !isRecord(body) || !Array.isArray(body.accounts)) throw new Error("Unavailable");
+      const accounts = body.accounts.filter(isAccount);
+      const focusedButton = list?.contains(document.activeElement) && document.activeElement instanceof HTMLButtonElement
+        ? document.activeElement.getAttribute("aria-label") : null;
+      list?.replaceChildren(...accounts.map(accountCard));
+      if (focusedButton) [...list?.querySelectorAll<HTMLButtonElement>("button") ?? []]
+        .find((button) => button.getAttribute("aria-label") === focusedButton)?.focus();
+      status?.replaceChildren(successMessage ?? (accounts.length ? `${accounts.length} accounts loaded.` : "No accounts found."));
+    } catch {
+      status?.replaceChildren("Unable to load accounts. Check your connection and try Refresh accounts again.");
+    } finally {
+      if (refresh) refresh.disabled = false;
     }
-    const accounts = body.accounts.filter(isAccount);
-    list?.replaceChildren(...accounts.map(accountCard));
   }
 
   function accountCard(account: Account): HTMLElement {
     const card = document.createElement("article");
-    card.className = "admin-panel";
+    card.className = "admin-card admin-account-card";
     const title = document.createElement("h3");
     title.textContent = account.callsign ?? account.email;
     const detail = document.createElement("p");
@@ -58,6 +77,7 @@
     button.className = "button";
     button.dataset.variant = destructive ? "danger" : "light";
     button.textContent = label;
+    button.setAttribute("aria-label", `${label} for ${account.callsign ?? account.email}`);
     button.addEventListener("click", async () => {
       let confirmation = "";
       const target = account.callsign ?? account.email;
@@ -75,14 +95,20 @@
         if (!confirmation) return;
       }
       button.disabled = true;
-      const response = await fetch(`/api/activate-ri-2026/admin/accounts/${encodeURIComponent(account.userId!)}/${action}`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ confirmation }),
-      });
-      status?.replaceChildren(response.ok ? `${label} completed.` : `${label} did not complete.`);
-      button.disabled = false;
-      if (response.ok) await loadAccounts();
+      status?.replaceChildren(`${label} in progress…`);
+      try {
+        const response = await fetch(`/api/activate-ri-2026/admin/accounts/${encodeURIComponent(account.userId!)}/${action}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ confirmation }),
+        });
+        if (response.ok) await loadAccounts(`${label} completed for ${target}.`);
+        else status?.replaceChildren(`${label} did not complete. Check the confirmation and try again.`);
+      } catch {
+        status?.replaceChildren(`${label} did not complete. Check your connection and try again.`);
+      } finally {
+        button.disabled = false;
+      }
     });
     return button;
   }
@@ -104,3 +130,8 @@
     return typeof value === "object" && value !== null && !Array.isArray(value);
   }
 </script>
+
+<style>
+  #admin-security :global(.admin-account-card) { display: block; }
+  #admin-security :global(.admin-account-card p) { overflow-wrap: anywhere; }
+</style>

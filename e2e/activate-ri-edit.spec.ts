@@ -133,7 +133,7 @@ test("removed and cancelled stops stay cancelled after later plan saves", async 
     await expect(page.locator("[data-edit-plan-state]")).toContainText("Approved");
     await expect(page.locator("[data-stop-card]")).toHaveCount(2);
 
-    await page.locator("[data-stop-card]").nth(1).getByRole("button", { name: "Remove", exact: true }).click();
+    await page.locator("[data-stop-card]").nth(1).getByRole("button", { name: "Remove activation stop 2", exact: true }).click();
     await savePlan();
     await expect(page.locator("[data-stop-card]")).toHaveCount(1);
     await expect(page.locator('[data-readonly-stop="cancelled"]')).toContainText("US-2869 — Cancelled");
@@ -157,7 +157,7 @@ test("removed and cancelled stops stay cancelled after later plan saves", async 
     await expect(page.locator('[data-readonly-stop="cancelled"]')).toHaveCount(2);
     await page.getByRole("button", { name: "Add another park", exact: true }).click();
     await expect(page.locator("[data-stop-card]")).toHaveCount(1);
-    await page.locator("[data-stop-card]").getByRole("button", { name: "Remove", exact: true }).click();
+    await page.locator("[data-stop-card]").getByRole("button", { name: "Remove activation stop 1", exact: true }).click();
     await expect(page.locator("[data-stop-card]")).toHaveCount(0);
     await expect(page.locator('[data-readonly-stop="cancelled"]')).toHaveCount(2);
     await page.locator('[name="organizerNotes"]').fill("Unrelated note after cancelling the plan.");

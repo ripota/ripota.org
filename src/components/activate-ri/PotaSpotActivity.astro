@@ -20,13 +20,17 @@
     <label><input type="radio" name="activity-view" value="spotted" checked /> Spotted (<span data-activity-count-spotted>—</span>)</label>
     <label><input type="radio" name="activity-view" value="unspotted" /> Not yet spotted (<span data-activity-count-unspotted>—</span>)</label>
   </fieldset>
-  <p class="pota-progress__notice">
-    No spots recorded yet. Parks with no remaining schedule or an elapsed window appear first.
+  <p class="pota-progress__notice" data-activity-order-note hidden>
+    Among parks not yet spotted, those with no remaining schedule or an elapsed window appear first.
   </p>
   <label class="event-filter pota-progress__search">
     Search parks
     <input class="event-filter__control" type="search" data-activity-search placeholder="Reference or park name" />
   </label>
+  <div class="activity-actions">
+    <button class="button" data-variant="light" type="button" data-clear-activity disabled>Clear filters</button>
+    <button class="button" data-variant="light" type="button" data-refresh-activity>Refresh progress</button>
+  </div>
   <p data-activity-filter-status role="status" aria-live="polite"></p>
   <div class="event-table-wrap" data-pota-activity-table hidden>
     <table class="event-table">
@@ -53,3 +57,7 @@
   import { setupSpotActivity } from "../../lib/activate-ri/spot-activity-client";
   document.querySelectorAll<HTMLElement>("[data-pota-activity]").forEach(setupSpotActivity);
 </script>
+
+<style>
+  .activity-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 1rem 0; }
+</style>

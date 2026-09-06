@@ -37,10 +37,10 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
 }
 ---
 
-<fieldset class="activation-stop-fieldset activation-stop-card" data-stop-card>
+<fieldset class="activation-stop-fieldset activation-stop-card" data-stop-card aria-label={title}>
   {includeStopId && <input data-stop-id type="hidden" />}
   <div class="activation-stop-card__header">
-    <legend class="activation-stop-card__title" data-stop-title>{title}</legend>
+    <span class="activation-stop-card__title" data-stop-title>{title}</span>
     <button
       class="button activation-stop-card__remove"
       type="button"
@@ -74,13 +74,14 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
           placeholder="Type a reference, park, or county"
           autocomplete="off"
           role="combobox"
+          aria-haspopup="dialog"
           aria-autocomplete="list"
           aria-expanded="false"
           aria-required="true"
           required
         />
         <input data-park-reference type="hidden" />
-        <span class="park-combobox__popup" data-park-results hidden>
+        <span class="park-combobox__popup" data-park-results role="dialog" aria-label="Choose a park" hidden>
           <span class="park-combobox__scroller">
             <table class="park-combobox__table">
               <thead>
@@ -148,7 +149,7 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
           </span>
         </span>
       </span>
-      <select data-time-block required>
+      <select data-time-block aria-label="Planned time (EDT)" required>
         <option value="">Choose a 3-hour block</option>
         {
           activateRiTimeBlocks.map((block) => (
@@ -261,7 +262,7 @@ function parkOptionSearch(reference: (typeof references)[number]): string {
         </span>
       </span>
     </span>
-    <textarea data-public-notes rows="3"></textarea>
+    <textarea data-public-notes aria-label="Public notes for hunters" rows="3"></textarea>
     <span class="form-help">
       Helpful public notes include access, parking, QRP, or rove sequence
       details.

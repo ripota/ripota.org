@@ -40,7 +40,7 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
         <p class="eyebrow">Your all-time RI checklist</p>
         <h2 id="hunter-results-title" data-hunter-progress-text tabindex="-1">0 of 61 Rhode Island parks hunted</h2>
       </div>
-      <progress data-hunter-progress max={hunterReferences.length} value="0">0 of {hunterReferences.length}</progress>
+      <progress data-hunter-progress aria-label="Rhode Island parks hunted" max={hunterReferences.length} value="0">0 of {hunterReferences.length}</progress>
     </div>
     <p data-hunter-saved-note></p>
     <button class="button" data-variant="light" type="button" data-hunter-update-import>
@@ -75,7 +75,9 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
           <option value="remaining">Remaining only</option>
         </select>
       </label>
+      <button class="button" data-variant="light" type="button" data-hunter-clear-filters disabled>Clear filters</button>
     </div>
+    <p data-hunter-filter-status role="status" aria-live="polite"></p>
 
     <div class="hunter-lists">
       <section aria-labelledby="hunter-remaining-title" data-hunter-remaining-section>
@@ -170,6 +172,7 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
   import { buildRequestedAgendaUrl, parseRequestedReferences } from "../../lib/activate-ri/requested-parks";
   import type { PublicActivationStop } from "../../lib/activate-ri/types";
   import { trackAnalyticsEvent } from "../../lib/analytics/client";
+  import { replaceLiveContent } from "../../lib/activate-ri/live-content";
 
   document.querySelectorAll<HTMLElement>("[data-hunter-checklist]").forEach(setupHunterChecklist);
 
@@ -182,6 +185,7 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
     const error = root.querySelector("[data-hunter-error]") as HTMLElement | null;
     const search = root.querySelector("[data-hunter-search]") as HTMLInputElement | null;
     const filter = root.querySelector("[data-hunter-filter]") as HTMLSelectElement | null;
+    const clearFilters = root.querySelector<HTMLButtonElement>("[data-hunter-clear-filters]");
     const importPanel = root.querySelector<HTMLDetailsElement>("[data-hunter-import-panel]");
     const importSummary = root.querySelector<HTMLElement>("[data-hunter-import-summary]");
     const blankStart = root.querySelector<HTMLElement>("[data-hunter-blank-start]");
@@ -265,6 +269,12 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
     });
     search?.addEventListener("input", renderLists);
     filter?.addEventListener("change", renderLists);
+    clearFilters?.addEventListener("click", () => {
+      if (search) search.value = "";
+      if (filter) filter.value = "all";
+      renderLists();
+      search?.focus();
+    });
     root.querySelector("[data-hunter-reset-overrides]")?.addEventListener("click", () => {
       state.manualOverrides = {};
       persistState();
@@ -281,7 +291,11 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
         storageAvailable = false;
       }
       announce("Checklist data cleared from this browser.");
+      if (search) search.value = "";
+      if (filter) filter.value = "all";
+      if (storageAvailable) clearError();
       render();
+      root.querySelector<HTMLButtonElement>("[data-hunter-start-blank]")?.focus();
     });
     root.querySelector("[data-hunter-schedule-link]")?.addEventListener("click", () => {
       void trackAnalyticsEvent("activate-ri-2026", "event_cta_clicked", {
@@ -355,6 +369,8 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
       const importAction = state.lastImportedAt ? "Update from POTA CSV" : "Import POTA CSV";
       if (importSummary) importSummary.textContent = importAction;
       setText("[data-hunter-update-import]", importAction);
+      const reset = root.querySelector<HTMLButtonElement>("[data-hunter-reset-overrides]");
+      if (reset) reset.disabled = Object.keys(state.manualOverrides).length === 0;
       if (!hasChecklist && importPanel) importPanel.open = true;
       const importedAt = state.lastImportedAt ? new Date(state.lastImportedAt) : null;
       const importedLabel = importedAt && Number.isFinite(importedAt.valueOf())
@@ -380,8 +396,11 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
       const allRemaining = references.filter(({ reference }) => !hunted.has(reference));
       const completedList = root.querySelector("[data-hunter-complete]") as HTMLUListElement | null;
       const remainingList = root.querySelector("[data-hunter-remaining]") as HTMLUListElement | null;
-      completedList?.replaceChildren(...completed.map((reference) => parkItem(reference, true)));
-      remainingList?.replaceChildren(...remaining.map((reference) => parkItem(reference, false)));
+      if (completedList) replaceLiveContent(completedList, completed.map((reference) => parkItem(reference, true)));
+      if (remainingList) replaceLiveContent(remainingList, remaining.map((reference) => parkItem(reference, false)));
+      const matchingCount = selectedFilter === "remaining" ? remaining.length : selectedFilter === "hunted" ? completed.length : matching.length;
+      setText("[data-hunter-filter-status]", `Showing ${matchingCount} ${selectedFilter === "all" ? "" : `${selectedFilter} `}park${matchingCount === 1 ? "" : "s"}${query ? ` matching “${search?.value.trim()}”` : ""}.`);
+      if (clearFilters) clearFilters.disabled = !query && selectedFilter === "all";
 
       setText("[data-hunter-progress-text]", `${hunted.size} of ${references.length} Rhode Island parks hunted; ${references.length - hunted.size} remaining`);
       setText("[data-hunter-complete-count]", `(${hunted.size})`);
@@ -410,6 +429,7 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
       checkbox.id = `hunter-park-${park.reference}`;
+      checkbox.dataset.liveKey = checkbox.id;
       checkbox.checked = checked;
       checkbox.setAttribute("aria-label", `${park.reference} ${park.name} hunted`);
       checkbox.addEventListener("change", () => {
@@ -440,9 +460,11 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
       official.target = "_blank";
       official.rel = "noopener noreferrer";
       official.textContent = "Official POTA park";
+      official.dataset.liveKey = `${park.reference}-official`;
       const schedule = document.createElement("a");
       schedule.href = `/activate-ri-2026/schedule/?q=${encodeURIComponent(park.reference)}`;
       schedule.textContent = "View schedule";
+      schedule.dataset.liveKey = `${park.reference}-schedule`;
       schedule.setAttribute("aria-label", `View schedule for ${park.reference}`);
       const links = document.createElement("div");
       links.className = "hunter-park-links";
@@ -470,7 +492,8 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
       }
 
       title.textContent = `Plan around your ${remaining.length} remaining park${remaining.length === 1 ? "" : "s"}`;
-      link.href = "/activate-ri-2026/schedule/?scope=remaining";
+      link.href = storageAvailable ? "/activate-ri-2026/schedule/?scope=remaining"
+        : buildRequestedAgendaUrl(window.location.origin, remaining.map(({ reference }) => reference));
       link.textContent = "View and print my schedule";
       if (scheduleState === "loading") {
         copy.textContent = "Checking the event schedule for your remaining parks…";
@@ -556,6 +579,11 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
   }
 
   [data-hunter-update-import] {
+    justify-self: start;
+  }
+
+  [data-hunter-clear-filters] {
+    align-self: end;
     justify-self: start;
   }
 

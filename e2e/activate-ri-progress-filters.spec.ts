@@ -73,13 +73,18 @@ test("event progress shares status and search alongside planner filters and rest
     await expect(scheduled).toBeChecked();
     await expect(page).toHaveURL(sharedUrl);
 
-    await progress.getByRole("radio", { name: "All", exact: true }).check();
-    await search.fill("");
+    await progress.getByRole("button", { name: "Clear filters", exact: true }).click();
+    await expect(search).toBeFocused();
+    await expect(progress.getByRole("radio", { name: "All", exact: true })).toBeChecked();
     await expect(cards).toHaveCount(references.length);
     expect(new URL(page.url()).searchParams.has("progress-status")).toBe(false);
     expect(new URL(page.url()).searchParams.has("progress-q")).toBe(false);
     expect(new URL(page.url()).searchParams.get("sort")).toBe("slots");
     expect(new URL(page.url()).searchParams.get("timeline")).toBe("main");
+    await page.goBack();
+    await expect(page).toHaveURL(sharedUrl);
+    await expect(search).toHaveValue("US-0514");
+    await expect(scheduled).toBeChecked();
   } finally {
     await server.stop();
   }

@@ -10,11 +10,12 @@ import BaseLayout from "../../../layouts/BaseLayout.astro";
   <main id="main">
     <section class="section event-page" aria-labelledby="recovery-title">
       <div class="container form-card">
-        <p class="eyebrow">Access-protected break glass</p>
+        <p class="eyebrow">Organizer account recovery</p>
         <h1 id="recovery-title">Administrator passkey enrollment</h1>
         <p>Cloudflare Access verifies the bootstrap identity. Normal administrator access begins only after a passkey is registered.</p>
         <button class="button" data-variant="primary" type="button" data-admin-bootstrap>Continue to passkey setup</button>
         <p class="form-status" data-admin-bootstrap-status aria-live="polite"></p>
+        <p><a href="/account/sign-in/?returnTo=%2Factivate-ri-2026%2Fadmin%2F">Already have a passkey? Sign in to the organizer console.</a></p>
       </div>
     </section>
     <Notice />
@@ -27,14 +28,22 @@ import BaseLayout from "../../../layouts/BaseLayout.astro";
   const status = document.querySelector<HTMLElement>("[data-admin-bootstrap-status]");
   button?.addEventListener("click", async () => {
     button.disabled = true;
-    const response = await fetch(
-      "/api/activate-ri-2026/admin/auth/access-bootstrap/start",
-      { method: "POST" },
-    );
-    if (response.ok) {
-      window.location.assign("/account/security/");
-    } else {
-      status?.replaceChildren("This Access identity is not authorized for administrator recovery.");
+    status?.replaceChildren("Verifying your recovery access…");
+    try {
+      const response = await fetch(
+        "/api/activate-ri-2026/admin/auth/access-bootstrap/start",
+        { method: "POST" },
+      );
+      if (response.ok) {
+        window.location.assign("/account/security/");
+      } else {
+        status?.replaceChildren(response.status === 401 || response.status === 403
+          ? "This Access identity is not authorized for administrator recovery."
+          : "Recovery is temporarily unavailable. Please try again.");
+      }
+    } catch {
+      status?.replaceChildren("Unable to verify recovery access. Check your connection and try again.");
+    } finally {
       button.disabled = false;
     }
   });

@@ -48,6 +48,7 @@ describe("public POTA spot activity", () => {
   });
 
   it("briefly explains the missing-park order", () => {
-    expect(component).toContain("No spots recorded yet. Parks with no remaining schedule or an elapsed window appear first.");
+    expect(component).toContain("Among parks not yet spotted, those with no remaining schedule or an elapsed window appear first.");
+    expect(component).not.toContain("No spots recorded yet.");
   });
 });

@@ -49,7 +49,7 @@ test("hunter imports, overrides, filters, persists, resets, and clears a local c
     await expect(page.getByText("No checklist has been saved")).toBeVisible();
 
     await page.getByLabel("Choose CSV file").setInputFiles({ name: "hunter_parks.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
-    await expect(page.getByRole("status")).toContainText("Import complete");
+    await expect(page.locator("[data-hunter-status]")).toContainText("Import complete");
     await expect(page.getByRole("heading", { name: /1 of 61 Rhode Island parks hunted/ })).toBeVisible();
     await expect(page.getByText(/There is 1 remaining park with an announced activation window/)).toBeVisible();
     await expect(page.locator("[data-hunter-import-panel]")).not.toHaveAttribute("open", "");
@@ -117,10 +117,14 @@ test("hunter imports, overrides, filters, persists, resets, and clears a local c
     await page.getByLabel("Show").selectOption("hunted");
     await page.getByLabel("Search parks").fill("US-0514");
     await expect(page.getByText("US-0514", { exact: true })).toBeVisible();
+    await expect(page.locator("[data-hunter-filter-status]")).toContainText("Showing 1 hunted park matching “US-0514”");
+    await page.getByRole("button", { name: "Clear filters", exact: true }).click();
+    await expect(page.getByLabel("Show")).toHaveValue("all");
+    await expect(page.getByLabel("Search parks")).toBeFocused();
 
     await page.reload();
     await expect(page.getByRole("heading", { name: /2 of 61 Rhode Island parks hunted/ })).toBeVisible();
-    await expect(page.getByRole("status")).toHaveText("Your saved checklist is ready.");
+    await expect(page.locator("[data-hunter-status]")).toHaveText("Your saved checklist is ready.");
     await expect(page.locator("[data-hunter-import-panel]")).not.toHaveAttribute("open", "");
     await page.getByRole("link", { name: "View schedule for US-0514", exact: true }).click();
     await expect(page).toHaveURL(/\/schedule\/\?q=US-0514$/);
@@ -164,6 +168,7 @@ test("a blank checklist persists without a fake import and resets back to all pa
     await expect(page.locator("[data-hunter-blank-start]")).toBeHidden();
     await page.getByRole("button", { name: "Clear my checklist data", exact: true }).click();
     await expect(page.getByRole("button", { name: "Start a blank checklist", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Start a blank checklist", exact: true })).toBeFocused();
   } finally {
     await server.stop();
   }
@@ -204,6 +209,32 @@ test("pasted requested references validate without changing an existing checklis
   }
 });
 
+test("an unsaved checklist can still open a schedule containing its remaining parks", async ({ page }) => {
+  const server = await startActivateRiServer();
+  try {
+    await page.addInitScript(() => {
+      Storage.prototype.setItem = () => { throw new DOMException("Storage is unavailable", "QuotaExceededError"); };
+    });
+    await page.route("**/api/activate-ri-2026/public/stops", route => route.fulfill({ json: { ok: true, stops: [] } }));
+    await page.goto(`${server.origin}/activate-ri-2026/hunter/`);
+    await page.getByRole("button", { name: "Start a blank checklist", exact: true }).click();
+    await page.getByLabel(/US-0513 .* hunted/).check();
+    await expect(page.locator("[data-hunter-error]")).toContainText("cannot be saved");
+    const schedule = page.getByRole("link", { name: "View and print my schedule", exact: true });
+    const agenda = new URL((await schedule.getAttribute("href"))!, server.origin);
+    expect(agenda.searchParams.get("scope")).toBeNull();
+    const requested = agenda.searchParams.get("parks")!.split(",");
+    expect(requested).toHaveLength(60);
+    expect(requested).not.toContain("US-0513");
+    await schedule.click();
+    await expect(page.locator("[data-requested-schedule-references]")).toContainText("US-0514");
+    await expect(page.locator("[data-requested-schedule-references]")).not.toContainText("US-0513");
+    await expect(page.locator("[data-personal-schedule-import]")).toBeHidden();
+  } finally {
+    await server.stop();
+  }
+});
+
 test("hunter accepts a dropped zero-match export and reports invalid input", async ({ page }) => {
   const server = await startActivateRiServer();
   try {
@@ -213,7 +244,7 @@ test("hunter accepts a dropped zero-match export and reports invalid input", asy
       transfer.items.add(new File([contents], "hunter_parks.csv", { type: "text/csv" }));
       target.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: transfer }));
     }, csv.replace("US-0513", "US-9998"));
-    await expect(page.getByRole("status")).toContainText("Import complete");
+    await expect(page.locator("[data-hunter-status]")).toContainText("Import complete");
     await expect(page.getByRole("heading", { name: /0 of 61 Rhode Island parks hunted/ })).toBeVisible();
 
     await page.locator("[data-hunter-update-import]").click();
@@ -227,10 +258,10 @@ test("hunter accepts a dropped zero-match export and reports invalid input", asy
         '"United States","US-RI","US.RI","US-0513","Synthetic Island","2026-01-02",2',
       ].join("\n")),
     });
-    await expect(page.getByRole("status")).toContainText("Import complete with warnings");
-    await expect(page.getByRole("status")).toContainText("Recovered 1 malformed row");
-    await expect(page.getByRole("status")).toContainText("Skipped 1 unreadable row");
-    await expect(page.getByRole("status")).toContainText("may be incomplete");
+    await expect(page.locator("[data-hunter-status]")).toContainText("Import complete with warnings");
+    await expect(page.locator("[data-hunter-status]")).toContainText("Recovered 1 malformed row");
+    await expect(page.locator("[data-hunter-status]")).toContainText("Skipped 1 unreadable row");
+    await expect(page.locator("[data-hunter-status]")).toContainText("may be incomplete");
     await expect(page.getByRole("heading", { name: /1 of 61 Rhode Island parks hunted/ })).toBeVisible();
 
     await page.locator("[data-hunter-update-import]").click();

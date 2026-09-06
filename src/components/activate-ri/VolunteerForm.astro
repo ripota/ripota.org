@@ -56,10 +56,10 @@ const turnstileSiteKey =
   <output class="form-status" data-form-status aria-live="polite"></output>
 </form>
 
-<dialog class="form-confirmation" data-submit-confirmation>
+<dialog class="form-confirmation" data-submit-confirmation aria-labelledby="submit-confirmation-title">
   <div class="form-confirmation__body">
     <p class="eyebrow">Submission received</p>
-    <h2>Plan sent for organizer review</h2>
+    <h2 id="submit-confirmation-title">Plan sent for organizer review</h2>
     <p>
       Your activation plan was submitted. Check your email for a 15-minute,
       single-use link that opens My Plan.
@@ -79,6 +79,7 @@ const turnstileSiteKey =
     clearFieldError,
     fieldErrorElement,
     firstEmptyStopCard,
+    lockFormControls,
     parkReferenceAlreadySelected,
     populateClubDatalist,
     reportControlValidity,
@@ -137,6 +138,7 @@ const turnstileSiteKey =
   });
 
   document.addEventListener("activate-ri:add-park", (event) => {
+    if (isSubmitting) return;
     const reference = (event as CustomEvent<{ reference?: string }>).detail?.reference;
     if (!reference) {
       return;
@@ -158,6 +160,8 @@ const turnstileSiteKey =
       return;
     }
 
+    const payload = formToPayload(new FormData(form));
+    const unlockControls = lockFormControls(form);
     isSubmitting = true;
     if (submitButton) {
       submitButton.disabled = true;
@@ -168,7 +172,7 @@ const turnstileSiteKey =
     try {
       const response = await fetch(form.action, {
         method: "POST",
-        body: JSON.stringify(formToPayload(new FormData(form))),
+        body: JSON.stringify(payload),
         headers: { "content-type": "application/json" },
       });
       const data = await parseResponse(response);
@@ -187,6 +191,7 @@ const turnstileSiteKey =
       setFormStatus("Submission failed. Please try again later.", "error");
       resetTurnstile();
     } finally {
+      unlockControls();
       isSubmitting = false;
       if (submitButton) {
         submitButton.disabled = false;

@@ -9,7 +9,12 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 <BaseLayout title="Sign in" description="Sign in to RI POTA." privatePage>
   <SiteHeader variant="solid" showEventLink />
   <main id="main">
-    <section class="section event-page"><div class="container"><SignInPanel /></div></section>
+    <section class="section event-page">
+      <div class="container">
+        <SignInPanel />
+        <p class="form-help">New activator? <a href="/activate-ri-2026/volunteer/">Volunteer to activate</a>.</p>
+      </div>
+    </section>
     <Notice />
   </main>
   <Footer />

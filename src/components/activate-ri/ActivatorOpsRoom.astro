@@ -142,6 +142,9 @@ const parkNames = Object.fromEntries(
   let hiddenCloseTimer: number | undefined;
   let intentionalClose = false;
   let lastSynchronizedAt: Date | null = null;
+  let roomLoaded = false;
+  let loadingRoom = false;
+  let sending = false;
   let linkedMessage = location.hash.startsWith("#ops-message-") ? location.hash.slice(1) : null;
 
   if (room) {
@@ -155,6 +158,8 @@ const parkNames = Object.fromEntries(
   }
 
   async function loadRoom(): Promise<void> {
+    if (loadingRoom) return;
+    loadingRoom = true;
     window.clearTimeout(retryTimer);
     closeSocket(true);
     setConnection("loading", "Connecting…");
@@ -167,7 +172,9 @@ const parkNames = Object.fromEntries(
         window.location.replace("/activate-ri-2026/access/");
         return;
       }
+      if (!sessionResponse.ok || bootstrapResponse.status >= 500) throw new Error("Room temporarily unavailable");
       if (!bootstrapResponse.ok) {
+        roomLoaded = true;
         setConnection("unavailable", bootstrapResponse.status === 503
           ? "Room unavailable"
           : "You do not currently have Ops Room access");
@@ -180,6 +187,7 @@ const parkNames = Object.fromEntries(
       }
       const sessionBody = await sessionResponse.json() as { activator?: { id?: string } };
       const data = await bootstrapResponse.json() as Bootstrap;
+      roomLoaded = true;
       activatorId = sessionBody.activator?.id ?? "";
       restoreSeenMessages();
       membershipStatus = data.membership.status;
@@ -207,8 +215,11 @@ const parkNames = Object.fromEntries(
       connectSocket();
     } catch {
       setConnection("offline", offlineLabel());
-      disableComposer(false);
+      disableComposer(!roomLoaded || roomMode !== "full" || membershipStatus !== "active");
+      if (!roomLoaded) feed?.replaceChildren(emptyItem("Unable to open the room.", "Reconnecting automatically. You can also refresh room updates or open My Plan."));
       scheduleReconnect();
+    } finally {
+      loadingRoom = false;
     }
   }
 
@@ -222,9 +233,17 @@ const parkNames = Object.fromEntries(
     intentionalClose = false;
     setConnection("reconnecting", retryAttempt === 0 ? "Connecting…" : "Reconnecting");
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    socket = new WebSocket(`${protocol}//${window.location.host}/api/activate-ri-2026/ops/socket`);
-    socket.addEventListener("message", (event) => void handleSocketMessage(event));
-    socket.addEventListener("close", () => {
+    const activeSocket = new WebSocket(`${protocol}//${window.location.host}/api/activate-ri-2026/ops/socket`);
+    socket = activeSocket;
+    activeSocket.addEventListener("message", (event) => {
+      void handleSocketMessage(event).catch(() => {
+        syncing = false;
+        socketEvents.length = 0;
+        activeSocket.close();
+      });
+    });
+    activeSocket.addEventListener("close", () => {
+      if (socket !== activeSocket) return;
       socket = null;
       if (intentionalClose || document.hidden || roomMode === "off") {
         return;
@@ -232,7 +251,7 @@ const parkNames = Object.fromEntries(
       setConnection(navigator.onLine ? "reconnecting" : "offline", offlineLabel());
       scheduleReconnect();
     });
-    socket.addEventListener("error", () => socket?.close());
+    activeSocket.addEventListener("error", () => activeSocket.close());
   }
 
   async function handleSocketMessage(raw: MessageEvent): Promise<void> {
@@ -602,7 +621,7 @@ const parkNames = Object.fromEntries(
 
   composer?.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (!kindSelect || !contextSelect || !bodyInput || !bodyInput.value.trim()) return;
+    if (sending || !kindSelect || !contextSelect || !bodyInput || !bodyInput.value.trim()) return;
     const draft: Draft = {
       clientNonce: composer.dataset.clientNonce || crypto.randomUUID(),
       kind: kindSelect.value,
@@ -616,6 +635,7 @@ const parkNames = Object.fromEntries(
       return;
     }
     setSendState("Sending…");
+    sending = true;
     sendButton && (sendButton.disabled = true);
     try {
       const response = await fetch("/api/activate-ri-2026/ops/messages", {
@@ -635,7 +655,7 @@ const parkNames = Object.fromEntries(
         return;
       }
       applyEvent(result.event);
-      bodyInput.value = "";
+      if (bodyInput.value === draft.body) bodyInput.value = "";
       if (composeOptions) composeOptions.open = false;
       if (feed) feed.scrollTop = 0;
       delete composer.dataset.clientNonce;
@@ -646,25 +666,32 @@ const parkNames = Object.fromEntries(
       await saveDraft(draft);
       showUnsent("Not sent — check your connection and review before retrying.");
     } finally {
-      sendButton && (sendButton.disabled = false);
+      sending = false;
+      sendButton && (sendButton.disabled = roomMode !== "full" || membershipStatus !== "active");
     }
   });
 
   rulesForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
+    const button = rulesForm.querySelector<HTMLButtonElement>('button[type="submit"]');
+    if (button?.disabled) return;
+    if (button) button.disabled = true;
     rulesStatus?.replaceChildren("Saving acknowledgement…");
-    const response = await fetch("/api/activate-ri-2026/ops/rules/accept", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: "{}",
-    });
-    if (!response.ok) {
+    try {
+      const response = await fetch("/api/activate-ri-2026/ops/rules/accept", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      });
+      if (!response.ok) throw new Error("Acknowledgement failed");
+      rulesDialog?.close();
+      scheduleSeenMessages();
+      rulesStatus?.replaceChildren();
+    } catch {
       rulesStatus?.replaceChildren("Unable to save acknowledgement. Please try again.");
-      return;
+    } finally {
+      if (button) button.disabled = false;
     }
-    rulesDialog?.close();
-    scheduleSeenMessages();
-    rulesStatus?.replaceChildren();
   });
 
   filters?.addEventListener("change", () => {
@@ -684,13 +711,15 @@ const parkNames = Object.fromEntries(
       hiddenCloseTimer = window.setTimeout(() => closeSocket(true), 30_000);
     } else {
       scheduleSeenMessages();
-      connectSocket();
+      if (roomLoaded) connectSocket();
+      else void loadRoom();
     }
   });
   window.addEventListener("offline", () => setConnection("offline", offlineLabel()));
   window.addEventListener("online", () => {
     closeSocket(true);
-    connectSocket();
+    if (roomLoaded) connectSocket();
+    else void loadRoom();
   });
   window.addEventListener("beforeunload", () => closeSocket(true));
   window.addEventListener("activate-ri:logout", () => {
@@ -821,6 +850,9 @@ const parkNames = Object.fromEntries(
       composer?.querySelectorAll("input, select, textarea, button") ?? [],
     ) as Array<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | HTMLButtonElement>;
     controls.forEach((control) => control.disabled = disabled);
+    if (!disabled && sendState && ["Posting unavailable.", "Participant posting is paused.", "You can read the room, but posting is muted."].includes(sendState.textContent ?? "")) {
+      sendState.replaceChildren();
+    }
     if (disabled && sendState) {
       sendState.textContent = membershipStatus === "muted"
         ? "You can read the room, but posting is muted."
@@ -841,11 +873,11 @@ const parkNames = Object.fromEntries(
 
   function scheduleReconnect(): void {
     window.clearTimeout(retryTimer);
-    if (document.hidden || !navigator.onLine || roomMode === "off") return;
+    if (document.hidden || !navigator.onLine || (roomLoaded && roomMode === "off")) return;
     const base = retryDelays[Math.min(retryAttempt, retryDelays.length - 1)];
     const jitter = Math.round(base * (Math.random() * 0.3 - 0.15));
     retryAttempt += 1;
-    retryTimer = window.setTimeout(connectSocket, base + jitter);
+    retryTimer = window.setTimeout(() => roomLoaded ? connectSocket() : void loadRoom(), base + jitter);
   }
 
   function closeSocket(intentional: boolean): void {

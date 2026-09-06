@@ -59,9 +59,9 @@ const countyOptions = uniqueSortedValues(
 </section>
 
 <p class="schedule-estimate-note">
-  Activation windows are planned estimates, not guaranteed contacts. Check
-  <a href="https://pota.app/" target="_blank" rel="noopener noreferrer">official POTA spots</a>
-  or <a href="https://hamalert.org/" target="_blank" rel="noopener noreferrer">HamAlert</a>
+  Activation windows are planned estimates, not guaranteed contacts. Check{" "}
+  <a href="https://pota.app/" target="_blank" rel="noopener noreferrer">official POTA spots</a>{" "}
+  or <a href="https://hamalert.org/" target="_blank" rel="noopener noreferrer">HamAlert</a>{" "}
   for current activity. Shared agendas show the latest published plans when opened.
 </p>
 
@@ -124,7 +124,7 @@ const countyOptions = uniqueSortedValues(
 </form>
 
 <div class="schedule-actions">
-  <button class="button" data-variant="light" type="button" data-print-schedule>
+  <button class="button" data-variant="light" type="button" data-print-schedule disabled>
     Print filtered schedule
   </button>
   <button class="button" data-variant="light" type="button" data-clear-schedule-filters disabled>
@@ -148,7 +148,7 @@ const countyOptions = uniqueSortedValues(
 <p data-schedule-count role="status" aria-live="polite"></p>
 
 <div class="event-table-wrap" data-schedule-table-wrap>
-  <table class="event-table" data-filtered-table data-live-schedule data-parks={JSON.stringify(publicParks)}>
+  <table class="event-table" aria-busy="true" data-filtered-table data-live-schedule data-parks={JSON.stringify(publicParks)}>
     <thead>
       <tr>
         <th scope="col">Date</th>
@@ -486,6 +486,8 @@ const countyOptions = uniqueSortedValues(
       if (filters) {
         setupEventFilters(filters, table, parks, [], false);
       }
+    } finally {
+      table.setAttribute("aria-busy", "false");
     }
   }
 
@@ -598,7 +600,11 @@ const countyOptions = uniqueSortedValues(
     const parkHeader = document.createElement("th");
     parkHeader.scope = "row";
     parkHeader.dataset.label = "Park";
-    parkHeader.append(park?.name ?? stop.parkReference);
+    const guideLink = document.createElement("a");
+    guideLink.className = "event-table-park-link";
+    guideLink.href = `/parks/${encodeURIComponent(stop.parkReference.toLowerCase())}/`;
+    guideLink.textContent = park?.name ?? stop.parkReference;
+    parkHeader.appendChild(guideLink);
     const reference = document.createElement("span");
     reference.textContent = stop.parkReference;
     parkHeader.appendChild(reference);

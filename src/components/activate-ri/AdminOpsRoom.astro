@@ -25,7 +25,7 @@ import OpsEmailPreferences from "./OpsEmailPreferences.astro";
     <button type="button" data-admin-ops-tab="broadcasts">Email</button>
   </nav>
 
-  <div class="admin-ops-view" data-admin-ops-view="room">
+  <div class="admin-ops-view" id="admin-ops-room" data-admin-ops-view="room">
     <section class="admin-room-control" aria-labelledby="admin-ops-mode-title">
       <div>
         <p class="eyebrow">Availability</p>
@@ -33,7 +33,7 @@ import OpsEmailPreferences from "./OpsEmailPreferences.astro";
       </div>
       <div class="admin-mode-switch" data-admin-ops-modes>
         <button type="button" data-mode="full"><strong>Open</strong><span>Everyone can post</span></button>
-        <button type="button" data-mode="announcements"><strong>Announce</strong><span>Organizer posts only</span></button>
+        <button type="button" data-mode="announcements"><strong>Announce</strong><span>Organizer announcements only</span></button>
         <button type="button" data-mode="off"><strong>Off</strong><span>Participant access closed</span></button>
       </div>
       <dl class="admin-ops-metrics" data-admin-ops-summary></dl>
@@ -42,9 +42,9 @@ import OpsEmailPreferences from "./OpsEmailPreferences.astro";
     <OpsEmailPreferences admin />
     <AdminOpsAnnouncement />
   </div>
-  <div class="admin-ops-view" data-admin-ops-view="messages" hidden><AdminOpsModeration /></div>
-  <div class="admin-ops-view" data-admin-ops-view="people" hidden><AdminOpsMembers /></div>
-  <div class="admin-ops-view" data-admin-ops-view="broadcasts" hidden>
+  <div class="admin-ops-view" id="admin-ops-messages" data-admin-ops-view="messages" hidden><AdminOpsModeration /></div>
+  <div class="admin-ops-view" id="admin-ops-people" data-admin-ops-view="people" hidden><AdminOpsMembers /></div>
+  <div class="admin-ops-view" id="admin-ops-broadcasts" data-admin-ops-view="broadcasts" hidden>
     <p data-admin-email-delivery-summary></p>
     <button class="button" data-variant="light" type="button" data-admin-retry-notifications hidden>Retry failed notification emails</button>
     <AdminOpsBroadcasts />
@@ -52,6 +52,8 @@ import OpsEmailPreferences from "./OpsEmailPreferences.astro";
 </section>
 
 <script>
+  import { setupAdminTabs } from "../../lib/activate-ri/admin-tabs";
+
   type Member = {
     activator_id: string;
     status: "active" | "muted" | "banned";
@@ -111,7 +113,9 @@ import OpsEmailPreferences from "./OpsEmailPreferences.astro";
   const currentAnnouncementBody = root?.querySelector<HTMLElement>("[data-admin-current-announcement-body]");
   const opsTabs = root?.querySelector<HTMLElement>("[data-admin-ops-tabs]");
   const opsViews = root?.querySelectorAll<HTMLElement>("[data-admin-ops-view]") ?? [];
+  const refreshButton = root?.querySelector<HTMLButtonElement>("[data-admin-ops-refresh]");
   let state: AdminOpsState | null = null;
+  let mutationPending = false;
 
   if (root) void loadState();
   root?.querySelector("[data-admin-ops-refresh]")?.addEventListener("click", () => void loadState());
@@ -119,11 +123,10 @@ import OpsEmailPreferences from "./OpsEmailPreferences.astro";
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-mode]");
     if (button?.dataset.mode) void changeMode(button.dataset.mode);
   });
-  opsTabs?.addEventListener("click", (event) => {
-    const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-admin-ops-tab]");
-    if (button?.dataset.adminOpsTab) showOpsView(button.dataset.adminOpsTab);
-  });
-  showOpsView("room");
+  if (opsTabs) {
+    const showOpsView = setupAdminTabs(opsTabs, [...opsTabs.querySelectorAll<HTMLButtonElement>("[data-admin-ops-tab]")], [...opsViews]);
+    showOpsView("room");
+  }
 
   root?.querySelector("[data-admin-clear-announcement]")?.addEventListener("click", () => {
     void clearPinnedAnnouncement();
@@ -141,7 +144,7 @@ import OpsEmailPreferences from "./OpsEmailPreferences.astro";
     const confirmation = email
       ? `Post this announcement and send an email copy to ${eligible} activator${eligible === 1 ? "" : "s"} with Ops Room emails enabled?`
       : "Post this announcement to the Ops Room?";
-    if (!body || !window.confirm(confirmation)) return;
+    if (!body || mutationPending || !window.confirm(confirmation)) return;
     setStatus("Posting announcement…");
     const response = await jsonMutation("/api/activate-ri-2026/admin/ops/announcements", "POST", {
       clientNonce: crypto.randomUUID(),
@@ -150,13 +153,14 @@ import OpsEmailPreferences from "./OpsEmailPreferences.astro";
       pin: data.get("pin") === "on",
       emailEligibleActivators: email,
     });
-    if (response.ok) {
+    if (response?.ok) {
       announcementForm.reset();
       await loadState();
     }
   });
 
   async function loadState(): Promise<void> {
+    if (refreshButton) refreshButton.disabled = true;
     setStatus("Loading Ops Room state…");
     try {
       const response = await fetch("/api/activate-ri-2026/admin/ops", {
@@ -171,7 +175,9 @@ import OpsEmailPreferences from "./OpsEmailPreferences.astro";
       renderState();
       setStatus("Ops Room state is current.");
     } catch {
-      setStatus("Unable to load Ops Room state.");
+      setStatus("Unable to load Ops Room state. Try Refresh again.");
+    } finally {
+      if (refreshButton) refreshButton.disabled = false;
     }
   }
 
@@ -211,6 +217,7 @@ import OpsEmailPreferences from "./OpsEmailPreferences.astro";
       const active = button.dataset.mode === state?.settings?.room_mode;
       button.disabled = active;
       button.dataset.active = String(active);
+      button.setAttribute("aria-pressed", String(active));
     });
   }
 
@@ -237,9 +244,12 @@ import OpsEmailPreferences from "./OpsEmailPreferences.astro";
       details.appendChild(detailsSummary);
       details.appendChild(detailActions);
       if (member.moderation_reason) addText(details, `Moderation note: ${member.moderation_reason}`);
-      card.actions.appendChild(actionButton("Activate", () => memberMutation(member, "active")));
-      card.actions.appendChild(actionButton("Mute", () => memberMutation(member, "muted")));
-      card.actions.appendChild(actionButton("Ban", () => memberMutation(member, "banned")));
+      for (const [label, nextStatus] of [["Activate", "active"], ["Mute", "muted"], ["Ban", "banned"]]) {
+        const button = actionButton(label, () => memberMutation(member, nextStatus));
+        button.disabled = member.status === nextStatus;
+        button.setAttribute("aria-label", `${label} ${member.primary_callsign}`);
+        card.actions.appendChild(button);
+      }
       detailActions.appendChild(actionButton("Disconnect room", () => simpleConfirmMutation(
         `/api/activate-ri-2026/admin/ops/members/${encodeURIComponent(member.activator_id)}/disconnect`,
         `Disconnect current Ops Room sockets for ${member.primary_callsign}?`,
@@ -276,14 +286,6 @@ import OpsEmailPreferences from "./OpsEmailPreferences.astro";
             moderateMessage(message, message.resolved ? "reopen" : "resolve")));
         }
       }
-      if (message.authorActivatorId) {
-        const link = document.createElement("a");
-        link.className = "button";
-        link.dataset.variant = "light";
-        link.href = `/activate-ri-2026/admin/?plan=${encodeURIComponent(message.authorActivatorId)}`;
-        link.textContent = "Related plan";
-        card.actions.appendChild(link);
-      }
       messagesList.appendChild(card.article);
     });
   }
@@ -316,9 +318,10 @@ import OpsEmailPreferences from "./OpsEmailPreferences.astro";
   }
 
   async function changeMode(mode: string): Promise<void> {
-    if (!window.confirm(`Change the Ops Room mode to ${mode}?`)) return;
-    await jsonMutation("/api/activate-ri-2026/admin/ops/settings", "PATCH", { roomMode: mode });
-    await loadState();
+    const labels: Record<string, string> = { full: "Open (everyone can post)", announcements: "Announce (organizer announcements only)", off: "Off (participant access closed)" };
+    if (mutationPending || !window.confirm(`Change the Ops Room to ${labels[mode] ?? mode}?`)) return;
+    const response = await jsonMutation("/api/activate-ri-2026/admin/ops/settings", "PATCH", { roomMode: mode });
+    if (response?.ok) await loadState();
   }
 
   async function clearPinnedAnnouncement(): Promise<void> {
@@ -329,54 +332,66 @@ import OpsEmailPreferences from "./OpsEmailPreferences.astro";
       "/api/activate-ri-2026/admin/ops/pin",
       "DELETE",
     );
-    if (response.ok) await loadState();
+    if (response?.ok) await loadState();
   }
 
   async function memberMutation(member: Member, nextStatus: string): Promise<void> {
     const needsReason = nextStatus === "muted" || nextStatus === "banned";
     const reason = needsReason ? window.prompt(`Reason to mark ${member.primary_callsign} ${nextStatus}:`) : "";
     if (needsReason && !reason?.trim()) return;
-    await jsonMutation(
+    const response = await jsonMutation(
       `/api/activate-ri-2026/admin/ops/members/${encodeURIComponent(member.activator_id)}`,
       "PATCH",
       { status: nextStatus, reason: reason ?? "" },
     );
-    await loadState();
+    if (response?.ok) await loadState();
   }
 
   async function moderateMessage(message: Message, action: string): Promise<void> {
     const reason = window.prompt(`Reason to ${action} this message:`);
     if (!reason?.trim()) return;
-    await jsonMutation(
+    const response = await jsonMutation(
       `/api/activate-ri-2026/admin/ops/messages/${encodeURIComponent(message.id)}/${action}`,
       "POST",
       { reason },
     );
-    await loadState();
+    if (response?.ok) await loadState();
   }
 
   async function simpleConfirmMutation(path: string, confirmation: string): Promise<void> {
     if (!window.confirm(confirmation)) return;
-    await jsonMutation(path, "POST", {});
-    await loadState();
+    const response = await jsonMutation(path, "POST", {});
+    if (response?.ok) await loadState();
   }
 
-  async function jsonMutation(path: string, method: string, body?: unknown): Promise<Response> {
+  async function jsonMutation(path: string, method: string, body?: unknown): Promise<Response | null> {
+    if (mutationPending) return null;
+    mutationPending = true;
+    const submit = announcementForm?.querySelector<HTMLButtonElement>('button[type="submit"]');
+    if (submit) submit.disabled = true;
     setStatus("Saving…");
-    const response = await fetch(path, {
-      method,
-      ...(body === undefined
-        ? {}
-        : {
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify(body),
-          }),
-    });
-    if (!response.ok) {
-      const result = await response.json() as { error?: string; errors?: string[] };
-      setStatus(result.errors?.join(" ") ?? result.error ?? "Request failed.");
+    try {
+      const response = await fetch(path, {
+        method,
+        ...(body === undefined
+          ? {}
+          : {
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify(body),
+            }),
+      });
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({})) as { error?: string; errors?: string[] };
+        setStatus(result.errors?.join(" ") ?? result.error ?? "Request failed. Please try again.");
+      }
+      return response;
+    } catch {
+      setStatus("Unable to save. Check your connection and try again.");
+      return null;
+    } finally {
+      mutationPending = false;
+      if (submit) submit.disabled = false;
     }
-    return response;
   }
 
   function adminCard(title: string, variant = "default"): {
@@ -405,7 +420,10 @@ import OpsEmailPreferences from "./OpsEmailPreferences.astro";
     button.className = "button";
     button.dataset.variant = "light";
     button.textContent = label;
-    button.addEventListener("click", () => void action());
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      try { await action(); } finally { button.disabled = false; }
+    });
     return button;
   }
 
@@ -433,12 +451,4 @@ import OpsEmailPreferences from "./OpsEmailPreferences.astro";
     return Number.isNaN(date.valueOf()) ? "Unknown time" : date.toLocaleString();
   }
 
-  function showOpsView(name: string): void {
-    opsViews.forEach((view) => { view.hidden = view.dataset.adminOpsView !== name; });
-    opsTabs?.querySelectorAll<HTMLButtonElement>("[data-admin-ops-tab]").forEach((button) => {
-      const active = button.dataset.adminOpsTab === name;
-      button.dataset.active = String(active);
-      button.setAttribute("aria-selected", String(active));
-    });
-  }
 </script>

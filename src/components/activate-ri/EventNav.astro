@@ -18,6 +18,7 @@ const links = [
 const currentPath = Astro.url.pathname.endsWith("/")
   ? Astro.url.pathname
   : `${Astro.url.pathname}/`;
+const progressAlwaysVisible = showProgress || currentPath === progressPath;
 
 function isCurrent(href: string): boolean {
   if (href === "/activate-ri-2026/activator/") {
@@ -36,10 +37,10 @@ function isCurrent(href: string): boolean {
     links.map(([label, href]) => (
       <a
         href={href}
-        aria-current={isCurrent(href) ? "page" : undefined}
-        hidden={href === progressPath && !showProgress}
+        aria-current={isCurrent(href) ? (currentPath === href ? "page" : "location") : undefined}
+        hidden={href === progressPath && !progressAlwaysVisible}
         data-event-progress-link={href === progressPath || undefined}
-        data-progress-always-visible={href === progressPath && showProgress ? "true" : undefined}
+        data-progress-always-visible={href === progressPath && progressAlwaysVisible ? "true" : undefined}
       >
         {label}
       </a>
@@ -55,7 +56,22 @@ function isCurrent(href: string): boolean {
     document.querySelectorAll<HTMLAnchorElement>("[data-event-progress-link]").forEach((link) => {
       link.hidden = !eventStarted && link.dataset.progressAlwaysVisible !== "true";
     });
+    revealCurrentDestinations();
   });
+
+  window.addEventListener("resize", revealCurrentDestinations);
+
+  function revealCurrentDestinations(): void {
+    // Keep the current destination visible in the compact, horizontally scrolling nav.
+    // Scroll only the navigation itself, so deep links keep their page position.
+    document.querySelectorAll<HTMLElement>('.event-nav[aria-label="Activate All RI navigation"]').forEach((nav) => {
+      const current = nav.querySelector<HTMLAnchorElement>("[aria-current]");
+      if (!current || nav.scrollWidth <= nav.clientWidth) return;
+      const navBounds = nav.getBoundingClientRect();
+      const currentBounds = current.getBoundingClientRect();
+      nav.scrollLeft += currentBounds.left - navBounds.left - (nav.clientWidth - currentBounds.width) / 2;
+    });
+  }
 </script>
 
 <style>

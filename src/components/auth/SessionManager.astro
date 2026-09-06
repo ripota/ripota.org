@@ -1,32 +1,71 @@
 <section class="form-card" aria-labelledby="sessions-title">
   <h2 id="sessions-title">Signed-in browsers</h2>
   <ul data-session-list><li>Loading sessions…</li></ul>
-  <button class="button" data-variant="light" type="button" data-revoke-other-sessions>
+  <button class="button" data-variant="light" type="button" data-retry-sessions hidden>Try again</button>
+  <button class="button" data-variant="light" type="button" data-revoke-other-sessions disabled>
     Sign out other browsers
   </button>
   <p class="form-status" data-session-status aria-live="polite"></p>
+  <a data-session-sign-in hidden>Sign in again with a passkey</a>
 </section>
 
 <script>
   const list = document.querySelector<HTMLElement>("[data-session-list]");
   const status = document.querySelector<HTMLElement>("[data-session-status]");
   const revoke = document.querySelector<HTMLButtonElement>("[data-revoke-other-sessions]");
+  const retry = document.querySelector<HTMLButtonElement>("[data-retry-sessions]");
+  const signIn = document.querySelector<HTMLAnchorElement>("[data-session-sign-in]");
+  if (signIn) signIn.href = `/account/sign-in/?returnTo=${encodeURIComponent(window.location.pathname)}`;
   void loadSessions();
+  retry?.addEventListener("click", () => {
+    status?.replaceChildren();
+    void loadSessions();
+  });
   revoke?.addEventListener("click", async () => {
-    revoke.disabled = true;
-    const response = await fetch("/api/auth/sessions/revoke-others", { method: "POST" });
-    status?.replaceChildren(response.ok ? "Other browsers were signed out." : "Passkey reauthentication is required.");
-    revoke.disabled = false;
-    if (response.ok) await loadSessions();
+    await revokeSession(revoke, "/api/auth/sessions/revoke-others", "POST", "Other browsers were signed out.");
   });
 
   async function loadSessions(): Promise<void> {
-    const response = await fetch("/api/auth/sessions");
-    if (!response.ok) return;
-    const body = await response.json();
-    if (!isRecord(body) || !Array.isArray(body.sessions)) return;
-    const sessions = body.sessions.filter(isSession);
-    list?.replaceChildren(...sessions.map(sessionItem));
+    if (retry) retry.hidden = true;
+    try {
+      const response = await fetch("/api/auth/sessions");
+      if (!response.ok) throw new Error("Session list unavailable");
+      const body = await response.json();
+      if (!isRecord(body) || !Array.isArray(body.sessions)) throw new Error("Invalid session list");
+      const sessions = body.sessions.filter(isSession);
+      list?.replaceChildren(...sessions.map(sessionItem));
+      if (revoke) revoke.disabled = !sessions.some((session) => !session.current);
+    } catch {
+      if (list?.textContent === "Loading sessions…") list.replaceChildren();
+      status?.replaceChildren("Unable to load signed-in browsers. Check your connection and try again.");
+      if (retry) retry.hidden = false;
+    }
+  }
+
+  async function revokeSession(button: HTMLButtonElement, url: string, method: string, message: string): Promise<void> {
+    button.disabled = true;
+    let completed = false;
+    if (signIn) signIn.hidden = true;
+    status?.replaceChildren("Signing out…");
+    try {
+      const response = await fetch(url, { method });
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          status?.replaceChildren("Sign in again with a passkey, then retry signing out other browsers.");
+          if (signIn) signIn.hidden = false;
+        } else {
+          status?.replaceChildren("Unable to sign out this browser session. Please try again.");
+        }
+        return;
+      }
+      completed = true;
+      status?.replaceChildren(message);
+      await loadSessions();
+    } catch {
+      status?.replaceChildren("Unable to sign out this browser session. Check your connection and try again.");
+    } finally {
+      if (!completed) button.disabled = false;
+    }
   }
 
   function sessionItem(session: Session): HTMLLIElement {
@@ -38,12 +77,9 @@
       button.className = "button";
       button.dataset.variant = "light";
       button.textContent = "Sign out";
+      button.setAttribute("aria-label", `Sign out browser last used ${new Date(session.lastUsedAt ?? session.createdAt).toLocaleString()}`);
       button.addEventListener("click", async () => {
-        button.disabled = true;
-        const response = await fetch(`/api/auth/sessions/${encodeURIComponent(session.id)}`, { method: "DELETE" });
-        status?.replaceChildren(response.ok ? "Browser signed out." : "Passkey reauthentication is required.");
-        if (response.ok) await loadSessions();
-        else button.disabled = false;
+        await revokeSession(button, `/api/auth/sessions/${encodeURIComponent(session.id)}`, "DELETE", "Browser signed out.");
       });
       item.appendChild(button);
     }

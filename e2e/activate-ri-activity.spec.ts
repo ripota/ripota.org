@@ -141,12 +141,17 @@ test("activity filters missing parks, keeps the view on refresh, and explains st
     await expect(page.getByRole("radio", { name: "Not yet spotted (60)", exact: true })).toBeChecked();
     await page.getByRole("searchbox", { name: "Search parks" }).fill(planned.reference);
     await expect(rows).toHaveCount(1);
+    await expect(page).toHaveURL(new RegExp(`q=${planned.reference}`));
+    await page.reload();
+    await expect(page.getByRole("searchbox", { name: "Search parks" })).toHaveValue(planned.reference);
+    await expect(rows).toHaveCount(1);
     await expect(rows).toContainText("Scheduled later");
     await expect(rows).toContainText("N1BS");
     await page.getByRole("searchbox", { name: "Search parks" }).fill("");
     await page.getByRole("radio", { name: "All parks (61)", exact: true }).check();
     await expect(rows).toHaveCount(61);
     await page.getByRole("radio", { name: "Spotted (1)", exact: true }).check();
+    await expect(page.locator("[data-activity-order-note]")).toBeHidden();
     await expect(rows).toHaveCount(1);
     await expect(rows).toContainText("W1AW");
     await page.getByRole("radio", { name: "Not yet spotted (60)", exact: true }).check();
@@ -162,7 +167,58 @@ test("activity filters missing parks, keeps the view on refresh, and explains st
     await page.clock.runFor(60_000);
     await expect(page.locator("[data-pota-activity-status]")).toContainText("may be out of date");
     await expect(rows).toHaveCount(59);
+    fail = false;
+    await page.getByRole("button", { name: "Refresh progress", exact: true }).click();
+    await expect(page.locator("[data-pota-activity-status]")).not.toContainText("Refresh failed");
+    await page.getByRole("button", { name: "Clear filters", exact: true }).click();
+    await expect(page.getByRole("radio", { name: "Spotted (2)", exact: true })).toBeChecked();
+    await expect(rows).toHaveCount(2);
+    const parkLink = rows.first().getByRole("link");
+    await parkLink.focus();
+    await page.clock.runFor(60_000);
+    await expect(parkLink).toBeFocused();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  } finally {
+    await server.stop();
+  }
+});
+
+test("park results preserve open evidence and keyboard focus across background refreshes", async ({ page }) => {
+  const server = await startActivateRiServer();
+  try {
+    await page.clock.install({ time: new Date("2026-09-11T12:00:00Z") });
+    const park = references[0];
+    await page.route("**/api/activate-ri-2026/public/park-status", route => route.fulfill({ json: {
+      ok: true, generatedAt: "2026-09-11T12:00:00Z", lastPotaSyncAt: "2026-09-11T12:00:00Z", lastSpotIngestAt: null,
+      stale: false, warning: null,
+      eventWindow: { startDate: "2026-09-10", endDate: "2026-09-13", timezone: "UTC" },
+      summary: { total: 61, confirmed: 0, observedNotConfirmed: 0, scheduledNotConfirmed: 1, stillNeeded: 60, withoutConfirmation: 61 },
+      parks: references.map(item => ({
+        reference: item.reference, name: item.name, potaUrl: item.potaUrl,
+        status: item.reference === park.reference ? "scheduled" : "needed", live: false,
+        scheduled: item.reference === park.reference, observed: false, attemptRecorded: false,
+        confirmation: null, confirmations: [], attempts: [], lastObservation: null,
+      })),
+    } }));
+    await page.route("**/api/activate-ri-2026/public/stops", route => route.fulfill({ json: { ok: true, stops: [{
+      id: "focus-test", parkReference: park.reference, activatorCallsign: "W1AW", plannedDate: "2026-09-11",
+      startTime: "13:00", endTime: "14:00", bands: ["20m"], modes: ["CW"], publicNotes: "", status: "scheduled",
+    }] } }));
+    await page.goto(`${server.origin}/activate-ri-2026/parks/`);
+    const results = page.locator("[data-pota-progress]");
+    await results.getByRole("searchbox", { name: "Search parks" }).fill(park.reference);
+    await expect(results.locator(".pota-park-card")).toHaveCount(1);
+    const details = results.locator(".pota-park-card details");
+    const summary = details.locator("summary");
+    await summary.click();
+    await expect(details).toHaveAttribute("open", "");
+    await summary.focus();
+    await page.clock.runFor(60_000);
+    await expect(summary).toBeFocused();
+    await expect(details).toHaveAttribute("open", "");
+    await results.getByRole("button", { name: "Clear filters", exact: true }).click();
+    await expect(results.locator(".pota-park-card")).toHaveCount(61);
+    await expect(results.getByRole("searchbox", { name: "Search parks" })).toBeFocused();
   } finally {
     await server.stop();
   }

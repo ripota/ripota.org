@@ -11,7 +11,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 
 <BaseLayout
   title="Activate All RI 2026 Admin"
-  description="Review pending Activate All RI 2026 activation submissions."
+  description="Organizer tools for Activate All RI 2026 plans, live coordination, event evidence, and account security."
   privatePage
   bodyClass="admin-app-page"
 >
@@ -49,33 +49,35 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 </BaseLayout>
 
 <script>
+  import { setupAdminTabs } from "../../lib/activate-ri/admin-tabs";
+
   const adminApp = document.querySelector<HTMLElement>("[data-admin-app]");
   const workspaceTabs = adminApp?.querySelector<HTMLElement>("[data-admin-workspace-tabs]");
-  const workspacePanels = adminApp?.querySelectorAll<HTMLElement>("[data-admin-view]") ?? [];
   const workspaceKey = "activate-ri-admin-workspace";
   const validWorkspaces = new Set(["ops", "plans", "activity", "pota", "security"]);
 
-  function showWorkspace(name: string, updateHash = true): void {
-    const next = validWorkspaces.has(name) ? name : "ops";
-    workspacePanels.forEach((panel) => {
-      const active = panel.dataset.adminView === next;
-      panel.hidden = !active;
+  if (adminApp && workspaceTabs) {
+    const buttons = [...workspaceTabs.querySelectorAll<HTMLButtonElement>("[data-admin-workspace]")];
+    const panels = buttons.map((button) => document.getElementById(button.getAttribute("aria-controls")!)!);
+    const showWorkspace = setupAdminTabs(workspaceTabs, buttons, panels, (next) => {
+      try { localStorage.setItem(workspaceKey, next); } catch { /* Storage is optional. */ }
+      const url = new URL(location.href);
+      url.searchParams.delete("view");
+      url.hash = next;
+      history.replaceState(null, "", url);
     });
-    workspaceTabs?.querySelectorAll<HTMLButtonElement>("[data-admin-workspace]").forEach((button) => {
-      const active = button.dataset.adminWorkspace === next;
-      button.dataset.active = String(active);
-      button.setAttribute("aria-selected", String(active));
-      button.tabIndex = active ? 0 : -1;
-    });
-    localStorage.setItem(workspaceKey, next);
-    if (updateHash) history.replaceState(null, "", `#${next}`);
+    function requestedWorkspace(): string {
+      const hash = location.hash.slice(1);
+      if (validWorkspaces.has(hash)) return hash;
+      const requested = new URL(location.href).searchParams.get("view") ?? "";
+      if (validWorkspaces.has(requested)) return requested;
+      if (hash.startsWith("ops-message-")) return "ops";
+      try {
+        const saved = localStorage.getItem(workspaceKey) ?? "ops";
+        return validWorkspaces.has(saved) ? saved : "ops";
+      } catch { return "ops"; }
+    }
+    showWorkspace(requestedWorkspace(), false);
+    window.addEventListener("hashchange", () => showWorkspace(requestedWorkspace(), false));
   }
-
-  workspaceTabs?.addEventListener("click", (event) => {
-    const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-admin-workspace]");
-    if (button?.dataset.adminWorkspace) showWorkspace(button.dataset.adminWorkspace);
-  });
-
-  const requested = new URL(location.href).searchParams.get("view") ?? location.hash.slice(1);
-  showWorkspace(validWorkspaces.has(requested) ? requested : localStorage.getItem(workspaceKey) ?? "ops", false);
 </script>

@@ -19,6 +19,27 @@ export type RepeatedStopPreferences = {
   modes: string[];
 };
 
+export function lockFormControls(form: HTMLFormElement): () => void {
+  const controls = Array.from(form.querySelectorAll("input, select, textarea, button")) as Array<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | HTMLButtonElement>;
+  const states = controls.map((control) => control.disabled);
+  controls.forEach((control) => { control.disabled = true; });
+  form.setAttribute("aria-busy", "true");
+  return () => {
+    controls.forEach((control, index) => { control.disabled = states[index]; });
+    form.removeAttribute("aria-busy");
+  };
+}
+
+const popupFocusDismissalRoots = new WeakSet<HTMLElement>();
+
+function setupPopupFocusDismissal(root: HTMLElement, close: () => void): void {
+  if (popupFocusDismissalRoots.has(root)) return;
+  popupFocusDismissalRoots.add(root);
+  root.addEventListener("focusout", (event) => {
+    if (!(event.relatedTarget instanceof Node) || !root.contains(event.relatedTarget)) close();
+  });
+}
+
 export function uppercaseFormValue(value: FormDataEntryValue | null): FormDataEntryValue | null {
   return typeof value === "string" ? value.toUpperCase() : value;
 }
@@ -172,6 +193,13 @@ export function setupStopCards(options: StopSetupOptions = {}): void {
 
   stops.forEach((stop, index) => {
     stop.querySelector("[data-stop-title]")?.replaceChildren(`Activation stop ${index + 1}`);
+    stop.setAttribute("aria-label", `Activation stop ${index + 1}`);
+    const parkInput = stop.querySelector<HTMLInputElement>("[data-park-input]");
+    const popup = stop.querySelector<HTMLElement>("[data-park-results]");
+    if (popup) {
+      popup.id = `activate-ri-stop-${index + 1}-park-options`;
+      parkInput?.setAttribute("aria-controls", popup.id);
+    }
 
     if (options.setupErrorDescriptions) {
       setupStopErrorDescriptions(stop, index);
@@ -180,9 +208,13 @@ export function setupStopCards(options: StopSetupOptions = {}): void {
     const removeButton = stop.querySelector<HTMLButtonElement>("[data-remove-stop]");
     if (removeButton) {
       removeButton.hidden = stops.length === 1 && !options.allowRemoveLastStop;
+      removeButton.setAttribute("aria-label", `Remove activation stop ${index + 1}`);
       removeButton.onclick = () => {
+        const nextFocus = (stops[index + 1] ?? stops[index - 1])?.querySelector<HTMLInputElement>("[data-park-input]")
+          ?? root.querySelector<HTMLButtonElement>("[data-add-stop]");
         stop.remove();
         setupStopCards(options);
+        nextFocus?.focus();
       };
     }
 
@@ -223,6 +255,24 @@ function setupParkCombobox(stop: HTMLElement, validatePark: boolean): void {
   };
   parkInput.oninput = syncParkReference;
   parkInput.onchange = syncParkReference;
+  parkCombobox.onkeydown = (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      parkInput.focus();
+      setParkPopupOpen(parkCombobox, false);
+      return;
+    }
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    const buttons = Array.from(parkCombobox.querySelectorAll<HTMLButtonElement>("[data-park-option]:not([hidden]) [data-park-select]"));
+    if (buttons.length === 0) return;
+    event.preventDefault();
+    setParkPopupOpen(parkCombobox, true);
+    const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    const next = index < 0 ? (event.key === "ArrowDown" ? 0 : buttons.length - 1)
+      : (index + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
+    buttons[next]?.focus();
+  };
+  setupPopupFocusDismissal(parkCombobox, () => setParkPopupOpen(parkCombobox, false));
   syncParkReference();
 
   parkCombobox.querySelectorAll<HTMLElement>("[data-park-option]").forEach((option) => {
@@ -232,6 +282,7 @@ function setupParkCombobox(stop: HTMLElement, validatePark: boolean): void {
       if (validatePark) {
         clearFieldError(parkInput, stopErrorElement(stop, "park"));
       }
+      parkInput.focus();
       setParkPopupOpen(parkCombobox, false);
     };
   });
@@ -263,6 +314,13 @@ function setupMultiSelects(stop: HTMLElement): void {
         setMultiSelectOpen(multiSelect, toggle.getAttribute("aria-expanded") !== "true");
       };
     }
+    multiSelect.onkeydown = (event) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setMultiSelectOpen(multiSelect, false);
+      toggle?.focus();
+    };
+    setupPopupFocusDismissal(multiSelect, () => setMultiSelectOpen(multiSelect, false));
 
     multiSelect.querySelectorAll<HTMLInputElement>("[data-multi-option]").forEach((option) => {
       option.onchange = () => {
@@ -441,6 +499,7 @@ export function updateMultiSelectLabel(multiSelect: HTMLElement): void {
   }
 
   toggle.textContent = values.length > 0 ? values.join(", ") : multiSelect.hasAttribute("data-bands") ? "Choose bands" : "Choose modes";
+  toggle.setAttribute("aria-label", `${multiSelect.hasAttribute("data-bands") ? "Bands" : "Modes"}: ${values.length > 0 ? values.join(", ") : "Choose options"}`);
 }
 
 export function resetTurnstile(): void {
@@ -466,6 +525,10 @@ export function setupStopErrorDescriptions(stop: HTMLElement, index: number): vo
 
     const control = stopControl(stop, key);
     if (control) {
+      // Cloned or renumbered stops must not describe errors in another stop.
+      const descriptions = (control.getAttribute("aria-describedby") ?? "").split(/\s+/)
+        .filter((id) => id && !/^activate-ri-stop-\d+-\w+-error$/.test(id));
+      control.setAttribute("aria-describedby", descriptions.join(" "));
       appendDescribedBy(control, errorElement.id);
     }
   });
