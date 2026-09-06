@@ -81,6 +81,8 @@ test("an activator can use only an emailed sign-in link", async ({ page }) => {
   try {
     await submitVolunteer(page, server.origin, "N1EML", "email-only@example.com");
     await page.goto(`${server.origin}/account/sign-in/?returnTo=%2Factivate-ri-2026%2Factivator%2Fplan%2F`);
+    await expect(page.getByLabel("Email address")).toBeHidden();
+    await page.getByText("Email me a sign-in link", { exact: true }).click();
     await expect(page.getByLabel("Email address")).toBeVisible();
     await page.getByLabel("Email address").fill("email-only@example.com");
     const requestedPromise = page.waitForResponse(`${server.origin}/api/auth/email-login`);
