@@ -27,8 +27,12 @@ Relevant Worker routing is in `src/worker/index.ts`:
   upgrades, and Access bootstrap.
 - `/account/sign-in/`, `/account/access/`, and `/account/security/` are
   private/no-store account surfaces.
-- `/activate-ri-2026/admin/` runs through Cloudflare Access before serving the
-  static admin page.
+- `/activate-ri-2026/admin/` requires a current passkey-verified admin session
+  before serving the static page; unauthenticated navigation redirects to
+  `/account/sign-in/`.
+- `/activate-ri-2026/admin/recovery/` and
+  `/api/activate-ri-2026/admin/auth/access-bootstrap/start` remain protected by
+  Cloudflare Access and Worker JWT validation.
 - `/activate-ri-2026/access/` exchanges fragment credentials for a session.
 - `/activate-ri-2026/activator/`, `/activator/plan/`, and
   `/activator/account/` require that session.
@@ -146,7 +150,8 @@ D1 migrations to a temporary SQLite database. The browser path is covered by the
 ## Admin Approval Flow
 
 1. An admin opens `/activate-ri-2026/admin/`.
-2. Cloudflare Access protects the static admin page in production.
+2. The Worker requires a current passkey-verified session with an event admin
+   role for the page and admin APIs. Cloudflare Access is only used for recovery.
 3. The admin UI fetches pending plans from
    `GET /api/activate-ri-2026/admin/plans`.
 4. Approval posts to
@@ -197,13 +202,18 @@ links the matching event activator, and creates an email-authenticated session
 that can enroll a passkey.
 
 `AUTH_LEGACY_LINK_ISSUANCE_ENABLED` controls only creation of new reusable
-links. Existing link acceptance and legacy session compatibility remain active
-independently so rollout and rollback never require deleting credentials.
+links. Existing private links remain accepted as unified-session bootstrap
+credentials. Production's unified activator mode does not authorize legacy-only
+browser sessions; legacy session authorization is retained for rollback modes.
 
 Administrator bootstrap starts only from a Worker-validated Cloudflare Access
 identity that is already an event admin or is explicitly allowlisted outside
-the repository. Admin recovery creates a short replacement session; completing
-passkey registration revokes previous passkeys and sessions. Account disable,
+the repository. Production removed that first-time enrollment allowlist on
+2026-09-06 after all three admins had enrolled and used passkeys; existing admins
+retain Access-protected recovery. Access bootstrap creates a short enrollment
+session for adding a passkey. Separately, an administrator can send an account
+a passkey-reset email; completing that replacement revokes previous passkeys
+and sessions. Account disable,
 session revocation, recovery delivery, and passkey events are independently
 audited. See `authentication.md` for rollout and rollback controls.
 
@@ -224,8 +234,9 @@ message plus `message-created` event atomically. Removed message bodies are
 cleared in D1 and never returned by later reads.
 
 The deployment-level `ACTIVATE_RI_OPS_HARD_DISABLED=true` override forces the
-participant-facing effective mode to `off` without changing D1. Access-protected
-admins can inspect state and set `full`, `announcements`, or `off`; each mode
+participant-facing effective mode to `off` without changing D1.
+Passkey-authenticated admins can inspect state and set `full`, `announcements`,
+or `off`; each mode
 change writes both an Ops cursor event and the existing admin activity log.
 
 Organizers can create announcements, optionally pin them, and explicitly send

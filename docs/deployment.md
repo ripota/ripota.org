@@ -92,35 +92,36 @@ npx wrangler secret put TURNSTILE_SECRET_KEY
 npx wrangler secret put ACTIVATE_RI_ADMIN_EMAILS
 npx wrangler secret put CF_ACCESS_TEAM_DOMAIN
 npx wrangler secret put CF_ACCESS_AUD
-npx wrangler secret put AUTH_BOOTSTRAP_ADMIN_EMAILS
 npx wrangler secret put ANALYTICS_HASH_KEY
 ```
 
 `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` are required for the Worker to
-validate Cloudflare Access JWTs on admin requests. See
-`docs/cloudflare-access.md`.
+validate Cloudflare Access JWTs on administrator recovery requests. Access
+protects only the recovery page and bootstrap endpoint; routine admin requests
+require a current passkey session. See `docs/cloudflare-access.md`.
+
+`AUTH_BOOTSTRAP_ADMIN_EMAILS` was removed after all three administrators had
+enrolled and used passkeys. Do not recreate it during routine deployment. It is
+only needed for deliberate new-administrator enrollment under the procedure in
+`docs/activate-ri-2026/authentication.md`.
 
 `ANALYTICS_HASH_KEY` HMACs public, event-scoped browser identifiers before they
 reach Workers Analytics Engine. Create it once and do not rotate it until the
 event report is complete. See `docs/analytics.md` for the data contract,
 privacy boundary, verification, and report queries.
 
-The initial authentication rollout starts in rollback-safe mode:
+The completed authentication rollout uses these production values:
 
 ```text
-AUTH_ADMIN_MODE=access
-AUTH_ACTIVATOR_MODE=legacy
-AUTH_EMAIL_LOGIN_ENABLED=false
-AUTH_LEGACY_LINK_ISSUANCE_ENABLED=true
+AUTH_ADMIN_MODE=passkey
+AUTH_ACTIVATOR_MODE=unified
+AUTH_EMAIL_LOGIN_ENABLED=true
+AUTH_LEGACY_LINK_ISSUANCE_ENABLED=false
 ```
 
-Do not change those values as part of the first migration/code deployment.
-Subsequent reviewed rollout commits advance the top-level production values;
-`wrangler.jsonc` is the source of truth for the current modes.
-Follow the enrollment, dual-mode, email, and final-mode gates in
-`docs/activate-ri-2026/authentication.md`. In particular, do not narrow
-Cloudflare Access until two administrator passkeys and break-glass recovery
-have been exercised successfully.
+`wrangler.jsonc` is the source of truth for the current modes. Preserve these
+values during routine deployment. The initial rollout and rollback values are
+documented separately in `docs/activate-ri-2026/authentication.md`.
 
 ## Migrations
 
@@ -182,8 +183,10 @@ After deployment:
 4. Submit a low-risk volunteer signup and confirm Turnstile and the D1-backed
    API work.
 5. Open `https://ripota.org/activate-ri-2026/admin/` in a private browser and
-   confirm Cloudflare Access protects the page.
-6. Verify admin API protection:
+   confirm it redirects to the site's passkey sign-in page. The email sign-in
+   section starts collapsed. Sign in with an admin passkey and verify the
+   dashboard loads.
+6. Verify an unauthenticated admin API request returns `401`:
 
    ```bash
    curl -i https://ripota.org/api/activate-ri-2026/admin/plans
@@ -192,19 +195,21 @@ After deployment:
 7. If email-related changes shipped, confirm the activator single-use sign-in email and
    admin notification email flow. See
    `docs/activate-ri-2026/email-flow-and-setup.md`.
-8. For the unified-auth dormant deployment, confirm existing admin Access,
-   existing private links, and existing legacy browser sessions before changing
-   any auth feature flag.
+8. Confirm Cloudflare Access still intercepts unauthenticated requests to
+   `/activate-ri-2026/admin/recovery/` and
+   `/api/activate-ri-2026/admin/auth/access-bootstrap/start`.
 9. Trigger one allowlisted public event, then query the `ripota_usage` Analytics
    Engine dataset to confirm the event arrived without a raw browser UUID. See
    `docs/analytics.md`.
 
 ## Rollback
 
-For an authentication incident, first restore the safe vars
-`access` / `legacy` / `false` and deploy. This preserves old Access, links, and
-sessions without deleting the additive authentication schema. Full details are
-in `docs/activate-ri-2026/authentication.md`.
+For an administrator authentication rollback, restore Cloudflare Access on the
+full admin page and API paths before switching `AUTH_ADMIN_MODE` to `access`.
+For an activator rollback, enable legacy-link issuance before disabling email
+login; the Worker rejects having both disabled. Follow the ordered procedure in
+`docs/activate-ri-2026/authentication.md` before rolling back a Worker version.
+Keep the additive authentication schema and existing credentials intact.
 
 List recent Worker deployments or versions:
 

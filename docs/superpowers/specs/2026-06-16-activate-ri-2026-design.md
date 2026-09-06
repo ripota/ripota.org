@@ -1,5 +1,10 @@
 # Activate All RI 2026 Design
 
+> Historical design for the initial release. The Access-based admin sign-in
+> described below was superseded by unified passkey authentication. See
+> [the authentication runbook](../../activate-ri-2026/authentication.md) for
+> current production behavior and recovery procedures.
+
 ## Summary
 
 Activate All RI 2026 is an event section for ripota.org that helps the

@@ -27,7 +27,7 @@ secrets (also used for admin authorization in rollback modes):
 Do not commit account IDs, API tokens, Access app IDs, admin email addresses, or
 local `.env` files.
 
-With `AUTH_ADMIN_MODE=access` (the production-safe default), Access remains the
+With `AUTH_ADMIN_MODE=access` (the initial rollout and rollback mode), Access is the
 administrator authorization mechanism. With `dual`, a current passkey admin
 session is preferred and Access remains the compatibility fallback. Sensitive
 account recovery controls always require a passkey administrator session.

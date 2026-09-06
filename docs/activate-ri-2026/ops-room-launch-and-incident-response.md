@@ -25,8 +25,10 @@ editing, and the public schedule operate independently of the room.
 
 1. Deploy with the D1 room mode `off`. Keep the deployment hard-disable
    available as the last-resort brake rather than the normal launch control.
-2. Confirm `SITE_ORIGIN`, Cloudflare Access coverage for admin routes, the D1,
-   Durable Object, assets, rate-limit, and email bindings, and current secrets.
+2. Confirm `SITE_ORIGIN`, passkey authorization for admin HTTP and WebSocket
+   access, Cloudflare Access coverage for the recovery page and bootstrap
+   endpoint, the D1, Durable Object, assets, rate-limit, and email bindings,
+   and current secrets. See `authentication.md` for recovery and rollback.
 3. Verify fragment-link exchange and the legacy edit-link bootstrap without
    exposing a credential in a request path after exchange.
 4. Verify an activator can edit a plan while the room is off.

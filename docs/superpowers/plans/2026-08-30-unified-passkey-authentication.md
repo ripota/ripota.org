@@ -1,5 +1,13 @@
 # Unified Passkey Authentication Implementation Plan
 
+> Historical implementation plan; administrator rollout cleanup completed on
+> 2026-09-06. The checkboxes and cutover ordering below are not the current
+> operational checklist. Production requires admin passkeys, retains Access
+> only for recovery, and no longer has a first-time admin bootstrap allowlist.
+> Use [the authentication runbook](../../activate-ri-2026/authentication.md)
+> and [the Access guide](../../cloudflare-access.md) for current setup,
+> verification, and rollback ordering.
+
 > **For agentic workers:** Implement this plan task-by-task. Keep each task independently testable and deploy additive database changes before changing production routing. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace routine Cloudflare Access and long-lived private-link authentication with one first-party identity and session system for Activate RI administrators and activators. Make passkeys the primary login method, retain email login for activators and recovery, preserve every existing private link, and give administrators safe passkey-reset and session-revocation controls.

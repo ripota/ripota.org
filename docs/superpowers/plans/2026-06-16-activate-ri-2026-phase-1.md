@@ -1,5 +1,11 @@
 # Activate All RI 2026 Phase 1 Implementation Plan
 
+> Historical implementation plan for the initial release. Its Access-based
+> admin authentication and related code examples were superseded by unified
+> passkey authentication. See
+> [the authentication runbook](../../activate-ri-2026/authentication.md) for
+> current production behavior and recovery procedures.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build the Phase 1 Activate All RI 2026 event section: activator recruitment, moderated submissions, public coverage views, and publishable static JSON.

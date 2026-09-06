@@ -73,7 +73,8 @@ reference, and park name:
 
 ### Account recovery
 
-1. The activator selects **Email me a sign-in link** on the shared sign-in page.
+1. The activator expands **Email me a sign-in link** on the shared sign-in page
+   and submits their email address. The section starts collapsed.
 2. `POST /api/auth/email-login` looks for an eligible activator by normalized email.
 3. The response is always privacy-safe:
    `If we found an account that can use email sign-in, we sent a link.`

@@ -190,7 +190,8 @@ GROUP BY action ORDER BY action;
 
 Roll flags back before rolling code back:
 
-1. Set `AUTH_ADMIN_MODE=access`.
+1. Restore Cloudflare Access on `/activate-ri-2026/admin*` and
+   `/api/activate-ri-2026/admin/*` before setting `AUTH_ADMIN_MODE=access`.
 2. Set `AUTH_ACTIVATOR_MODE=legacy`.
 3. Set `AUTH_LEGACY_LINK_ISSUANCE_ENABLED=true` before disabling email.
 4. Set `AUTH_EMAIL_LOGIN_ENABLED=false` if email fallback itself is implicated.

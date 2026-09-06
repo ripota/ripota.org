@@ -77,7 +77,9 @@ top-level Worker config named `ripota-org`. See
 
 Deployments need Cloudflare account configuration outside this repository. Do not commit account IDs, API tokens, `.env`, `.dev.vars`, private exports, or unpublished community files.
 
-Activate RI admin routes require Cloudflare Access in production. See [docs/cloudflare-access.md](docs/cloudflare-access.md).
+Activate RI admin routes require a current administrator passkey session in
+production. Cloudflare Access protects only emergency recovery. See
+[docs/cloudflare-access.md](docs/cloudflare-access.md).
 
 Activate RI D1 setup/reset notes live under `docs/activate-ri-2026/`, including
 the [data-flow overview](docs/activate-ri-2026/data-flow.md) and

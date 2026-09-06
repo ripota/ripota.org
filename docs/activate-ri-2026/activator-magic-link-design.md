@@ -1,5 +1,11 @@
 # Activate RI 2026 Activator Magic Link Design
 
+> Historical design. Production now uses unified passkey sessions and
+> 15-minute, single-use email links for activators. Previously issued private
+> links remain compatible, but new reusable links are not issued. See
+> [authentication.md](authentication.md) and
+> [email-flow-and-setup.md](email-flow-and-setup.md) for current behavior.
+
 ## Goals
 
 - Let activators submit a plan and receive a private edit link immediately.

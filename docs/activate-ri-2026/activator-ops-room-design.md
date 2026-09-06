@@ -1,5 +1,12 @@
 # Activate RI 2026 Activator Ops Room — Final Implementation Plan
 
+> Historical implementation plan. Its Access-based organizer authentication
+> was superseded by the completed passkey rollout on 2026-09-06. Current admin
+> HTTP and WebSocket access requires a passkey-verified admin session; Access
+> protects emergency recovery only. Use [authentication.md](authentication.md)
+> and [the launch runbook](ops-room-launch-and-incident-response.md) for current
+> operating procedures. The status and decisions below describe the original plan.
+
 **Status:** Implemented; room remains off pending operational rollout  
 **Tracking issue:** `ripota/ripota.org#6`  
 **Proposed design document:** `docs/activate-ri-2026/activator-ops-room-design.md`
