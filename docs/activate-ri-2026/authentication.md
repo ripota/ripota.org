@@ -2,8 +2,8 @@
 
 Activate RI uses one D1-backed identity and session system for administrators
 and activators. Passkeys are the durable sign-in method. Existing activator
-private links and Cloudflare Access remain compatibility and recovery paths
-during rollout.
+private links remain a compatibility path, and Cloudflare Access is reserved
+for emergency administrator recovery.
 
 This is an RI POTA community service, not an official Parks on the Air system.
 POTA accounts and credentials are never used here.
@@ -135,14 +135,19 @@ Do not skip gates.
    review, set `AUTH_ACTIVATOR_MODE=unified`. Keep legacy links enabled as
    bootstrap. Production completed this transition on 2026-08-30 after safe
    aggregate checks showed no legacy-only activators.
-7. **Passkey administrators:** only after at least two real administrators have
-   tested passkeys and break-glass recovery is proven, set
+7. **Passkey administrators (complete):** only after at least two real
+   administrators have tested passkeys and break-glass recovery is proven, set
    `AUTH_ADMIN_MODE=passkey`. A specifically named pending administrator may
    still enroll through the Access-protected recovery page while their address
    remains in `AUTH_BOOTSTRAP_ADMIN_EMAILS`. Keep Access on the full admin
    surface until the pending administrator has enrolled and the bootstrap
-   allowlist has been removed; narrow Access to the recovery page only after
-   this gate.
+   allowlist has been removed; narrow Access to the recovery page and its
+   bootstrap endpoint only after this gate. Production completed the final
+   cleanup on 2026-09-06: all three enabled admins had enrolled and used
+   passkeys, the bootstrap allowlist secret was removed, and the existing
+   Access application was narrowed to these two recovery routes. Normal admin
+   navigation now goes directly to passkey sign-in; unauthenticated admin API
+   requests return `401`. See `docs/cloudflare-access.md` for the exact paths.
 
 At each stage, verify the public site, volunteer submission, activator portal,
 admin dashboard, Ops Room HTTP/WebSocket authorization, and recent Worker logs

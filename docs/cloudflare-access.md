@@ -1,19 +1,25 @@
 # Cloudflare Access for Activate RI Admin and Recovery
 
-Cloudflare Access protects the Activate RI admin UI and API during the passkey
-rollout:
+The administrator passkey rollout completed on 2026-09-06. All three enabled
+administrators had enrolled and used passkeys, production already selected
+`AUTH_ADMIN_MODE=passkey`, and `AUTH_BOOTSTRAP_ADMIN_EMAILS` was removed.
+Cloudflare Access now protects only emergency recovery:
 
-- `/activate-ri-2026/admin*`
-- `/api/activate-ri-2026/admin/*`
+- `/activate-ri-2026/admin/recovery*`
+- `/api/activate-ri-2026/admin/auth/access-bootstrap/start`
+
+Normal admin navigation goes directly to the site's passkey sign-in page.
+Unauthenticated admin API requests return `401`. Keep the existing Access
+application, admin Allow policy, and email-code login method for recovery.
 
 The recovery page posts to
 `/api/activate-ri-2026/admin/auth/access-bootstrap/start`, which deliberately
-stays beneath the protected admin API prefix. The older
+is protected explicitly by the second path above. The older
 `/api/auth/access-bootstrap/start` route remains a compatibility alias, but the
 site does not depend on a separate Access application path for it.
 
-The Worker also validates Access JWTs for admin requests when these production
-vars are configured:
+The Worker validates Access JWTs for recovery requests using these production
+secrets (also used for admin authorization in rollback modes):
 
 - `CF_ACCESS_TEAM_DOMAIN`
 - `CF_ACCESS_AUD`
@@ -38,7 +44,11 @@ move to `passkey`. At that point, keep Access on at least:
 See `docs/activate-ri-2026/authentication.md` for the required safety gates and
 rollback sequence.
 
-## Cloudflare Zero Trust Setup
+## Cloudflare Zero Trust Setup During Rollout or Rollback
+
+The broad paths below are for initial enrollment or rollback. Current production
+uses the two recovery-only paths above. When narrowing an existing application,
+edit its destinations in place to preserve its audience and policy.
 
 In the Cloudflare dashboard:
 
@@ -51,9 +61,9 @@ In the Cloudflare dashboard:
 5. Add a second public hostname/path to the same application during rollout:
    - Domain: `ripota.org`
    - Path: `/api/activate-ri-2026/admin/*`
-6. Keep the protected admin API hostname/path in step 5 while recovery is
-   available. It includes the recovery bootstrap endpoint at
-   `/api/activate-ri-2026/admin/auth/access-bootstrap/start`.
+6. During rollout, the protected API prefix includes the recovery bootstrap
+   endpoint. After enrollment is complete and the bootstrap allowlist is
+   removed, replace both broad paths with the recovery-only paths above.
 7. Add an **Allow** policy for the admin users.
    - For a small admin list, use an email rule with the exact admin email
      addresses.
@@ -91,6 +101,9 @@ Use the Access application audience value for `CF_ACCESS_AUD`.
 
 ## Bootstrap Allowlist
 
+Production no longer has this secret. The following instructions apply when
+deliberately enrolling a new administrator.
+
 The Access-protected recovery page only creates a first-time admin when the
 verified Access email is in `AUTH_BOOTSTRAP_ADMIN_EMAILS`. Configure the
 comma-separated list outside git:
@@ -111,8 +124,9 @@ Existing event admin roles can still use Access-protected recovery.
 After deployment:
 
 1. Open `https://ripota.org/activate-ri-2026/admin/` in a private browser.
-2. Confirm Cloudflare Access prompts for authentication.
-3. Sign in as an allowed admin and confirm the admin dashboard loads.
+2. Confirm it redirects to `/account/sign-in/` without a Cloudflare Access
+   prompt. The email sign-in disclosure starts collapsed.
+3. Sign in with an administrator passkey and confirm the dashboard loads.
 4. Sign out or use a different private browser and confirm this returns
    unauthorized:
 
@@ -120,7 +134,12 @@ After deployment:
 curl -i https://ripota.org/api/activate-ri-2026/admin/plans
 ```
 
-5. If a signed-in admin sees the dashboard but the API shows unauthorized,
+5. Open `/activate-ri-2026/admin/recovery/` in a fresh private browser and
+   confirm Cloudflare Access prompts for authentication. An unauthenticated
+   request to `/api/activate-ri-2026/admin/auth/access-bootstrap/start` must
+   also be intercepted by Access.
+6. If normal admin APIs return unauthorized, check the current passkey session,
+   admin role, and reauthentication age. If Access-authenticated recovery fails,
    re-check `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD`.
 
 ## Local Development
