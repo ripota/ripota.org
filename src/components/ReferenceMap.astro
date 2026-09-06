@@ -918,7 +918,7 @@ const payload = JSON.stringify({
 
   function coverageStopsHtml(item: MapItem): string {
     if (!item.coverage) return "";
-    const stops = item.coverage?.stops ?? [];
+    const stops = item.coverage.stops.filter((stop) => stop.status !== "cancelled");
     if (stops.length === 0) {
       return `<span>Needs coverage.</span>`;
     }
@@ -928,6 +928,7 @@ const payload = JSON.stringify({
         ${stops.map((stop) => `
           <span class="map-popup__stop">
             <b>${escapeHtml(stop.activatorCallsign)}</b>
+            <span>${escapeHtml(stopStatusLabel(stop.status))}</span>
             <span>${escapeHtml(formatActivationDate(stop))}, ${escapeHtml(formatActivationTimeRange(stop))}</span>
             <span>${escapeHtml(formatList(stop.bands))} / ${escapeHtml(formatList(stop.modes))}</span>
             ${stop.publicNotes ? `<span>${escapeHtml(stop.publicNotes)}</span>` : ""}
@@ -935,6 +936,16 @@ const payload = JSON.stringify({
         `).join("")}
       </span>
     `;
+  }
+
+  function stopStatusLabel(status: string): string {
+    return {
+      "pending-review": "Pending review",
+      scheduled: "Scheduled",
+      delayed: "Delayed",
+      cancelled: "Cancelled",
+      completed: "Completed",
+    }[status] ?? status;
   }
 
   function officialLink(item: MapItem): string {

@@ -550,6 +550,117 @@ for (const viewport of [
       expect(browser.errors).toEqual([]);
     });
 
+    test("event map colors and popup details hide cancelled activations", async ({ page, parksOrigin }, testInfo) => {
+      const browser = observeBrowser(page);
+      const coverageParks = [
+        {
+          reference: "US-2880", color: "#287c5b", label: "Scheduled", visibleStopCount: 1,
+          stops: [
+            { activatorCallsign: "K1AAA", status: "scheduled", label: "Scheduled" },
+            { activatorCallsign: "K1BBB", status: "cancelled", label: "Cancelled" },
+            { activatorCallsign: "K1CCC", status: "cancelled", label: "Cancelled" },
+          ],
+        },
+        {
+          reference: "US-2870", color: "#1f5fbf", label: "Multiple scheduled", visibleStopCount: 2,
+          stops: [
+            { activatorCallsign: "K1DDD", status: "scheduled", label: "Scheduled" },
+            { activatorCallsign: "K1EEE", status: "delayed", label: "Delayed" },
+          ],
+        },
+        {
+          reference: "US-6992", color: "#9f1239", label: "Needs replacement", visibleStopCount: 0,
+          stops: [{ activatorCallsign: "K1FFF", status: "cancelled", label: "Cancelled" }],
+        },
+      ];
+      const stops = coverageParks.flatMap((park) => park.stops.map((stop, index) => ({
+        ...syntheticStops[0],
+        id: `coverage-browser-${park.reference}-${index}`,
+        parkReference: park.reference,
+        activatorCallsign: stop.activatorCallsign,
+        status: stop.status,
+      })));
+      await page.route("**/api/activate-ri-2026/public/stops", (route) => route.fulfill({
+        contentType: "application/json", body: JSON.stringify({ ok: true, stops }),
+      }));
+
+      for (const route of ["/activate-ri-2026/", "/activate-ri-2026/volunteer/"]) {
+        if (route.endsWith("/volunteer/")) {
+          // The signup's real Turnstile challenge requires an accurate browser clock.
+          await page.clock.setSystemTime(new Date());
+        }
+        await page.goto(`${parksOrigin}${route}`);
+        await readyMap(page, "[data-reference-map]");
+        const map = page.locator("[data-reference-map]:visible");
+        const preview = page.locator(".map-preview").filter({ has: map });
+        const markers = map.locator(".reference-map-marker");
+
+        const scheduledLegend = preview.locator('[data-map-legend-statuses="scheduled"]');
+        await expect(scheduledLegend).toBeVisible();
+        await expect(scheduledLegend).toHaveText("Scheduled");
+        await expect(scheduledLegend.locator("span")).toHaveCSS("background-color", "rgb(40, 124, 91)");
+        const multipleLegend = preview.locator('[data-map-legend-statuses="multiple-scheduled"]');
+        await expect(multipleLegend).toBeVisible();
+        await expect(multipleLegend).toHaveText("Multiple scheduled");
+        await expect(multipleLegend.locator("span")).toHaveCSS("background-color", "rgb(31, 95, 191)");
+
+        for (const park of coverageParks) {
+          if (park !== coverageParks[0]) {
+            // Each popup starts from the fitted map, independent of prior popup panning.
+            await page.reload();
+            await readyMap(page, "[data-reference-map]");
+          }
+          const payload = await referencePayload(page);
+          const markerIndex = payload.items.findIndex((item: { reference: string }) => item.reference === park.reference);
+          expect(markerIndex).toBeGreaterThanOrEqual(0);
+          const marker = markers.nth(markerIndex);
+          await expect(marker).toHaveAttribute("fill", park.color);
+          await expect(marker).toHaveAttribute("stroke", park.color);
+          await marker.click();
+          const popupContainer = map.locator(".leaflet-popup");
+          const popup = map.locator(".leaflet-popup-content");
+          await expect(popupContainer).toHaveCSS("opacity", "1");
+          await expect.poll(async () => {
+            const [popupBox, mapBox] = await Promise.all([popupContainer.boundingBox(), map.boundingBox()]);
+            return Boolean(popupBox && mapBox && popupBox.y >= mapBox.y - 1 &&
+              popupBox.y + popupBox.height <= mapBox.y + mapBox.height + 1);
+          }).toBe(true);
+          await expect(popup).toContainText(park.reference);
+          await expect(popup).toContainText(park.label);
+          await expect(popup).not.toContainText("Cancelled");
+          const stopRows = popup.locator(".map-popup__stop");
+          await expect(stopRows).toHaveCount(park.visibleStopCount);
+          if (park.visibleStopCount === 0) {
+            await expect(popup).toContainText("Needs coverage");
+          }
+          for (const stop of park.stops) {
+            if (stop.status === "cancelled") {
+              await expect(popup).not.toContainText(stop.activatorCallsign);
+              continue;
+            }
+            const row = stopRows.filter({ hasText: stop.activatorCallsign });
+            await expect(row).toHaveCount(1);
+            await row.scrollIntoViewIfNeeded();
+            const status = row.getByText(stop.label, { exact: true });
+            await expect(status).toBeVisible();
+            await expect(status).toBeInViewport();
+          }
+          if (route === "/activate-ri-2026/" && park.reference === "US-2880") {
+            await popup.evaluate((element) => { element.scrollTop = 0; });
+            await expect(popupContainer).toHaveCSS("opacity", "1");
+            const path = testInfo.outputPath(`snake-den-coverage-${viewport.name}.png`);
+            await preview.screenshot({ path });
+            await testInfo.attach(`snake-den-coverage-${viewport.name}`, { path, contentType: "image/png" });
+          }
+          await map.locator(".leaflet-popup-close-button").click();
+          await expect(popupContainer).toHaveCount(0);
+          await expect(multipleLegend).toBeVisible();
+        }
+      }
+      expect(browser.canonicalRequests).toEqual([]);
+      expect(browser.errors).toEqual([]);
+    });
+
     test("an event API outage shows unavailable coverage instead of placeholder gaps", async ({ page, parksOrigin }) => {
       const browser = observeBrowser(page);
       const liveUrl = `${parksOrigin}/api/activate-ri-2026/public/stops`;

@@ -81,8 +81,13 @@ export const referenceMapLegendItems: Array<{
   },
   {
     label: "Scheduled",
-    statuses: ["scheduled", "multiple-scheduled"],
+    statuses: ["scheduled"],
     color: referenceMapStatusColors.scheduled,
+  },
+  {
+    label: "Multiple scheduled",
+    statuses: ["multiple-scheduled"],
+    color: referenceMapStatusColors["multiple-scheduled"],
   },
   {
     label: "Completed",

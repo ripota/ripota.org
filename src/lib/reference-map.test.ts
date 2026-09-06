@@ -257,7 +257,7 @@ describe("reference map viewport configuration", () => {
 });
 
 describe("reference map legend", () => {
-  it("groups related event coverage states into concise labels", () => {
+  it("distinguishes single and multiple scheduled coverage by color", () => {
     expect(referenceMapLegendItems).toEqual([
       {
         label: "Help wanted",
@@ -266,8 +266,13 @@ describe("reference map legend", () => {
       },
       {
         label: "Scheduled",
-        statuses: ["scheduled", "multiple-scheduled"],
+        statuses: ["scheduled"],
         color: referenceMapStatusColors.scheduled,
+      },
+      {
+        label: "Multiple scheduled",
+        statuses: ["multiple-scheduled"],
+        color: referenceMapStatusColors["multiple-scheduled"],
       },
       {
         label: "Completed",
@@ -281,10 +286,12 @@ describe("reference map legend", () => {
     expect(displayedReferenceMapLegendItems(["uncovered", "scheduled"]).map((item) => item.label)).toEqual([
       "Help wanted",
       "Scheduled",
+      "Multiple scheduled",
     ]);
     expect(displayedReferenceMapLegendItems(["completed"]).map((item) => item.label)).toEqual([
       "Help wanted",
       "Scheduled",
+      "Multiple scheduled",
       "Completed",
     ]);
   });

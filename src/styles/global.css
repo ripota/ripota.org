@@ -544,6 +544,8 @@ p {
   display: grid;
   gap: 0.25rem;
   min-width: 190px;
+  max-height: 15rem;
+  overflow-y: auto;
   margin: 0.85rem;
   color: #17221f;
   font: 0.92rem/1.35 Inter, ui-sans-serif, system-ui, sans-serif;
@@ -688,7 +690,7 @@ p {
   top: 0.8rem;
   right: 0.8rem;
   display: flex;
-  max-width: min(28rem, calc(100% - 1.6rem));
+  max-width: min(28rem, calc(100% - 5rem));
   flex-wrap: wrap;
   gap: 0.4rem;
   border: 1px solid color-mix(in srgb, var(--border-subtle) 70%, transparent);
@@ -697,6 +699,11 @@ p {
   box-shadow: var(--shadow-soft);
   padding: 0.55rem;
   backdrop-filter: blur(10px);
+}
+
+.reference-map-preview:has(.leaflet-popup) > .map-legend:not(.map-legend--below),
+.ri-reference-map:has(.leaflet-popup) .leaflet-control-zoom {
+  visibility: hidden;
 }
 
 .map-legend--below {
