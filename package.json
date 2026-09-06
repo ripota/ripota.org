@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "packageManager": "npm@11.19.0",
+  "engines": {
+    "node": "^24.0.0"
+  },
   "scripts": {
     "dev": "astro dev",
     "prebuild": "node scripts/guard-turnstile-production.mjs --required",
@@ -15,23 +19,23 @@
     "test:unit": "vitest"
   },
   "devDependencies": {
-    "@astrojs/check": "latest",
-    "@cloudflare/workers-types": "^4.20260616.1",
-    "@playwright/test": "^1.61.0",
-    "@types/leaflet": "^1.9.21",
-    "@types/node": "^25.9.3",
-    "astro": "latest",
+    "@astrojs/check": "^0.9.10",
+    "@cloudflare/workers-types": "^5.20260904.1",
+    "@playwright/test": "^1.62.1",
+    "@types/leaflet": "^1.9.22",
+    "@types/node": "^24.13.3",
+    "astro": "^7.3.1",
     "leaflet": "^1.9.4",
     "pdfjs-dist": "^6.3.289",
-    "typescript": "latest",
-    "vitest": "latest",
-    "wrangler": "latest"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.11",
+    "wrangler": "^4.129.0"
   },
   "dependencies": {
     "@ripota/parks": "https://github.com/ripota/parks/releases/download/v3.1.1/ripota-parks-3.1.1.tgz",
     "@simplewebauthn/browser": "13.3.0",
     "@simplewebauthn/server": "13.3.3",
     "@turf/point-to-polygon-distance": "^7.4.0",
-    "jose": "^6.2.3"
+    "jose": "^6.2.11"
   }
 }

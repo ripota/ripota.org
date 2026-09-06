@@ -106,7 +106,7 @@ export async function startActivateRiServer(
 }
 
 function seedAccountOnlySession(persistTo: string): string {
-  const token = randomBytes(32).toString("hex");
+  const token = Buffer.from(randomBytes(32)).toString("hex");
   const tokenHash = createHash("sha256").update(token).digest("hex");
   const now = new Date();
   const createdAt = now.toISOString();

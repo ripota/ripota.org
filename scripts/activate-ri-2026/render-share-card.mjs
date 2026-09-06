@@ -100,7 +100,7 @@ async function main() {
     await page.addStyleTag({ content: shareCardCss() });
     await waitForShareCardReady(page);
 
-    const hero = page.locator(captureSelector);
+    const hero = page.locator(captureSelector).filter({ visible: true });
     await mkdir(new URL("public/assets/", root), { recursive: true });
     const tempOutputPath = `${outputPath.pathname}.tmp.png`;
     await hero.screenshot({
@@ -237,7 +237,7 @@ async function startPreviewServer() {
     ["astro", "preview", "--host", "127.0.0.1", "--port", String(port)],
     {
       cwd: root.pathname,
-      env: process.env,
+      env: { ...process.env, ASTRO_PREVIEW_BACKGROUND: "0" },
       ...previewProcessOptions(),
       stdio: ["ignore", "pipe", "pipe"],
     },
@@ -290,16 +290,20 @@ async function waitForPreview(child, origin) {
 }
 
 async function waitForShareCardReady(page) {
-  await page.locator(captureSelector).waitFor({ state: "visible", timeout: 20_000 });
-  await page.locator(".event-hero__map .leaflet-container").waitFor({
+  const hero = page.locator(captureSelector).filter({ visible: true });
+  await hero.waitFor({ state: "visible", timeout: 20_000 });
+  await hero.locator(".event-hero__map .leaflet-container").waitFor({
     state: "visible",
     timeout: 20_000,
   });
-  await page.waitForFunction(() => {
-    const scheduled = document.querySelector("[data-hero-scheduled]")?.textContent?.trim();
-    const gaps = document.querySelector("[data-hero-gaps]")?.textContent?.trim();
+  await page.waitForFunction((selector) => {
+    const visibleHero = [...document.querySelectorAll(selector)].find(
+      (element) => element.getClientRects().length > 0,
+    );
+    const scheduled = visibleHero?.querySelector("[data-hero-scheduled]")?.textContent?.trim();
+    const gaps = visibleHero?.querySelector("[data-hero-gaps]")?.textContent?.trim();
     return Boolean(scheduled && gaps && scheduled !== "Loading..." && gaps !== "Loading...");
-  });
+  }, captureSelector);
   await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
 }
 

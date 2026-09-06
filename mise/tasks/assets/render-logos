@@ -7,7 +7,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd -P)"
 LOGO_DIR="$ROOT/public/assets/logos"
 
-npx --yes @resvg/resvg-js-cli \
+npx --yes @resvg/resvg-js-cli@2.6.2-beta.1 \
   --fit-width 1254 \
   "$LOGO_DIR/ri-pota-coastal-signal.svg" \
   "$LOGO_DIR/ri-pota-coastal-signal.png"
