@@ -31,6 +31,8 @@ const parkNames = Object.fromEntries(
 </div>
 
 <script>
+  import { continuesOpsMessageGroup, opsMessageTimeLabel } from "../../lib/activate-ri/ops-presentation";
+
   type RoomMode = "full" | "announcements" | "off";
   type MembershipStatus = "active" | "muted" | "banned";
   type MessageKind = "chat" | "access-note" | "running-late" | "need-backup" | "announcement" | "system";
@@ -322,6 +324,7 @@ const parkNames = Object.fromEntries(
     if (event.type === "message-created") {
       messages.set(event.message.id, event.message);
     } else if (event.type === "message-removed") {
+      if (pinnedMessage?.id === event.messageId) pinnedMessage = null;
       const message = messages.get(event.messageId);
       if (message) {
         messages.set(event.messageId, {
@@ -411,16 +414,24 @@ const parkNames = Object.fromEntries(
 
   function renderFeed(): void {
     if (!feed) return;
+    const openMenus = new Set([...feed.querySelectorAll<HTMLDetailsElement>("details.ops-message__actions[open]")]
+      .map((menu) => menu.closest<HTMLElement>("[data-message-id]")?.dataset.messageId));
+    const focusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const focusedMessageId = focusedElement?.closest<HTMLElement>("[data-message-id]")?.dataset.messageId;
+    const focusedActionName = focusedElement?.dataset.action;
+    const focusedSummary = focusedElement?.tagName === "SUMMARY";
     const nearTop = feed.scrollTop < 40;
     const feedTop = feed.getBoundingClientRect().top;
     const anchor = [...feed.querySelectorAll<HTMLElement>("[data-message-id]")]
-      .find((item) => item.getBoundingClientRect().bottom > feedTop);
+      .find((item) => item.getBoundingClientRect().bottom > feedTop
+        && !messages.get(item.dataset.messageId ?? "")?.removed);
     const anchorOffset = anchor ? anchor.getBoundingClientRect().top - feedTop : 0;
     const filter = selectedFilter();
     const myParks = new Set(upcomingStops.map((stop) => stop.parkReference));
     const visible = [...messages.values()].sort((a, b) =>
       b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id),
     ).filter((message) => {
+      if (message.removed) return false;
       if (filter === "all") return true;
       if (filter === "my-parks") return Boolean(message.parkReference && myParks.has(message.parkReference));
       return message.kind === filter;
@@ -430,17 +441,32 @@ const parkNames = Object.fromEntries(
     window.clearTimeout(seenTimer);
     feed.replaceChildren();
     if (visible.length === 0) {
-      const hasMessages = messages.size > 0;
+      const hasMessages = [...messages.values()].some((message) => !message.removed);
       feed.appendChild(emptyItem(
         hasMessages ? "Nothing in this view." : "You're all caught up.",
         hasMessages
           ? "Choose another filter to see the rest of the room."
           : "Announcements and field updates will appear here as they happen.",
       ));
+      if (focusedMessageId) feed.focus({ preventScroll: true });
       updateUnreadControls();
       return;
     }
-    visible.forEach((message) => feed.appendChild(messageItem(message)));
+    visible.forEach((message, index) => {
+      const previous = visible[index - 1];
+      const continuation = continuesOpsMessageGroup(message, previous)
+        && isUnread(message) === isUnread(previous);
+      const item = messageItem(message, continuation);
+      const menu = item.querySelector<HTMLDetailsElement>("details.ops-message__actions");
+      if (menu && openMenus.has(message.id)) menu.open = true;
+      feed.appendChild(item);
+    });
+    if (focusedMessageId) {
+      const item = feed.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(focusedMessageId)}"]`);
+      const action = focusedSummary ? item?.querySelector<HTMLElement>("summary")
+        : focusedActionName ? item?.querySelector<HTMLElement>(`[data-action="${CSS.escape(focusedActionName)}"]`) : null;
+      (action ?? item ?? feed).focus({ preventScroll: true });
+    }
     if (nearTop) {
       feed.scrollTop = 0;
     } else if (anchor?.dataset.messageId) {
@@ -512,29 +538,52 @@ const parkNames = Object.fromEntries(
     if (feed) feed.scrollTop = 0;
   });
 
-  function messageItem(message: Message): HTMLLIElement {
+  document.addEventListener("click", (event) => {
+    if (!(event.target instanceof Node)) return;
+    for (const menu of feed?.querySelectorAll<HTMLDetailsElement>("details.ops-message__actions[open]") ?? []) {
+      if (!menu.contains(event.target)) menu.open = false;
+    }
+  });
+  feed?.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || !(event.target instanceof Element)) return;
+    const menu = event.target.closest<HTMLDetailsElement>("details.ops-message__actions[open]");
+    if (!menu) return;
+    menu.open = false;
+    menu.querySelector("summary")?.focus();
+    event.preventDefault();
+  });
+
+  function messageItem(message: Message, continuation = false): HTMLLIElement {
     const item = document.createElement("li");
     item.className = `ops-message ops-message--${message.kind}`;
     item.id = `ops-message-${message.id}`;
     item.dataset.messageId = message.id;
     item.dataset.unread = String(isUnread(message));
+    item.dataset.continuation = String(continuation);
     item.tabIndex = -1;
-    if (message.authorActivatorId === activatorId) item.dataset.own = "true";
+    const own = message.authorActivatorId === activatorId;
+    if (own) item.dataset.own = "true";
     const header = document.createElement("div");
-    header.className = "ops-message__header";
+    header.className = `ops-message__header${continuation ? " sr-only" : ""}`;
+    const sender = document.createElement("span");
+    sender.className = "ops-message__sender";
     const author = document.createElement("strong");
     author.textContent = message.authorType === "admin" ? "Organizer" : message.authorLabel;
-    const meta = document.createElement("span");
-    const kind = document.createElement("b");
-    kind.textContent = kindLabel(message.kind);
+    author.title = author.textContent;
+    sender.appendChild(author);
+    if (own) {
+      const you = document.createElement("span");
+      you.className = "ops-message__you";
+      you.textContent = "You";
+      sender.insertBefore(you, author);
+    }
     const time = document.createElement("time");
     time.dateTime = message.createdAt;
-    time.textContent = formatTimestamp(message.createdAt);
-    meta.appendChild(kind);
-    meta.appendChild(document.createTextNode(" · "));
-    meta.appendChild(time);
-    header.appendChild(author);
-    header.appendChild(meta);
+    time.textContent = opsMessageTimeLabel(message.createdAt);
+    time.title = `${formatTimestamp(message.createdAt)} Eastern time`;
+    time.setAttribute("aria-label", time.title);
+    header.appendChild(sender);
+    header.appendChild(time);
     if (isUnread(message)) {
       const unread = document.createElement("span");
       unread.className = "ops-unread-label";
@@ -544,31 +593,39 @@ const parkNames = Object.fromEntries(
     }
     const body = document.createElement("p");
     body.className = "ops-message__body";
-    body.textContent = message.removed ? "Message removed." : message.body;
+    body.textContent = message.body;
     const content = document.createElement("div");
     content.className = "ops-message__content";
     item.appendChild(header);
     content.appendChild(body);
-    if (message.parkReference) {
+    if (message.kind !== "chat" || message.parkReference || message.resolved) {
       const context = document.createElement("p");
       context.className = "ops-meta";
-      context.textContent = `${message.parkReference} — ${parkNames[message.parkReference] ?? "RI park"}`;
+      const labels: string[] = [];
+      if (message.kind !== "chat") labels.push(kindLabel(message.kind));
+      if (message.parkReference) labels.push(`${message.parkReference} — ${parkNames[message.parkReference] ?? "RI park"}`);
+      if (message.resolved) labels.push("Resolved");
+      context.textContent = labels.join(" · ");
+      context.title = context.textContent;
+      if (continuation) context.classList.add("sr-only");
       content.appendChild(context);
     }
     item.appendChild(content);
-    if (message.resolved) {
-      const resolved = document.createElement("span");
-      resolved.className = "ops-badge";
-      resolved.textContent = "Resolved";
-      item.appendChild(resolved);
-    }
-    if (!message.removed && message.authorActivatorId === activatorId) {
-      const actions = document.createElement("div");
+    if (own) {
+      const actions = document.createElement("details");
       actions.className = "ops-message__actions";
+      const toggle = document.createElement("summary");
+      toggle.textContent = "⋯";
+      toggle.setAttribute("aria-label", "Message actions");
+      toggle.title = "Message actions";
+      actions.appendChild(toggle);
+      const buttons = document.createElement("div");
+      buttons.className = "ops-message__action-menu";
       if (message.kind === "need-backup" || message.kind === "access-note") {
-        actions.appendChild(messageAction(message, message.resolved ? "Reopen" : "Resolve", message.resolved ? "reopen" : "resolve"));
+        buttons.appendChild(messageAction(message, message.resolved ? "Reopen" : "Resolve", message.resolved ? "reopen" : "resolve"));
       }
-      actions.appendChild(messageAction(message, "Remove", "remove"));
+      buttons.appendChild(messageAction(message, "Remove", "remove"));
+      actions.appendChild(buttons);
       item.appendChild(actions);
     }
     return item;
@@ -741,6 +798,7 @@ const parkNames = Object.fromEntries(
     button.className = "button";
     button.dataset.variant = "light";
     button.textContent = label;
+    button.dataset.action = action;
     button.addEventListener("click", async () => {
       button.disabled = true;
       try {
@@ -897,6 +955,10 @@ const parkNames = Object.fromEntries(
 
   function updateComposeSummary(): void {
     if (!composeOptionsSummary) return;
+    if (kindSelect?.value === "chat" && !contextSelect?.value) {
+      composeOptionsSummary.textContent = "Add park or update type";
+      return;
+    }
     const kind = kindSelect?.selectedOptions[0]?.textContent?.trim() || "General update";
     const context = contextSelect?.selectedOptions[0]?.textContent?.trim() || "No park context";
     composeOptionsSummary.textContent = `${kind} · ${context}`;

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "./env";
 import { ActivateRiOpsRoom } from "./durable-objects/activate-ri-ops-room";
 import { handleActivateRiApi } from "./routes/activate-ri";
+import { createAdminOpsMessage, moderateOpsMessage } from "./ops-db";
 import { createMigratedSqliteD1 } from "./test-utils/sqlite-d1";
 
 let closeDatabase: (() => void) | undefined;
@@ -178,6 +179,75 @@ describe("Activate RI Ops Room D1 flow", () => {
         { type: "message-reopened" },
         { type: "message-removed", removedBy: "author" },
       ],
+    });
+  });
+
+  it("fills participant history with 50 surviving messages while retaining moderation records and cursors", async () => {
+    const database = createMigratedSqliteD1();
+    closeDatabase = database.close;
+    const env = testEnv(database.DB);
+    const { cookie } = await approvedActivator(env);
+    const mode = await handleActivateRiApi(adminRequest("/api/activate-ri-2026/admin/ops/settings", {
+      method: "PATCH", headers: jsonHeaders(), body: JSON.stringify({ roomMode: "full" }),
+    }), env);
+    expect(mode.status).toBe(200);
+
+    const survivingIds: string[] = [];
+    const removedIds: string[] = [];
+    let cursor = 0;
+    // All of the newest 50 records are removed; 51 older messages remain available.
+    for (let index = 0; index < 101; index += 1) {
+      const createdAt = new Date(Date.UTC(2026, 8, 7, 12, index)).toISOString();
+      const created = await createAdminOpsMessage(env, "admin:organizer@example.com", "Organizer", {
+        clientNonce: crypto.randomUUID(), kind: "chat", body: `Room update ${index}`, context: null,
+      }, createdAt);
+      if (created?.type !== "message-created") throw new Error("Expected a seeded room message");
+      cursor = created.sequence;
+      if (index < 51) {
+        survivingIds.push(created.message.id);
+      } else {
+        removedIds.push(created.message.id);
+        const removed = await moderateOpsMessage(env, created.message.id, "remove", "organizer@example.com", "Superseded update", createdAt);
+        if (removed?.type !== "message-removed") throw new Error("Expected a removal event");
+        cursor = removed.sequence;
+      }
+    }
+
+    const bootstrap = await handleActivateRiApi(sessionRequest("/api/activate-ri-2026/ops/bootstrap", cookie), env);
+    const initial = await bootstrap.json() as { cursor: number; messages: Array<{ id: string; removed: boolean }> };
+    expect(initial.messages.map((message) => message.id)).toEqual(survivingIds.slice(1));
+    expect(initial.messages.every((message) => !message.removed)).toBe(true);
+    expect(initial.cursor).toBe(cursor);
+
+    const admin = await handleActivateRiApi(adminRequest("/api/activate-ri-2026/admin/ops"), env);
+    const moderation = await admin.json() as typeof initial;
+    expect(moderation.messages).toHaveLength(100);
+    expect(moderation.messages.filter((message) => message.removed).map((message) => message.id).sort()).toEqual([...removedIds].sort());
+    expect(moderation.cursor).toBe(cursor);
+    const history = await handleActivateRiApi(sessionRequest(
+      `/api/activate-ri-2026/ops/events?after=0&through=${cursor}&limit=250`, cookie,
+    ), env);
+    const events = await history.json() as { events: Array<{ sequence: number; type: string }>; nextCursor: number };
+    expect(events.events.filter((event) => event.type === "message-removed")).toHaveLength(50);
+    expect(events.nextCursor).toBe(cursor);
+
+    const removedId = survivingIds.at(-1)!;
+    const remove = await handleActivateRiApi(adminRequest(`/api/activate-ri-2026/admin/ops/messages/${removedId}/remove`, {
+      method: "POST", headers: jsonHeaders(), body: JSON.stringify({ reason: "Another superseded update" }),
+    }), env);
+    expect(remove.status).toBe(200);
+    const removal = await remove.json() as { event: { sequence: number; type: string; messageId: string } };
+    expect(removal.event).toMatchObject({ type: "message-removed", messageId: removedId, sequence: cursor + 1 });
+    const refreshed = await handleActivateRiApi(sessionRequest("/api/activate-ri-2026/ops/bootstrap", cookie), env);
+    const afterRemoval = await refreshed.json() as typeof initial;
+    expect(afterRemoval.messages.map((message) => message.id)).toEqual(survivingIds.slice(0, -1));
+    expect(afterRemoval.cursor).toBe(removal.event.sequence);
+    const catchup = await handleActivateRiApi(sessionRequest(
+      `/api/activate-ri-2026/ops/events?after=${cursor}&through=${removal.event.sequence}`, cookie,
+    ), env);
+    await expect(catchup.json()).resolves.toMatchObject({
+      events: [{ type: "message-removed", messageId: removedId, sequence: removal.event.sequence }],
+      nextCursor: removal.event.sequence, hasMore: false,
     });
   });
 

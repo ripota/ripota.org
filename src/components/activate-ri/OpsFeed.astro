@@ -6,7 +6,7 @@ import OpsComposer from "./OpsComposer.astro";
   <div class="ops-card__heading">
     <div>
       <p class="eyebrow">Newest first</p>
-      <h2 id="ops-feed-title">Room updates</h2>
+      <h2 id="ops-feed-title">Room chat</h2>
     </div>
     <div class="ops-feed-navigation">
       <button class="button" data-variant="light" type="button" data-ops-unread hidden>Jump to unread</button>
@@ -23,7 +23,7 @@ import OpsComposer from "./OpsComposer.astro";
     <label><input type="radio" name="ops-filter" value="access-note" /> Access</label>
     <label><input type="radio" name="ops-filter" value="my-parks" /> My parks</label>
   </fieldset>
-  <ol class="ops-feed" data-ops-feed aria-live="polite" aria-relevant="additions text">
+  <ol class="ops-feed" data-ops-feed tabindex="-1" aria-label="Room messages" aria-live="polite" aria-relevant="additions text">
     <li class="ops-empty ops-empty--room">
       <strong>Opening the room…</strong>
       <span>Recent announcements and field updates will appear here.</span>

@@ -116,7 +116,7 @@ export async function getOpsBootstrap(
       ).bind(env.ACTIVATE_RI_EVENT_ID),
       env.DB.prepare(
         `${messageSelectSql}
-         WHERE event_id = ?
+         WHERE event_id = ? AND removed_at IS NULL
          ORDER BY created_at DESC, id DESC
          LIMIT 50`,
       ).bind(env.ACTIVATE_RI_EVENT_ID),

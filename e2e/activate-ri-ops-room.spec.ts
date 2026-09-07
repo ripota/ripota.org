@@ -251,9 +251,21 @@ test("approved activators acknowledge rules and exchange a live room message", a
     const messageCard = admin.locator("[data-admin-ops-messages] .admin-card").filter({
       hasText: "Checking in from Beavertail.",
     });
+    const removedMessageId = await second.locator("[data-ops-feed] > li").filter({
+      hasText: "Checking in from Beavertail.",
+    }).getAttribute("data-message-id");
+    expect(removedMessageId).toBeTruthy();
     admin.once("dialog", (dialog) => dialog.accept("Superseded during E2E."));
     await messageCard.getByRole("button", { name: "Remove" }).click();
-    await expect(second.locator("[data-ops-feed]")).toContainText("Message removed.");
+    await expect(second.locator(`[data-message-id="${removedMessageId}"]`)).toHaveCount(0);
+    await second.reload();
+    await expect(second.locator("[data-ops-connection-label]")).toHaveText("Live");
+    await expect(second.locator(`[data-message-id="${removedMessageId}"]`)).toHaveCount(0);
+    await expect(second.locator("[data-ops-feed]")).not.toContainText("Message removed.");
+    const removalRecord = admin.locator("[data-admin-ops-messages] .admin-card").filter({ hasText: "Message removed." });
+    await expect(removalRecord).toHaveCount(1);
+    await expect(removalRecord).toContainText(`${callsign} - Field Operator`);
+    await expect(removalRecord.getByRole("button", { name: "Remove" })).toHaveCount(0);
 
     await admin.getByRole("tab", { name: /People/ }).click();
     const memberCard = admin.locator("[data-admin-ops-members] .admin-card").filter({
