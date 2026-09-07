@@ -206,6 +206,178 @@ describe("Activate RI Ops Room D1 flow", () => {
     expect(membership?.status).toBe("muted");
   });
 
+  it("migrates existing chat profiles with the first-name default and saves independent display names", async () => {
+    const database = createMigratedSqliteD1({ through: "0023_ops_notification_categories.sql" });
+    closeDatabase = database.close;
+    const env = testEnv(database.DB);
+    const { cookie, activatorId } = await approvedActivator(env);
+    database.applyMigrationFile("0024_ops_chat_display_name.sql");
+    const path = "/api/activate-ri-2026/ops/profile";
+
+    const initial = await handleActivateRiApi(sessionRequest(path, cookie), env);
+    expect(initial.status).toBe(200);
+    expect(initial.headers.get("cache-control")).toBe("private, no-store");
+    await expect(initial.json()).resolves.toEqual({
+      ok: true, callsign: "N1RWJ", displayName: "Rob", authorLabel: "N1RWJ - Rob",
+    });
+    env.ACTIVATE_RI_OPS_HARD_DISABLED = "true";
+    for (const [input, displayName] of [["  Rob J.  ", "Rob J."], ["   ", ""], [null, "Rob"]] as const) {
+      const changed = await handleActivateRiApi(sessionRequest(path, cookie, {
+        method: "PATCH", headers: jsonHeaders(), body: JSON.stringify({ displayName: input }),
+      }), env);
+      const expected = {
+        ok: true, callsign: "N1RWJ", displayName,
+        authorLabel: displayName ? `N1RWJ - ${displayName}` : "N1RWJ",
+      };
+      expect(changed.status).toBe(200);
+      await expect(changed.json()).resolves.toEqual(expected);
+      const reloaded = await handleActivateRiApi(sessionRequest(path, cookie), env);
+      await expect(reloaded.json()).resolves.toEqual(expected);
+      await expect(env.DB.prepare(
+        `SELECT chat_display_name FROM activate_ri_ops_memberships WHERE event_id = ? AND activator_id = ?`,
+      ).bind(env.ACTIVATE_RI_EVENT_ID, activatorId).first()).resolves.toEqual({
+        chat_display_name: input === null ? null : displayName,
+      });
+    }
+    await expect(env.DB.prepare(
+      `SELECT name FROM activate_ri_activators WHERE id = ?`,
+    ).bind(activatorId).first()).resolves.toEqual({ name: "Rob Jackson" });
+    await env.DB.prepare(`UPDATE activate_ri_activators SET name = 'n1rwj' WHERE id = ?`).bind(activatorId).run();
+    const callsignDefault = await handleActivateRiApi(sessionRequest(path, cookie), env);
+    await expect(callsignDefault.json()).resolves.toEqual({
+      ok: true, callsign: "N1RWJ", displayName: "", authorLabel: "N1RWJ",
+    });
+  });
+
+  it("validates chat profiles before changing their saved names", async () => {
+    const database = createMigratedSqliteD1();
+    closeDatabase = database.close;
+    const env = testEnv(database.DB);
+    const { cookie } = await approvedActivator(env);
+    const path = "/api/activate-ri-2026/ops/profile";
+    const invalidPayloads: unknown[] = [
+      null, [], "Rob", {}, { displayName: 123 }, { displayName: false }, { displayName: {} },
+      { displayName: "R".repeat(41) }, { displayName: "Rob\nJackson" }, { displayName: "Rob\rJackson" },
+      { displayName: "\tRob" }, { displayName: "Rob\u0000" }, { displayName: "Rob\u007f" },
+      { displayName: "Rob\u0085" }, { displayName: "Rob\u2028Jackson" }, { displayName: "Rob\u2029Jackson" },
+    ];
+    for (const payload of invalidPayloads) {
+      const response = await handleActivateRiApi(sessionRequest(path, cookie, {
+        method: "PATCH", headers: jsonHeaders(), body: JSON.stringify(payload),
+      }), env);
+      expect(response.status, JSON.stringify(payload)).toBe(400);
+    }
+    const malformed = await handleActivateRiApi(sessionRequest(path, cookie, {
+      method: "PATCH", headers: jsonHeaders(), body: "{",
+    }), env);
+    expect(malformed.status).toBe(400);
+    const wrongContentType = await handleActivateRiApi(sessionRequest(path, cookie, {
+      method: "PATCH", headers: { origin: "https://ripota.org" }, body: JSON.stringify({ displayName: "Rob" }),
+    }), env);
+    expect(wrongContentType.status).toBe(415);
+    const unchanged = await handleActivateRiApi(sessionRequest(path, cookie), env);
+    await expect(unchanged.json()).resolves.toMatchObject({ displayName: "Rob" });
+    const limit = await handleActivateRiApi(sessionRequest(path, cookie, {
+      method: "PATCH", headers: jsonHeaders(), body: JSON.stringify({ displayName: ` ${"É".repeat(40)} ` }),
+    }), env);
+    expect(limit.status).toBe(200);
+    await expect(limit.json()).resolves.toMatchObject({ displayName: "É".repeat(40) });
+  });
+
+  it("scopes chat profile access to the authenticated activator's event membership and trusted origin", async () => {
+    const database = createMigratedSqliteD1();
+    closeDatabase = database.close;
+    const env = testEnv(database.DB);
+    const { cookie, activatorId } = await approvedActivator(env);
+    const other = await approvedActivator(env, {
+      submitterCallsign: "K1ABC", submitterName: "María Rivera", submitterEmail: "maria@example.com",
+    });
+    const path = "/api/activate-ri-2026/ops/profile";
+    await env.DB.prepare(
+      `INSERT INTO activate_ri_ops_memberships (event_id, activator_id, status, created_at, updated_at, chat_display_name)
+       VALUES ('another-event', ?, 'active', '2026-09-01', '2026-09-01', 'Other event')`,
+    ).bind(activatorId).run();
+    for (const method of ["GET", "PATCH"]) {
+      const init = method === "PATCH"
+        ? { method, headers: jsonHeaders(), body: JSON.stringify({ displayName: "Changed" }) }
+        : {};
+      const unauthenticated = await handleActivateRiApi(new Request(`https://ripota.org${path}`, init), env);
+      expect(unauthenticated.status).toBe(401);
+      const wrongEvent = await handleActivateRiApi(sessionRequest(path, cookie, init), {
+        ...env, ACTIVATE_RI_EVENT_ID: "another-event" as Env["ACTIVATE_RI_EVENT_ID"],
+      });
+      expect(wrongEvent.status).toBe(401);
+    }
+    for (const origin of ["https://attacker.example", "https://ripota.org.attacker.example", null]) {
+      const headers = new Headers(jsonHeaders());
+      if (origin === null) headers.delete("origin");
+      else headers.set("origin", origin);
+      headers.set("cookie", cookie);
+      const forbidden = await handleActivateRiApi(new Request(`https://ripota.org${path}`, {
+        method: "PATCH", headers, body: JSON.stringify({ displayName: "Changed" }),
+      }), env);
+      expect(forbidden.status).toBe(403);
+    }
+    const saved = await handleActivateRiApi(sessionRequest(path, cookie, {
+      method: "PATCH", headers: jsonHeaders(),
+      body: JSON.stringify({ displayName: "Rob J.", activatorId: other.activatorId, eventId: "another-event", callsign: "K1FAKE" }),
+    }), env);
+    await expect(saved.json()).resolves.toEqual({
+      ok: true, callsign: "N1RWJ", displayName: "Rob J.", authorLabel: "N1RWJ - Rob J.",
+    });
+    const otherProfile = await handleActivateRiApi(sessionRequest(path, other.cookie), env);
+    await expect(otherProfile.json()).resolves.toMatchObject({ callsign: "K1ABC", displayName: "María" });
+    await expect(env.DB.prepare(
+      `SELECT chat_display_name FROM activate_ri_ops_memberships WHERE event_id = 'another-event' AND activator_id = ?`,
+    ).bind(activatorId).first()).resolves.toEqual({ chat_display_name: "Other event" });
+    const unsupported = await handleActivateRiApi(sessionRequest(path, cookie, { method: "DELETE" }), env);
+    expect(unsupported.status).toBe(405);
+    await env.DB.prepare(
+      `DELETE FROM activate_ri_ops_memberships WHERE event_id = ? AND activator_id = ?`,
+    ).bind(env.ACTIVATE_RI_EVENT_ID, activatorId).run();
+    for (const method of ["GET", "PATCH"]) {
+      const missingMembership = await handleActivateRiApi(sessionRequest(path, cookie, {
+        method, headers: jsonHeaders(),
+        ...(method === "PATCH" ? { body: JSON.stringify({ displayName: "Changed" }) } : {}),
+      }), env);
+      expect(missingMembership.status).toBe(403);
+    }
+  });
+
+  it("attributes new messages to the complete saved chat name without rewriting earlier messages", async () => {
+    const database = createMigratedSqliteD1();
+    closeDatabase = database.close;
+    const env = testEnv(database.DB);
+    const { cookie } = await approvedActivator(env);
+    const mode = await handleActivateRiApi(adminRequest("/api/activate-ri-2026/admin/ops/settings", {
+      method: "PATCH", headers: jsonHeaders(), body: JSON.stringify({ roomMode: "full" }),
+    }), env);
+    expect(mode.status).toBe(200);
+    const rules = await handleActivateRiApi(sessionRequest("/api/activate-ri-2026/ops/rules/accept", cookie, {
+      method: "POST", headers: jsonHeaders(), body: "{}",
+    }), env);
+    expect(rules.status).toBe(200);
+    const expectedLabels = ["N1RWJ - Rob", "N1RWJ - Rob J.", "N1RWJ"];
+    for (const [index, displayName] of [null, "Rob J.", ""].entries()) {
+      const saved = await handleActivateRiApi(sessionRequest("/api/activate-ri-2026/ops/profile", cookie, {
+        method: "PATCH", headers: jsonHeaders(), body: JSON.stringify({ displayName }),
+      }), env);
+      expect(saved.status).toBe(200);
+      const posted = await handleActivateRiApi(sessionRequest("/api/activate-ri-2026/ops/messages", cookie, {
+        method: "POST", headers: jsonHeaders(), body: JSON.stringify({
+          clientNonce: crypto.randomUUID(), kind: "chat", body: `Message ${index + 1}`, context: null,
+          authorLabel: "K1FAKE - Spoofed",
+        }),
+      }), env);
+      expect(posted.status).toBe(200);
+      await expect(posted.json()).resolves.toMatchObject({ event: { message: { authorLabel: expectedLabels[index] } } });
+    }
+    const bootstrap = await handleActivateRiApi(sessionRequest("/api/activate-ri-2026/ops/bootstrap", cookie), env);
+    await expect(bootstrap.json()).resolves.toMatchObject({ messages: expectedLabels.map((authorLabel, index) => ({
+      body: `Message ${index + 1}`, authorLabel,
+    })) });
+  });
+
   it("lets authenticated organizers rehearse in the live room without participant records", async () => {
     const database = createMigratedSqliteD1();
     closeDatabase = database.close;
@@ -536,14 +708,15 @@ describe("Activate RI Ops Room D1 flow", () => {
   });
 });
 
-async function approvedActivator(env: Env): Promise<{
+async function approvedActivator(env: Env, overrides: Partial<ReturnType<typeof volunteerPayload>> = {}): Promise<{
   cookie: string;
   activatorId: string;
   editToken: string;
 }> {
+  const payload = { ...volunteerPayload(), ...overrides };
   const submit = await handleActivateRiApi(jsonRequest(
     "/api/activate-ri-2026/plans",
-    volunteerPayload(),
+    payload,
   ), env);
   const submitBody = await submit.json() as { editUrl: string };
   const token = new URL(submitBody.editUrl).hash.slice(1);
@@ -552,8 +725,8 @@ async function approvedActivator(env: Env): Promise<{
     adminRequest("/api/activate-ri-2026/admin/plans"),
     env,
   );
-  const plansBody = await plans.json() as { plans: Array<{ id: string }> };
-  const activatorId = plansBody.plans[0].id;
+  const plansBody = await plans.json() as { plans: Array<{ id: string; submitter_email: string }> };
+  const activatorId = plansBody.plans.find((plan) => plan.submitter_email === payload.submitterEmail)!.id;
   const approval = await handleActivateRiApi(
     adminRequest(`/api/activate-ri-2026/admin/plans/${encodeURIComponent(activatorId)}/approve`, {
       method: "POST",

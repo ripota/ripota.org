@@ -86,7 +86,7 @@ The separate desktop/mobile park and public-event browser checks are:
 mise run e2e:parks
 ```
 
-Playwright needs Chromium installed (`mise exec -- npx playwright install chromium`).
+Playwright needs Chromium and WebKit installed (`mise exec -- npx playwright install chromium webkit`). The Ops Room test uses WebKit with an iPhone viewport to check mobile chat.
 The suite also needs network access to load the Cloudflare Turnstile test widget.
 `mise run build` uses the local build wrapper and outputs Astro assets to `dist/`;
 the deployment build requires the real production Turnstile site key.

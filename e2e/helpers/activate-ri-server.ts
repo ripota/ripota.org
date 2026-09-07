@@ -6,6 +6,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { once } from "node:events";
 import { cpSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
+import { get as httpsGet } from "node:https";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -19,7 +20,7 @@ export type ActivateRiServer = {
 };
 
 export async function startActivateRiServer(
-  options: { legacyLinkIssuanceEnabled?: boolean; seedAccountOnly?: boolean } = {},
+  options: { legacyLinkIssuanceEnabled?: boolean; seedAccountOnly?: boolean; https?: boolean } = {},
 ): Promise<ActivateRiServer> {
   const port = await freePort();
   const inspectorPort = await freePort(port);
@@ -37,6 +38,8 @@ export async function startActivateRiServer(
     "--inspector-port",
     String(inspectorPort),
     "--local",
+    "--local-protocol",
+    options.https ? "https" : "http",
     "--persist-to",
     persistTo,
   ];
@@ -63,7 +66,7 @@ export async function startActivateRiServer(
     logs.value += chunk.toString();
   });
 
-  const origin = `http://localhost:${port}`;
+  const origin = `${options.https ? "https" : "http"}://localhost:${port}`;
   try {
     await waitForServerReady(child, origin, logs);
   } catch (error) {
@@ -220,8 +223,7 @@ async function waitForServerReady(
     }
 
     try {
-      const response = await fetch(`${origin}/api/activate-ri-2026/health`);
-      if (response.ok) {
+      if (await serverIsHealthy(origin)) {
         return;
       }
     } catch {
@@ -233,6 +235,20 @@ async function waitForServerReady(
 
   child.kill("SIGTERM");
   throw new Error(`Timed out waiting for wrangler dev:\n${logs.value}`);
+}
+
+async function serverIsHealthy(origin: string): Promise<boolean> {
+  const url = `${origin}/api/activate-ri-2026/health`;
+  if (!origin.startsWith("https:")) return (await fetch(url)).ok;
+  // Wrangler's loopback HTTPS server uses a self-signed development certificate.
+  return new Promise((resolve) => {
+    const request = httpsGet(url, { rejectUnauthorized: false }, (response) => {
+      response.resume();
+      resolve(response.statusCode === 200);
+    });
+    request.on("error", () => resolve(false));
+    request.setTimeout(1000, () => { request.destroy(); resolve(false); });
+  });
 }
 
 async function freePort(excludedPort?: number): Promise<number> {

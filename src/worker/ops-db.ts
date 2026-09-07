@@ -15,6 +15,7 @@ type MembershipRow = {
   status: OpsMembershipStatus;
   accepted_rules_version: string | null;
   accepted_rules_at: string | null;
+  chat_display_name: string | null;
 };
 
 type SettingsRow = {
@@ -73,7 +74,7 @@ export async function getOpsAccess(
 ): Promise<OpsAccess | null> {
   const [membershipResult, settingsResult] = await env.DB.batch([
     env.DB.prepare(
-      `SELECT status, accepted_rules_version, accepted_rules_at
+      `SELECT status, accepted_rules_version, accepted_rules_at, chat_display_name
        FROM activate_ri_ops_memberships
        WHERE event_id = ? AND activator_id = ?`,
     ).bind(env.ACTIVATE_RI_EVENT_ID, activatorId),
@@ -105,7 +106,7 @@ export async function getOpsBootstrap(
   const [accessResult, settingsResult, messagesResult, pinResult, stopsResult, cursorResult] =
     await env.DB.batch([
       env.DB.prepare(
-        `SELECT status, accepted_rules_version, accepted_rules_at
+        `SELECT status, accepted_rules_version, accepted_rules_at, chat_display_name
          FROM activate_ri_ops_memberships
          WHERE event_id = ? AND activator_id = ?`,
       ).bind(env.ACTIVATE_RI_EVENT_ID, activatorId),

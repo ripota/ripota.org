@@ -14,6 +14,7 @@ import OpsComposer from "./OpsComposer.astro";
       <button class="button" data-variant="light" type="button" data-ops-refresh aria-label="Refresh room updates">↻</button>
     </div>
   </div>
+  <OpsComposer />
   <fieldset class="ops-filters" data-ops-filters>
     <legend class="sr-only">Filter room updates</legend>
     <label><input type="radio" name="ops-filter" value="all" checked /> All</label>
@@ -28,6 +29,5 @@ import OpsComposer from "./OpsComposer.astro";
       <span>Recent announcements and field updates will appear here.</span>
     </li>
   </ol>
-  <OpsComposer />
   <p class="sr-only" data-ops-unread-status aria-live="polite"></p>
 </section>

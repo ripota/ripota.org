@@ -4484,6 +4484,13 @@ p {
   font-size: 0.82rem;
 }
 
+.ops-room__statusbar > .button {
+  width: auto;
+  min-height: 44px;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.82rem;
+}
+
 .ops-connection {
   padding: 0.32rem 0.62rem;
   font-size: 0.82rem;
@@ -4575,7 +4582,7 @@ p {
 .ops-feed-card {
   height: clamp(36rem, calc(100dvh - 14.5rem), 48rem);
   min-height: 0;
-  grid-template-rows: auto auto minmax(12rem, 1fr) auto;
+  grid-template-rows: auto auto auto minmax(12rem, 1fr);
 }
 
 .ops-feed-card > *,
@@ -4804,7 +4811,7 @@ p {
 
 .ops-feed-card:has([data-ops-options][open]) {
   height: auto;
-  grid-template-rows: auto auto minmax(12rem, 30dvh) auto;
+  grid-template-rows: auto auto auto minmax(12rem, 30dvh);
 }
 
 .ops-compose-help {
@@ -5033,6 +5040,42 @@ p {
   color: var(--text-primary);
 }
 
+.ops-settings__fields {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+
+.ops-settings__fields label {
+  font-weight: 800;
+}
+
+.ops-settings__fields input,
+.ops-settings__fields select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 0.65rem;
+  background: var(--surface-page);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 1rem;
+}
+
+.ops-settings__fields p {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.ops-settings__preview {
+  margin-bottom: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 820px) {
   .site-header[data-compact="true"] {
     height: 3.25rem;
@@ -5209,6 +5252,7 @@ p {
 
   .ops-room__statusbar {
     width: 100%;
+    gap: 0.4rem;
   }
 
   .ops-room__statusbar .ops-connection {
@@ -5236,7 +5280,7 @@ p {
 
   .ops-feed-card {
     height: clamp(30rem, calc(100dvh - 10rem), 45rem);
-    grid-template-rows: auto auto minmax(8rem, 1fr) auto;
+    grid-template-rows: auto auto auto minmax(8rem, 1fr);
     gap: 0.5rem;
     padding: 0.68rem;
   }
@@ -5307,6 +5351,7 @@ p {
 
   .ops-composer__message textarea {
     min-height: 2.9rem;
+    font-size: 1rem;
   }
 
   .ops-compose-options__fields {
@@ -5324,7 +5369,12 @@ p {
   .ops-stops-card {
     margin-top: 0;
     height: 100%;
-    padding: 0.62rem 0.72rem;
+    padding: 0.5rem;
+  }
+
+  .ops-stops-disclosure summary {
+    min-height: 44px;
+    gap: 0.35rem;
   }
 
   .ops-stops-card .eyebrow {

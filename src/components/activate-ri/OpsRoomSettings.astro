@@ -1,0 +1,186 @@
+<dialog class="ops-rules ops-settings" data-ops-settings aria-labelledby="ops-rules-title">
+  <form data-ops-rules-form>
+    <p class="eyebrow">Welcome · Step 1 of 2</p>
+    <h2 id="ops-rules-title" tabindex="-1">Coordinate clearly. Operate safely.</h2>
+    <div class="ops-rules__points">
+      <p><strong>Keep it operational.</strong> Share access, timing, and coverage updates—not private contact information.</p>
+      <p><strong>Stay safe.</strong> Never use the room while driving. For emergencies, contact 911 or the appropriate local authority.</p>
+      <p><strong>Expect moderation.</strong> Approved activators and organizers can see stored messages; organizers may remove them.</p>
+      <p><strong>Use official sources.</strong> POTA resources remain authoritative for rules, references, spots, accounts, and logs.</p>
+    </div>
+    <div class="form-actions">
+      <button class="button" data-variant="primary" type="submit">Agree and review settings</button>
+      <a class="button" data-variant="light" href="/activate-ri-2026/activator/plan/">Back to my plan</a>
+    </div>
+  </form>
+  <form data-ops-settings-form hidden>
+    <p class="eyebrow" data-ops-settings-step>Your preferences</p>
+    <h2 id="ops-settings-title" tabindex="-1">Your room settings</h2>
+    <p>Choose how you appear and which emails you receive. You can change these anytime in Settings.</p>
+    <fieldset class="ops-settings__fields" data-ops-settings-fields disabled>
+      <label for="ops-display-name">Name to show in chat</label>
+      <input id="ops-display-name" name="displayName" type="text" maxlength="40" autocomplete="nickname" aria-describedby="ops-name-help ops-name-preview" />
+      <p id="ops-name-help">Your callsign is always included. Leave the name blank to use just your callsign. This changes the name on future room messages.</p>
+      <p class="ops-settings__preview" id="ops-name-preview" aria-live="polite">Posting as <strong data-ops-name-preview>…</strong></p>
+      <label for="ops-email-mode">Ops Room emails</label>
+      <select id="ops-email-mode" name="emailMode" aria-describedby="ops-email-help">
+        <option value="announcements">Organizer announcements only</option>
+        <option value="all">Announcements and every new message</option>
+        <option value="off">No Ops Room emails</option>
+      </select>
+      <p id="ops-email-help">Announcements are emailed when organizers choose to send them. Chat alerts include messages from other people. Account sign-in and plan emails are separate.</p>
+    </fieldset>
+    <p class="form-status" data-ops-settings-status aria-live="polite">Loading settings…</p>
+    <button class="button" data-variant="light" type="button" data-ops-settings-retry hidden>Try loading again</button>
+    <div class="form-actions">
+      <button class="button" data-variant="primary" type="submit" data-ops-settings-save disabled>Save settings</button>
+      <button class="button" data-variant="light" type="button" data-ops-settings-back>Cancel</button>
+    </div>
+  </form>
+</dialog>
+<p class="sr-only" data-ops-settings-saved aria-live="polite"></p>
+
+<script>
+  import { opsActivatorAuthorLabel } from "../../lib/activate-ri/ops-author";
+
+  type Profile = { callsign: string; displayName: string; authorLabel: string };
+  type Preferences = { emailEnabled: boolean; chatMessages: boolean };
+  const dialog = document.querySelector<HTMLDialogElement>("[data-ops-settings]");
+  const rulesForm = dialog?.querySelector<HTMLFormElement>("[data-ops-rules-form]");
+  const form = dialog?.querySelector<HTMLFormElement>("[data-ops-settings-form]");
+  const fields = form?.querySelector<HTMLFieldSetElement>("[data-ops-settings-fields]");
+  const name = form?.querySelector<HTMLInputElement>('[name="displayName"]');
+  const emailMode = form?.querySelector('[name="emailMode"]') as HTMLSelectElement | null | undefined;
+  const preview = form?.querySelector<HTMLElement>("[data-ops-name-preview]");
+  const status = form?.querySelector<HTMLElement>("[data-ops-settings-status]");
+  const save = form?.querySelector<HTMLButtonElement>("[data-ops-settings-save]");
+  const back = form?.querySelector<HTMLButtonElement>("[data-ops-settings-back]");
+  const retry = form?.querySelector<HTMLButtonElement>("[data-ops-settings-retry]");
+  let needsRules = false;
+  let busy = false;
+  let loaded = false;
+  let callsign = "";
+
+  document.querySelector("[data-ops-open-settings]")?.addEventListener("click", () => openSettings(false));
+  window.addEventListener("activate-ri:ops-setup", () => openSettings(true));
+  rulesForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    showStep(false);
+  });
+  name?.addEventListener("input", updatePreview);
+  retry?.addEventListener("click", () => void loadSettings());
+  back?.addEventListener("click", () => {
+    if (busy) return;
+    if (needsRules) showStep(true);
+    else dialog?.close();
+  });
+  dialog?.addEventListener("cancel", (event) => {
+    if (busy || needsRules) event.preventDefault();
+  });
+
+  function openSettings(welcome: boolean): void {
+    if (!dialog || dialog.open) return;
+    needsRules = welcome;
+    loaded = false;
+    form?.querySelector("[data-ops-settings-step]")?.replaceChildren(welcome ? "Welcome · Step 2 of 2" : "Your preferences");
+    save?.replaceChildren(welcome ? "Save and enter the Ops Room" : "Save settings");
+    back?.replaceChildren(welcome ? "Back to rules" : "Cancel");
+    showStep(welcome);
+    dialog.showModal();
+    focusHeading();
+    void loadSettings();
+  }
+
+  function showStep(rules: boolean): void {
+    if (rulesForm) rulesForm.hidden = !rules;
+    if (form) form.hidden = rules;
+    dialog?.setAttribute("aria-labelledby", rules ? "ops-rules-title" : "ops-settings-title");
+    if (dialog) dialog.scrollTop = 0;
+    if (form) form.scrollTop = 0;
+    if (dialog?.open) focusHeading();
+  }
+
+  function focusHeading(): void {
+    dialog?.querySelector<HTMLElement>(`#${dialog.getAttribute("aria-labelledby")}`)?.focus({ preventScroll: true });
+  }
+
+  async function loadSettings(): Promise<void> {
+    loaded = false;
+    setBusy(true);
+    if (retry) retry.hidden = true;
+    status?.replaceChildren("Loading settings…");
+    try {
+      const [profileResponse, preferencesResponse] = await Promise.all([
+        fetch("/api/activate-ri-2026/ops/profile"),
+        fetch("/api/activate-ri-2026/ops/preferences"),
+      ]);
+      if (!profileResponse.ok || !preferencesResponse.ok) throw new Error("Unable to load settings. Check your connection and try again.");
+      const profile = await profileResponse.json() as Profile;
+      const preferences = await preferencesResponse.json() as Preferences;
+      callsign = profile.callsign;
+      if (name) name.value = profile.displayName;
+      if (emailMode) emailMode.value = !preferences.emailEnabled ? "off" : preferences.chatMessages ? "all" : "announcements";
+      updatePreview();
+      loaded = true;
+      status?.replaceChildren();
+    } catch {
+      status?.replaceChildren("Unable to load settings. Check your connection and try again.");
+      if (retry) retry.hidden = false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (busy || !loaded || !name || !emailMode) return;
+    const displayName = name.value.trim();
+    const emailEnabled = emailMode.value !== "off";
+    const chatMessages = emailMode.value === "all";
+    setBusy(true);
+    status?.replaceChildren("Saving settings…");
+    let failureMessage = "Unable to save your chat name. Please try again.";
+    try {
+      const profile = await fetch("/api/activate-ri-2026/ops/profile", {
+        method: "PATCH", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ displayName }),
+      });
+      if (!profile.ok) {
+        const result = await profile.json() as { error?: string };
+        throw new Error(result.error ?? "Unable to save your chat name. Please try again.");
+      }
+      failureMessage = "Your chat name was saved, but email preferences could not be saved. Please try again.";
+      const preferences = await fetch("/api/activate-ri-2026/ops/preferences", {
+        method: "PATCH", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ emailEnabled, chatMessages }),
+      });
+      if (!preferences.ok) throw new Error(failureMessage);
+      if (needsRules) {
+        failureMessage = "Your settings were saved, but rules acknowledgement failed. Please try again.";
+        const accepted = await fetch("/api/activate-ri-2026/ops/rules/accept", {
+          method: "POST", headers: { "content-type": "application/json" }, body: "{}",
+        });
+        if (!accepted.ok) throw new Error(failureMessage);
+      }
+      needsRules = false;
+      dialog?.close();
+      document.querySelector("[data-ops-settings-saved]")?.replaceChildren("Room settings saved.");
+    } catch (error) {
+      status?.replaceChildren(error instanceof Error && !(error instanceof TypeError) ? error.message : failureMessage);
+    } finally {
+      setBusy(false);
+    }
+  });
+
+  function setBusy(value: boolean): void {
+    busy = value;
+    if (fields) fields.disabled = value || !loaded;
+    if (save) save.disabled = value || !loaded;
+    if (back) back.disabled = value;
+  }
+
+  function updatePreview(): void {
+    const displayName = name?.value.trim();
+    preview?.replaceChildren(opsActivatorAuthorLabel(callsign, "", displayName ?? ""));
+  }
+</script>

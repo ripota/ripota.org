@@ -17,6 +17,7 @@ import { hasTrustedOrigin } from "../origin";
 import { withPrivateHeaders } from "../private-response";
 import { captureFeatureUsage } from "../feature-usage";
 import { opsEmailPreferencesResponse } from "../ops-email-preferences";
+import { opsProfileResponse } from "../ops-profile";
 import { scheduleOpsMessageEmails } from "../ops-notifications";
 
 export async function handleActivateRiOpsApi(
@@ -30,6 +31,9 @@ export async function handleActivateRiOpsApi(
   }
 
   const url = new URL(request.url);
+  if (url.pathname === "/api/activate-ri-2026/ops/profile") {
+    return opsProfileResponse(request, env, identity);
+  }
   if (url.pathname === "/api/activate-ri-2026/ops/preferences") {
     const membership = await env.DB.prepare(
       `SELECT a.email_normalized FROM activate_ri_ops_memberships m
@@ -111,7 +115,7 @@ export async function handleActivateRiOpsApi(
     const actor = {
       type: "activator",
       activatorId: identity.activatorId,
-      label: opsActivatorAuthorLabel(identity.callsign, identity.name),
+      label: opsActivatorAuthorLabel(identity.callsign, identity.name, access.membership.chat_display_name),
     } as const;
     if (!await withinOpsRateLimits(env, `activator:${identity.activatorId}`)) {
       return privateJson({ ok: false, error: "Too many room updates" }, { status: 429 });

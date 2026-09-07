@@ -1,5 +1,6 @@
 ---
 import ActivatorPortalNav from "../../../components/activate-ri/ActivatorPortalNav.astro";
+import ActivatorPasskeyPrompt from "../../../components/activate-ri/ActivatorPasskeyPrompt.astro";
 import ActivatorOpsRoom from "../../../components/activate-ri/ActivatorOpsRoom.astro";
 import EventNav from "../../../components/activate-ri/EventNav.astro";
 import Notice from "../../../components/Notice.astro";
@@ -18,7 +19,7 @@ import BaseLayout from "../../../layouts/BaseLayout.astro";
     <section class="ops-app" aria-labelledby="portal-title">
       <div class="container ops-app__container">
         <EventNav />
-        <ActivatorPortalNav />
+        <ActivatorPortalNav showEnrollmentPrompt={false} />
         <div class="ops-app__intro">
           <div>
             <p class="eyebrow">Activate All RI · private coordination</p>
@@ -29,6 +30,7 @@ import BaseLayout from "../../../layouts/BaseLayout.astro";
           </p>
         </div>
         <ActivatorOpsRoom />
+        <ActivatorPasskeyPrompt />
       </div>
     </section>
     <Notice />

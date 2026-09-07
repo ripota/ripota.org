@@ -27,7 +27,7 @@ describe("Activator Ops Room client", () => {
 
   it("keeps event navigation above a secondary Activator tools navigation", () => {
     expect(portalSource.indexOf("<EventNav />")).toBeLessThan(
-      portalSource.indexOf("<ActivatorPortalNav />"),
+      portalSource.indexOf("<ActivatorPortalNav "),
     );
     expect(portalSource).not.toContain("showEventLink compact");
     expect(portalNavSource).toContain('class="event-nav activator-tools-nav"');

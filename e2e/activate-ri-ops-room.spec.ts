@@ -1,20 +1,20 @@
-import { expect, test } from "@playwright/test";
+import { devices, expect, test, webkit } from "@playwright/test";
 import { startActivateRiServer } from "./helpers/activate-ri-server";
 
 test.setTimeout(90_000);
+test.use({ ignoreHTTPSErrors: true });
 
 test("approved activators acknowledge rules and exchange a live room message", async ({
   browser,
   request,
 }) => {
-  const server = await startActivateRiServer({ legacyLinkIssuanceEnabled: true });
+  const server = await startActivateRiServer({ legacyLinkIssuanceEnabled: true, https: true });
   const callsign = randomCallsign();
   const email = `${callsign.toLowerCase()}@example.com`;
-  const firstContext = await browser.newContext();
-  const secondContext = await browser.newContext({
-    viewport: { width: 390, height: 844 },
-  });
-  const adminContext = await browser.newContext();
+  const firstContext = await browser.newContext({ ignoreHTTPSErrors: true });
+  const mobileBrowser = await webkit.launch();
+  const secondContext = await mobileBrowser.newContext({ ...devices["iPhone 13"], ignoreHTTPSErrors: true });
+  const adminContext = await browser.newContext({ ignoreHTTPSErrors: true });
   const first = await firstContext.newPage();
   const second = await secondContext.newPage();
   const admin = await adminContext.newPage();
@@ -69,24 +69,49 @@ test("approved activators acknowledge rules and exchange a live room message", a
     await expect(first.locator(".event-nav").first().getByRole("link", { name: "Activator", exact: true })).toHaveAttribute("aria-current", "page");
     await expect(first.getByRole("navigation", { name: "Activator tools" })).toBeVisible();
     await expect(first.getByRole("dialog", { name: "Coordinate clearly. Operate safely." })).toBeVisible();
+    await first.getByRole("button", { name: "Agree and review settings" }).click();
+    const settings = first.getByRole("dialog", { name: "Your room settings" });
+    await expect(settings).toBeVisible();
+    await expect(first.getByLabel("Name to show in chat")).toHaveValue("Ops");
+    await expect(first.getByLabel("Ops Room emails", { exact: true })).toHaveValue("announcements");
+    await first.getByLabel("Name to show in chat").fill("Field Operator");
+    await expect(first.locator("[data-ops-name-preview]")).toHaveText(`${callsign} - Field Operator`);
+    await first.route("**/api/activate-ri-2026/ops/preferences", (route) => {
+      if (route.request().method() === "PATCH") return route.abort();
+      return route.continue();
+    }, { times: 1 });
+    await first.getByRole("button", { name: "Save and enter the Ops Room" }).click();
+    await expect(first.locator("[data-ops-settings-status]")).toContainText("email preferences could not be saved");
+    const unaccepted = await first.request.get(`${server.origin}/api/activate-ri-2026/ops/bootstrap`);
+    expect((await unaccepted.json()).membership.acceptedRulesVersion).toBeUndefined();
     await first.route("**/api/activate-ri-2026/ops/rules/accept", (route) => route.abort(), { times: 1 });
-    await first.getByRole("button", { name: "Enter the Ops Room" }).click();
-    await expect(first.locator("[data-ops-rules-status]")).toHaveText("Unable to save acknowledgement. Please try again.");
-    await first.getByRole("button", { name: "Enter the Ops Room" }).click();
-    await expect(first.getByRole("dialog", { name: "Coordinate clearly. Operate safely." })).toBeHidden();
+    await first.getByRole("button", { name: "Save and enter the Ops Room" }).click();
+    await expect(first.locator("[data-ops-settings-status]")).toContainText("rules acknowledgement failed");
+    await first.getByRole("button", { name: "Save and enter the Ops Room" }).click();
+    await expect(settings).toBeHidden();
     await expect(first.locator("[data-ops-connection-label]")).toHaveText("Live");
 
     await second.goto(submitBody.editUrl);
     await expect(second).toHaveURL(`${server.origin}/activate-ri-2026/activator/plan/`);
     await second.goto(`${server.origin}/activate-ri-2026/activator/`);
     await expect(second.locator("[data-ops-connection-label]")).toHaveText("Live");
+    for (const viewport of [{ width: 390, height: 664 }, { width: 320, height: 568 }]) {
+      await second.setViewportSize(viewport);
+      await second.evaluate(() => window.scrollTo(0, 0));
+      await second.screenshot({ path: test.info().outputPath(`ops-initial-${viewport.width}.png`), fullPage: true });
+      await expect(second.locator("[data-ops-body]")).toBeInViewport({ ratio: 1 });
+      await expect(second.getByRole("button", { name: "Send", exact: true })).toBeInViewport({ ratio: 1 });
+      await expect(second.getByRole("button", { name: "Settings", exact: true })).toBeInViewport({ ratio: 1 });
+    }
+    await second.setViewportSize({ width: 390, height: 844 });
 
-    await second.locator("[data-ops-email-preferences] summary").click();
-    const emailPreference = second.getByLabel("Email me every new room message");
-    await expect(emailPreference).not.toBeChecked();
-    await emailPreference.check();
-    await second.getByRole("button", { name: "Save preferences" }).click();
-    await expect(second.locator("[data-ops-email-status]")).toContainText("every new room message");
+    await second.getByRole("button", { name: "Settings", exact: true }).click();
+    await expect(second.getByLabel("Name to show in chat")).toHaveValue("Field Operator");
+    await expect(second.getByLabel("Ops Room emails", { exact: true })).toHaveValue("announcements");
+    await second.screenshot({ path: test.info().outputPath("ops-mobile-settings.png") });
+    await second.getByLabel("Ops Room emails", { exact: true }).selectOption("all");
+    await second.getByRole("button", { name: "Save settings", exact: true }).click();
+    await expect(second.getByRole("dialog", { name: "Your room settings" })).toBeHidden();
     await second.goto(`${server.origin}/activate-ri-2026/activator/account/#ops-email-notifications`);
     await expect(second.getByLabel("Email me every new room message")).toBeChecked();
     await expect(second.locator("[data-ops-email-preferences] ~ section #passkeys-title")).toHaveText("Passkeys");
@@ -123,7 +148,7 @@ test("approved activators acknowledge rules and exchange a live room message", a
     );
     await expect(second.locator("[data-ops-feed]")).toContainText("US-2868");
     await expect(second.locator("[data-ops-feed]")).toContainText(
-      `${callsign} - Ops`,
+      `${callsign} - Field Operator`,
     );
 
     await firstContext.setOffline(true);
@@ -152,7 +177,7 @@ test("approved activators acknowledge rules and exchange a live room message", a
     await expect(first.locator("[data-ops-send-state]")).toHaveText("Sent");
     const notificationMessage = first.locator("[data-ops-feed] > li").filter({ hasText: "Can an organizer help with my next stop?" });
     const notificationId = await notificationMessage.getAttribute("id");
-    const notificationEmail = await server.waitForEmailText(`Ops Room: ${callsign} - Ops posted a new message`);
+    const notificationEmail = await server.waitForEmailText(`Ops Room: ${callsign} - Field Operator posted a new message`);
     expect(notificationEmail).toContain("Can an organizer help with my next stop?");
     expect(notificationEmail).toContain(`/activate-ri-2026/admin/?view=ops#${notificationId}`);
     await admin.evaluate(() => localStorage.setItem("activate-ri-admin-workspace", "plans"));
@@ -255,6 +280,7 @@ test("approved activators acknowledge rules and exchange a live room message", a
   } finally {
     await firstContext.close();
     await secondContext.close();
+    await mobileBrowser.close();
     await adminContext.close();
     await server.stop();
   }

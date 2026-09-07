@@ -1,4 +1,9 @@
 ---
+import ActivatorPasskeyPrompt from "./ActivatorPasskeyPrompt.astro";
+
+interface Props { showEnrollmentPrompt?: boolean }
+const { showEnrollmentPrompt = true } = Astro.props;
+
 const currentPath = Astro.url.pathname.endsWith("/")
   ? Astro.url.pathname
   : `${Astro.url.pathname}/`;
@@ -24,13 +29,7 @@ const links = [
   </button>
 </nav>
 
-<aside class="event-guidance event-guidance--compact" data-passkey-enrollment-prompt hidden>
-  <p><strong>Make your next sign-in faster.</strong> Add a passkey, or keep using email and any private link you already have.</p>
-  <div class="button-row">
-    <button class="button" data-variant="primary" type="button" data-upgrade-account>Set up a passkey</button>
-  </div>
-  <p class="form-status" data-upgrade-account-status aria-live="polite"></p>
-</aside>
+{showEnrollmentPrompt && <ActivatorPasskeyPrompt />}
 
 <dialog
   class="form-confirmation"

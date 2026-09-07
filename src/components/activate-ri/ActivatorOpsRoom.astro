@@ -4,7 +4,7 @@ import OpsConnectionStatus from "./OpsConnectionStatus.astro";
 import OpsFeed from "./OpsFeed.astro";
 import OpsPinnedAnnouncement from "./OpsPinnedAnnouncement.astro";
 import OpsUpcomingStops from "./OpsUpcomingStops.astro";
-import OpsEmailPreferences from "./OpsEmailPreferences.astro";
+import OpsRoomSettings from "./OpsRoomSettings.astro";
 
 const parkNames = Object.fromEntries(
   references.map((reference) => [reference.reference, reference.name]),
@@ -15,39 +15,19 @@ const parkNames = Object.fromEntries(
   <div class="ops-room__statusbar">
     <OpsConnectionStatus />
     <p data-ops-sync-copy>Updates appear here as they happen.</p>
+    <button class="button" data-variant="light" type="button" data-ops-open-settings disabled>Settings</button>
   </div>
   <div class="ops-room__layout">
     <div class="ops-room__main">
       <OpsPinnedAnnouncement />
       <OpsFeed />
-      <OpsEmailPreferences />
     </div>
     <aside class="ops-room__sidebar">
       <OpsUpcomingStops />
     </aside>
   </div>
 
-  <dialog class="ops-rules" data-ops-rules aria-labelledby="ops-rules-title">
-    <form method="dialog" data-ops-rules-form>
-      <p class="eyebrow">Welcome to the room</p>
-      <h2 id="ops-rules-title">Coordinate clearly. Operate safely.</h2>
-      <div class="ops-rules__points">
-        <p><strong>Keep it operational.</strong> Share access, timing, and coverage updates—not private contact information.</p>
-        <p><strong>Stay safe.</strong> Never use the room while driving. For emergencies, contact 911 or the appropriate local authority.</p>
-        <p><strong>Expect moderation.</strong> Approved activators and organizers can see stored messages; organizers may remove them.</p>
-        <p><strong>Use official sources.</strong> POTA resources remain authoritative for rules, references, spots, accounts, and logs.</p>
-      </div>
-      <p class="form-status" data-ops-rules-status aria-live="polite"></p>
-      <div class="form-actions">
-        <button class="button" data-variant="primary" value="accept" type="submit">
-          Enter the Ops Room
-        </button>
-        <a class="button" data-variant="light" href="/activate-ri-2026/activator/plan/">
-          Back to my plan
-        </a>
-      </div>
-    </form>
-  </dialog>
+  <OpsRoomSettings />
 </div>
 
 <script>
@@ -107,9 +87,7 @@ const parkNames = Object.fromEntries(
   const pin = room?.querySelector<HTMLElement>("[data-ops-pin]");
   const pinBody = room?.querySelector<HTMLElement>("[data-ops-pin-body]");
   const pinMeta = room?.querySelector<HTMLElement>("[data-ops-pin-meta]");
-  const rulesDialog = room?.querySelector<HTMLDialogElement>("[data-ops-rules]");
-  const rulesForm = room?.querySelector<HTMLFormElement>("[data-ops-rules-form]");
-  const rulesStatus = room?.querySelector<HTMLElement>("[data-ops-rules-status]");
+  const rulesDialog = room?.querySelector<HTMLDialogElement>("[data-ops-settings]");
   const parkNames = JSON.parse(room?.dataset.parkNames ?? "{}") as Record<string, string>;
   const messages = new Map<string, Message>();
   const socketEvents: RoomEvent[] = [];
@@ -210,8 +188,9 @@ const parkNames = Object.fromEntries(
         linkedMessage = null;
       }
       if (data.membership.acceptedRulesVersion !== data.rulesVersion) {
-        rulesDialog?.showModal();
+        window.dispatchEvent(new Event("activate-ri:ops-setup"));
       }
+      room?.querySelector<HTMLButtonElement>("[data-ops-open-settings]")?.removeAttribute("disabled");
       connectSocket();
     } catch {
       setConnection("offline", offlineLabel());
@@ -619,6 +598,10 @@ const parkNames = Object.fromEntries(
     }
   }
 
+  let draftRevision = 0;
+  let draftWrites = Promise.resolve(true);
+  let draftStorageAvailable = true;
+
   composer?.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (sending || !kindSelect || !contextSelect || !bodyInput || !bodyInput.value.trim()) return;
@@ -629,9 +612,11 @@ const parkNames = Object.fromEntries(
       body: bodyInput.value,
     };
     composer.dataset.clientNonce = draft.clientNonce;
+    const submittedRevision = draftRevision;
+    const saved = saveDraft(draft);
     if (!navigator.onLine || socket?.readyState !== WebSocket.OPEN) {
-      await saveDraft(draft);
-      showUnsent("Not sent — review this draft after reconnecting.");
+      const persisted = await saved;
+      if (draftRevision === submittedRevision) showUnsent("Not sent — review this draft after reconnecting.", persisted);
       return;
     }
     setSendState("Sending…");
@@ -650,57 +635,61 @@ const parkNames = Object.fromEntries(
       });
       const result = await response.json() as { event?: RoomEvent; error?: string; errors?: string[] };
       if (!response.ok || !result.event) {
-        await saveDraft(draft);
-        showUnsent(result.errors?.join(" ") ?? result.error ?? "Not sent.");
+        const persisted = await saved;
+        if (draftRevision === submittedRevision) {
+          showUnsent(result.errors?.join(" ") ?? result.error ?? "Not sent.", persisted);
+        } else {
+          setSendState("The previous message was not sent. Your new draft is still here.");
+        }
         return;
       }
       applyEvent(result.event);
-      if (bodyInput.value === draft.body) bodyInput.value = "";
-      if (composeOptions) composeOptions.open = false;
+      if (result.event.type === "message-created" && !feed?.querySelector(`[data-message-id="${CSS.escape(result.event.message.id)}"]`)) {
+        const all = room?.querySelector<HTMLInputElement>('input[name="ops-filter"][value="all"]');
+        if (all) all.checked = true;
+        try { localStorage.setItem(filterKey, "all"); } catch { /* Filtering also works without browser storage. */ }
+        renderFeed();
+      }
       if (feed) feed.scrollTop = 0;
-      delete composer.dataset.clientNonce;
-      await clearDraft();
+      const unchanged = draftRevision === submittedRevision;
+      if (unchanged) {
+        bodyInput.value = "";
+        if (composeOptions) composeOptions.open = false;
+        delete composer.dataset.clientNonce;
+        draftRevision += 1;
+        void clearDraft(draft.clientNonce);
+      }
       unsent && (unsent.hidden = true);
-      setSendState("Sent");
+      setSendState(unchanged ? "Sent" : "Sent. Your new draft is still here.");
     } catch {
-      await saveDraft(draft);
-      showUnsent("Not sent — check your connection and review before retrying.");
+      const persisted = await saved;
+      if (draftRevision === submittedRevision) {
+        showUnsent("Not sent — check your connection and review before retrying.", persisted);
+      } else {
+        setSendState("The previous message was not confirmed. Your new draft is still here.");
+      }
     } finally {
       sending = false;
       sendButton && (sendButton.disabled = roomMode !== "full" || membershipStatus !== "active");
     }
   });
 
-  rulesForm?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const button = rulesForm.querySelector<HTMLButtonElement>('button[type="submit"]');
-    if (button?.disabled) return;
-    if (button) button.disabled = true;
-    rulesStatus?.replaceChildren("Saving acknowledgement…");
-    try {
-      const response = await fetch("/api/activate-ri-2026/ops/rules/accept", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: "{}",
-      });
-      if (!response.ok) throw new Error("Acknowledgement failed");
-      rulesDialog?.close();
-      scheduleSeenMessages();
-      rulesStatus?.replaceChildren();
-    } catch {
-      rulesStatus?.replaceChildren("Unable to save acknowledgement. Please try again.");
-    } finally {
-      if (button) button.disabled = false;
-    }
-  });
+  rulesDialog?.addEventListener("close", scheduleSeenMessages);
 
   filters?.addEventListener("change", () => {
     localStorage.setItem(filterKey, selectedFilter());
     renderFeed();
   });
 
-  kindSelect?.addEventListener("change", updateComposeSummary);
-  contextSelect?.addEventListener("change", updateComposeSummary);
+  bodyInput?.addEventListener("input", () => void saveComposerDraft());
+  kindSelect?.addEventListener("change", () => {
+    updateComposeSummary();
+    void saveComposerDraft();
+  });
+  contextSelect?.addEventListener("change", () => {
+    updateComposeSummary();
+    void saveComposerDraft();
+  });
 
   room?.querySelector("[data-ops-refresh]")?.addEventListener("click", () => void loadRoom());
 
@@ -740,6 +729,7 @@ const parkNames = Object.fromEntries(
       if (contextSelect) contextSelect.value = `stop:${stopId}`;
       if (composeOptions) composeOptions.open = true;
       updateComposeSummary();
+      void saveComposerDraft();
       bodyInput?.focus();
     });
     return button;
@@ -866,9 +856,14 @@ const parkNames = Object.fromEntries(
     sendState?.replaceChildren(value);
   }
 
-  function showUnsent(value: string): void {
+  function showUnsent(value: string, saved = true): void {
     setSendState(value);
-    if (unsent) unsent.hidden = false;
+    if (unsent) {
+      unsent.hidden = false;
+      unsent.querySelector("p")?.replaceChildren(saved
+        ? "Your draft is saved on this device. Review it and press Send when you are ready."
+        : "Your draft is only in this tab because device storage is unavailable. Keep this page open or copy your message before leaving.");
+    }
   }
 
   function scheduleReconnect(): void {
@@ -937,8 +932,9 @@ const parkNames = Object.fromEntries(
   }
 
   async function restoreDraft(): Promise<void> {
-    const draft = await draftOperation<Draft | undefined>("readonly", (store) => store.get("current"));
-    if (!draft || !composer || !kindSelect || !contextSelect || !bodyInput) return;
+    const result = await draftOperation<Draft | undefined>("readonly", (store) => store.get("current"));
+    const draft = result.value;
+    if (!result.ok || !draft || draftRevision > 0 || !composer || !kindSelect || !contextSelect || !bodyInput || bodyInput.value) return;
     kindSelect.value = draft.kind;
     contextSelect.value = draft.context;
     bodyInput.value = draft.body;
@@ -948,33 +944,82 @@ const parkNames = Object.fromEntries(
     showUnsent("Not sent — review this saved draft before sending.");
   }
 
-  async function saveDraft(draft: Draft): Promise<void> {
-    await draftOperation("readwrite", (store) => store.put(draft, "current"));
+  async function saveComposerDraft(): Promise<void> {
+    if (!composer || !kindSelect || !contextSelect || !bodyInput) return;
+    const revision = ++draftRevision;
+    delete composer.dataset.clientNonce;
+    unsent && (unsent.hidden = true);
+    const body = bodyInput.value;
+    if (!sending) setSendState(body.trim() ? "Saving draft…" : "");
+    let saved: boolean;
+    if (body.trim()) {
+      const clientNonce = crypto.randomUUID();
+      composer.dataset.clientNonce = clientNonce;
+      saved = await saveDraft({ clientNonce, kind: kindSelect.value, context: contextSelect.value, body });
+    } else {
+      saved = await clearDraft();
+    }
+    if (revision !== draftRevision || sending) return;
+    setSendState(saved
+      ? body.trim() ? "Draft saved on this device." : ""
+      : "Device storage is unavailable. Keep this tab open or copy your draft before leaving.");
   }
 
-  async function clearDraft(): Promise<void> {
-    await draftOperation("readwrite", (store) => store.delete("current"));
+  function saveDraft(draft: Draft): Promise<boolean> {
+    draftWrites = draftWrites.then(async () => (await draftOperation("readwrite", (store) => store.put(draft, "current"))).ok);
+    return draftWrites;
+  }
+
+  function clearDraft(expectedNonce?: string): Promise<boolean> {
+    draftWrites = draftWrites.then(async () => (await draftOperation("readwrite", (store) => {
+      if (!expectedNonce) return store.delete("current");
+      const current = store.get("current");
+      current.addEventListener("success", () => {
+        if (current.result?.clientNonce === expectedNonce) store.delete("current");
+      });
+      return current;
+    })).ok);
+    return draftWrites;
   }
 
   function draftOperation<T>(
     mode: IDBTransactionMode,
     operation: (store: IDBObjectStore) => IDBRequest<T>,
-  ): Promise<T | undefined> {
+  ): Promise<{ ok: boolean; value?: T }> {
+    if (!draftStorageAvailable) return Promise.resolve({ ok: false });
     return new Promise((resolve) => {
-      const open = indexedDB.open("activate-ri-ops", 1);
-      open.addEventListener("upgradeneeded", () => {
-        if (!open.result.objectStoreNames.contains("drafts")) {
-          open.result.createObjectStore("drafts");
-        }
-      });
-      open.addEventListener("error", () => resolve(undefined));
-      open.addEventListener("success", () => {
-        const transaction = open.result.transaction("drafts", mode);
-        const request = operation(transaction.objectStore("drafts"));
-        request.addEventListener("success", () => resolve(request.result));
-        request.addEventListener("error", () => resolve(undefined));
-        transaction.addEventListener("complete", () => open.result.close());
-      });
+      let database: IDBDatabase | undefined;
+      let finished = false;
+      const finish = (result: { ok: boolean; value?: T }): void => {
+        if (finished) return;
+        finished = true;
+        if (!result.ok) draftStorageAvailable = false;
+        window.clearTimeout(timeout);
+        database?.close();
+        resolve(result);
+      };
+      const timeout = window.setTimeout(() => finish({ ok: false }), 2000);
+      try {
+        const open = indexedDB.open("activate-ri-ops", 1);
+        open.addEventListener("upgradeneeded", () => {
+          if (!open.result.objectStoreNames.contains("drafts")) {
+            open.result.createObjectStore("drafts");
+          }
+        });
+        open.addEventListener("error", () => finish({ ok: false }));
+        open.addEventListener("blocked", () => finish({ ok: false }));
+        open.addEventListener("success", () => {
+          database = open.result;
+          if (finished) { database.close(); return; }
+          try {
+            const transaction = database.transaction("drafts", mode);
+            const request = operation(transaction.objectStore("drafts"));
+            transaction.addEventListener("complete", () => finish({ ok: true, value: request.result }));
+            transaction.addEventListener("abort", () => finish({ ok: false }));
+            transaction.addEventListener("error", () => finish({ ok: false }));
+          } catch { finish({ ok: false }); }
+        });
+      } catch { finish({ ok: false }); }
     });
   }
 </script>
