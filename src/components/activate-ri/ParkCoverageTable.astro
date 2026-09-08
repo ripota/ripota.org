@@ -35,13 +35,20 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
       </select>
     </label>
     <div class="park-planning-personal">
-      <label class="event-coverage-toggle">
-        <input type="checkbox" data-my-parks disabled aria-describedby="my-parks-help" />
-        <span data-my-parks-label>My parks</span>
-      </label>
-      <p id="my-parks-help" data-my-parks-help>Checking sign-in…</p>
-      <a data-my-parks-sign-in href="/account/sign-in/?returnTo=%2Factivate-ri-2026%2Fparks%2F%3Fmine%3D1" hidden>Sign in to see my parks</a>
-      <a data-my-plan href="/activate-ri-2026/activator/plan/" hidden>Edit my plan</a>
+      <div class="park-planning-personal-control">
+        <label class="event-coverage-toggle">
+          <input type="checkbox" data-my-parks disabled aria-describedby="my-parks-help" />
+          <span data-my-parks-label>My parks</span>
+        </label>
+        <span class="help-popover">
+          <button class="help-popover__button" type="button" aria-label="Help for My parks" aria-describedby="my-parks-help">?</button>
+          <span id="my-parks-help" class="help-popover__bubble" role="tooltip" data-my-parks-help>Checking sign-in…</span>
+        </span>
+      </div>
+      <div class="park-planning-personal-links">
+        <a data-my-parks-sign-in href="/account/sign-in/?returnTo=%2Factivate-ri-2026%2Fparks%2F%3Fmine%3D1" hidden>Sign in to see my parks</a>
+        <a data-my-plan href="/activate-ri-2026/activator/plan/" hidden>Edit my plan</a>
+      </div>
     </div>
     <details class="park-planning-more">
       <summary data-planning-more-summary>More filters</summary>
@@ -429,11 +436,18 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
 </script>
 
 <style is:global>
-  .park-planning-filters { align-items: start; }
-  .park-planning-filters .event-filter { align-content: start; }
+  .event-filters.park-planning-filters { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+  .park-planning-filters > .event-filter,
+  .park-planning-personal { display: grid; grid-row: span 3; grid-template-rows: subgrid; gap: 0.35rem; min-width: 0; }
   .park-planning-filters .event-filter__control { min-height: 46px; }
-  .park-planning-personal { display: grid; align-content: start; gap: 0.4rem; }
-  .park-planning-personal p { margin: 0; color: var(--text-muted); font-size: 0.85rem; }
+  .park-planning-personal-control { position: relative; display: flex; grid-row: 2; align-items: center; gap: 0.5rem; }
+  .park-planning-personal .event-coverage-toggle { flex: 1; min-width: 0; min-height: 46px; height: 100%; }
+  .park-planning-personal .event-coverage-toggle span { overflow-wrap: anywhere; }
+  .park-planning-personal .help-popover { position: static; }
+  .park-planning-personal .help-popover__bubble { left: auto; right: 0; width: min(16rem, 100%); transform: translateY(0.25rem); }
+  .park-planning-personal .help-popover:hover .help-popover__bubble,
+  .park-planning-personal .help-popover:focus-within .help-popover__bubble { transform: translateY(0); }
+  .park-planning-personal-links { grid-row: 3; }
   .park-planning-personal a { font-size: 0.9rem; }
   .park-planning-more { grid-column: 1 / -1; }
   .park-planning-more > summary { cursor: pointer; font-weight: 700; }
@@ -455,6 +469,11 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
   .park-planning-edit { display: block; margin-top: 0.65rem; }
   .park-planning-table th .park-planning-mine { margin-top: 0.45rem; color: var(--link-strong); font-weight: 800; }
   @media (max-width: 700px) {
+    .event-filters.park-planning-filters { grid-template-columns: 1fr; }
+    .park-planning-filters > .event-filter,
+    .park-planning-personal { grid-row: auto; grid-template-rows: none; }
+    .park-planning-personal-control,
+    .park-planning-personal-links { grid-row: auto; }
     .park-planning-status { align-items: stretch; flex-direction: column; }
     .park-planning-table th:first-child { width: auto; }
     .park-planning-table { table-layout: auto; }
