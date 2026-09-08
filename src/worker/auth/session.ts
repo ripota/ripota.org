@@ -5,7 +5,7 @@ import { lookupAuthContext } from "./db";
 import type { AuthContext, AuthMethod, AuthSessionPurpose } from "./types";
 
 export const authSessionCookieName = "__Host-ripota-session";
-export const authSessionLifetimeSeconds = 14 * 24 * 60 * 60;
+export const authSessionLifetimeSeconds = 30 * 24 * 60 * 60;
 export const privilegedSessionLifetimeSeconds = 30 * 60;
 
 type CreateAuthSessionInput = {

@@ -16,17 +16,19 @@ POTA accounts and credentials are never used here.
   relying-party ID is derived from the exact configured `SITE_ORIGIN`.
 - Authentication challenges, email tokens, sessions, and legacy edit tokens are
   stored only as hashes or server-side records. Raw secrets are never logged.
-- Unified sessions last 14 days. Administrator authorization and destructive
+- Unified sessions last 30 days from sign-in, without sliding renewal.
+  Existing sessions retain their original expiry; signing in again issues a
+  30-day session. Administrator authorization and destructive
   account-security actions require a passkey verification no older than
-  `AUTH_ADMIN_REAUTH_SECONDS` (12 hours by default).
+  `AUTH_ADMIN_REAUTH_SECONDS` (30 days by default).
 - Security pages and APIs send private/no-store headers. State-changing requests
   require the exact trusted Origin.
 
 The optional **Community byline** on account security is stored separately from
 event registration. A callsign claim or site moderator role grants no Activate
 RI admin or activator access, and editing a byline does not rewrite event
-identity. Changing an existing active callsign requires a recent passkey
-verification or email reauthentication within 15 minutes. Initial byline creation
+identity. Changing an existing active callsign requires a passkey verification
+within `AUTH_ADMIN_REAUTH_SECONDS` or email reauthentication within 15 minutes. Initial byline creation
 and public-name-only edits require an authenticated account. See `src/worker/auth/community-profile.ts`
 and `src/worker/routes/auth.ts` for that separate authorization boundary.
 

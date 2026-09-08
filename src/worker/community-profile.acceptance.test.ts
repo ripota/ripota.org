@@ -87,6 +87,7 @@ describe("community byline account API", () => {
   });
 
   it("requires a fresh passkey or single-use email session only for established callsign changes", async () => {
+    env.AUTH_ADMIN_REAUTH_SECONDS = String(12 * 60 * 60);
     const stale = await createAuthSession(env, {
       userId: "activator-user",
       authenticationMethod: "passkey",

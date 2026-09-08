@@ -10,6 +10,18 @@ describe("admin authorization contract", () => {
     expect(evaluateAdminAuthorization(context(), config, now)).toBeNull();
   });
 
+  it.each([1, 14, 29])("accepts a passkey verified %i days ago", (days) => {
+    expect(evaluateAdminAuthorization(context({
+      passkeyVerifiedAt: new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString(),
+    }), config, now)).toBeNull();
+  });
+
+  it("honors a configured shorter reauthentication window", () => {
+    expect(evaluateAdminAuthorization(context({
+      passkeyVerifiedAt: "2026-08-29T12:00:00.000Z",
+    }), { adminReauthSeconds: 12 * 60 * 60 }, now)).toBe("reauthentication-required");
+  });
+
   it("requires passkey assurance even for dual-role email sessions", () => {
     expect(evaluateAdminAuthorization(context({
       method: "email",
@@ -20,7 +32,7 @@ describe("admin authorization contract", () => {
 
   it("rejects stale assurance, missing roles, and non-authenticated sessions", () => {
     expect(evaluateAdminAuthorization(context({
-      passkeyVerifiedAt: "2026-08-29T23:59:59.000Z",
+      passkeyVerifiedAt: "2026-07-31T11:59:59.000Z",
     }), config, now)).toBe("reauthentication-required");
     expect(evaluateAdminAuthorization(context({ admin: false }), config, now)).toBe("forbidden");
     expect(evaluateAdminAuthorization(context({ purpose: "enrollment" }), config, now)).toBe("unauthenticated");
@@ -54,7 +66,7 @@ function context(overrides: {
       authenticatedAt: now.toISOString(),
       passkeyVerifiedAt: overrides.passkeyVerifiedAt === undefined ? now.toISOString() : overrides.passkeyVerifiedAt,
       createdAt: now.toISOString(),
-      expiresAt: "2026-09-13T12:00:00.000Z",
+      expiresAt: "2026-09-29T12:00:00.000Z",
       lastUsedAt: now.toISOString(),
     },
     admin: overrides.admin ?? true,

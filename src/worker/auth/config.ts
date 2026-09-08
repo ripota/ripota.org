@@ -1,7 +1,7 @@
 import type { Env } from "../env";
 import type { AuthActivatorMode, AuthAdminMode } from "./types";
 
-export const defaultAdminReauthSeconds = 12 * 60 * 60;
+export const defaultAdminReauthSeconds = 30 * 24 * 60 * 60;
 
 export type AuthConfig = {
   adminMode: AuthAdminMode;

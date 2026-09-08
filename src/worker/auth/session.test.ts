@@ -4,7 +4,6 @@ import { createMigratedSqliteD1 } from "../test-utils/sqlite-d1";
 import { createUserWithVerifiedEmail } from "./db";
 import {
   authSessionCookie,
-  authSessionLifetimeSeconds,
   createAuthSession,
   getAuthContext,
   privilegedSessionLifetimeSeconds,
@@ -41,7 +40,7 @@ describe("unified auth sessions", () => {
     expect(stored?.token_hash).not.toBe(session.token);
     expect(stored?.token_hash).not.toContain(session.token);
     expect(authSessionCookie(session.token)).toBe(
-      `__Host-ripota-session=${session.token}; Secure; HttpOnly; SameSite=Strict; Path=/; Max-Age=${authSessionLifetimeSeconds}`,
+      `__Host-ripota-session=${session.token}; Secure; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000`,
     );
 
     const request = new Request("https://ripota.org/account/security/", {
@@ -53,6 +52,30 @@ describe("unified auth sessions", () => {
     });
     await revokeCurrentAuthSession(request, env, now.toISOString());
     await expect(getAuthContext(request, env, now)).resolves.toBeNull();
+  });
+
+  it("keeps sessions valid for thirty days without renewing their expiry", async () => {
+    const now = new Date("2026-08-30T12:00:00.000Z");
+    const user = await createUserWithVerifiedEmail(env, "user@example.com", "User", now.toISOString());
+    const session = await createAuthSession(env, {
+      userId: user.id,
+      authenticationMethod: "passkey",
+      passkeyVerified: true,
+    }, now);
+    expect(session.expiresAt).toBe("2026-09-29T12:00:00.000Z");
+    const request = new Request("https://ripota.org/account/security/", {
+      headers: { cookie: `__Host-ripota-session=${session.token}` },
+    });
+    for (const timestamp of [
+      "2026-08-31T12:00:00.000Z",
+      "2026-09-14T12:00:00.000Z",
+      "2026-09-29T11:59:59.999Z",
+    ]) {
+      await expect(getAuthContext(request, env, new Date(timestamp))).resolves.toMatchObject({
+        session: { expiresAt: "2026-09-29T12:00:00.000Z" },
+      });
+    }
+    await expect(getAuthContext(request, env, new Date(session.expiresAt))).resolves.toBeNull();
   });
 
   it("limits enrollment and recovery sessions to thirty minutes", async () => {
