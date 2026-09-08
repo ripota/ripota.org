@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LivePotaSpot } from "../../lib/pota/spots";
+import { potaApiUserAgent } from "../pota-api";
 import { createMigratedSqliteD1 } from "../test-utils/sqlite-d1";
 import { handlePotaSpots } from "./pota";
 
@@ -110,6 +111,15 @@ describe("handlePotaSpots", () => {
     expect(secondResponse.status).toBe(200);
     expect(secondResponse.headers.get("cache-control")).toBe("no-store");
     expect(fetcher).toHaveBeenCalledOnce();
+    expect(fetcher).toHaveBeenCalledWith(
+      "https://api.pota.app/spot/activator",
+      expect.objectContaining({
+        headers: {
+          accept: "application/json",
+          "user-agent": potaApiUserAgent,
+        },
+      }),
+    );
   });
 
   it("coalesces stale requests and returns the shared refreshed snapshot", async () => {

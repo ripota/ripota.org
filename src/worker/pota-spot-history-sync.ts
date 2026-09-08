@@ -8,6 +8,7 @@ import {
 import { isSpotCaptureTime } from "../lib/activate-ri/pota-event";
 import type { Env } from "./env";
 import { logWorkerError } from "./logging";
+import { fetchPotaApi } from "./pota-api";
 import { persistEventSpotObservations } from "./pota-event";
 import { persistPotaSpotHistory } from "./pota-spot-history";
 
@@ -15,7 +16,6 @@ const collectionStateId = "ri-live-spots";
 const safetySyncIntervalMilliseconds = 10 * 60_000;
 const postCloseSyncDelayMilliseconds = 5 * 60_000;
 const syncLeaseMilliseconds = 2 * 60_000;
-const upstreamTimeoutMilliseconds = 10_000;
 const historyConcurrency = 5;
 const initialRetryMilliseconds = 60_000;
 const maximumRetryMilliseconds = 10 * 60_000;
@@ -297,15 +297,9 @@ async function fetchPotaSpotHistory(
   fetcher: typeof fetch,
   target: HistoryTarget,
 ): Promise<LivePotaSpot[]> {
-  const response = await fetcher(
-    `https://api.pota.app/spot/comments/${encodeURIComponent(target.activatorCallsign)}/${encodeURIComponent(target.parkReference)}`,
-    {
-      headers: {
-        accept: "application/json",
-        "user-agent": "ripota.org Rhode Island POTA spot history",
-      },
-      signal: AbortSignal.timeout(upstreamTimeoutMilliseconds),
-    },
+  const response = await fetchPotaApi(
+    `/spot/comments/${encodeURIComponent(target.activatorCallsign)}/${encodeURIComponent(target.parkReference)}`,
+    { fetcher },
   );
   if (!response.ok) throw new Error(`POTA spot history responded with ${response.status}.`);
   const value: unknown = await response.json();

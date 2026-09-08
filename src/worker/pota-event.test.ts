@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { LivePotaSpot } from "../lib/pota/spots";
+import { potaApiUserAgent } from "./pota-api";
 import {
   getPotaAdminStatus,
   getPublicPotaParkStatus,
@@ -166,7 +167,16 @@ describe("Activate RI POTA reconciliation", () => {
       force: true,
     });
     expect(result).toMatchObject({ acquired: true, attempted: 20, succeeded: 20, failed: 0 });
-    expect(urls[0]).toContain("US-7971");
+    expect(fetcher).toHaveBeenNthCalledWith(
+      1,
+      "https://api.pota.app/park/activations/US-7971?count=100",
+      expect.objectContaining({
+        headers: {
+          accept: "application/json",
+          "user-agent": potaApiUserAgent,
+        },
+      }),
+    );
     expect(urls.every((url) => url.endsWith("?count=100"))).toBe(true);
     expect(maximumActive).toBeLessThanOrEqual(5);
     const projection = await getPublicPotaParkStatus(env, new Date("2026-09-11T12:11:00Z"));

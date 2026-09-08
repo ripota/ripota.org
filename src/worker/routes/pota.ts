@@ -9,13 +9,12 @@ import { json } from "../http";
 import { isSpotCaptureTime } from "../../lib/activate-ri/pota-event";
 import { persistEventSpotObservations } from "../pota-event";
 import { logWorkerError } from "../logging";
+import { fetchPotaApi } from "../pota-api";
 
-const upstreamSpotsUrl = "https://api.pota.app/spot/activator";
 const cacheId = "ri-live-spots";
 const freshnessMilliseconds = 60_000;
 const maximumStaleMilliseconds = 15 * 60_000;
 const refreshLeaseMilliseconds = 30_000;
-const upstreamTimeoutMilliseconds = 10_000;
 const refreshWaitCheckpointsMilliseconds = [1_000, 3_000, 6_000, 10_000];
 const initialRetryMilliseconds = 60_000;
 const maximumRetryMilliseconds = 10 * 60_000;
@@ -264,13 +263,7 @@ async function refreshSnapshot(
   now: () => Date,
 ): Promise<StoredSnapshot | null> {
   try {
-    const upstreamResponse = await fetcher(upstreamSpotsUrl, {
-      headers: {
-        accept: "application/json",
-        "user-agent": "ripota.org live Rhode Island POTA spots",
-      },
-      signal: AbortSignal.timeout(upstreamTimeoutMilliseconds),
-    });
+    const upstreamResponse = await fetchPotaApi("/spot/activator", { fetcher });
     if (!upstreamResponse.ok) {
       throw new Error(`POTA spots responded with ${upstreamResponse.status}.`);
     }

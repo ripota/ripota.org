@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { LivePotaSpot } from "../lib/pota/spots";
+import { potaApiUserAgent } from "./pota-api";
 import { persistPotaSpotHistory } from "./pota-spot-history";
 import { createMigratedSqliteD1 } from "./test-utils/sqlite-d1";
 import { syncPotaSpotHistories } from "./pota-spot-history-sync";
@@ -68,8 +69,14 @@ describe("POTA spot history synchronization", () => {
     })).resolves.toMatchObject({ attempted: 0 });
 
     expect(fetcher).toHaveBeenCalledTimes(5);
-    expect(String(fetcher.mock.calls[0][0])).toBe(
+    expect(fetcher).toHaveBeenCalledWith(
       "https://api.pota.app/spot/comments/N1BS/US-10545",
+      expect.objectContaining({
+        headers: {
+          accept: "application/json",
+          "user-agent": potaApiUserAgent,
+        },
+      }),
     );
     await expect(database.DB.prepare(
       `SELECT spotter_callsign, comments, source_label

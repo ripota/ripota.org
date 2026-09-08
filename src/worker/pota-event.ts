@@ -14,6 +14,7 @@ import {
 import type { LivePotaSpot } from "../lib/pota/spots";
 import type { Env } from "./env";
 import { logWorkerError } from "./logging";
+import { fetchPotaApi } from "./pota-api";
 import { currentLivePotaReferences } from "./pota-live-references";
 
 const historyBatchSize = 20;
@@ -21,7 +22,6 @@ const historyConcurrency = 5;
 const historyBatchIntervalMilliseconds = 15 * 60_000;
 const parkHistoryIntervalMilliseconds = 55 * 60_000;
 const historyLeaseMilliseconds = 10 * 60_000;
-const historyTimeoutMilliseconds = 10_000;
 const initialRetryMilliseconds = 60_000;
 const maximumRetryMilliseconds = 60 * 60_000;
 const activationHistorySourceVersion = "pota-park-activations-v1";
@@ -358,15 +358,9 @@ async function fetchParkHistory(
   parkReference: string,
   deep: boolean,
 ): Promise<PotaActivationEvidence[]> {
-  const response = await fetcher(
-    `https://api.pota.app/park/activations/${encodeURIComponent(parkReference)}?count=${deep ? "all" : "100"}`,
-    {
-      headers: {
-        accept: "application/json",
-        "user-agent": "ripota.org Activate All RI evidence reconciliation",
-      },
-      signal: AbortSignal.timeout(historyTimeoutMilliseconds),
-    },
+  const response = await fetchPotaApi(
+    `/park/activations/${encodeURIComponent(parkReference)}?count=${deep ? "all" : "100"}`,
+    { fetcher },
   );
   if (!response.ok) throw new SyncError(`http-${response.status}`);
   let value: unknown;
