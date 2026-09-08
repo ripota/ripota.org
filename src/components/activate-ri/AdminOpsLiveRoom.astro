@@ -55,11 +55,13 @@ import { references } from "@ripota/parks";
     body: string;
     parkReference?: string;
     createdAt: string;
+    editedAt?: string;
     resolved: boolean;
     removed: boolean;
   };
   type RoomEvent =
     | { sequence: number; type: "message-created"; message: Message }
+    | { sequence: number; type: "message-edited"; messageId: string; body: string; editedAt: string }
     | { sequence: number; type: "message-removed"; messageId: string }
     | { sequence: number; type: "message-resolved" | "message-reopened"; messageId: string; resolvedAt?: string }
     | { sequence: number; type: "room-mode-changed"; mode: RoomMode }
@@ -156,8 +158,13 @@ import { references } from "@ripota/parks";
   }
 
   function applyLiveEvent(event: RoomEvent, render = true): void {
-    liveCursor = Math.max(liveCursor, event.sequence);
+    if (event.sequence <= liveCursor) return;
+    liveCursor = event.sequence;
     if (event.type === "message-created") liveMessages.set(event.message.id, event.message);
+    if (event.type === "message-edited") {
+      const message = liveMessages.get(event.messageId);
+      if (message && !message.removed) liveMessages.set(event.messageId, { ...message, body: event.body, editedAt: event.editedAt });
+    }
     if (event.type === "message-removed") {
       const message = liveMessages.get(event.messageId);
       if (message) liveMessages.set(event.messageId, { ...message, body: "", removed: true });
@@ -206,7 +213,7 @@ import { references } from "@ripota/parks";
     const author = document.createElement("strong");
     author.textContent = message.authorLabel;
     const meta = document.createElement("span");
-    meta.textContent = `${message.kind.replaceAll("-", " ")}${message.parkReference ? ` · ${message.parkReference}` : ""} · ${formatLiveTime(message.createdAt)}`;
+    meta.textContent = `${message.kind.replaceAll("-", " ")}${message.parkReference ? ` · ${message.parkReference}` : ""} · ${formatLiveTime(message.createdAt)}${message.editedAt && !message.removed ? " · edited" : ""}`;
     header.appendChild(author);
     header.appendChild(meta);
     const body = document.createElement("p");

@@ -1,5 +1,6 @@
 import type {
   CreateOpsMessageInput,
+  EditOpsMessageInput,
   OpsActor,
   OpsBootstrapDto,
   OpsEvent,
@@ -8,6 +9,7 @@ import type {
   OpsMessageKind,
   OpsRoomMode,
 } from "../lib/activate-ri/ops-types";
+import { isOpsMessageWithinEditWindow, OPS_MESSAGE_EDIT_WINDOW_MS } from "../lib/activate-ri/ops-editing";
 import type { Env } from "./env";
 import { queueOpsMessageEmails } from "./ops-notifications";
 
@@ -36,6 +38,7 @@ type MessageRow = {
   park_reference: string | null;
   stop_id: string | null;
   created_at: string;
+  edited_at: string | null;
   resolved_at: string | null;
   removed_at: string | null;
   removed_by: string;
@@ -56,6 +59,7 @@ type EventRow = {
   park_reference: string | null;
   stop_id: string | null;
   message_created_at: string | null;
+  edited_at: string | null;
   resolved_at: string | null;
   removed_at: string | null;
   removed_by: string | null;
@@ -676,6 +680,84 @@ export async function removeOwnOpsMessage(
   return latestMessageEvent(env, messageId, "message-removed");
 }
 
+export async function editOwnOpsMessage(
+  env: Env,
+  activatorId: string,
+  messageId: string,
+  input: EditOpsMessageInput,
+  now = new Date().toISOString(),
+): Promise<
+  | { ok: true; event: Extract<OpsEvent, { type: "message-edited" }> }
+  | { ok: false; reason: "not-found" | "expired" | "unavailable" }
+> {
+  const message = await env.DB.prepare(
+    `SELECT created_at, removed_at FROM activate_ri_ops_messages
+     WHERE event_id = ? AND id = ? AND author_type = 'activator'
+       AND author_activator_id = ?
+       AND kind IN ('chat', 'access-note', 'running-late', 'need-backup')`,
+  ).bind(env.ACTIVATE_RI_EVENT_ID, messageId, activatorId)
+    .first<{ created_at: string; removed_at: string | null }>();
+  if (!message) return { ok: false, reason: "not-found" };
+  if (message.removed_at || env.ACTIVATE_RI_OPS_HARD_DISABLED === "true") {
+    return { ok: false, reason: "unavailable" };
+  }
+  const nowMs = Date.parse(now);
+  if (!isOpsMessageWithinEditWindow(message.created_at, nowMs)) {
+    return { ok: false, reason: "expired" };
+  }
+
+  const metadata = JSON.stringify({ operationId: crypto.randomUUID() });
+  const [, , eventResult] = await env.DB.batch([
+    env.DB.prepare(
+      `UPDATE activate_ri_ops_messages
+       SET body = ?, edited_at = ?
+       WHERE event_id = ? AND id = ? AND author_type = 'activator'
+         AND author_activator_id = ? AND removed_at IS NULL
+         AND kind IN ('chat', 'access-note', 'running-late', 'need-backup')
+         AND julianday(created_at) > julianday(?)
+         AND julianday(created_at) <= julianday(?)
+         AND EXISTS (
+           SELECT 1 FROM activate_ri_ops_memberships
+           WHERE event_id = ? AND activator_id = ? AND status = 'active'
+             AND accepted_rules_version = (
+               SELECT rules_version FROM activate_ri_ops_settings WHERE event_id = ?
+             )
+         )
+         AND EXISTS (
+           SELECT 1 FROM activate_ri_ops_settings WHERE event_id = ? AND room_mode = 'full'
+         )`,
+    ).bind(
+      input.body,
+      now,
+      env.ACTIVATE_RI_EVENT_ID,
+      messageId,
+      activatorId,
+      new Date(nowMs - OPS_MESSAGE_EDIT_WINDOW_MS).toISOString(),
+      now,
+      env.ACTIVATE_RI_EVENT_ID,
+      activatorId,
+      env.ACTIVATE_RI_EVENT_ID,
+      env.ACTIVATE_RI_EVENT_ID,
+    ),
+    env.DB.prepare(
+      `INSERT INTO activate_ri_ops_events (
+         event_id, event_type, message_id, metadata_json, created_at
+       )
+       SELECT ?, 'message-edited', ?, ?, ? WHERE changes() > 0`,
+    ).bind(env.ACTIVATE_RI_EVENT_ID, messageId, metadata, now),
+    env.DB.prepare(
+      `${eventSelectSql}
+       WHERE e.event_id = ? AND e.message_id = ?
+         AND e.event_type = 'message-edited' AND e.metadata_json = ?`,
+    ).bind(env.ACTIVATE_RI_EVENT_ID, messageId, metadata),
+  ]);
+  const row = eventResult.results?.[0] as EventRow | undefined;
+  const event = row ? toOpsEvent(row) : null;
+  return event?.type === "message-edited"
+    ? { ok: true, event }
+    : { ok: false, reason: "unavailable" };
+}
+
 export async function setOwnOpsMessageResolved(
   env: Env,
   activatorId: string,
@@ -919,14 +1001,14 @@ async function latestMessageEvent(
 
 const messageSelectSql = `SELECT
   id, author_type, author_activator_id, author_label, kind, body,
-  park_reference, stop_id, created_at, resolved_at, removed_at, removed_by
+  park_reference, stop_id, created_at, edited_at, resolved_at, removed_at, removed_by
 FROM activate_ri_ops_messages`;
 
 const eventSelectSql = `SELECT
   e.sequence, e.event_type, e.message_id, e.metadata_json, e.created_at,
   m.id, m.author_type, m.author_activator_id, m.author_label, m.kind, m.body,
   m.park_reference, m.stop_id, m.created_at AS message_created_at,
-  m.resolved_at, m.removed_at, m.removed_by
+  m.edited_at, m.resolved_at, m.removed_at, m.removed_by
 FROM activate_ri_ops_events e
 LEFT JOIN activate_ri_ops_messages m ON m.id = e.message_id`;
 
@@ -944,6 +1026,7 @@ function toMessageDto(row: MessageRow): OpsMessageDto {
     ...(row.park_reference ? { parkReference: row.park_reference } : {}),
     ...(row.stop_id ? { stopId: row.stop_id } : {}),
     createdAt: row.created_at,
+    ...(row.edited_at ? { editedAt: row.edited_at } : {}),
     resolved: row.resolved_at !== null,
     ...(row.resolved_at ? { resolvedAt: row.resolved_at } : {}),
     removed: row.removed_at !== null,
@@ -968,6 +1051,7 @@ function toOpsEvent(row: EventRow): OpsEvent | null {
         park_reference: row.park_reference,
         stop_id: row.stop_id,
         created_at: row.message_created_at,
+        edited_at: row.edited_at,
         resolved_at: row.resolved_at,
         removed_at: row.removed_at,
         removed_by: row.removed_by ?? "",
@@ -975,6 +1059,17 @@ function toOpsEvent(row: EventRow): OpsEvent | null {
     };
   }
   const metadata = safeMetadata(row.metadata_json);
+  if (row.event_type === "message-edited" && row.id && row.message_id && row.edited_at) {
+    // Replay uses the current text, just like message-created. Removed messages
+    // stay redacted, and old versions are never retained in event metadata.
+    return {
+      sequence: row.sequence,
+      type: row.event_type,
+      messageId: row.message_id,
+      body: row.removed_at ? "" : row.body ?? "",
+      editedAt: row.edited_at,
+    };
+  }
   if (row.event_type === "room-mode-changed" && isRoomMode(metadata.mode)) {
     return { sequence: row.sequence, type: row.event_type, mode: metadata.mode };
   }
@@ -1010,6 +1105,7 @@ function toOpsEvent(row: EventRow): OpsEvent | null {
           park_reference: row.park_reference,
           stop_id: row.stop_id,
           created_at: row.message_created_at,
+          edited_at: row.edited_at,
           resolved_at: row.resolved_at,
           removed_at: row.removed_at,
           removed_by: row.removed_by ?? "",

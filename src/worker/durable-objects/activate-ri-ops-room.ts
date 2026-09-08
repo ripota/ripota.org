@@ -1,9 +1,11 @@
 import type { CreateOpsMessageInput, OpsActor, OpsEvent, OpsMembershipStatus } from "../../lib/activate-ri/ops-types";
+import { validateOpsMessageEdit } from "../../lib/activate-ri/ops-validation";
 import {
   createAdminOpsMessage,
   createAdminOpsAnnouncement,
   clearPinnedOpsAnnouncement,
   createOpsMessage,
+  editOwnOpsMessage,
   moderateOpsMessage,
   removeOwnOpsMessage,
   setOwnOpsMessageResolved,
@@ -34,6 +36,10 @@ export class ActivateRiOpsRoom implements DurableObject {
     }
     if (request.method === "POST" && url.pathname === "/messages") {
       return this.createMessage(request);
+    }
+    const messageEdit = url.pathname.match(/^\/messages\/([^/]+)\/edit$/);
+    if (request.method === "POST" && messageEdit) {
+      return this.editMessage(request, messageEdit[1]);
     }
     const messageMutation = url.pathname.match(/^\/messages\/([^/]+)\/(remove|resolve|reopen)$/);
     if (request.method === "POST" && messageMutation) {
@@ -182,6 +188,39 @@ export class ActivateRiOpsRoom implements DurableObject {
     }
     this.broadcast(event);
     return json({ ok: true, event });
+  }
+
+  private async editMessage(request: Request, encodedMessageId: string): Promise<Response> {
+    const actor = actorFromHeaders(request.headers);
+    if (!actor || actor.type !== "activator") {
+      return json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    }
+    let payload: unknown;
+    try {
+      payload = await request.json();
+    } catch {
+      return json({ ok: false, errors: ["Expected valid JSON."] }, { status: 400 });
+    }
+    const validation = validateOpsMessageEdit(payload);
+    if (!validation.ok) {
+      return json({ ok: false, errors: validation.errors }, { status: 400 });
+    }
+    const result = await editOwnOpsMessage(
+      this.env,
+      actor.activatorId,
+      decodePathSegment(encodedMessageId),
+      validation.value,
+    );
+    if (!result.ok) {
+      const error = result.reason === "not-found"
+        ? "Message not found"
+        : result.reason === "expired"
+        ? "Messages can only be edited within 20 minutes of posting."
+        : "This message can no longer be edited.";
+      return json({ ok: false, error }, { status: result.reason === "not-found" ? 404 : 409 });
+    }
+    this.broadcast(result.event);
+    return json({ ok: true, event: result.event });
   }
 
   private async createAnnouncement(request: Request): Promise<Response> {

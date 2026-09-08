@@ -1,6 +1,7 @@
 import { references } from "@ripota/parks";
 import type {
   CreateOpsMessageInput,
+  EditOpsMessageInput,
   OpsMessageContext,
   OpsMessageKind,
   OpsRoomMode,
@@ -35,27 +36,13 @@ export function validateOpsMessage(
   const kind = typeof input.kind === "string" && messageKinds.has(input.kind as OpsMessageKind)
     ? input.kind as OpsMessageKind
     : null;
-  const body = typeof input.body === "string"
-    ? input.body.replace(/\r\n?/g, "\n").trim()
-    : "";
+  const body = validateMessageBody(input.body, errors);
 
   if (!clientNoncePattern.test(clientNonce)) {
     errors.push("Message nonce must be a UUID.");
   }
   if (!kind) {
     errors.push("Choose a valid participant message type.");
-  }
-  if (body.length === 0) {
-    errors.push("Enter a message.");
-  }
-  if ([...body].length > 1_000) {
-    errors.push("Message must be 1,000 characters or fewer.");
-  }
-  if (body.split("\n").length > 12) {
-    errors.push("Message may contain at most 12 lines.");
-  }
-  if (disallowedControls.test(body)) {
-    errors.push("Message contains unsupported control characters.");
   }
 
   const context = validateContext(input.context, errors);
@@ -69,6 +56,26 @@ export function validateOpsMessage(
   return errors.length > 0 || !kind
     ? { ok: false, errors }
     : { ok: true, value: { clientNonce, kind, body, context } };
+}
+
+export function validateOpsMessageEdit(input: unknown): OpsValidationResult<EditOpsMessageInput> {
+  if (!isRecord(input)) {
+    return { ok: false, errors: ["Enter a valid message."] };
+  }
+  const errors: string[] = [];
+  const body = validateMessageBody(input.body, errors);
+  return errors.length > 0
+    ? { ok: false, errors }
+    : { ok: true, value: { body } };
+}
+
+function validateMessageBody(input: unknown, errors: string[]): string {
+  const body = typeof input === "string" ? input.replace(/\r\n?/g, "\n").trim() : "";
+  if (body.length === 0) errors.push("Enter a message.");
+  if ([...body].length > 1_000) errors.push("Message must be 1,000 characters or fewer.");
+  if (body.split("\n").length > 12) errors.push("Message may contain at most 12 lines.");
+  if (disallowedControls.test(body)) errors.push("Message contains unsupported control characters.");
+  return body;
 }
 
 export function validateOpsRoomMode(input: unknown): OpsValidationResult<OpsRoomMode> {

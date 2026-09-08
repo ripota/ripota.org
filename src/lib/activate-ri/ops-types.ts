@@ -35,6 +35,7 @@ export type OpsMessageDto = {
   parkReference?: string;
   stopId?: string;
   createdAt: string;
+  editedAt?: string;
   resolved: boolean;
   resolvedAt?: string;
   removed: boolean;
@@ -44,6 +45,13 @@ export type OpsMessageDto = {
 
 export type OpsEvent =
   | { sequence: number; type: "message-created"; message: OpsMessageDto }
+  | {
+      sequence: number;
+      type: "message-edited";
+      messageId: string;
+      body: string;
+      editedAt: string;
+    }
   | {
       sequence: number;
       type: "message-removed";
@@ -95,3 +103,5 @@ export type CreateOpsMessageInput = {
   body: string;
   context: OpsMessageContext;
 };
+
+export type EditOpsMessageInput = { body: string };

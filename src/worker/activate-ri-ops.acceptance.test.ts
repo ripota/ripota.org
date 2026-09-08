@@ -4,12 +4,14 @@ import { ActivateRiOpsRoom } from "./durable-objects/activate-ri-ops-room";
 import { handleActivateRiApi } from "./routes/activate-ri";
 import { createAdminOpsMessage, moderateOpsMessage } from "./ops-db";
 import { createMigratedSqliteD1 } from "./test-utils/sqlite-d1";
+import type { CreateOpsMessageInput, OpsEvent, OpsMessageDto } from "../lib/activate-ri/ops-types";
 
 let closeDatabase: (() => void) | undefined;
 
 afterEach(() => {
   closeDatabase?.();
   closeDatabase = undefined;
+  vi.useRealTimers();
 });
 
 describe("Activate RI Ops Room D1 flow", () => {
@@ -777,6 +779,256 @@ describe("Activate RI Ops Room D1 flow", () => {
     }));
   });
 });
+
+describe("Activate RI Ops Room message editing", () => {
+  it("persists a correction for refresh and catch-up without changing message metadata or sending another email", async () => {
+    const { env, cookie } = await editableOpsRoom();
+    const recipient = await approvedActivator(env, {
+      submitterCallsign: "K1ABC", submitterName: "María Rivera", submitterEmail: "maria@example.com",
+    });
+    const subscribed = await handleActivateRiApi(sessionRequest("/api/activate-ri-2026/ops/preferences", recipient.cookie, {
+      method: "PATCH", headers: jsonHeaders(), body: JSON.stringify({ emailEnabled: true, chatMessages: true }),
+    }), env);
+    expect(subscribed.status).toBe(200);
+    const send = vi.fn(async () => ({ messageId: "chat-email" }));
+    env.EMAIL = { send } as unknown as SendEmail;
+    env.ACTIVATE_RI_EMAIL_FROM = "activate-ri-2026@ripota.org";
+    const bootstrap = await handleActivateRiApi(sessionRequest("/api/activate-ri-2026/ops/bootstrap", cookie), env);
+    const initial = await bootstrap.json() as { upcomingStops: Array<{ id: string }> };
+    const created = await postEditableMessage(env, cookie, {
+      kind: "need-backup", body: "Vehicle truble at the park.",
+      context: { type: "stop", stopId: initial.upcomingStops[0].id },
+    });
+    expect(send).toHaveBeenCalledOnce();
+    const resolved = await handleActivateRiApi(sessionRequest(
+      `/api/activate-ri-2026/ops/messages/${created.message.id}/resolve`, cookie,
+      { method: "POST", headers: jsonHeaders() },
+    ), env);
+    expect(resolved.status).toBe(200);
+    const resolvedBody = await resolved.json() as { event: { sequence: number } };
+    const before = await env.DB.prepare(`SELECT * FROM activate_ri_ops_messages WHERE id = ?`)
+      .bind(created.message.id).first<Record<string, unknown>>();
+    const deliveryBefore = await env.DB.prepare(`SELECT * FROM activate_ri_ops_email_deliveries WHERE message_id = ?`)
+      .bind(created.message.id).all();
+    const changedName = await handleActivateRiApi(sessionRequest("/api/activate-ri-2026/ops/profile", cookie, {
+      method: "PATCH", headers: jsonHeaders(), body: JSON.stringify({ displayName: "Different name" }),
+    }), env);
+    expect(changedName.status).toBe(200);
+
+    const editedAt = new Date(Date.parse(created.message.createdAt) + 5 * 60_000).toISOString();
+    vi.setSystemTime(new Date(editedAt));
+    const response = await editMessage(env, cookie, created.message.id, {
+      body: "  Vehicle trouble at the park.\r\nHelp has arrived.  ",
+      kind: "chat", context: null, authorActivatorId: recipient.activatorId,
+      authorLabel: "Someone else", createdAt: editedAt, resolved: false,
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    const correction = await response.json() as { event: OpsEvent };
+    const body = "Vehicle trouble at the park.\nHelp has arrived.";
+    expect(correction).toEqual({ ok: true, event: {
+      sequence: resolvedBody.event.sequence + 1, type: "message-edited", messageId: created.message.id, body, editedAt,
+    } });
+    await expect(env.DB.prepare(`SELECT * FROM activate_ri_ops_messages WHERE id = ?`)
+      .bind(created.message.id).first()).resolves.toEqual({ ...before, body, edited_at: editedAt });
+    const deliveryAfter = await env.DB.prepare(`SELECT * FROM activate_ri_ops_email_deliveries WHERE message_id = ?`)
+      .bind(created.message.id).all();
+    expect(deliveryAfter.results).toEqual(deliveryBefore.results);
+    expect(send).toHaveBeenCalledOnce();
+
+    const refreshed = await handleActivateRiApi(sessionRequest("/api/activate-ri-2026/ops/bootstrap", recipient.cookie), env);
+    await expect(refreshed.json()).resolves.toMatchObject({
+      messages: [{ ...created.message, body, editedAt, resolved: true }], cursor: correction.event.sequence,
+    });
+    const catchup = await handleActivateRiApi(sessionRequest(
+      `/api/activate-ri-2026/ops/events?after=${resolvedBody.event.sequence}&through=${correction.event.sequence}`, recipient.cookie,
+    ), env);
+    await expect(catchup.json()).resolves.toMatchObject({ events: [correction.event], nextCursor: correction.event.sequence });
+  });
+
+  it("allows edits until exactly 20 minutes from creation without restarting the clock after a correction", async () => {
+    const { env, cookie } = await editableOpsRoom();
+    const created = await postEditableMessage(env, cookie);
+    const createdAt = Date.parse(created.message.createdAt);
+    for (const [elapsed, body] of [[0, "First correction"], [10 * 60_000, "Second correction"], [20 * 60_000 - 1, "Last correction"]] as const) {
+      vi.setSystemTime(new Date(createdAt + elapsed));
+      const response = await editMessage(env, cookie, created.message.id, { body });
+      expect(response.status, `Edit at ${elapsed} ms`).toBe(200);
+    }
+    for (const elapsed of [20 * 60_000, 20 * 60_000 + 1, 25 * 60_000]) {
+      vi.setSystemTime(new Date(createdAt + elapsed));
+      const response = await editMessage(env, cookie, created.message.id, { body: "Too late" });
+      expect(response.status, `Edit at ${elapsed} ms`).toBe(409);
+    }
+    await expect(env.DB.prepare(`SELECT body, created_at, edited_at FROM activate_ri_ops_messages WHERE id = ?`)
+      .bind(created.message.id).first()).resolves.toEqual({
+      body: "Last correction", created_at: created.message.createdAt,
+      edited_at: new Date(createdAt + 20 * 60_000 - 1).toISOString(),
+    });
+    await expect(env.DB.prepare(`SELECT COUNT(*) AS count FROM activate_ri_ops_events WHERE event_type = 'message-edited'`)
+      .first()).resolves.toEqual({ count: 3 });
+  });
+
+  it("validates replacement text and preserves the saved message for invalid requests", async () => {
+    const { env, cookie } = await editableOpsRoom();
+    const created = await postEditableMessage(env, cookie);
+    const invalid: unknown[] = [
+      null, [], "Text", {}, { body: null }, { body: 123 }, { body: false }, { body: {} },
+      { body: "  \r\n\t" }, { body: "x".repeat(1_001) }, { body: "📻".repeat(1_001) },
+      { body: Array.from({ length: 13 }, () => "Line").join("\n") }, { body: "Bad\u0000text" },
+      { body: "Bad\u000btext" }, { body: "Bad\u007ftext" },
+    ];
+    for (const payload of invalid) {
+      const response = await editMessage(env, cookie, created.message.id, payload);
+      expect(response.status, JSON.stringify(payload)).toBe(400);
+    }
+    const path = `/api/activate-ri-2026/ops/messages/${created.message.id}/edit`;
+    const malformed = await handleActivateRiApi(sessionRequest(path, cookie, {
+      method: "POST", headers: jsonHeaders(), body: "{",
+    }), env);
+    expect(malformed.status).toBe(400);
+    const wrongContentType = await handleActivateRiApi(sessionRequest(path, cookie, {
+      method: "POST", headers: { origin: "https://ripota.org" }, body: JSON.stringify({ body: "Text" }),
+    }), env);
+    expect(wrongContentType.status).toBe(415);
+    await expect(env.DB.prepare(`SELECT body, edited_at FROM activate_ri_ops_messages WHERE id = ?`)
+      .bind(created.message.id).first()).resolves.toEqual({ body: created.message.body, edited_at: null });
+    await expect(env.DB.prepare(`SELECT COUNT(*) AS count FROM activate_ri_ops_events WHERE event_type = 'message-edited'`)
+      .first()).resolves.toEqual({ count: 0 });
+    for (const body of ["📻".repeat(1_000), Array.from({ length: 12 }, () => "Line\ttext").join("\r\n")]) {
+      const response = await editMessage(env, cookie, created.message.id, { body });
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({ event: { body: body.replaceAll("\r\n", "\n") } });
+    }
+  });
+
+  it("enforces authentication, ownership, current room access, trusted origin, and both rate limits", async () => {
+    const { env, cookie, activatorId } = await editableOpsRoom();
+    const created = await postEditableMessage(env, cookie);
+    const other = await approvedActivator(env, {
+      submitterCallsign: "K1ABC", submitterName: "María Rivera", submitterEmail: "maria@example.com",
+    });
+    const acceptOther = await handleActivateRiApi(sessionRequest("/api/activate-ri-2026/ops/rules/accept", other.cookie, {
+      method: "POST", headers: jsonHeaders(), body: "{}",
+    }), env);
+    expect(acceptOther.status).toBe(200);
+    const path = `/api/activate-ri-2026/ops/messages/${created.message.id}/edit`;
+    expect((await handleActivateRiApi(jsonRequest(path, { body: "Unauthorized" }), env)).status).toBe(401);
+    expect((await editMessage(env, other.cookie, created.message.id, { body: "Other author" })).status).toBe(404);
+    expect((await editMessage(env, cookie, "missing-message", { body: "Missing" })).status).toBe(404);
+    for (const origin of ["https://attacker.example", "https://ripota.org.attacker.example", null]) {
+      const headers = new Headers(jsonHeaders(cookie));
+      if (origin === null) headers.delete("origin");
+      else headers.set("origin", origin);
+      const response = await handleActivateRiApi(new Request(`https://ripota.org${path}`, {
+        method: "POST", headers, body: JSON.stringify({ body: "Untrusted" }),
+      }), env);
+      expect(response.status).toBe(403);
+    }
+    for (const status of ["muted", "banned"]) {
+      await env.DB.prepare(`UPDATE activate_ri_ops_memberships SET status = ? WHERE activator_id = ?`)
+        .bind(status, activatorId).run();
+      expect((await editMessage(env, cookie, created.message.id, { body: "Unavailable" })).status).toBe(403);
+    }
+    await env.DB.prepare(`UPDATE activate_ri_ops_memberships SET status = 'active', accepted_rules_version = NULL WHERE activator_id = ?`)
+      .bind(activatorId).run();
+    expect((await editMessage(env, cookie, created.message.id, { body: "Unaccepted rules" })).status).toBe(409);
+    await env.DB.prepare(`UPDATE activate_ri_ops_memberships SET accepted_rules_version = 'activate-ri-ops-v1' WHERE activator_id = ?`)
+      .bind(activatorId).run();
+    for (const [mode, status] of [["announcements", 403], ["off", 503]] as const) {
+      await env.DB.prepare(`UPDATE activate_ri_ops_settings SET room_mode = ? WHERE event_id = ?`)
+        .bind(mode, env.ACTIVATE_RI_EVENT_ID).run();
+      expect((await editMessage(env, cookie, created.message.id, { body: "Unavailable mode" })).status).toBe(status);
+    }
+    await env.DB.prepare(`UPDATE activate_ri_ops_settings SET room_mode = 'full' WHERE event_id = ?`)
+      .bind(env.ACTIVATE_RI_EVENT_ID).run();
+    env.ACTIVATE_RI_OPS_HARD_DISABLED = "true";
+    expect((await editMessage(env, cookie, created.message.id, { body: "Disabled" })).status).toBe(503);
+    env.ACTIVATE_RI_OPS_HARD_DISABLED = "false";
+    const burst = vi.fn(async () => ({ success: false }));
+    const sustained = vi.fn(async () => ({ success: true }));
+    env.OPS_RATE_LIMIT_BURST = { limit: burst } as RateLimit;
+    env.OPS_RATE_LIMIT_SUSTAINED = { limit: sustained } as RateLimit;
+    expect((await editMessage(env, cookie, created.message.id, { body: "Rate limited" })).status).toBe(429);
+    burst.mockResolvedValue({ success: true });
+    sustained.mockResolvedValue({ success: false });
+    expect((await editMessage(env, cookie, created.message.id, { body: "Still rate limited" })).status).toBe(429);
+    expect(burst).toHaveBeenCalledWith({ key: `activator:${activatorId}` });
+    expect(sustained).toHaveBeenCalledWith({ key: `activator:${activatorId}` });
+    await expect(env.DB.prepare(`SELECT body, edited_at FROM activate_ri_ops_messages WHERE id = ?`)
+      .bind(created.message.id).first()).resolves.toEqual({ body: created.message.body, edited_at: null });
+    await expect(env.DB.prepare(`SELECT COUNT(*) AS count FROM activate_ri_ops_events WHERE event_type = 'message-edited'`)
+      .first()).resolves.toEqual({ count: 0 });
+  });
+
+  it.each(["author", "organizer"] as const)("redacts edit history after %s removal and refuses further edits", async (removedBy) => {
+    const { env, cookie } = await editableOpsRoom();
+    const created = await postEditableMessage(env, cookie, { body: "Original private detail" });
+    const edited = await editMessage(env, cookie, created.message.id, { body: "Corrected private detail" });
+    expect(edited.status).toBe(200);
+    const remove = removedBy === "author"
+      ? sessionRequest(`/api/activate-ri-2026/ops/messages/${created.message.id}/remove`, cookie, {
+          method: "POST", headers: jsonHeaders(),
+        })
+      : adminRequest(`/api/activate-ri-2026/admin/ops/messages/${created.message.id}/remove`, {
+          method: "POST", headers: jsonHeaders(), body: JSON.stringify({ reason: "Remove private details" }),
+        });
+    const removed = await handleActivateRiApi(remove, env);
+    expect(removed.status).toBe(200);
+    const removal = await removed.json() as { event: { sequence: number } };
+    expect((await editMessage(env, cookie, created.message.id, { body: "Restore content" })).status).toBe(409);
+    const history = await handleActivateRiApi(sessionRequest(
+      `/api/activate-ri-2026/ops/events?after=0&through=${removal.event.sequence}`, cookie,
+    ), env);
+    const replay = await history.json() as { events: OpsEvent[] };
+    expect(replay.events).toEqual([
+      expect.objectContaining({ type: "room-mode-changed" }),
+      expect.objectContaining({ type: "message-created", message: expect.objectContaining({ body: "", removed: true }) }),
+      expect.objectContaining({ type: "message-edited", messageId: created.message.id, body: "" }),
+      expect.objectContaining({ type: "message-removed", messageId: created.message.id, removedBy }),
+    ]);
+    expect(JSON.stringify(replay)).not.toContain("private detail");
+    const stored = await env.DB.prepare(`SELECT metadata_json FROM activate_ri_ops_events WHERE message_id = ?`)
+      .bind(created.message.id).all();
+    expect(JSON.stringify(stored.results)).not.toContain("private detail");
+    const refreshed = await handleActivateRiApi(sessionRequest("/api/activate-ri-2026/ops/bootstrap", cookie), env);
+    await expect(refreshed.json()).resolves.toMatchObject({ messages: [] });
+  });
+});
+
+async function editableOpsRoom() {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-09-08T12:00:00.000Z"));
+  const database = createMigratedSqliteD1();
+  closeDatabase = database.close;
+  const env = testEnv(database.DB);
+  const identity = await approvedActivator(env);
+  const mode = await handleActivateRiApi(adminRequest("/api/activate-ri-2026/admin/ops/settings", {
+    method: "PATCH", headers: jsonHeaders(), body: JSON.stringify({ roomMode: "full" }),
+  }), env);
+  expect(mode.status).toBe(200);
+  const accepted = await handleActivateRiApi(sessionRequest("/api/activate-ri-2026/ops/rules/accept", identity.cookie, {
+    method: "POST", headers: jsonHeaders(), body: "{}",
+  }), env);
+  expect(accepted.status).toBe(200);
+  return { env, ...identity };
+}
+
+async function postEditableMessage(env: Env, cookie: string, overrides: Partial<CreateOpsMessageInput> = {}) {
+  const response = await handleActivateRiApi(sessionRequest("/api/activate-ri-2026/ops/messages", cookie, {
+    method: "POST", headers: jsonHeaders(), body: JSON.stringify({
+      clientNonce: crypto.randomUUID(), kind: "chat", body: "A message with a tpyo.", context: null, ...overrides,
+    }),
+  }), env);
+  expect(response.status).toBe(200);
+  return (await response.json() as { event: { sequence: number; type: "message-created"; message: OpsMessageDto } }).event;
+}
+
+function editMessage(env: Env, cookie: string, messageId: string, payload: unknown) {
+  return handleActivateRiApi(sessionRequest(`/api/activate-ri-2026/ops/messages/${messageId}/edit`, cookie, {
+    method: "POST", headers: jsonHeaders(), body: JSON.stringify(payload),
+  }), env);
+}
 
 async function approvedActivator(env: Env, overrides: Partial<ReturnType<typeof volunteerPayload>> = {}): Promise<{
   cookie: string;

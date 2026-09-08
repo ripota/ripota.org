@@ -28,10 +28,25 @@ const parkNames = Object.fromEntries(
   </div>
 
   <OpsRoomSettings />
+  <dialog class="ops-rules ops-message-editor" data-ops-edit-dialog aria-labelledby="ops-edit-title">
+    <form data-ops-edit-form>
+      <h2 id="ops-edit-title">Edit message</h2>
+      <p id="ops-edit-help">You can edit this message for 20 minutes after posting.</p>
+      <label for="ops-edit-body">Message</label>
+      <textarea id="ops-edit-body" data-ops-edit-body rows="5" required aria-describedby="ops-edit-help ops-edit-status"></textarea>
+      <p id="ops-edit-status" class="form-status" data-ops-edit-status role="status"></p>
+      <div class="form-actions">
+        <button class="button" data-variant="primary" type="submit" data-ops-edit-save>Save changes</button>
+        <button class="button" data-variant="light" type="button" data-ops-edit-cancel>Cancel</button>
+      </div>
+    </form>
+  </dialog>
+  <p class="sr-only" data-ops-edit-saved role="status"></p>
 </div>
 
 <script>
   import { continuesOpsMessageGroup, opsMessageTimeLabel } from "../../lib/activate-ri/ops-presentation";
+  import { isOpsMessageWithinEditWindow, OPS_MESSAGE_EDIT_WINDOW_MS } from "../../lib/activate-ri/ops-editing";
 
   type RoomMode = "full" | "announcements" | "off";
   type MembershipStatus = "active" | "muted" | "banned";
@@ -46,6 +61,7 @@ const parkNames = Object.fromEntries(
     parkReference?: string;
     stopId?: string;
     createdAt: string;
+    editedAt?: string;
     resolved: boolean;
     resolvedAt?: string;
     removed: boolean;
@@ -55,6 +71,7 @@ const parkNames = Object.fromEntries(
   type Stop = { id: string; parkReference: string; startAt: string; endAt: string };
   type RoomEvent =
     | { sequence: number; type: "message-created"; message: Message }
+    | { sequence: number; type: "message-edited"; messageId: string; body: string; editedAt: string }
     | { sequence: number; type: "message-removed"; messageId: string; removedAt: string; removedBy: "author" | "organizer" }
     | { sequence: number; type: "message-resolved" | "message-reopened"; messageId: string; resolvedAt?: string }
     | { sequence: number; type: "pin-changed"; pinnedMessage: Message | null }
@@ -90,6 +107,12 @@ const parkNames = Object.fromEntries(
   const pinBody = room?.querySelector<HTMLElement>("[data-ops-pin-body]");
   const pinMeta = room?.querySelector<HTMLElement>("[data-ops-pin-meta]");
   const rulesDialog = room?.querySelector<HTMLDialogElement>("[data-ops-settings]");
+  const editDialog = room?.querySelector<HTMLDialogElement>("[data-ops-edit-dialog]");
+  const editForm = editDialog?.querySelector<HTMLFormElement>("[data-ops-edit-form]");
+  const editBody = editDialog?.querySelector<HTMLTextAreaElement>("[data-ops-edit-body]");
+  const editStatus = editDialog?.querySelector<HTMLElement>("[data-ops-edit-status]");
+  const editSave = editDialog?.querySelector<HTMLButtonElement>("[data-ops-edit-save]");
+  const editCancel = editDialog?.querySelector<HTMLButtonElement>("[data-ops-edit-cancel]");
   const parkNames = JSON.parse(room?.dataset.parkNames ?? "{}") as Record<string, string>;
   const messages = new Map<string, Message>();
   const socketEvents: RoomEvent[] = [];
@@ -125,6 +148,9 @@ const parkNames = Object.fromEntries(
   let roomLoaded = false;
   let loadingRoom = false;
   let sending = false;
+  let editingMessageId: string | null = null;
+  let savingEdit = false;
+  let editExpiryTimer: number | undefined;
   let linkedMessage = location.hash.startsWith("#ops-message-") ? location.hash.slice(1) : null;
 
   if (room) {
@@ -259,6 +285,7 @@ const parkNames = Object.fromEntries(
     if (isMembershipControl(payload)) {
       membershipStatus = payload.status;
       disableComposer(roomMode !== "full" || membershipStatus !== "active");
+      renderFeed();
       if (payload.status === "banned") {
         setConnection("unavailable", "Room access unavailable");
         closeSocket(true);
@@ -323,6 +350,11 @@ const parkNames = Object.fromEntries(
     }
     if (event.type === "message-created") {
       messages.set(event.message.id, event.message);
+    } else if (event.type === "message-edited") {
+      const message = messages.get(event.messageId);
+      if (message && !message.removed) {
+        messages.set(event.messageId, { ...message, body: event.body, editedAt: event.editedAt });
+      }
     } else if (event.type === "message-removed") {
       if (pinnedMessage?.id === event.messageId) pinnedMessage = null;
       const message = messages.get(event.messageId);
@@ -414,6 +446,7 @@ const parkNames = Object.fromEntries(
 
   function renderFeed(): void {
     if (!feed) return;
+    updateEditAvailability();
     const openMenus = new Set([...feed.querySelectorAll<HTMLDetailsElement>("details.ops-message__actions[open]")]
       .map((menu) => menu.closest<HTMLElement>("[data-message-id]")?.dataset.messageId));
     const focusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -492,9 +525,9 @@ const parkNames = Object.fromEntries(
 
   function scheduleSeenMessages(): void {
     window.clearTimeout(seenTimer);
-    if (document.hidden || rulesDialog?.open) return;
+    if (document.hidden || rulesDialog?.open || editDialog?.open) return;
     seenTimer = window.setTimeout(() => {
-      if (document.hidden || rulesDialog?.open) return;
+      if (document.hidden || rulesDialog?.open || editDialog?.open) return;
       const remembered = seenMessages;
       restoreSeenMessages();
       remembered.forEach((id) => seenMessages.add(id));
@@ -598,6 +631,13 @@ const parkNames = Object.fromEntries(
     content.className = "ops-message__content";
     item.appendChild(header);
     content.appendChild(body);
+    if (message.editedAt) {
+      const edited = document.createElement("span");
+      edited.className = "ops-message__edited";
+      edited.textContent = "edited";
+      edited.title = `Edited ${formatTimestamp(message.editedAt)} Eastern time`;
+      content.appendChild(edited);
+    }
     if (message.kind !== "chat" || message.parkReference || message.resolved) {
       const context = document.createElement("p");
       context.className = "ops-meta";
@@ -621,6 +661,19 @@ const parkNames = Object.fromEntries(
       actions.appendChild(toggle);
       const buttons = document.createElement("div");
       buttons.className = "ops-message__action-menu";
+      if (canEditMessage(message)) {
+        const edit = document.createElement("button");
+        edit.type = "button";
+        edit.className = "button";
+        edit.dataset.variant = "light";
+        edit.dataset.action = "edit";
+        edit.textContent = "Edit";
+        edit.addEventListener("click", () => {
+          actions.open = false;
+          openMessageEditor(message.id);
+        });
+        buttons.appendChild(edit);
+      }
       if (message.kind === "need-backup" || message.kind === "access-note") {
         buttons.appendChild(messageAction(message, message.resolved ? "Reopen" : "Resolve", message.resolved ? "reopen" : "resolve"));
       }
@@ -647,6 +700,7 @@ const parkNames = Object.fromEntries(
   function updateRoomMode(mode: RoomMode): void {
     roomMode = mode;
     disableComposer(mode !== "full" || membershipStatus !== "active");
+    updateEditAvailability();
     if (mode === "announcements") {
       setConnection("announcements", "Announcements only");
     } else if (mode === "off") {
@@ -732,6 +786,70 @@ const parkNames = Object.fromEntries(
   });
 
   rulesDialog?.addEventListener("close", scheduleSeenMessages);
+  editDialog?.addEventListener("close", () => {
+    const id = editingMessageId;
+    editingMessageId = null;
+    if (editBody) editBody.value = "";
+    editStatus?.replaceChildren();
+    const item = id ? feed?.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(id)}"]`) : null;
+    (item?.querySelector<HTMLElement>("summary") ?? item ?? feed)?.focus({ preventScroll: true });
+    scheduleSeenMessages();
+  });
+  editDialog?.addEventListener("cancel", (event) => {
+    if (savingEdit) event.preventDefault();
+  });
+  editCancel?.addEventListener("click", () => {
+    if (!savingEdit) editDialog?.close();
+  });
+  editForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (savingEdit || !editingMessageId || !editBody) return;
+    const message = messages.get(editingMessageId);
+    if (!message || !canEditMessage(message)) {
+      updateEditAvailability();
+      return;
+    }
+    const body = editBody.value.replace(/\r\n?/g, "\n").trim();
+    if (!body) {
+      editStatus?.replaceChildren("Enter a message.");
+      return;
+    }
+    if (body === message.body) {
+      editDialog?.close();
+      return;
+    }
+    savingEdit = true;
+    editStatus?.replaceChildren("Saving changes…");
+    updateEditAvailability();
+    try {
+      const response = await fetch(`/api/activate-ri-2026/ops/messages/${encodeURIComponent(message.id)}/edit`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ body }),
+      });
+      const result = await response.json() as { event?: RoomEvent; error?: string; errors?: string[] };
+      if (!response.ok || result.event?.type !== "message-edited") {
+        editStatus?.replaceChildren(result.errors?.join(" ") ?? result.error ?? "Unable to save changes. Please try again.");
+        return;
+      }
+      try {
+        if (result.event.sequence > cursor + 1) {
+          await catchUp(cursor, result.event.sequence - 1);
+        }
+        applyEvent(result.event);
+      } catch {
+        // The edit was saved. Reload the room without skipping missing events.
+        void loadRoom();
+      }
+      editDialog?.close();
+      room?.querySelector("[data-ops-edit-saved]")?.replaceChildren("Message updated.");
+    } catch {
+      editStatus?.replaceChildren("Unable to save changes. Check your connection and try again. Your edit is still here.");
+    } finally {
+      savingEdit = false;
+      updateEditAvailability();
+    }
+  });
 
   filters?.addEventListener("change", () => {
     localStorage.setItem(filterKey, selectedFilter());
@@ -756,6 +874,7 @@ const parkNames = Object.fromEntries(
       setConnection("paused", "Paused while in background");
       hiddenCloseTimer = window.setTimeout(() => closeSocket(true), 30_000);
     } else {
+      updateEditAvailability();
       scheduleSeenMessages();
       if (roomLoaded) connectSocket();
       else void loadRoom();
@@ -790,6 +909,52 @@ const parkNames = Object.fromEntries(
       bodyInput?.focus();
     });
     return button;
+  }
+
+  function canEditMessage(message: Message): boolean {
+    return message.authorType === "activator" && message.authorActivatorId === activatorId &&
+      !message.removed && membershipStatus === "active" && roomMode === "full" &&
+      isOpsMessageWithinEditWindow(message.createdAt);
+  }
+
+  function openMessageEditor(id: string): void {
+    const message = messages.get(id);
+    if (!message || !editDialog || !editBody || !canEditMessage(message)) {
+      updateEditAvailability();
+      return;
+    }
+    editingMessageId = id;
+    editBody.value = message.body;
+    editStatus?.replaceChildren();
+    room?.querySelector("[data-ops-edit-saved]")?.replaceChildren();
+    editDialog.showModal();
+    updateEditAvailability();
+    editBody.focus();
+    editBody.setSelectionRange(editBody.value.length, editBody.value.length);
+  }
+
+  function updateEditAvailability(): void {
+    window.clearTimeout(editExpiryTimer);
+    for (const button of feed?.querySelectorAll<HTMLButtonElement>('[data-action="edit"]') ?? []) {
+      const message = messages.get(button.closest<HTMLElement>("[data-message-id]")?.dataset.messageId ?? "");
+      if (message && canEditMessage(message)) continue;
+      if (document.activeElement === button) button.closest("details")?.querySelector("summary")?.focus();
+      button.remove();
+    }
+    const message = editingMessageId ? messages.get(editingMessageId) : undefined;
+    if (editSave) editSave.disabled = savingEdit || !message || !canEditMessage(message);
+    if (editBody) editBody.readOnly = savingEdit;
+    if (editCancel) editCancel.disabled = savingEdit;
+    if (editDialog?.open && !savingEdit) {
+      if (!message || message.removed) editStatus?.replaceChildren("This message was removed and can no longer be edited.");
+      else if (!isOpsMessageWithinEditWindow(message.createdAt)) editStatus?.replaceChildren("The 20-minute editing window has ended. You can copy your changes before closing.");
+      else if (!canEditMessage(message)) editStatus?.replaceChildren("Editing is currently unavailable in this room.");
+    }
+    const deadlines = [...messages.values()].filter(canEditMessage)
+      .map((message) => Date.parse(message.createdAt) + OPS_MESSAGE_EDIT_WINDOW_MS);
+    if (deadlines.length) {
+      editExpiryTimer = window.setTimeout(updateEditAvailability, Math.max(1, Math.min(...deadlines) - Date.now()));
+    }
   }
 
   function messageAction(message: Message, label: string, action: string): HTMLButtonElement {

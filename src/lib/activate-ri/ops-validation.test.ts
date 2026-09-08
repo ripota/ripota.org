@@ -4,10 +4,34 @@ import {
   validateOpsAnnouncement,
   validateOpsMembershipPatch,
   validateOpsMessage,
+  validateOpsMessageEdit,
   validateOpsRoomMode,
 } from "./ops-validation";
 
 describe("Ops Room validation", () => {
+  it("normalizes edited text and only returns the body", () => {
+    expect(validateOpsMessageEdit({
+      body: "  Corrected typo.\r\nSecond line.  ",
+      kind: "announcement",
+      createdAt: "2000-01-01T00:00:00.000Z",
+      context: { type: "park", parkReference: "US-2868" },
+    })).toEqual({ ok: true, value: { body: "Corrected typo.\nSecond line." } });
+    expect(validateOpsMessageEdit({ body: "😀".repeat(1_000) })).toMatchObject({ ok: true });
+  });
+
+  it.each([
+    null,
+    [],
+    {},
+    { body: 42 },
+    { body: " \r\n " },
+    { body: "😀".repeat(1_001) },
+    { body: Array.from({ length: 13 }, () => "line").join("\n") },
+    { body: "Text\u0000" },
+  ])("applies the message limits to edits: %j", (input) => {
+    expect(validateOpsMessageEdit(input)).toMatchObject({ ok: false });
+  });
+
   it("normalizes plain text and accepts a valid owned-stop update shape", () => {
     expect(validateOpsMessage({
       clientNonce: "5c6a5518-0a13-46d0-9bca-d5897ea8c198",

@@ -4,6 +4,7 @@ import { tokenHash } from "../edit-token";
 import { createMigratedSqliteD1 } from "../test-utils/sqlite-d1";
 import { ActivateRiOpsRoom } from "./activate-ri-ops-room";
 import { listOpsEvents } from "../ops-db";
+import type { OpsEvent, OpsMessageDto } from "../../lib/activate-ri/ops-types";
 
 type FakeSocket = {
   tags: string[];
@@ -60,7 +61,10 @@ beforeEach(async () => {
   ).bind(env.ACTIVATE_RI_EVENT_ID).run();
 });
 
-afterEach(() => database.close());
+afterEach(() => {
+  database.close();
+  vi.useRealTimers();
+});
 
 describe("ActivateRiOpsRoom", () => {
   it("broadcasts only after committing a canonical idempotent message event", async () => {
@@ -118,6 +122,86 @@ describe("ActivateRiOpsRoom", () => {
     expect(organizer.send).toHaveBeenCalledOnce();
     expect(participant.close).toHaveBeenCalledWith(1001, "Ops Room is off");
     expect(organizer.close).not.toHaveBeenCalled();
+  });
+
+  it("commits a canonical correction before broadcasting it to every connected client", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-08T12:00:00.000Z"));
+    const created = await createEditableMessage();
+    const participant = fakeSocket(["role:activator", "member:activator-1"]);
+    const organizer = fakeSocket(["role:admin"]);
+    sockets.push(participant, organizer);
+    const committedAtBroadcast: Array<Promise<unknown>> = [];
+    participant.send.mockImplementation(() => {
+      committedAtBroadcast.push(env.DB.prepare(
+        `SELECT m.body, m.edited_at, e.sequence FROM activate_ri_ops_messages m
+         INNER JOIN activate_ri_ops_events e ON e.message_id = m.id
+         WHERE m.id = ? AND e.event_type = 'message-edited'`,
+      ).bind(created.message.id).first());
+    });
+    vi.setSystemTime(new Date("2026-09-08T12:03:00.000Z"));
+    const response = await room.fetch(internalRequest(`https://ops.internal/messages/${created.message.id}/edit`, {
+      method: "POST", headers: activatorHeaders(), body: JSON.stringify({ body: "  Corrected park update.\r\nAll clear.  " }),
+    }));
+    expect(response.status).toBe(200);
+    const result = await response.json() as { event: OpsEvent };
+    expect(result).toEqual({ ok: true, event: {
+      sequence: created.sequence + 1, type: "message-edited", messageId: created.message.id,
+      body: "Corrected park update.\nAll clear.", editedAt: "2026-09-08T12:03:00.000Z",
+    } });
+    for (const socket of sockets) {
+      expect(socket.send).toHaveBeenCalledOnce();
+      expect(JSON.parse(socket.send.mock.calls[0][0])).toEqual(result.event);
+    }
+    await expect(Promise.all(committedAtBroadcast)).resolves.toEqual([{
+      body: "Corrected park update.\nAll clear.", edited_at: "2026-09-08T12:03:00.000Z", sequence: result.event.sequence,
+    }]);
+    const catchup = await listOpsEvents(env, created.sequence, result.event.sequence, 250);
+    expect(catchup.events).toEqual([result.event]);
+    expect(catchup.nextCursor).toBe(result.event.sequence);
+  });
+
+  it("rolls back a correction and never broadcasts it when its event cannot be committed", async () => {
+    const created = await createEditableMessage();
+    const participant = fakeSocket(["role:activator", "member:activator-1"]);
+    sockets.push(participant);
+    await env.DB.prepare(
+      `CREATE TRIGGER reject_edit_event BEFORE INSERT ON activate_ri_ops_events
+       WHEN NEW.event_type = 'message-edited'
+       BEGIN SELECT RAISE(ABORT, 'Injected edit event failure'); END`,
+    ).run();
+    await expect(room.fetch(internalRequest(`https://ops.internal/messages/${created.message.id}/edit`, {
+      method: "POST", headers: activatorHeaders(), body: JSON.stringify({ body: "Must roll back" }),
+    }))).rejects.toThrow("Injected edit event failure");
+    expect(participant.send).not.toHaveBeenCalled();
+    await expect(env.DB.prepare(`SELECT body, edited_at FROM activate_ri_ops_messages WHERE id = ?`)
+      .bind(created.message.id).first()).resolves.toEqual({ body: created.message.body, edited_at: null });
+    const history = await listOpsEvents(env, 0, created.sequence + 1, 250);
+    expect(history.events).toEqual([created]);
+  });
+
+  it("rejects unauthorized and invalid internal edits without publishing an event", async () => {
+    const created = await createEditableMessage();
+    const participant = fakeSocket(["role:activator", "member:activator-1"]);
+    sockets.push(participant);
+    const path = `https://ops.internal/messages/${created.message.id}/edit`;
+    const unauthorizedHeaders: Record<string, string>[] = [
+      { "content-type": "application/json" },
+      { "content-type": "application/json", "x-ops-actor-type": "admin", "x-ops-admin-key": "admin:test", "x-ops-label": "Organizer" },
+    ];
+    for (const headers of unauthorizedHeaders) {
+      const response = await room.fetch(internalRequest(path, {
+        method: "POST", headers, body: JSON.stringify({ body: "Unauthorized edit" }),
+      }));
+      expect(response.status).toBe(401);
+    }
+    for (const body of ["{", "null", JSON.stringify({ body: "" }), JSON.stringify({ body: "x".repeat(1_001) })]) {
+      const response = await room.fetch(internalRequest(path, { method: "POST", headers: activatorHeaders(), body }));
+      expect(response.status).toBe(400);
+    }
+    expect(participant.send).not.toHaveBeenCalled();
+    await expect(env.DB.prepare(`SELECT body, edited_at FROM activate_ri_ops_messages WHERE id = ?`)
+      .bind(created.message.id).first()).resolves.toEqual({ body: created.message.body, edited_at: null });
   });
 
   it("closes a socket that sends an unexpected client data frame", () => {
@@ -272,6 +356,16 @@ describe("ActivateRiOpsRoom", () => {
 
 function fakeSocket(tags: string[]): FakeSocket {
   return { tags, send: vi.fn(), close: vi.fn() };
+}
+
+async function createEditableMessage() {
+  const response = await room.fetch(internalRequest("https://ops.internal/messages", {
+    method: "POST", headers: activatorHeaders(), body: JSON.stringify({
+      clientNonce: crypto.randomUUID(), kind: "chat", body: "Park udpate.", context: null,
+    }),
+  }));
+  expect(response.status).toBe(200);
+  return (await response.json() as { event: { sequence: number; type: "message-created"; message: OpsMessageDto } }).event;
 }
 
 function activatorHeaders(): HeadersInit {

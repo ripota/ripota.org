@@ -1,4 +1,4 @@
-import type { CreateOpsMessageInput, OpsActor, OpsRoomMode } from "../lib/activate-ri/ops-types";
+import type { CreateOpsMessageInput, EditOpsMessageInput, OpsActor, OpsRoomMode } from "../lib/activate-ri/ops-types";
 import type { Env } from "./env";
 
 const roomName = "activate-ri-2026:ops-room";
@@ -66,6 +66,22 @@ export async function mutateOpsMessageThroughRoom(
   return opsRoomStub(env).fetch(
     `https://ops.internal/messages/${encodeURIComponent(messageId)}/${action}`,
     { method: "POST", headers: actorHeaders(actor) },
+  );
+}
+
+export async function editOpsMessageThroughRoom(
+  env: Env,
+  actor: Extract<OpsActor, { type: "activator" }>,
+  messageId: string,
+  input: EditOpsMessageInput,
+): Promise<Response> {
+  return opsRoomStub(env).fetch(
+    `https://ops.internal/messages/${encodeURIComponent(messageId)}/edit`,
+    {
+      method: "POST",
+      headers: actorHeaders(actor),
+      body: JSON.stringify(input),
+    },
   );
 }
 

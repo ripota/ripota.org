@@ -71,6 +71,7 @@ import OpsEmailPreferences from "./OpsEmailPreferences.astro";
     authorActivatorId?: string;
     body: string;
     createdAt: string;
+    editedAt?: string;
     resolved: boolean;
     removed: boolean;
     parkReference?: string;
@@ -278,7 +279,7 @@ import OpsEmailPreferences from "./OpsEmailPreferences.astro";
     state.messages.forEach((message) => {
       const card = adminCard(`${message.authorLabel} — ${message.kind}`);
       addText(card.body, message.removed ? "Message removed." : message.body);
-      addText(card.body, `${formatTime(message.createdAt)}${message.parkReference ? ` · ${message.parkReference}` : ""}`);
+      addText(card.body, `${formatTime(message.createdAt)}${message.parkReference ? ` · ${message.parkReference}` : ""}${message.editedAt && !message.removed ? " · edited" : ""}`);
       if (!message.removed) {
         card.actions.appendChild(actionButton("Remove", () => moderateMessage(message, "remove")));
         if (message.kind === "need-backup" || message.kind === "access-note") {

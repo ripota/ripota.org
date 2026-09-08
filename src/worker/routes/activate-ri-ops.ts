@@ -1,4 +1,5 @@
-import { validateOpsMessage } from "../../lib/activate-ri/ops-validation";
+import { validateOpsMessage, validateOpsMessageEdit } from "../../lib/activate-ri/ops-validation";
+import type { EditOpsMessageInput } from "../../lib/activate-ri/ops-types";
 import { opsActivatorAuthorLabel } from "../../lib/activate-ri/ops-author";
 import { requireActivator } from "../auth/authorization";
 import type { Env } from "../env";
@@ -10,6 +11,7 @@ import {
   listOpsEvents,
 } from "../ops-db";
 import {
+  editOpsMessageThroughRoom,
   mutateOpsMessageThroughRoom,
   postOpsMessageThroughRoom,
 } from "../ops-room-client";
@@ -126,7 +128,7 @@ export async function handleActivateRiOpsApi(
   }
 
   const messageMutation = url.pathname.match(
-    /^\/api\/activate-ri-2026\/ops\/messages\/([^/]+)\/(remove|resolve|reopen)$/,
+    /^\/api\/activate-ri-2026\/ops\/messages\/([^/]+)\/(edit|remove|resolve|reopen)$/,
   );
   if (request.method === "POST" && messageMutation) {
     if (!hasTrustedOrigin(request, env)) {
@@ -140,8 +142,32 @@ export async function handleActivateRiOpsApi(
     }
     const messageId = decodePathSegment(messageMutation[1]);
     const action = messageMutation[2];
+    let editInput: EditOpsMessageInput | undefined;
+    if (action === "edit") {
+      let payload: unknown;
+      try {
+        payload = await readJson(request);
+      } catch (error) {
+        return error instanceof Response
+          ? privateJson({ ok: false, errors: ["Expected application/json."] }, { status: 415 })
+          : privateJson({ ok: false, errors: ["Expected valid JSON."] }, { status: 400 });
+      }
+      const validation = validateOpsMessageEdit(payload);
+      if (!validation.ok) {
+        return privateJson({ ok: false, errors: validation.errors }, { status: 400 });
+      }
+      editInput = validation.value;
+    }
     if (!await withinOpsRateLimits(env, `activator:${identity.activatorId}`)) {
       return privateJson({ ok: false, error: "Too many room updates" }, { status: 429 });
+    }
+    if (editInput) {
+      return withPrivateHeaders(await editOpsMessageThroughRoom(
+        env,
+        { type: "activator", activatorId: identity.activatorId, label: identity.callsign },
+        messageId,
+        editInput,
+      ));
     }
     return withPrivateHeaders(await mutateOpsMessageThroughRoom(
       env,

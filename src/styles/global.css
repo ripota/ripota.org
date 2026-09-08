@@ -4807,6 +4807,11 @@ p {
   min-width: 0;
 }
 
+.ops-message__edited {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+
 .ops-message .ops-meta {
   max-width: 100%;
   color: var(--text-muted);
@@ -5160,6 +5165,26 @@ p {
 .ops-settings__preview {
   margin-bottom: 0.75rem;
   overflow-wrap: anywhere;
+}
+
+.ops-message-editor h2 {
+  font-size: clamp(1.6rem, 5vw, 2rem);
+}
+
+.ops-message-editor label {
+  font-weight: 800;
+}
+
+.ops-message-editor textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 0.7rem;
+  background: var(--surface-page);
+  color: var(--text-primary);
+  font: inherit;
+  resize: vertical;
 }
 
 @media (max-width: 820px) {
