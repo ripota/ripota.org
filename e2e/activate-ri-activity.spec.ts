@@ -73,7 +73,7 @@ for (const path of ["/activate-ri-2026/", "/activate-ri-2026/parks/"]) {
       await expect(planning).toBeHidden();
       await expect(results).toBeVisible();
       await expect(page.locator("[data-event-phase-views]")).toHaveAttribute("data-phase", "event-live");
-      await expect(results).toContainText("Confirmed by POTA");
+      await expect(results).toContainText(path.endsWith("/parks/") ? "Confirmed by POTA" : "Activated");
       if (path.endsWith("/parks/")) {
         await expect(results.locator(".pota-park-card")).toHaveCount(61);
         await expect(page.locator("#park-planning")).toBeVisible();

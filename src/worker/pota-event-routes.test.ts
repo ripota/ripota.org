@@ -73,11 +73,14 @@ describe("Activate RI POTA API routes", () => {
     });
   });
 
-  it("starts protected deep reconciliation and leaves work in scheduled batches", async () => {
+  it("completes protected deep reconciliation through scheduled batches after the automatic cutoff", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-22T12:00:00Z"));
     const database = createMigratedSqliteD1();
     cleanup = database.close;
     const env = testEnv(database.DB);
-    vi.stubGlobal("fetch", vi.fn(async () => Response.json([])));
+    const fetcher = vi.fn(async (_input: RequestInfo | URL) => Response.json([]));
+    vi.stubGlobal("fetch", fetcher);
     const pending: Promise<unknown>[] = [];
     const context = {
       waitUntil(promise: Promise<unknown>) { pending.push(promise); },
@@ -106,10 +109,77 @@ describe("Activate RI POTA API routes", () => {
       ok: true,
       status: { deepReconciliationPending: true },
     });
+
+    for (const minute of [1, 2, 3]) {
+      const timestamp = `2026-09-22T12:0${minute}:00Z`;
+      vi.setSystemTime(new Date(timestamp));
+      await runActivateRiPotaSchedule(scheduledController(timestamp), env);
+    }
+
+    const historyRequests = fetcher.mock.calls.map(([url]) => String(url))
+      .filter((url) => url.includes("/park/activations/"));
+    expect(historyRequests).toHaveLength(61);
+    expect(new Set(historyRequests).size).toBe(61);
+    expect(historyRequests.every((url) => url.endsWith("?count=all"))).toBe(true);
+    const completedStatus = await handleActivateRiApi(new Request(
+      "https://ripota.org/api/activate-ri-2026/admin/pota-status",
+      { headers: { "Cf-Access-Authenticated-User-Email": "organizer@example.com" } },
+    ), env);
+    await expect(completedStatus.json()).resolves.toMatchObject({
+      ok: true,
+      status: { deepReconciliationPending: false },
+    });
+
+    fetcher.mockClear();
+    vi.setSystemTime(new Date("2026-09-22T13:00:00Z"));
+    await runActivateRiPotaSchedule(scheduledController("2026-09-22T13:00:00Z"), env);
+    expect(fetcher.mock.calls.some(([url]) => String(url).includes("/park/activations/"))).toBe(false);
+    expect(fetcher.mock.calls.some(([url]) => String(url).endsWith("/spot/activator"))).toBe(true);
   });
 });
 
 describe("Activate RI POTA cron guards", () => {
+  it("collects late-uploaded event logs through the final day of automatic reconciliation", async () => {
+    const database = createMigratedSqliteD1();
+    cleanup = database.close;
+    const env = testEnv(database.DB);
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => Response.json(
+      String(input).includes("/park/activations/") ? [{
+        qso_date: "20260913",
+        locationDesc: "US-RI",
+        activeCallsign: "K1LATE",
+        totalQSOs: 15,
+        qsosCW: 0,
+        qsosDATA: 0,
+        qsosPHONE: 15,
+      }] : [],
+    ));
+    vi.stubGlobal("fetch", fetcher);
+
+    await runActivateRiPotaSchedule(scheduledController("2026-09-20T23:59:00Z"), env);
+
+    const evidence = await database.DB.prepare(
+      `SELECT COUNT(*) AS count FROM activate_ri_pota_activation_evidence
+       WHERE qso_date = '20260913' AND activator_callsign = 'K1LATE'
+         AND total_qsos = 15 AND qualifying = 1`,
+    ).first<{ count: number }>();
+    expect(evidence?.count).toBe(20);
+    expect(fetcher.mock.calls.filter(([url]) => String(url).includes("/park/activations/"))).toHaveLength(20);
+  });
+
+  it("stops automatic logged-history requests at the cutoff while continuing live spots", async () => {
+    const database = createMigratedSqliteD1();
+    cleanup = database.close;
+    const env = testEnv(database.DB);
+    const fetcher = vi.fn(async (_input: RequestInfo | URL) => Response.json([]));
+    vi.stubGlobal("fetch", fetcher);
+
+    await runActivateRiPotaSchedule(scheduledController("2026-09-21T00:00:00Z"), env);
+
+    expect(fetcher.mock.calls.some(([url]) => String(url).includes("/park/activations/"))).toBe(false);
+    expect(fetcher.mock.calls.some(([url]) => String(url).endsWith("/spot/activator"))).toBe(true);
+  });
+
   it("collects rolling spot history before the event without creating event evidence", async () => {
     const database = createMigratedSqliteD1();
     cleanup = database.close;

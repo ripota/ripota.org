@@ -8,8 +8,8 @@ import admin from "./AdminPotaStatus.astro?raw";
 describe("Activate RI POTA result surfaces", () => {
   it("keeps planning UI and switches the existing hero/parks route by event phase", () => {
     expect(hero).toContain("subscribeEventPhase");
-    expect(hero).toContain("Confirmed by POTA");
-    expect(hero).toContain("Without confirmation");
+    expect(hero).toContain("Activated");
+    expect(hero).toContain("On air now");
     expect(hero).toContain('href="/activate-ri-2026/parks/"');
     expect(parksPage).toContain("<EventPhaseViews>");
     expect(parksPage).toContain("<PotaParkProgress />");
@@ -31,10 +31,10 @@ describe("Activate RI POTA result surfaces", () => {
 
   it("uses result map colors, text popups, current-spot overlay, and reduced-motion-compatible live marker class", () => {
     expect(map).toContain('confirmed: "#2d7a4b"');
-    expect(map).toContain('observed: "#b56b00"');
+    expect(map).toContain('observed: "#2d7a4b"');
     expect(map).toContain('scheduled: "#0b7180"');
     expect(map).toContain('needed: "#707b78"');
-    expect(map).toContain("POTA confirmed");
+    expect(map).toContain("Activated");
     expect(map).toContain("On air now");
     expect(map).toContain("reference-map-marker--live");
   });

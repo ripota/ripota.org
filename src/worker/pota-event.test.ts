@@ -19,6 +19,22 @@ afterEach(() => {
 });
 
 describe("Activate RI POTA evidence store", () => {
+  it.each([
+    ["2026-09-20T23:45:00Z", false],
+    ["2026-09-20T21:59:00Z", true],
+    [null, true],
+  ])("preserves final sync freshness after collection closes (last success: %s)", async (lastSuccess, stale) => {
+    const database = createMigratedSqliteD1();
+    cleanup = database.close;
+    await database.DB.prepare(
+      "UPDATE activate_ri_pota_sync_state SET last_history_success_at = ? WHERE event_id = ?",
+    ).bind(lastSuccess ? Date.parse(lastSuccess) : null, "activate-ri-2026").run();
+
+    const projection = await getPublicPotaParkStatus(testEnv(database.DB), new Date("2026-09-22T12:00:00Z"));
+    expect(projection.stale).toBe(stale);
+    expect(projection.warning === null).toBe(!stale);
+  });
+
   it("persists duplicate spot observations idempotently with public provenance", async () => {
     const database = createMigratedSqliteD1();
     cleanup = database.close;
@@ -169,7 +185,7 @@ describe("Activate RI POTA reconciliation", () => {
     expect(result).toMatchObject({ acquired: true, attempted: 20, succeeded: 20, failed: 0 });
     expect(fetcher).toHaveBeenNthCalledWith(
       1,
-      "https://api.pota.app/park/activations/US-7971?count=100",
+      "https://api.pota.app/park/activations/US-7971?count=all",
       expect.objectContaining({
         headers: {
           accept: "application/json",
@@ -177,10 +193,155 @@ describe("Activate RI POTA reconciliation", () => {
         },
       }),
     );
-    expect(urls.every((url) => url.endsWith("?count=100"))).toBe(true);
+    expect(urls.every((url) => url.endsWith("?count=all"))).toBe(true);
     expect(maximumActive).toBeLessThanOrEqual(5);
     const projection = await getPublicPotaParkStatus(env, new Date("2026-09-11T12:11:00Z"));
     expect(projection.parks.find((park) => park.reference === "US-7971")).toMatchObject({ status: "confirmed" });
+  });
+
+  it("automatically revisits confirmed parks for later operators, dates, and corrected QSO counts", async () => {
+    const database = createMigratedSqliteD1();
+    cleanup = database.close;
+    const env = testEnv(database.DB);
+    const startedAt = new Date("2026-09-12T12:00:00Z");
+    await persistEventSpotObservations(env, [liveSpot()], startedAt);
+    let upstreamRows = [historyRow("N1FIRST", 12)];
+    const targetFetchTimes: number[] = [];
+    let currentTime = startedAt;
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes("/US-7971?")) {
+        targetFetchTimes.push(currentTime.valueOf());
+        return Response.json(upstreamRows);
+      }
+      return Response.json([]);
+    });
+    const reconcile = async (minutes: number) => {
+      currentTime = new Date(startedAt.valueOf() + minutes * 60_000);
+      return runPotaHistoryReconciliation(env, {
+        fetcher: fetcher as typeof fetch,
+        now: () => currentTime,
+      });
+    };
+
+    await expect(reconcile(0)).resolves.toMatchObject({
+      acquired: true, deep: false, attempted: 20, succeeded: 20,
+    });
+    const initial = await getPublicPotaParkStatus(env, currentTime);
+    expect(initial.parks.find((park) => park.reference === "US-7971")).toMatchObject({
+      status: "confirmed",
+      confirmations: [{ activeCallsign: "N1FIRST", qsoDate: "20260911", totalQsos: 12 }],
+    });
+
+    await expect(reconcile(14)).resolves.toMatchObject({ acquired: false, attempted: 0 });
+    expect(fetcher).toHaveBeenCalledTimes(20);
+    upstreamRows = [
+      { ...historyRow("N1FIRST", 24), qsosCW: 5, qsosDATA: 6, qsosPHONE: 13 },
+      historyRow("N1LATE", 12),
+      { ...historyRow("N1FIRST", 12), qso_date: "20260912" },
+    ];
+    for (const minutes of [15, 30, 45]) await reconcile(minutes);
+    expect(targetFetchTimes).toEqual([startedAt.valueOf()]);
+
+    await expect(reconcile(60)).resolves.toMatchObject({
+      acquired: true, deep: false, attempted: 20, succeeded: 20,
+    });
+    const updated = await getPublicPotaParkStatus(env, currentTime);
+    expect(updated.parks.find((park) => park.reference === "US-7971")).toMatchObject({
+      status: "confirmed",
+      confirmations: [
+        { activeCallsign: "N1FIRST", qsoDate: "20260912", totalQsos: 12 },
+        {
+          activeCallsign: "N1FIRST", qsoDate: "20260911", totalQsos: 24,
+          qsosCw: 5, qsosData: 6, qsosPhone: 13,
+        },
+        { activeCallsign: "N1LATE", qsoDate: "20260911", totalQsos: 12 },
+      ],
+    });
+
+    for (const minutes of [75, 90, 105, 120]) await reconcile(minutes);
+    expect(targetFetchTimes).toEqual([0, 60, 120].map((minutes) =>
+      startedAt.valueOf() + minutes * 60_000,
+    ));
+    expect(fetcher.mock.calls.every(([url]) => String(url).endsWith("?count=all"))).toBe(true);
+    const rows = await database.DB.prepare(
+      `SELECT activator_callsign, qso_date, total_qsos, qsos_cw, qsos_data, qsos_phone,
+        first_seen_at, last_verified_at
+       FROM activate_ri_pota_activation_evidence WHERE park_reference = 'US-7971'`,
+    ).all<Record<string, unknown>>();
+    expect(rows.results).toHaveLength(3);
+    expect(rows.results).toContainEqual({
+      activator_callsign: "N1FIRST",
+      qso_date: "20260911",
+      total_qsos: 24,
+      qsos_cw: 5,
+      qsos_data: 6,
+      qsos_phone: 13,
+      first_seen_at: startedAt.toISOString(),
+      last_verified_at: currentTime.toISOString(),
+    });
+  });
+
+  it("rotates through older parks before revisiting an observed park after a collection gap", async () => {
+    const database = createMigratedSqliteD1();
+    cleanup = database.close;
+    const env = testEnv(database.DB);
+    const startedAt = new Date("2026-09-12T12:00:00Z");
+    await persistEventSpotObservations(env, [liveSpot()], startedAt);
+    const batches: string[][] = [];
+
+    for (let batch = 0; batch < 4; batch += 1) {
+      const references: string[] = [];
+      const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+        references.push(new URL(String(input)).pathname.split("/").at(-1)!);
+        return Response.json([]);
+      });
+      const result = await runPotaHistoryReconciliation(env, {
+        fetcher: fetcher as typeof fetch,
+        now: () => new Date(startedAt.valueOf() + batch * 60 * 60_000),
+      });
+      expect(result).toMatchObject({ acquired: true, deep: false, attempted: 20, succeeded: 20 });
+      batches.push(references);
+    }
+
+    expect(batches[0][0]).toBe("US-7971");
+    expect(new Set(batches.slice(0, 3).flat()).size).toBe(60);
+    expect(batches[1]).not.toContain("US-7971");
+    expect(batches[2]).not.toContain("US-7971");
+    expect(batches.slice(0, 3).flat()).not.toContain(batches[3][0]);
+    expect(new Set(batches.flat()).size).toBe(61);
+    expect(batches[3]).toContain("US-7971");
+  });
+
+  it("finds a late event log beyond the latest 100 activations during normal post-event polling", async () => {
+    const database = createMigratedSqliteD1();
+    cleanup = database.close;
+    const env = testEnv(database.DB);
+    const now = new Date("2026-09-20T12:00:00Z");
+    await persistEventSpotObservations(env, [liveSpot()], now);
+    const history = [
+      ...Array.from({ length: 101 }, (_, index) => ({
+        ...historyRow(`N1POST${index}`, 12), qso_date: "20260920",
+      })),
+      { ...historyRow("N1LATE", 12), qso_date: "20260913" },
+    ];
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      if (!url.pathname.endsWith("/US-7971")) return Response.json([]);
+      const count = url.searchParams.get("count");
+      return Response.json(count === "all" ? history : history.slice(0, Number(count ?? 100)));
+    });
+
+    await expect(runPotaHistoryReconciliation(env, {
+      fetcher: fetcher as typeof fetch,
+      now: () => now,
+    })).resolves.toMatchObject({
+      acquired: true, deep: false, attempted: 20, succeeded: 20, evidenceRows: 1,
+    });
+    const projection = await getPublicPotaParkStatus(env, now);
+    expect(projection.parks.find((park) => park.reference === "US-7971")).toMatchObject({
+      status: "confirmed",
+      confirmations: [{ activeCallsign: "N1LATE", qsoDate: "20260913", totalQsos: 12 }],
+    });
   });
 
   it("uses leases/backoff and completes organizer-triggered deep reconciliation in batches", async () => {

@@ -14,10 +14,7 @@ import {
 } from "./routes/activate-ri-embed";
 import { handlePotaSpots } from "./routes/pota";
 import { ActivateRiOpsRoom } from "./durable-objects/activate-ri-ops-room";
-import {
-  isHistoryReconciliationTime,
-  isSpotCaptureTime,
-} from "../lib/activate-ri/pota-event";
+import { isSpotCaptureTime } from "../lib/activate-ri/pota-event";
 import {
   persistEventSpotObservations,
   runPotaHistoryReconciliation,
@@ -260,9 +257,7 @@ export async function runActivateRiPotaSchedule(
       );
     }
   }
-  if (isHistoryReconciliationTime(now)) {
-    outcome.history = await runPotaHistoryReconciliation(env, { now: () => now });
-  }
+  outcome.history = await runPotaHistoryReconciliation(env, { now: () => now });
   console.log(JSON.stringify(outcome));
 }
 

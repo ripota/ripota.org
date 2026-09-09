@@ -2,8 +2,10 @@ import { parks as references } from "@ripota/parks";
 
 import {
   activateRiPotaEndDate,
+  activateRiPotaReconciliationEnd,
   activateRiPotaStartDate,
   deriveParkPotaStatus,
+  isHistoryReconciliationTime,
   normalizePotaActivationHistory,
   spotToEventObservations,
   summarizeParkPotaStatuses,
@@ -286,15 +288,18 @@ export async function runPotaHistoryReconciliation(
 ): Promise<PotaReconciliationResult> {
   const now = options.now ?? (() => new Date());
   const startedAt = now().valueOf();
-  await seedReconciliationRows(env);
   const state = await readSyncState(env);
   const deep = Boolean(
     state.deep_requested_at && (!state.deep_completed_at || state.deep_completed_at < state.deep_requested_at),
   );
+  if (!options.force && !deep && !isHistoryReconciliationTime(new Date(startedAt))) {
+    return emptyReconciliation(false, false);
+  }
   if (!options.force && !deep && state.last_history_batch_at &&
     startedAt - state.last_history_batch_at < historyBatchIntervalMilliseconds) {
     return emptyReconciliation(false, false);
   }
+  await seedReconciliationRows(env);
 
   const leaseToken = crypto.randomUUID();
   const lease = await env.DB.prepare(
@@ -322,7 +327,6 @@ export async function runPotaHistoryReconciliation(
       const evidence = await fetchParkHistory(
         options.fetcher ?? fetch,
         parkReference,
-        deep,
       );
       const completedAt = now().valueOf();
       await storeActivationEvidence(env, parkReference, evidence, completedAt, deep);
@@ -356,10 +360,10 @@ export async function runPotaHistoryReconciliation(
 async function fetchParkHistory(
   fetcher: typeof fetch,
   parkReference: string,
-  deep: boolean,
 ): Promise<PotaActivationEvidence[]> {
+  // A busy park's latest 100 activations can omit late-uploaded event logs.
   const response = await fetchPotaApi(
-    `/park/activations/${encodeURIComponent(parkReference)}?count=${deep ? "all" : "100"}`,
+    `/park/activations/${encodeURIComponent(parkReference)}?count=all`,
     { fetcher },
   );
   if (!response.ok) throw new SyncError(`http-${response.status}`);
@@ -472,6 +476,8 @@ async function selectParksForReconciliation(
   deep: boolean,
   deepRequestedAt: number | null,
 ): Promise<string[]> {
+  // Keep every park in rotation, including parks with qualifying evidence.
+  // Oldest checks come first so activity priority cannot starve quieter parks.
   const result = deep
     ? await env.DB.prepare(
         `SELECT park_reference
@@ -487,13 +493,8 @@ async function selectParksForReconciliation(
          FROM activate_ri_pota_reconciliation r
          WHERE r.event_id = ? AND r.retry_after <= ?
            AND (r.last_attempted_at IS NULL OR r.last_attempted_at <= ?)
-           AND NOT EXISTS (
-             SELECT 1 FROM activate_ri_pota_activation_evidence e
-             WHERE e.event_id = r.event_id
-               AND e.park_reference = r.park_reference
-               AND e.qualifying = 1
-           )
          ORDER BY
+           COALESCE(r.last_attempted_at, 0) ASC,
            CASE
              WHEN EXISTS (
                SELECT 1 FROM activate_ri_pota_spot_observations o
@@ -511,7 +512,6 @@ async function selectParksForReconciliation(
              ) THEN 1
              ELSE 0
            END DESC,
-           COALESCE(r.last_attempted_at, 0) ASC,
            r.park_reference ASC
          LIMIT ?`,
       ).bind(
@@ -745,7 +745,9 @@ function publicObservation(row: SpotObservationRow): PublicSpotObservation {
 function projectionIsStale(state: SyncStateRow, now: Date): boolean {
   const eventStarted = now.valueOf() >= Date.parse(`${activateRiPotaStartDate}T00:00:00.000Z`);
   if (!eventStarted) return false;
-  return !state.last_history_success_at || now.valueOf() - state.last_history_success_at > 2 * 60 * 60_000;
+  // A healthy final sync stays current once scheduled collection has ended.
+  const freshnessTime = Math.min(now.valueOf(), Date.parse(activateRiPotaReconciliationEnd));
+  return !state.last_history_success_at || freshnessTime - state.last_history_success_at > 2 * 60 * 60_000;
 }
 
 function groupBy<T>(items: readonly T[], key: (item: T) => string): Map<string, T[]> {

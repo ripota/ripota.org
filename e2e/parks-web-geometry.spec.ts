@@ -765,7 +765,7 @@ for (const viewport of [
       const markerIndex = payload.items.findIndex((item: { reference: string }) => item.reference === "US-2870");
       await page.locator("[data-reference-map]:visible .reference-map-marker").nth(markerIndex).click();
       const popup = page.locator(".leaflet-popup-content");
-      await expect(popup).toContainText("POTA confirmed");
+      await expect(popup).toContainText("Activated");
       await expect(popup).toContainText("12 QSOs");
       await expect(popup.getByRole("link", { name: "Open official POTA page" })).toHaveAttribute("href", "https://pota.app/#/park/US-2870");
       await expect(popup.getByRole("link", { name: "Open full evidence list" })).toHaveAttribute("href", "/activate-ri-2026/parks/");

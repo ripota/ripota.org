@@ -73,8 +73,11 @@ describe("Activate RI POTA status", () => {
     expect(isSpotCaptureTime(new Date("2026-09-10T00:00:00Z"))).toBe(true);
     expect(isSpotCaptureTime(new Date("2026-09-14T00:14:59Z"))).toBe(true);
     expect(isSpotCaptureTime(new Date("2026-09-14T00:15:00Z"))).toBe(false);
-    expect(isHistoryReconciliationTime(new Date("2026-10-13T23:59:59Z"))).toBe(true);
-    expect(isHistoryReconciliationTime(new Date("2026-10-14T00:00:00Z"))).toBe(false);
+    expect(isHistoryReconciliationTime(new Date("2026-09-09T23:59:59.999Z"))).toBe(false);
+    expect(isHistoryReconciliationTime(new Date("2026-09-10T00:00:00Z"))).toBe(true);
+    expect(isHistoryReconciliationTime(new Date("2026-09-14T00:00:00Z"))).toBe(true);
+    expect(isHistoryReconciliationTime(new Date("2026-09-20T23:59:59.999Z"))).toBe(true);
+    expect(isHistoryReconciliationTime(new Date("2026-09-21T00:00:00Z"))).toBe(false);
   });
 
   it("turns only RI event spots into persistent allowlisted observations", () => {

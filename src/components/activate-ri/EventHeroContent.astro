@@ -60,23 +60,18 @@ function formatDateRange(startDate: string, endDate: string) {
         class="event-hero__stats"
         aria-label="Activate All RI coverage progress"
         data-live-hero-coverage
+        data-state="loading"
         data-phase={phase}
         data-parks={JSON.stringify(publicParks)}
       >
         <div>
-          <dt data-hero-primary-label>{showPotaResults ? "Confirmed by POTA" : "Parks scheduled"}</dt>
+          <dt data-hero-primary-label>{showPotaResults ? "Activated" : "Parks scheduled"}</dt>
           <dd data-hero-scheduled>Loading...</dd>
         </div>
         <div>
-          <dt data-hero-secondary-label>{showPotaResults ? "Activity observed" : "Coverage gaps"}</dt>
+          <dt data-hero-secondary-label>{showPotaResults ? "On air now" : "Coverage gaps"}</dt>
           <dd data-hero-gaps>Loading...</dd>
         </div>
-        {showPotaResults && (
-          <div>
-            <dt>Without confirmation</dt>
-            <dd data-hero-without-confirmation>Loading...</dd>
-          </div>
-        )}
       </dl>
       {!showPotaResults && (
         <p data-hero-schedule-error hidden role="status">
@@ -85,7 +80,7 @@ function formatDateRange(startDate: string, endDate: string) {
       )}
       {showPotaResults && (
         <div class="event-hero__progress">
-          <progress aria-label="Parks confirmed by POTA" max={activateRi2026Event.goalParkCount} value="0" data-hero-pota-progress>
+          <progress aria-label="Parks activated" max={activateRi2026Event.goalParkCount} value="0" data-hero-pota-progress>
             0 of {activateRi2026Event.goalParkCount}
           </progress>
           <p data-hero-pota-updated aria-live="polite">Loading event progress…</p>
@@ -129,7 +124,9 @@ function formatDateRange(startDate: string, endDate: string) {
     summary: Element,
     scheduled: string,
     gaps: string,
+    state: "ready" | "unavailable" = "ready",
   ): void {
+    summary.setAttribute("data-state", state);
     const scheduledValue = summary.querySelector("[data-hero-scheduled]");
     const gapsValue = summary.querySelector("[data-hero-gaps]");
 
@@ -148,30 +145,27 @@ function formatDateRange(startDate: string, endDate: string) {
       potaParkStatusStore.subscribe((state) => {
         if (state.status === "ready") {
           const { snapshot } = state;
+          const activated = snapshot.summary.confirmed + snapshot.summary.observedNotConfirmed;
           setHeroCoverageText(
             summary,
-            `${snapshot.summary.confirmed} / ${snapshot.summary.total}`,
-            String(snapshot.summary.observedNotConfirmed),
-          );
-          summary.querySelector("[data-hero-without-confirmation]")?.replaceChildren(
-            String(snapshot.summary.withoutConfirmation),
+            `${activated} / ${snapshot.summary.total}`,
+            String(snapshot.parks.filter((park) => park.live).length),
           );
           const progress = document.querySelector("[data-hero-pota-progress]") as HTMLProgressElement | null;
           if (progress) {
             progress.max = snapshot.summary.total;
-            progress.value = snapshot.summary.confirmed;
-            progress.textContent = `${snapshot.summary.confirmed} of ${snapshot.summary.total}`;
+            progress.value = activated;
+            progress.textContent = `${activated} of ${snapshot.summary.total}`;
           }
           const updated = document.querySelector("[data-hero-pota-updated]");
-          const asOf = snapshot.lastPotaSyncAt
-            ? new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(new Date(snapshot.lastPotaSyncAt)) + " UTC"
-            : "not yet reconciled";
+          const asOf = new Intl.DateTimeFormat("en-US", {
+            dateStyle: "medium", timeStyle: "short", timeZone: "UTC",
+          }).format(new Date(snapshot.generatedAt)) + " UTC";
           updated?.replaceChildren(
             snapshot.warning ?? `${phase === "post-event" ? "Provisional results" : "Progress"} as of ${asOf}.`,
           );
         } else if (state.status === "unavailable") {
-          setHeroCoverageText(summary, "Unavailable", "Unavailable");
-          summary.querySelector("[data-hero-without-confirmation]")?.replaceChildren("Unavailable");
+          setHeroCoverageText(summary, "Unavailable", "Unavailable", "unavailable");
           document.querySelector("[data-hero-pota-progress]")?.removeAttribute("value");
           document.querySelector("[data-hero-pota-updated]")?.replaceChildren(
             "Event progress is temporarily unavailable. Try again shortly.",
@@ -201,7 +195,7 @@ function formatDateRange(startDate: string, endDate: string) {
         `${coverageSummary.gaps}`,
       );
     } catch {
-      setHeroCoverageText(summary, "Unavailable", "Unavailable");
+      setHeroCoverageText(summary, "Unavailable", "Unavailable", "unavailable");
       const notice = summary.closest("section")?.querySelector<HTMLElement>("[data-hero-schedule-error]");
       if (notice) notice.hidden = false;
     }

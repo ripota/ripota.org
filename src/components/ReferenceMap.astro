@@ -7,7 +7,6 @@ import { getCanonicalGeometryUrl, getWebGeometry, parksGeometryVersion } from ".
 import {
   buildReferenceMapItems,
   coverageStatusLabels,
-  displayedReferenceMapLegendItems,
   referenceMapLegendItems,
   referenceMapStatusColors,
   type ReferenceMapVariant,
@@ -51,21 +50,12 @@ const mapItems = buildReferenceMapItems({
   parks: isEventMap ? eventParks : undefined,
 });
 const potaLegendItems = [
-  { label: "POTA confirmed", color: "#2d7a4b", statuses: ["confirmed"] },
-  { label: "Activity observed / attempt", color: "#b56b00", statuses: ["observed"] },
+  { label: "On air now", color: "#f6bd46", statuses: ["live"] },
+  { label: "Activated", color: "#2d7a4b", statuses: ["confirmed", "observed"] },
   { label: "Scheduled", color: "#0b7180", statuses: ["scheduled"] },
   { label: "Still needed", color: "#707b78", statuses: ["needed"] },
-  { label: "On air now", color: "#f6bd46", statuses: ["live"] },
 ];
 const legendItems = isEventMap ? (resultsMode ? potaLegendItems : referenceMapLegendItems) : [];
-const visibleLegendLabels = new Set(resultsMode
-  ? potaLegendItems.map((item) => item.label)
-  : isEventMap ? []
-  : displayedReferenceMapLegendItems(
-    mapItems
-      .map((item) => item.coverage?.status)
-      .filter((status) => status !== undefined),
-  ).map((item) => item.label));
 const showLegend = legendPlacement !== "none" && legendItems.length > 0;
 const showCaption = caption.trim().length > 0;
 const dataId = `${id}-data`;
@@ -79,7 +69,6 @@ const payload = JSON.stringify({
   })),
   attribution: dataset.attribution,
   sourceBaseUrl: `${dataset.projectUrl}/blob/v${parksGeometryVersion}`,
-  disclaimer: dataset.disclaimer,
   canonicalGeometryUrl: variant === "directory" ? getCanonicalGeometryUrl() : undefined,
   parks: isEventMap ? eventParks : [],
   coverageStatusLabels,
@@ -88,7 +77,7 @@ const payload = JSON.stringify({
   coverageState: isEventMap && !resultsMode ? "loading" : undefined,
   potaStatusColors: {
     confirmed: "#2d7a4b",
-    observed: "#b56b00",
+    observed: "#2d7a4b",
     scheduled: "#0b7180",
     needed: "#707b78",
   },
@@ -108,15 +97,14 @@ const payload = JSON.stringify({
 >
   {
     showLegend && legendPlacement === "overlay" && (
-      <div class="map-legend" aria-label={legendTitle ?? "Coverage status legend"}>
+      <div class="map-legend" aria-label={legendTitle ?? "Coverage status legend"} hidden>
         {legendTitle && <span class="map-legend__title">{legendTitle}</span>}
         {legendItems.map((item) => (
           <span
             class="map-legend__item"
             data-map-legend-item
             data-map-legend-statuses={item.statuses.join(" ")}
-            data-map-legend-optional={item.statuses.includes("completed") ? "true" : undefined}
-            hidden={!visibleLegendLabels.has(item.label)}
+            hidden
           >
             <span style={`--map-status-color: ${item.color}`} />
             {item.label}
@@ -205,15 +193,14 @@ const payload = JSON.stringify({
   }
   {
     showLegend && legendPlacement === "below" && (
-      <div class="map-legend map-legend--below" aria-label={legendTitle ?? "Coverage status legend"}>
+      <div class="map-legend map-legend--below" aria-label={legendTitle ?? "Coverage status legend"} hidden>
         {legendTitle && <span class="map-legend__title">{legendTitle}</span>}
         {legendItems.map((item) => (
           <span
             class="map-legend__item"
             data-map-legend-item
             data-map-legend-statuses={item.statuses.join(" ")}
-            data-map-legend-optional={item.statuses.includes("completed") ? "true" : undefined}
-            hidden={!visibleLegendLabels.has(item.label)}
+            hidden
           >
             <span style={`--map-status-color: ${item.color}`} />
             {item.label}
@@ -233,9 +220,10 @@ const payload = JSON.stringify({
   import L from "leaflet";
   import { fetchPublicActivationStops } from "../lib/activate-ri/public-stops-client";
   import { livePotaSpotsStore } from "../lib/pota/live-spots-store";
+  import { shouldWarnAboutStaleSnapshot } from "../lib/pota/live-spots-client";
   import { potaParkStatusStore } from "../lib/activate-ri/pota-status-store";
   import type { PublicParkPotaStatus } from "../lib/activate-ri/pota-status-client";
-  import type { LivePotaSpot } from "../lib/pota/spots";
+  import { potaSpotReferenceEvidence, type LivePotaSpot } from "../lib/pota/spots";
   import {
     formatActivationDate,
     formatActivationTimeRange,
@@ -297,7 +285,6 @@ const payload = JSON.stringify({
     variant: "home" | "directory" | "coverage" | "volunteer";
     attribution: string;
     sourceBaseUrl: string;
-    disclaimer: string;
     canonicalGeometryUrl?: string;
     phaseFocus: "volunteer" | "hunter";
     items: MapItem[];
@@ -313,6 +300,7 @@ const payload = JSON.stringify({
     boundaries: L.Path[];
     markers: L.CircleMarker[];
     symbols: L.Marker[];
+    liveIndicators: L.Marker[];
   };
 
   document.querySelectorAll<HTMLElement>("[data-reference-map]").forEach(setupReferenceMap);
@@ -350,7 +338,6 @@ const payload = JSON.stringify({
     map.attributionControl.addAttribution(escapeHtml(payload.attribution)
       .replace("DATA_SOURCES.md", `<a href="${escapeHtml(payload.sourceBaseUrl)}/DATA_SOURCES.md" target="_blank" rel="noreferrer">map sources</a>`)
       .replace("DATA_LICENSE.md", `<a href="${escapeHtml(payload.sourceBaseUrl)}/DATA_LICENSE.md" target="_blank" rel="noreferrer">data license</a>`));
-    mapElement.title = payload.disclaimer;
     map.setView([41.58, -71.48], 9);
 
     for (const item of payload.items) {
@@ -386,18 +373,20 @@ const payload = JSON.stringify({
       });
     }
 
-    if (payload.variant === "home") {
+    if (payload.variant === "home" || payload.resultsMode) {
       livePotaSpotsStore.subscribe((state) => {
         if (state.status !== "loading") {
           updateLiveSpots(
             payload,
             layersByReference,
-            state.status === "ready" ? state.snapshot.spots : [],
+            state.status === "ready" && !shouldWarnAboutStaleSnapshot(state.snapshot)
+              ? state.snapshot.spots : [],
           );
         }
       });
       livePotaSpotsStore.start();
-    } else if (payload.resultsMode) {
+    }
+    if (payload.resultsMode) {
       potaParkStatusStore.subscribe((state) => {
         if (state.status === "ready") {
           updatePotaStatuses(mapElement, payload, layersByReference, state.snapshot.parks);
@@ -418,6 +407,7 @@ const payload = JSON.stringify({
     const boundaries: L.Path[] = [];
     const markers: L.CircleMarker[] = [];
     const symbols: L.Marker[] = [];
+    const liveIndicators: L.Marker[] = [];
     const style = itemStyle(payload, item);
 
     if (item.geojson) {
@@ -456,6 +446,20 @@ const payload = JSON.stringify({
         .addTo(map)
         .bindPopup(() => popupHtml(payload, item));
       markers.push(marker);
+      if (payload.variant === "home" || payload.resultsMode) {
+        const indicator = L.marker([item.marker.latitude, item.marker.longitude], {
+          icon: L.divIcon({
+            className: "reference-map-live-indicator",
+            html: '<span aria-hidden="true"></span>',
+            iconSize: [28, 28],
+            iconAnchor: [14, 14],
+          }),
+          interactive: false,
+          keyboard: false,
+          zIndexOffset: -100,
+        }).addTo(map);
+        liveIndicators.push(indicator);
+      }
       if (payload.resultsMode) {
         const symbol = L.marker([item.marker.latitude, item.marker.longitude], {
           icon: resultStatusIcon(item.potaStatus?.status),
@@ -467,7 +471,7 @@ const payload = JSON.stringify({
       bounds.extend([item.marker.latitude, item.marker.longitude]);
     }
 
-    return { boundaries, markers, symbols };
+    return { boundaries, markers, symbols, liveIndicators };
   }
 
   function itemStyle(payload: MapPayload, item: MapItem) {
@@ -529,16 +533,33 @@ const payload = JSON.stringify({
         style.isLive,
       );
       marker.bindPopup(() => popupHtml(payload, item));
+      if (style.isLive) {
+        const content = liveTooltipHtml(item);
+        if (marker.getTooltip()) {
+          marker.setTooltipContent(content);
+        } else {
+          marker.bindTooltip(content, {
+            className: "reference-map-live-tooltip",
+            opacity: 1,
+          });
+        }
+      } else {
+        marker.unbindTooltip();
+      }
     });
     layers.symbols.forEach((symbol) => {
       symbol.setIcon(resultStatusIcon(item.potaStatus?.status));
     });
+    layers.liveIndicators.forEach((indicator) => {
+      indicator.getElement()?.classList.toggle("reference-map-live-indicator--active", style.isLive);
+    });
   }
 
   function resultStatusIcon(status: PublicParkPotaStatus["status"] | undefined): L.DivIcon {
-    const symbol = { confirmed: "✓", observed: "•", scheduled: "S", needed: "—" }[status ?? "needed"];
+    const activityStatus = status === "confirmed" || status === "observed" ? "activated" : status ?? "needed";
+    const symbol = { activated: "✓", scheduled: "S", needed: "—" }[activityStatus];
     return L.divIcon({
-      className: `reference-map-status-symbol reference-map-status-symbol--${status ?? "needed"}`,
+      className: `reference-map-status-symbol reference-map-status-symbol--${activityStatus}`,
       html: `<span aria-hidden="true">${symbol}</span>`,
       iconSize: [18, 18],
       iconAnchor: [9, 9],
@@ -552,9 +573,14 @@ const payload = JSON.stringify({
   ): void {
     const spotsByReference = new Map<string, LivePotaSpot[]>();
     for (const spot of spots) {
-      const parkSpots = spotsByReference.get(spot.parkReference) ?? [];
-      parkSpots.push(spot);
-      spotsByReference.set(spot.parkReference, parkSpots);
+      const spotReferences = payload.resultsMode
+        ? potaSpotReferenceEvidence(spot).map((evidence) => evidence.parkReference)
+        : [spot.parkReference];
+      for (const reference of spotReferences) {
+        const parkSpots = spotsByReference.get(reference) ?? [];
+        parkSpots.push(spot);
+        spotsByReference.set(reference, parkSpots);
+      }
     }
 
     for (const item of payload.items) {
@@ -675,14 +701,11 @@ const payload = JSON.stringify({
         item.hidden = true;
         return;
       }
-      if (item.dataset.mapLegendOptional !== "true") {
-        item.hidden = false;
-        return;
-      }
-
       const statuses = (item.dataset.mapLegendStatuses ?? "").split(" ").filter(Boolean);
       item.hidden = !statuses.some((status) => visibleStatuses.has(status));
     });
+    const legend = mapPreview.querySelector<HTMLElement>(".map-legend");
+    if (legend) legend.hidden = !legend.querySelector("[data-map-legend-item]:not([hidden])");
   }
 
   function deriveCoverage(
@@ -752,7 +775,7 @@ const payload = JSON.stringify({
         <em>${escapeHtml(detailLine(item))}</em>
         <span><b>${escapeHtml(potaStatusLabel(status?.status))}</b>${status?.live ? " · On air now" : ""}</span>
         ${potaEvidenceHtml(status)}
-        ${status?.scheduled ? "<span>Planned event coverage is also scheduled; that plan is not POTA confirmation.</span>" : ""}
+        ${status?.scheduled ? "<span>Event coverage is also scheduled.</span>" : ""}
         <span class="map-popup__links">
           <a href="/activate-ri-2026/parks/">Open full evidence list</a>
           ${localFieldGuideLink(item)}
@@ -782,16 +805,16 @@ const payload = JSON.stringify({
 
   function potaStatusLabel(status: string | undefined): string {
     return {
-      confirmed: "POTA confirmed",
-      observed: "Activity observed; not confirmed",
-      scheduled: "Scheduled; not confirmed",
+      confirmed: "Activated",
+      observed: "Activated",
+      scheduled: "Scheduled",
       needed: "Still needed",
     }[status ?? "needed"] ?? "Still needed";
   }
 
   function potaEvidenceHtml(status: PublicParkPotaStatus | undefined): string {
     if (status?.confirmation) {
-      return `<span>${escapeHtml(status.confirmation.activeCallsign)} · ${escapeHtml(status.confirmation.qsoDate)} UTC · ${status.confirmation.totalQsos} QSOs</span>`;
+      return `<span>POTA log: ${escapeHtml(status.confirmation.activeCallsign)} · ${escapeHtml(status.confirmation.qsoDate)} UTC · ${status.confirmation.totalQsos} QSOs</span>`;
     }
     if (status?.lastObservation) {
       return `<span>Last spotted ${escapeHtml(formatLiveSpotTime(status.lastObservation.lastObservedAt))} · ${escapeHtml(status.lastObservation.activeCallsign)}</span>`;
@@ -803,6 +826,18 @@ const payload = JSON.stringify({
         : "";
     }
     return "<span>No event POTA evidence yet.</span>";
+  }
+
+  function liveTooltipHtml(item: MapItem): string {
+    const rows = [...new Set((item.liveSpots ?? []).map((spot) =>
+      [spot.activatorCallsign, spot.frequency || spot.mode ? formatRadioDetails(spot.frequency, spot.mode) : ""]
+        .filter(Boolean).join(" · "),
+    ))];
+    return `
+      <strong>On air now · ${escapeHtml(item.reference)}</strong>
+      ${rows.slice(0, 2).map((row) => `<span>${escapeHtml(row)}</span>`).join("")}
+      ${rows.length > 2 ? `<span>+${rows.length - 2} more</span>` : ""}
+    `;
   }
 
   function liveSpotsHtml(item: MapItem): string {
@@ -923,6 +958,25 @@ const payload = JSON.stringify({
 </script>
 
 <style is:global>
+  .reference-map-live-tooltip {
+    width: max-content;
+    max-width: 17rem;
+    padding: 0.4rem 0.6rem;
+    color: #18312f;
+    font-size: 0.78rem;
+    line-height: 1.4;
+    white-space: normal;
+  }
+
+  .reference-map-live-tooltip strong,
+  .reference-map-live-tooltip span {
+    display: block;
+  }
+
+  .ri-reference-map:has(.leaflet-popup) .reference-map-live-tooltip {
+    visibility: hidden;
+  }
+
   .reference-map-location-button {
     position: absolute;
     z-index: 800;

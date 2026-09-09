@@ -309,9 +309,18 @@ and park references declared in multi-park spot text remain distinct evidence;
 neither confirms an activation.
 
 During the configured event capture window, the same collector writes
-event-specific spot observations. Activation-history reconciliation runs during
-its configured window through October 14, 2026 at 00:00 UTC; admins can request
-a protected reconciliation, including a deep history pass. The event window and
+event-specific spot observations. Automatic activation-history reconciliation
+checks all RI parks, including confirmed parks, until September 21, 2026 at
+00:00 UTC, seven days after the final event UTC day. It checks up to 20 parks
+every 15 minutes, with at most five concurrent requests and a 55-minute minimum
+between attempts for a park. Oldest attempts come first, so all 61 parks remain
+in rotation with roughly hourly refreshes under healthy operation. Each request
+fetches the park's full activation history and retains only RI event-date rows,
+including later operators, additional dates, and corrected QSO totals.
+
+Admins can request a protected reconciliation, including a deep pass through
+all parks. Pending deep passes continue in scheduled batches even after the
+automatic collection window closes. The event window and
 qualification filters live in `src/lib/activate-ri/pota-event.ts`. Public park
 status distinguishes scheduled, observed, and POTA-confirmed activity using
 these persisted records. It does not treat a local completed stop or a spot as

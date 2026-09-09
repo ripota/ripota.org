@@ -9,7 +9,8 @@ import {
 export const activateRiPotaEventId = "activate-ri-2026";
 export const activateRiPotaStartDate = "2026-09-10";
 export const activateRiPotaEndDate = "2026-09-13";
-export const activateRiPotaReconciliationEnd = "2026-10-14T00:00:00.000Z";
+// Keep checking for late uploads for seven days after the final event UTC day.
+export const activateRiPotaReconciliationEnd = "2026-09-21T00:00:00.000Z";
 export const qualifyingActivationQsos = 10;
 const riReferences = new Set(references.map((park) => park.reference));
 

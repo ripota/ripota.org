@@ -31,7 +31,7 @@ describe("OnAirNow", () => {
     expect(homepageSource).not.toContain("PreviewGate");
     expect(onAirNowSource).not.toContain("isPreviewFeatureEnabled");
     expect(referenceMapSource).not.toContain("isPreviewFeatureEnabled");
-    expect(referenceMapSource).toContain('if (payload.variant === "home")');
+    expect(referenceMapSource).toContain('if (payload.variant === "home" || payload.resultsMode)');
   });
 
   it("offers a dedicated activity dashboard without a reference map", () => {

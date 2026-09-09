@@ -22,6 +22,7 @@ do not establish the state of a later production deployment.
 
 ## Feature status and verification records
 
+- [Analytics and after-action reporting review (September 8)](activate-ri-2026/analytics-after-action-review.md)
 - [Requested-parks agenda](activate-ri-2026/requested-parks-agenda.md)
 - [Final-week event review](activate-ri-2026/final-week-review.md)
 - [Park package 3.1.1 adoption and measurements](parks-v311-adoption.md)
