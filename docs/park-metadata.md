@@ -31,6 +31,15 @@ February and the third Saturday in April through May, with a larger amount
 during shotgun deer season. Park notes explain exceptions, recommendations,
 and places where different parts of the park have different guidance.
 
+Prominent orange reminders appear August 15 through May 31, giving visitors
+time to prepare before fall hunting season. From June 1 through August 14,
+the directory banner and orange badges are hidden; each park's full guidance
+remains in a quiet, expandable section. Parks without a visitor orange
+requirement always use that quieter presentation. The browser checks the
+current Rhode Island date, including while a page remains open, so a static
+build does not lock the site into the season when it was published. This is
+a display window; it does not change the actual seasons in the park notes.
+
 ## Updating information
 
 Edit `config/park-metadata.json` in [ripota/parks](https://github.com/ripota/parks).

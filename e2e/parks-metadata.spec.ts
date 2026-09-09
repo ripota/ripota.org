@@ -13,6 +13,7 @@ const test = base.extend<{}, { parksOrigin: string }>({
 });
 
 test.beforeEach(async ({ page }) => {
+  await page.clock.setFixedTime("2026-09-12T12:00:00-04:00");
   await page.route("**/api/analytics/events", (route) => route.fulfill({
     status: 202, contentType: "application/json", body: JSON.stringify({ ok: true }),
   }));
@@ -62,6 +63,71 @@ for (const viewport of [{ name: "desktop", width: 1440, height: 1000 }, { name: 
       await page.goto(`${parksOrigin}/parks/us-2878/`);
       await expect(page.locator("#plan-your-visit")).toContainText("Picnic tables");
       await expect(page.locator("#plan-your-visit [data-orange-status]")).toHaveAttribute("data-orange-status", "not-required");
+      await expect(page.locator("[data-orange-guidance]")).toHaveAttribute("data-orange-prominent", "false");
+      await expect(page.locator("[data-orange-guidance]")).not.toHaveAttribute("open");
+    });
+
+    test("summer keeps orange guidance available without prominent reminders", async ({ page, parksOrigin }, testInfo) => {
+      await page.clock.setFixedTime("2026-06-15T12:00:00-04:00");
+      await page.goto(`${parksOrigin}/parks/`);
+      await expect(page.locator(".parks-directory__orange")).toBeHidden();
+      await expect(page.locator('[data-variant="orange"]:visible')).toHaveCount(0);
+
+      await page.goto(`${parksOrigin}/parks/us-6979/`);
+      const guidance = page.locator("[data-orange-guidance]");
+      await expect(guidance).toHaveAttribute("data-orange-prominent", "false");
+      await expect(guidance).not.toHaveAttribute("open");
+      await page.locator("#plan-your-visit").scrollIntoViewIfNeeded();
+      await testInfo.attach(`orange-summer-${viewport.name}`, { body: await page.screenshot(), contentType: "image/png" });
+      await guidance.locator("summary").focus();
+      await page.keyboard.press("Enter");
+      await expect(guidance.getByRole("link", { name: "Orange guidance" })).toBeVisible();
+      await expect(guidance).toContainText("200 square inches");
+      await expect(guidance).toHaveAttribute("data-orange-prominent", "false");
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    });
+
+    test("orange reminders follow the current season without resetting manual toggles", async ({ page, parksOrigin }, testInfo) => {
+      await page.clock.setFixedTime("2026-05-31T23:59:59-04:00");
+      await page.goto(`${parksOrigin}/parks/us-6979/`);
+      const guidance = page.locator("[data-orange-guidance]");
+      await expect(guidance).toHaveAttribute("data-orange-prominent", "true");
+      await expect(guidance).toHaveAttribute("open");
+
+      await page.clock.setFixedTime("2026-06-01T00:00:00-04:00");
+      await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+      await expect(guidance).toHaveAttribute("data-orange-prominent", "false");
+      await expect(guidance).not.toHaveAttribute("open");
+      await guidance.locator("summary").click();
+      await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+      await expect(guidance).toHaveAttribute("open");
+
+      await page.clock.setFixedTime("2026-08-15T00:00:00-04:00");
+      await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+      await expect(guidance).toHaveAttribute("data-orange-prominent", "true");
+      await page.locator("#plan-your-visit").scrollIntoViewIfNeeded();
+      await testInfo.attach(`orange-season-${viewport.name}`, { body: await page.screenshot(), contentType: "image/png" });
+      await guidance.locator("summary").click();
+      await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+      await expect(guidance).not.toHaveAttribute("open");
+
+      await page.goto(`${parksOrigin}/parks/`);
+      await expect(page.locator(".parks-directory__orange")).toBeVisible();
+      await expect(page.locator('[data-variant="orange"]:visible')).not.toHaveCount(0);
     });
   });
 }
+
+test("orange guidance remains expandable without JavaScript", async ({ browser, parksOrigin }) => {
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  try {
+    const page = await context.newPage();
+    await page.goto(`${parksOrigin}/parks/us-6979/`);
+    const guidance = page.locator("[data-orange-guidance]");
+    await expect(guidance).not.toHaveAttribute("open");
+    await guidance.locator("summary").click();
+    await expect(guidance.getByRole("link", { name: "Orange guidance" })).toBeVisible();
+  } finally {
+    await context.close();
+  }
+});

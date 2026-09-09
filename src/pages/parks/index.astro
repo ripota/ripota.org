@@ -3,6 +3,7 @@ import Footer from "../../components/Footer.astro";
 import Notice from "../../components/Notice.astro";
 import ReferenceMap from "../../components/ReferenceMap.astro";
 import SiteHeader from "../../components/SiteHeader.astro";
+import OrangeSeason from "../../components/parks/OrangeSeason.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import { parks as allParks } from "@ripota/parks";
 import { parksCatalog } from "../../lib/pota/catalog";
@@ -65,7 +66,7 @@ const amenities = [...new Set(parks.flatMap((park) => park.amenities))].sort((a,
           </p>
         </header>
 
-        <aside class="parks-directory__orange" aria-labelledby="orange-season-title">
+        <aside class="parks-directory__orange" aria-labelledby="orange-season-title" data-orange-seasonal hidden>
           <h3 id="orange-season-title">Pack fluorescent orange for hunting season</h3>
           <p>
             At state management areas and designated undeveloped parks, wear 200 square inches
@@ -148,7 +149,7 @@ const amenities = [...new Set(parks.flatMap((park) => park.amenities))].sort((a,
                   <span class="parks-directory__badges">
                     <span>{parkTypeLabels[park.type]}</span>
                     {park.orange.status !== "not-required" && (
-                      <span data-variant="orange" title={`${park.orange.season ?? ""} ${park.orange.details}`}>{orangeLabel(park.orange)}</span>
+                      <span data-variant="orange" data-orange-seasonal hidden title={`${park.orange.season ?? ""} ${park.orange.details}`}>{orangeLabel(park.orange)}</span>
                     )}
                     {hasSameGeometry && <span data-variant="relationship">Possible 2-fer</span>}
                   </span>
@@ -168,6 +169,8 @@ const amenities = [...new Set(parks.flatMap((park) => park.amenities))].sort((a,
   </main>
   <Footer />
 </BaseLayout>
+
+<OrangeSeason />
 
 <script>
   import type { ParkType, ParkAmenity } from "@ripota/parks";

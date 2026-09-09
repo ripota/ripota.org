@@ -1,6 +1,7 @@
 ---
 import type { Park } from "@ripota/parks";
 import { accessLabels, amenityLabels, orangeLabel, parkTypeLabels } from "../../lib/parks/metadata";
+import OrangeSeason from "./OrangeSeason.astro";
 
 interface Props { park: Park }
 const { park } = Astro.props;
@@ -26,16 +27,16 @@ const accessNotes = Object.entries(accessLabels).flatMap(([key, label]) => {
       </ul>
     )}
 
-    <div class="park-visit__orange" data-orange-status={park.orange.status}>
-      <div>
-        <h3>{orangeLabel(park.orange)}</h3>
+    <details class="park-visit__orange" data-orange-guidance data-orange-status={park.orange.status}>
+      <summary>{orangeLabel(park.orange)}</summary>
+      <div class="park-visit__orange-content">
         {park.orange.season && <p class="park-visit__season">{park.orange.season}</p>}
+        <div>
+          <p>{park.orange.details}</p>
+          <a href={park.orange.sourceUrl} target="_blank" rel="noreferrer">Orange guidance ↗</a>
+        </div>
       </div>
-      <div>
-        <p>{park.orange.details}</p>
-        <a href={park.orange.sourceUrl} target="_blank" rel="noreferrer">Orange guidance ↗</a>
-      </div>
-    </div>
+    </details>
 
     {accessNotes.length > 0 && (
       <dl class="park-visit__access">
@@ -55,6 +56,8 @@ const accessNotes = Object.entries(accessLabels).flatMap(([key, label]) => {
   </div>
 </section>
 
+<OrangeSeason />
+
 <style>
   .park-visit__heading { display: flex; justify-content: space-between; align-items: end; gap: 1.5rem; }
   .park-visit h2 { font-size: clamp(2.4rem, 5vw, 4.3rem); }
@@ -63,8 +66,13 @@ const accessNotes = Object.entries(accessLabels).flatMap(([key, label]) => {
   .park-visit__heading > a { flex-shrink: 0; padding-bottom: 0.4rem; }
   .park-visit__amenities { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1.5rem 0; padding: 0; list-style: none; }
   .park-visit__amenities li { border: 1px solid var(--border-subtle); border-radius: 4px; padding: 0.35rem 0.65rem; font-size: 0.8rem; font-weight: 750; }
-  .park-visit__orange { display: grid; grid-template-columns: minmax(0, 0.65fr) minmax(0, 1.35fr); gap: 1.5rem; border-left: 4px solid #c75a13; background: color-mix(in srgb, #ed853b 10%, var(--surface-page)); margin-top: 1.5rem; padding: 1.25rem 1.5rem; }
-  .park-visit__orange[data-orange-status="not-required"] { border-color: var(--border-subtle); background: var(--surface-raised); }
+  .park-visit__orange { border-top: 1px solid var(--border-subtle); margin-top: 1.5rem; padding-block: 0.9rem; }
+  .park-visit__orange summary { cursor: pointer; color: var(--text-muted); font-size: 0.85rem; font-weight: 750; }
+  .park-visit__orange summary:focus-visible { outline: 2px solid var(--link-strong); outline-offset: 4px; }
+  .park-visit__orange[data-orange-prominent="true"] { border-top: 0; border-left: 4px solid #c75a13; background: color-mix(in srgb, #ed853b 10%, var(--surface-page)); padding: 1.25rem 1.5rem; }
+  .park-visit__orange[data-orange-prominent="true"] summary { color: var(--text-primary); font-size: 1.15rem; }
+  .park-visit__orange-content { display: grid; grid-template-columns: minmax(0, 0.65fr) minmax(0, 1.35fr); gap: 1.5rem; margin-top: 0.75rem; }
+  .park-visit__orange-content > div:only-child { grid-column: 1 / -1; }
   .park-visit__orange p { margin: 0.5rem 0 0; }
   .park-visit__orange a { display: inline-block; margin-top: 0.7rem; font-size: 0.82rem; }
   .park-visit__season { color: var(--text-muted); font-size: 0.85rem; }
@@ -78,7 +86,8 @@ const accessNotes = Object.entries(accessLabels).flatMap(([key, label]) => {
   .park-visit__footnote { margin-top: 1.5rem; color: var(--text-muted); font-size: 0.78rem; }
   @media (max-width: 700px) {
     .park-visit__heading { align-items: start; flex-direction: column; gap: 0.75rem; }
-    .park-visit__orange, .park-visit__access { grid-template-columns: 1fr; }
-    .park-visit__orange { gap: 0.75rem; padding: 1rem; }
+    .park-visit__orange-content, .park-visit__access { grid-template-columns: 1fr; }
+    .park-visit__orange-content { gap: 0.75rem; }
+    .park-visit__orange[data-orange-prominent="true"] { padding: 1rem; }
   }
 </style>

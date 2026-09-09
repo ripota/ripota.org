@@ -1,0 +1,29 @@
+<script>
+  import { isOrangeNoticeSeason } from "../../lib/parks/orange-season";
+
+  let previousSeason: boolean | undefined;
+  function updateOrangeNotices(): void {
+    const inSeason = isOrangeNoticeSeason();
+    if (inSeason === previousSeason) return;
+    previousSeason = inSeason;
+
+    for (const notice of document.querySelectorAll<HTMLElement>("[data-orange-seasonal]")) {
+      notice.hidden = !inSeason;
+    }
+    for (const guidance of document.querySelectorAll<HTMLDetailsElement>("[data-orange-guidance]")) {
+      const prominent = inSeason && guidance.dataset.orangeStatus !== "not-required";
+      guidance.dataset.orangeProminent = String(prominent);
+      guidance.open = prominent;
+    }
+  }
+
+  updateOrangeNotices();
+  window.setInterval(updateOrangeNotices, 60_000);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) updateOrangeNotices();
+  });
+</script>
+
+<style is:global>
+  [data-orange-seasonal][hidden] { display: none !important; }
+</style>
