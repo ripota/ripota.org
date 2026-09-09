@@ -1,4 +1,4 @@
-import { references } from "@ripota/parks";
+import { parks as references } from "@ripota/parks";
 
 import { siteIdentity } from "../data/site";
 import { parkGuidePath } from "../lib/parks/directory";

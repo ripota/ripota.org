@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { references } from "@ripota/parks";
+import { parks as references } from "@ripota/parks";
 import type { PublicActivationStop } from "../src/lib/activate-ri/types";
 import { startActivateRiServer } from "./helpers/activate-ri-server";
 

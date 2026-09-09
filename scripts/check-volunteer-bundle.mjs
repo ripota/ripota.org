@@ -57,6 +57,7 @@ const forbiddenPayloads = [
   ["catalog source feature IDs", /["']featureIds["']\s*:/],
 ];
 const forbiddenSources = [
+  ["enriched park metadata API", /@ripota\/parks\/dist\/index\.js$/],
   ["@ripota/parks catalog", /@ripota\/parks\/(?:dist\/)?catalog\.json$/],
   ["site catalog adapter", /src\/lib\/pota\/catalog\.ts$/],
 ];

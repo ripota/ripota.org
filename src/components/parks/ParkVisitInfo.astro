@@ -1,0 +1,84 @@
+---
+import type { Park } from "@ripota/parks";
+import { accessLabels, amenityLabels, orangeLabel, parkTypeLabels } from "../../lib/parks/metadata";
+
+interface Props { park: Park }
+const { park } = Astro.props;
+const accessNotes = Object.entries(accessLabels).flatMap(([key, label]) => {
+  const value = park.access[key as keyof typeof accessLabels];
+  return value ? [{ label, value }] : [];
+});
+---
+
+<section class="park-visit section" id="plan-your-visit" aria-labelledby="park-visit-title">
+  <div class="container">
+    <header class="park-visit__heading">
+      <div>
+        <p class="eyebrow">{parkTypeLabels[park.type]} · {park.manager}</p>
+        <h2 id="park-visit-title">Plan your visit</h2>
+      </div>
+      <a href={park.websiteUrl} target="_blank" rel="noreferrer">Park website ↗</a>
+    </header>
+
+    {park.amenities.length > 0 && (
+      <ul class="park-visit__amenities" aria-label="Listed amenities">
+        {park.amenities.map((amenity) => <li>{amenityLabels[amenity]}</li>)}
+      </ul>
+    )}
+
+    <div class="park-visit__orange" data-orange-status={park.orange.status}>
+      <div>
+        <h3>{orangeLabel(park.orange)}</h3>
+        {park.orange.season && <p class="park-visit__season">{park.orange.season}</p>}
+      </div>
+      <div>
+        <p>{park.orange.details}</p>
+        <a href={park.orange.sourceUrl} target="_blank" rel="noreferrer">Orange guidance ↗</a>
+      </div>
+    </div>
+
+    {accessNotes.length > 0 && (
+      <dl class="park-visit__access">
+        {accessNotes.map(({ label, value }) => (
+          <div><dt>{label}</dt><dd>{value}</dd></div>
+        ))}
+      </dl>
+    )}
+
+    {park.activationNotes.length > 0 && (
+      <div class="park-visit__notes">
+        <h3>Before setting up</h3>
+        <ul>{park.activationNotes.map((note) => <li>{note}</li>)}</ul>
+      </div>
+    )}
+    <p class="park-visit__footnote">Park details can change. Check the park website and posted signs before you go.</p>
+  </div>
+</section>
+
+<style>
+  .park-visit__heading { display: flex; justify-content: space-between; align-items: end; gap: 1.5rem; }
+  .park-visit h2 { font-size: clamp(2.4rem, 5vw, 4.3rem); }
+  .park-visit h3 { font-size: 1.15rem; }
+  .park-visit a { color: var(--link-strong); font-weight: 800; }
+  .park-visit__heading > a { flex-shrink: 0; padding-bottom: 0.4rem; }
+  .park-visit__amenities { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1.5rem 0; padding: 0; list-style: none; }
+  .park-visit__amenities li { border: 1px solid var(--border-subtle); border-radius: 4px; padding: 0.35rem 0.65rem; font-size: 0.8rem; font-weight: 750; }
+  .park-visit__orange { display: grid; grid-template-columns: minmax(0, 0.65fr) minmax(0, 1.35fr); gap: 1.5rem; border-left: 4px solid #c75a13; background: color-mix(in srgb, #ed853b 10%, var(--surface-page)); margin-top: 1.5rem; padding: 1.25rem 1.5rem; }
+  .park-visit__orange[data-orange-status="not-required"] { border-color: var(--border-subtle); background: var(--surface-raised); }
+  .park-visit__orange p { margin: 0.5rem 0 0; }
+  .park-visit__orange a { display: inline-block; margin-top: 0.7rem; font-size: 0.82rem; }
+  .park-visit__season { color: var(--text-muted); font-size: 0.85rem; }
+  .park-visit__access { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 2rem; margin: 1.5rem 0 0; }
+  .park-visit__access > div { border-top: 1px solid var(--border-subtle); padding: 1rem 0; }
+  .park-visit__access dt { font-weight: 850; font-size: 0.8rem; }
+  .park-visit__access dd { color: var(--text-muted); margin: 0.4rem 0 0; font-size: 0.92rem; }
+  .park-visit__notes { margin-top: 1.4rem; max-width: 75ch; }
+  .park-visit__notes ul { padding-left: 1.25rem; margin-top: 0.7rem; }
+  .park-visit__notes li + li { margin-top: 0.5rem; }
+  .park-visit__footnote { margin-top: 1.5rem; color: var(--text-muted); font-size: 0.78rem; }
+  @media (max-width: 700px) {
+    .park-visit__heading { align-items: start; flex-direction: column; gap: 0.75rem; }
+    .park-visit__orange, .park-visit__access { grid-template-columns: 1fr; }
+    .park-visit__orange { gap: 0.75rem; padding: 1rem; }
+  }
+</style>

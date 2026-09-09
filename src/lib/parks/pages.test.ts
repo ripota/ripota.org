@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { references } from "@ripota/parks";
+import { parks as references } from "@ripota/parks";
 import { describe, expect, it } from "vitest";
 import { GET, sitemapPaths } from "../../pages/sitemap.xml";
 import { parkGuidePath } from "./directory";

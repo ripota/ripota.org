@@ -1,0 +1,67 @@
+import { expect, test as base } from "@playwright/test";
+import { startActivateRiServer } from "./helpers/activate-ri-server";
+
+const test = base.extend<{}, { parksOrigin: string }>({
+  parksOrigin: [async ({}, use) => {
+    if (process.env.RIPOTA_PARKS_BASE_URL) {
+      await use(process.env.RIPOTA_PARKS_BASE_URL.replace(/\/$/, ""));
+      return;
+    }
+    const server = await startActivateRiServer();
+    try { await use(server.origin); } finally { await server.stop(); }
+  }, { scope: "worker" }],
+});
+
+test.beforeEach(async ({ page }) => {
+  await page.route("**/api/analytics/events", (route) => route.fulfill({
+    status: 202, contentType: "application/json", body: JSON.stringify({ ok: true }),
+  }));
+});
+
+for (const viewport of [{ name: "desktop", width: 1440, height: 1000 }, { name: "mobile", width: 390, height: 844 }]) {
+  test.describe(viewport.name, () => {
+    test.use({ viewport });
+
+    test("park metadata filters survive a shared link and clear together", async ({ page, parksOrigin }, testInfo) => {
+      await page.goto(`${parksOrigin}/parks/?type=park&amenity=picnic-tables&query=Lincoln`);
+      const rows = page.locator("[data-park-row]:visible");
+      await expect(page.getByRole("combobox", { name: "Park type", exact: true })).toHaveValue("park");
+      await expect(page.getByRole("combobox", { name: "Amenity", exact: true })).toHaveValue("picnic-tables");
+      await expect(rows).not.toHaveCount(0);
+      for (const row of await rows.all()) {
+        await expect(row).toHaveAttribute("data-type", "park");
+        await expect(row).toHaveAttribute("data-amenities", /picnic-tables/);
+        await expect(row).toContainText(/Lincoln/i);
+      }
+      await page.getByRole("button", { name: "Clear filters" }).click();
+      await expect(rows).toHaveCount(61);
+      await expect(page.getByLabel("Search parks")).toHaveValue("");
+      await expect(page).toHaveURL(`${parksOrigin}/parks/`);
+      await page.getByLabel("Search parks").fill("all");
+      await expect(page).toHaveURL(`${parksOrigin}/parks/?query=all`);
+      await page.reload();
+      await expect(page.getByLabel("Search parks")).toHaveValue("all");
+      await page.getByLabel("Search parks").fill("this park does not exist");
+      await expect(page.locator("[data-park-directory-empty]")).toBeVisible();
+      await page.getByRole("button", { name: "Clear filters" }).click();
+      await page.getByRole("heading", { name: "Browse all references" }).scrollIntoViewIfNeeded();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await testInfo.attach(`park-directory-${viewport.name}`, { body: await page.screenshot(), contentType: "image/png" });
+    });
+
+    test("park guides explain orange scope and useful visit information", async ({ page, parksOrigin }, testInfo) => {
+      await page.goto(`${parksOrigin}/parks/us-2871/`);
+      const visit = page.locator("#plan-your-visit");
+      await expect(visit.getByRole("heading", { name: "Plan your visit" })).toBeVisible();
+      await expect(visit.locator("[data-orange-status]")).toHaveAttribute("data-orange-status", "area-dependent");
+      await expect(visit).toContainText(/North Camp/i);
+      await expect(visit.getByRole("link", { name: "Park website" })).toHaveAttribute("href", /^https:\/\//);
+      await visit.scrollIntoViewIfNeeded();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await testInfo.attach(`park-visit-${viewport.name}`, { body: await page.screenshot(), contentType: "image/png" });
+      await page.goto(`${parksOrigin}/parks/us-2878/`);
+      await expect(page.locator("#plan-your-visit")).toContainText("Picnic tables");
+      await expect(page.locator("#plan-your-visit [data-orange-status]")).toHaveAttribute("data-orange-status", "not-required");
+    });
+  });
+}

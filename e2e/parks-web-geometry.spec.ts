@@ -37,7 +37,7 @@ const parks = [
   { reference: "US-4582", name: "Washington-Rochambeau Revolutionary Route National Historic Trail", components: 1, holes: 0 },
 ];
 
-const canonicalPath = /\/data\/parks\/3\.1\.1\/(?:boundaries\/us-\d+|all)\.geojson$/;
+const canonicalPath = /\/data\/parks\/4\.0\.0\/(?:boundaries\/us-\d+|all)\.geojson$/;
 const brentonPoint = { latitude: 41.452, longitude: -71.3542, accuracy: 5 };
 
 function observeBrowser(page: Page) {
@@ -177,7 +177,7 @@ for (const viewport of [
         await expect(page.locator("body")).toContainText("not an official Parks on the Air property");
 
         const payload = await detailPayload(page);
-        expect(payload.park.canonicalGeometryUrl).toBe(`/data/parks/3.1.1/boundaries/${park.reference.toLowerCase()}.geojson`);
+        expect(payload.park.canonicalGeometryUrl).toBe(`/data/parks/4.0.0/boundaries/${park.reference.toLowerCase()}.geojson`);
         expect(JSON.stringify(payload)).not.toContain('"fidelity":"detailed"');
         expect(JSON.stringify(payload)).toContain('"fidelity":"web"');
         expect(await embeddedGeometryCollections(page)).toBe(1);
@@ -250,7 +250,7 @@ for (const viewport of [
       const browser = observeBrowser(page);
       await context.grantPermissions(["geolocation"], { origin: parksOrigin });
       await context.setGeolocation(brentonPoint);
-      const canonicalUrl = `${parksOrigin}/data/parks/3.1.1/boundaries/us-2870.geojson`;
+      const canonicalUrl = `${parksOrigin}/data/parks/4.0.0/boundaries/us-2870.geojson`;
       const releases: Array<() => void> = [];
       await page.route(canonicalUrl, async (route) => {
         await new Promise<void>((resolve) => { releases.push(resolve); });
@@ -294,7 +294,7 @@ for (const viewport of [
       const browser = observeBrowser(page);
       await context.grantPermissions(["geolocation"], { origin: parksOrigin });
       await context.setGeolocation(brentonPoint);
-      const canonicalUrl = `${parksOrigin}/data/parks/3.1.1/boundaries/us-2870.geojson`;
+      const canonicalUrl = `${parksOrigin}/data/parks/4.0.0/boundaries/us-2870.geojson`;
       browser.expectedFailures.add(canonicalUrl);
       await page.route(canonicalUrl, (route) => route.fulfill({ status: 503, body: "Synthetic geometry outage" }));
       await page.goto(`${parksOrigin}/parks/us-2870/`);
@@ -347,7 +347,7 @@ for (const viewport of [
       const results = page.locator("[data-reference-location-results]");
       await expect(page.locator('[data-reference-location-section="inside"]')).toContainText("US-2870");
       await attachMap(page, testInfo, `directory-location-${viewport.name}`, ".parks-directory-hero");
-      expect(browser.canonicalRequests).toContain(`${parksOrigin}/data/parks/3.1.1/all.geojson`);
+      expect(browser.canonicalRequests).toContain(`${parksOrigin}/data/parks/4.0.0/all.geojson`);
       const result = results.locator('a[href^="/parks/us-2870/"]');
       await result.click();
       await expect(page).toHaveURL(/\/parks\/us-2870\/\?location=1&from=parks-map$/);
@@ -368,7 +368,7 @@ for (const viewport of [
       const browser = observeBrowser(page);
       await context.grantPermissions(["geolocation"], { origin: parksOrigin });
       await context.setGeolocation(brentonPoint);
-      const canonicalUrl = `${parksOrigin}/data/parks/3.1.1/all.geojson`;
+      const canonicalUrl = `${parksOrigin}/data/parks/4.0.0/all.geojson`;
       browser.expectedFailures.add(canonicalUrl);
       const releases: Array<() => void> = [];
       await page.route(canonicalUrl, async (route) => {

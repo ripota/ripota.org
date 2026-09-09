@@ -2,7 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { references } from "@ripota/parks";
+import { parks as references } from "@ripota/parks";
 import { createServer } from "vite";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");

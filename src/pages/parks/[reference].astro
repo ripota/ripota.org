@@ -2,6 +2,8 @@
 import Footer from "../../components/Footer.astro";
 import Notice from "../../components/Notice.astro";
 import ParkDetailMap from "../../components/parks/ParkDetailMap.astro";
+import ParkVisitInfo from "../../components/parks/ParkVisitInfo.astro";
+import { getPark } from "@ripota/parks";
 import SiteHeader from "../../components/SiteHeader.astro";
 import { parksCatalog } from "../../lib/pota/catalog";
 import type { CatalogRecord } from "@ripota/parks/types";
@@ -26,6 +28,7 @@ export function getStaticPaths() {
 }
 
 const { park } = Astro.props;
+const visitorInfo = getPark(park.reference)!;
 const relatedParks = sameGeometryReferences(parksCatalog.references, park.reference);
 const relationshipParks = [park, ...relatedParks];
 const geometryLabel = parkGeometryLabel(park);
@@ -76,6 +79,8 @@ const officialMultipleReferencesUrl =
         {navigationItems.map((item) => <a href={item.href}>{item.label}</a>)}
       </div>
     </nav>
+
+    <ParkVisitInfo park={visitorInfo} />
 
     <section class="park-map-facts section" id="map-facts" aria-labelledby="map-facts-title">
       <div class="container park-map-facts__layout">
@@ -148,6 +153,9 @@ const officialMultipleReferencesUrl =
           <p>Official POTA remains the source of truth for reference details and requirements.</p>
         </div>
         <ul>
+          <li>
+            <a href={visitorInfo.websiteUrl} target="_blank" rel="noreferrer">{visitorInfo.manager} park information ↗</a>
+          </li>
           <li>
             <a href={park.potaUrl} target="_blank" rel="noreferrer">
               Official POTA reference — {park.reference} ↗

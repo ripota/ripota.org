@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { references } from "@ripota/parks";
+import { parks as references } from "@ripota/parks";
 import type { PublicPotaParkStatusSnapshot } from "../src/lib/activate-ri/pota-status-client";
 import { startActivateRiServer } from "./helpers/activate-ri-server";
 

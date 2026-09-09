@@ -5,7 +5,7 @@ import { createRequire } from "node:module";
 import { dataset, displayReferences, getDisplayReference } from "@ripota/parks/display";
 import type { Catalog, CatalogRecord, DisplayReference, GeoJsonFeatureCollection } from "@ripota/parks/types";
 import { getCanonicalGeometryUrl, getWebGeometry, readGeometryArtifact } from "./geometry-assets";
-import { references, getReference } from "@ripota/parks";
+import { parks as references, getPark as getReference, type Park } from "@ripota/parks";
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 import packageLock from "../../../package-lock.json";
@@ -15,22 +15,22 @@ import { buildReferenceMapItems } from "../reference-map";
 import { parksCatalog } from "./catalog";
 
 describe("@ripota/parks package contract", () => {
-  it("pins the immutable v3 release tarball", () => {
+  it("pins the immutable v4 release tarball", () => {
     const releaseUrl =
-      "https://github.com/ripota/parks/releases/download/v3.1.1/ripota-parks-3.1.1.tgz";
+      "https://github.com/ripota/parks/releases/download/v4.0.0/ripota-parks-4.0.0.tgz";
 
     expect(packageManifest.dependencies["@ripota/parks"]).toBe(releaseUrl);
     expect(packageLock.packages["node_modules/@ripota/parks"]).toMatchObject({
-      version: "3.1.1",
-      integrity: "sha512-+iWAr1NlaK2vVYl0eDYqCVNTNZi+fezKGWdxJHaOR+MZy3S6gqv13YhRQVFCmI3ZUF4GOkgrD/npFfUDD/iE+g==",
+      version: "4.0.0",
+      integrity: "sha512-uRIkJJXeBGMBiy+szfJAtSbLY9Z6x8rc1wDJaAFtI41LLEsv7RhhBbuvvzvVwAqwGlN+uOAoLI+RMyrTGCEfVQ==",
       resolved: releaseUrl,
     });
     const entry = createRequire(import.meta.url).resolve("@ripota/parks");
     const installed = JSON.parse(readFileSync(new URL("../package.json", `file://${entry}`), "utf8"));
-    expect(installed.version).toBe("3.1.1");
+    expect(installed.version).toBe("4.0.0");
   });
 
-  it("keeps the v3 metadata API byte-for-byte aligned with the display catalog", () => {
+  it("adds visitor metadata while preserving every identity and display geometry", () => {
     expect(parksCatalog).toMatchObject({
       $schema: expect.stringContaining("/schemas/v2/catalog.schema.json"),
       schemaVersion: 2,
@@ -39,13 +39,16 @@ describe("@ripota/parks package contract", () => {
       featureCount: 61,
       sourceFeatureCount: 446,
     });
-    expect(references).toEqual(
+    expect(references.map(({ reference, name, counties, latitude, longitude, grid, potaUrl, locationDesc }) => ({
+      reference, name, counties, latitude, longitude, grid, potaUrl, locationDesc,
+    }))).toEqual(
       parksCatalog.references.map(
         ({ status: _status, geometryKind: _geometryKind, mapPoint: _mapPoint, source: _source, geojson: _geojson, ...reference }) =>
           reference,
       ),
     );
     expect(references).toHaveLength(61);
+    expect(references.every((park) => park.manager && park.websiteUrl)).toBe(true);
     expect(displayReferences).toHaveLength(61);
     expect(publicParks).toEqual(
       references.map(
@@ -87,6 +90,7 @@ describe("@ripota/parks package contract", () => {
   });
 
   it("adopts readonly public contracts and handles unknown display lookups", () => {
+    expectTypeOf<typeof references>().toEqualTypeOf<readonly Park[]>();
     expectTypeOf<Catalog["references"]>().toEqualTypeOf<readonly CatalogRecord[]>();
     expectTypeOf<typeof displayReferences>().toEqualTypeOf<readonly DisplayReference[]>();
     expectTypeOf<CatalogRecord["geojson"]>().toEqualTypeOf<GeoJsonFeatureCollection>();
@@ -118,7 +122,7 @@ describe("@ripota/parks package contract", () => {
       expect(web.bbox![1]).toBeGreaterThanOrEqual(display.bbox![1]);
       expect(web.bbox![2]).toBeLessThanOrEqual(display.bbox![2]);
       expect(web.bbox![3]).toBeLessThanOrEqual(display.bbox![3]);
-      expect(getCanonicalGeometryUrl(display.reference)).toBe(`/data/parks/3.1.1/boundaries/${display.reference.toLowerCase()}.geojson`);
+      expect(getCanonicalGeometryUrl(display.reference)).toBe(`/data/parks/4.0.0/boundaries/${display.reference.toLowerCase()}.geojson`);
       const detailed = JSON.parse(readGeometryArtifact(display.artifact!));
       expect(detailed.properties.fidelity).not.toBe("web");
       expect(detailed.features).toEqual(parksCatalog.references.find(({ reference }) => reference === display.reference)?.geojson.features);
@@ -126,7 +130,7 @@ describe("@ripota/parks package contract", () => {
     const detailedTrail = parksCatalog.references.find(({ reference }) => reference === "US-4582")!;
     expect(getWebGeometry("US-4582").features.map(({ geometry }) => geometry))
       .toEqual(detailedTrail.geojson.features.map(({ geometry }) => geometry));
-    expect(getCanonicalGeometryUrl()).toBe("/data/parks/3.1.1/all.geojson");
+    expect(getCanonicalGeometryUrl()).toBe("/data/parks/4.0.0/all.geojson");
     expect(() => getWebGeometry("US-UNKNOWN")).toThrow("Missing park geometry");
   });
 

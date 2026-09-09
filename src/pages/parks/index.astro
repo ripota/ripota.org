@@ -4,17 +4,21 @@ import Notice from "../../components/Notice.astro";
 import ReferenceMap from "../../components/ReferenceMap.astro";
 import SiteHeader from "../../components/SiteHeader.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
+import { parks as allParks } from "@ripota/parks";
 import { parksCatalog } from "../../lib/pota/catalog";
+import { amenityLabels, orangeLabel, parkTypeLabels } from "../../lib/parks/metadata";
 import {
   parkGuidePath,
   sameGeometryReferenceSet,
 } from "../../lib/parks/directory";
 
-const parks = [...parksCatalog.references].sort((left, right) =>
+const parks = [...allParks].sort((left, right) =>
   left.name.localeCompare(right.name),
 );
 const counties = [...new Set(parks.flatMap(({ counties }) => counties))].sort();
-const sameGeometryReferences = sameGeometryReferenceSet(parks);
+const sameGeometryReferences = sameGeometryReferenceSet(parksCatalog.references);
+const parkTypes = [...new Set(parks.map((park) => park.type))].sort((a, b) => parkTypeLabels[a].localeCompare(parkTypeLabels[b]));
+const amenities = [...new Set(parks.flatMap((park) => park.amenities))].sort((a, b) => amenityLabels[a].localeCompare(amenityLabels[b]));
 ---
 
 <BaseLayout
@@ -56,10 +60,21 @@ const sameGeometryReferences = sameGeometryReferenceSet(parks);
             <h2 id="browse-parks-title">Browse all references</h2>
           </div>
           <p>
-            Search by park name, POTA reference, or county. Each guide includes
-            a local map and links back to current official POTA details.
+            Find a spot with the access and amenities you need. Each guide includes
+            parking notes, seasonal orange guidance, a map, and park links.
           </p>
         </header>
+
+        <aside class="parks-directory__orange" aria-labelledby="orange-season-title">
+          <h3 id="orange-season-title">Pack fluorescent orange for hunting season</h3>
+          <p>
+            At state management areas and designated undeveloped parks, wear 200 square inches
+            from the second Saturday in September through February, and the third Saturday in
+            April through May. Shotgun deer season requires 500 square inches. Some areas are
+            exempt or have different guidance—see each park's guide.{" "}
+            <a href="https://rules.sos.ri.gov/regulations/part/250-100-00-7" target="_blank" rel="noreferrer">DEM orange guidance ↗</a>
+          </p>
+        </aside>
 
         <form class="parks-directory__filters" data-park-directory-filters aria-label="Filter parks">
           <label class="parks-directory__search">
@@ -79,10 +94,25 @@ const sameGeometryReferences = sameGeometryReferenceSet(parks);
               {counties.map((county) => <option value={county}>{county}</option>)}
             </select>
           </label>
+          <label>
+            <span>Park type</span>
+            <select name="type" data-park-filter-type>
+              <option value="all">All types</option>
+              {parkTypes.map((type) => <option value={type}>{parkTypeLabels[type]}</option>)}
+            </select>
+          </label>
+          <label>
+            <span>Amenity</span>
+            <select name="amenity" data-park-filter-amenity>
+              <option value="all">Any amenities</option>
+              {amenities.map((amenity) => <option value={amenity}>{amenityLabels[amenity]}</option>)}
+            </select>
+          </label>
           <label class="parks-directory__check">
             <input type="checkbox" data-park-filter-related />
             <span>Possible 2-fers</span>
           </label>
+          <button type="reset" class="parks-directory__clear">Clear filters</button>
         </form>
 
         <div class="parks-directory__result-bar">
@@ -98,16 +128,28 @@ const sameGeometryReferences = sameGeometryReferenceSet(parks);
               <li
                 data-park-row
                 data-name={`${park.reference} ${park.name}`.toLowerCase()}
+                data-reference={park.reference}
+                data-manager={park.manager}
+                data-type={park.type}
+                data-amenities={park.amenities.join("|")}
                 data-counties={park.counties.join("|")}
                 data-related={hasSameGeometry ? "true" : "false"}
               >
                 <a href={parkGuidePath(park.reference)}>
                   <span class="parks-directory__reference">{park.reference}</span>
-                  <span class="parks-directory__park-name">{park.name}</span>
+                  <span class="parks-directory__identity">
+                    <span class="parks-directory__park-name">{park.name}</span>
+                    <span class="parks-directory__manager">{park.manager}</span>
+                  </span>
                   <span class="parks-directory__location">
                     {park.counties.join(", ")} · {park.grid}
+                    {park.amenities.length > 0 && <span class="parks-directory__amenities">{park.amenities.map((amenity) => amenityLabels[amenity]).join(" · ")}</span>}
                   </span>
                   <span class="parks-directory__badges">
+                    <span>{parkTypeLabels[park.type]}</span>
+                    {park.orange.status !== "not-required" && (
+                      <span data-variant="orange" title={`${park.orange.season ?? ""} ${park.orange.details}`}>{orangeLabel(park.orange)}</span>
+                    )}
                     {hasSameGeometry && <span data-variant="relationship">Possible 2-fer</span>}
                   </span>
                   <span class="parks-directory__open" aria-hidden="true">→</span>
@@ -128,6 +170,8 @@ const sameGeometryReferences = sameGeometryReferenceSet(parks);
 </BaseLayout>
 
 <script>
+  import type { ParkType, ParkAmenity } from "@ripota/parks";
+  import { parkMatchesFilters } from "../../lib/parks/metadata";
   document
     .querySelectorAll<HTMLFormElement>("[data-park-directory-filters]")
     .forEach(setupParkDirectory);
@@ -139,20 +183,33 @@ const sameGeometryReferences = sameGeometryReferenceSet(parks);
     const query = filters.querySelector<HTMLInputElement>("[data-park-filter-query]");
     const county = filters.querySelector("[data-park-filter-county]") as unknown as HTMLSelectElement | null;
     const related = filters.querySelector<HTMLInputElement>("[data-park-filter-related]");
-    if (!list || !query || !county || !related) {
+    const type = filters.querySelector("[data-park-filter-type]") as unknown as HTMLSelectElement | null;
+    const amenity = filters.querySelector("[data-park-filter-amenity]") as unknown as HTMLSelectElement | null;
+    if (!list || !query || !county || !related || !type || !amenity) {
       return;
     }
 
     const rows = [...list.querySelectorAll<HTMLElement>("[data-park-row]")];
+    const params = new URLSearchParams(location.search);
+    query.value = params.get("query") ?? "";
+    for (const select of [county, type, amenity]) {
+      const value = params.get(select.name);
+      if (value && [...select.options].some((option) => option.value === value)) select.value = value;
+    }
+    related.checked = params.get("related") === "1";
     const apply = (): void => {
-      const search = query.value.trim().toLowerCase();
       let visible = 0;
       for (const row of rows) {
-        const matchesQuery = !search || (row.dataset.name ?? "").includes(search);
-        const matchesCounty = county.value === "all" ||
-          (row.dataset.counties ?? "").split("|").includes(county.value);
+        const matches = parkMatchesFilters({
+          reference: row.dataset.reference ?? "",
+          name: row.dataset.name ?? "",
+          manager: row.dataset.manager ?? "",
+          type: row.dataset.type as ParkType,
+          counties: (row.dataset.counties ?? "").split("|"),
+          amenities: (row.dataset.amenities ?? "").split("|").filter(Boolean) as ParkAmenity[],
+        }, { query: query.value, county: county.value, type: type.value, amenity: amenity.value });
         const matchesRelated = !related.checked || row.dataset.related === "true";
-        row.hidden = !(matchesQuery && matchesCounty && matchesRelated);
+        row.hidden = !(matches && matchesRelated);
         visible += row.hidden ? 0 : 1;
       }
 
@@ -164,10 +221,23 @@ const sameGeometryReferences = sameGeometryReferenceSet(parks);
       if (empty) {
         empty.hidden = visible !== 0;
       }
+      const url = new URL(location.href);
+      for (const [key, value] of Object.entries({ query: query.value.trim(), county: county.value, type: type.value, amenity: amenity.value, related: related.checked ? "1" : "" })) {
+        if (value && (key === "query" || value !== "all")) url.searchParams.set(key, value);
+        else url.searchParams.delete(key);
+      }
+      history.replaceState(history.state, "", url);
     };
 
     filters.addEventListener("input", apply);
     filters.addEventListener("change", apply);
+    filters.addEventListener("reset", (event) => {
+      event.preventDefault();
+      query.value = "";
+      for (const select of [county, type, amenity]) select.value = "all";
+      related.checked = false;
+      apply();
+    });
     apply();
   }
 </script>
@@ -302,7 +372,7 @@ const sameGeometryReferences = sameGeometryReferenceSet(parks);
 
   .parks-directory__filters {
     display: grid;
-    grid-template-columns: minmax(260px, 1.4fr) minmax(180px, 0.75fr) auto;
+    grid-template-columns: minmax(240px, 1.4fr) repeat(3, minmax(150px, 1fr));
     gap: 0.75rem;
     margin-top: 2.2rem;
     border: 1px solid var(--border-subtle);
@@ -311,6 +381,15 @@ const sameGeometryReferences = sameGeometryReferenceSet(parks);
     box-shadow: var(--shadow-soft);
     padding: 0.9rem;
   }
+
+  .parks-directory__orange { margin-top: 1.75rem; border-left: 4px solid #c75a13; padding: 1rem 1.25rem; background: color-mix(in srgb, #ed853b 10%, var(--surface-page)); }
+  .parks-directory__orange h3 { font-size: 1.05rem; }
+  .parks-directory__orange p { margin-top: 0.45rem; max-width: 100ch; font-size: 0.85rem; color: var(--text-muted); }
+  .parks-directory__orange a { color: var(--link-strong); font-weight: 800; }
+  .parks-directory__clear { justify-self: start; align-self: end; min-height: 46px; border: 0; background: transparent; padding: 0.55rem 0.2rem; color: var(--link-strong); font-size: 0.8rem; font-weight: 850; cursor: pointer; text-decoration: underline; }
+  .parks-directory__identity { display: grid; gap: 0.4rem; }
+  .parks-directory__manager { color: var(--text-muted); font-size: 0.7rem; line-height: 1.4; }
+  .parks-directory__amenities { display: block; margin-top: 0.4rem; font-size: 0.7rem; font-weight: 500; }
 
   .parks-directory__filters label {
     display: grid;
@@ -434,6 +513,12 @@ const sameGeometryReferences = sameGeometryReferenceSet(parks);
     color: var(--link-strong);
   }
 
+  .parks-directory__badges > span[data-variant="orange"] { border-color: #b9541766; background: color-mix(in srgb, #ed853b 12%, var(--surface-page)); color: #873600; white-space: normal; }
+
+  @media (prefers-color-scheme: dark) {
+    .parks-directory__badges > span[data-variant="orange"] { color: #ffba87; border-color: #ed853b88; }
+  }
+
   .parks-directory__open {
     color: var(--accent-strong);
     font-size: 1.4rem;
@@ -508,7 +593,12 @@ const sameGeometryReferences = sameGeometryReferenceSet(parks);
     }
 
     .parks-directory__filters {
-      grid-template-columns: 1fr;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .parks-directory__search,
+    .parks-directory__clear {
+      grid-column: 1 / -1;
     }
 
     .parks-directory__list a {
@@ -522,9 +612,12 @@ const sameGeometryReferences = sameGeometryReferenceSet(parks);
       grid-row: 1;
     }
 
-    .parks-directory__park-name {
+    .parks-directory__identity {
       grid-column: 2;
       grid-row: 1;
+    }
+
+    .parks-directory__park-name {
       font-size: 1.05rem;
     }
 

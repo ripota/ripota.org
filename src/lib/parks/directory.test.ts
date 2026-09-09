@@ -35,6 +35,7 @@ describe("park directory helpers", () => {
 
   it("adds relationship navigation only when a relationship exists", () => {
     expect(parkGuideNavigationItems(false)).toEqual([
+      { href: "#plan-your-visit", label: "Plan your visit" },
       { href: "#map-facts", label: "Map facts" },
       { href: "#community-reports", label: "Community reports" },
       { href: "#sources", label: "Sources" },

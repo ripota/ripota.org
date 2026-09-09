@@ -27,6 +27,7 @@ do not establish the state of a later production deployment.
 - [Park package 3.1.1 adoption and measurements](parks-v311-adoption.md)
 - [Live location: current behavior and original design](live-location-design.md)
 - [Park pages: implemented features and future proposals](park-pages-design.md)
+- [Park metadata, activator notes, and updates](park-metadata.md)
 
 ## Historical design records
 

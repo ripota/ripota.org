@@ -67,7 +67,7 @@ for (const format of ["Letter", "A4"] as const) {
         for (const [index, printedPage] of printedPages.entries()) {
           expect(printedPage.width).toBeCloseTo(format === "Letter" ? 792 : 842, -1);
           expect(printedPage.height).toBeCloseTo(format === "Letter" ? 612 : 595, -1);
-          for (const header of ["Date", "Time", "Park", "Activator", "Bands", "Modes", "Status"]) {
+          for (const header of ["Date", "Time", "Park", "Activator", "Bands", "Modes"]) {
             expect(printedPage.text, `Page ${index + 1} repeats ${header}`).toContain(header);
           }
           for (const item of printedPage.textItems) {

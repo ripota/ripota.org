@@ -1,4 +1,4 @@
-import type { PotaReference } from "@ripota/parks";
+import type { PotaReference } from "@ripota/parks/types";
 
 export type EventPhase = "planning" | "schedule-live" | "event-live" | "post-event";
 

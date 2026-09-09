@@ -29,7 +29,7 @@ describe("canonical geometry loading", () => {
   it("fetches only on demand, shares the pending request, and reuses successful geometry", async () => {
     const response = deferred<Response>();
     const fetchGeometry = vi.fn<typeof fetch>().mockReturnValue(response.promise);
-    const load = createCanonicalGeometryLoader("/data/parks/3.1.1/all.geojson", { fetchGeometry });
+    const load = createCanonicalGeometryLoader("/data/parks/4.0.0/all.geojson", { fetchGeometry });
     expect(fetchGeometry).not.toHaveBeenCalled();
 
     const first = load();
@@ -40,7 +40,7 @@ describe("canonical geometry loading", () => {
     expect(requireCanonicalGeometry(geometry, "US-0513")).toEqual(park);
     expect(await load()).toBe(geometry);
     expect(fetchGeometry).toHaveBeenCalledExactlyOnceWith(
-      "/data/parks/3.1.1/all.geojson",
+      "/data/parks/4.0.0/all.geojson",
       { credentials: "omit" },
     );
   });

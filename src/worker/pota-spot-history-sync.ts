@@ -1,4 +1,4 @@
-import { references } from "@ripota/parks";
+import { parks as references } from "@ripota/parks";
 
 import {
   normalizePotaSpotHistory,

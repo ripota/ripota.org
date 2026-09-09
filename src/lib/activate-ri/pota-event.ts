@@ -1,4 +1,4 @@
-import { references } from "@ripota/parks";
+import { displayReferences as references } from "@ripota/parks/display";
 
 import {
   potaSpotReferenceEvidence,

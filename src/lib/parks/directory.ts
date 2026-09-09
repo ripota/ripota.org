@@ -33,6 +33,7 @@ export function parkGuideNavigationItems(
   hasRelationship: boolean,
 ): ParkGuideNavigationItem[] {
   return [
+    { href: "#plan-your-visit", label: "Plan your visit" },
     { href: "#map-facts", label: "Map facts" },
     ...(hasRelationship
       ? [{ href: "#overlap", label: "Possible 2-fer" } satisfies ParkGuideNavigationItem]

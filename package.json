@@ -32,7 +32,7 @@
     "wrangler": "^4.129.0"
   },
   "dependencies": {
-    "@ripota/parks": "https://github.com/ripota/parks/releases/download/v3.1.1/ripota-parks-3.1.1.tgz",
+    "@ripota/parks": "https://github.com/ripota/parks/releases/download/v4.0.0/ripota-parks-4.0.0.tgz",
     "@simplewebauthn/browser": "13.3.0",
     "@simplewebauthn/server": "13.3.3",
     "@turf/point-to-polygon-distance": "^7.4.0",

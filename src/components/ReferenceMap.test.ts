@@ -78,7 +78,7 @@ describe("park directory map", () => {
     );
     expect(referenceMapSource).toContain('payload.variant === "directory"');
     expect(referenceMapSource).toContain('paddingTopLeft: [Math.min(760, window.innerWidth * 0.52), 32]');
-    expect(referenceMapSource).toContain('import { references } from "@ripota/parks"');
+    expect(referenceMapSource).toContain('import { parks as references } from "@ripota/parks"');
     expect(referenceMapSource).toContain("bounds.extend([item.marker.latitude, item.marker.longitude])");
   });
 

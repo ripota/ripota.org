@@ -4,7 +4,7 @@ import { getDisplayReference } from "@ripota/parks/display";
 import type { GeoJsonFeatureCollection } from "@ripota/parks/types";
 
 const require = createRequire(import.meta.url);
-export const parksGeometryVersion = "3.1.1";
+export const parksGeometryVersion = "4.0.0";
 
 /** Resolve opt-in package assets as files, never as JavaScript modules. */
 export function readGeometryArtifact(artifact: string): string {
