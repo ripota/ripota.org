@@ -90,6 +90,7 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
   import type { PublicActivationStop, PublicParkSummary } from "../../lib/activate-ri/types";
   import { trackAnalyticsEvent } from "../../lib/analytics/client";
   import { replaceLiveContent } from "../../lib/activate-ri/live-content";
+  import { parkGuidePath } from "../../lib/parks/directory";
 
   document.querySelectorAll<HTMLElement>("[data-park-planning]").forEach(setupPlanning);
 
@@ -340,7 +341,7 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
       const guideLink = document.createElement("a");
       guideLink.className = "event-table-park-link";
       guideLink.dataset.liveKey = `${park.reference}-guide`;
-      guideLink.href = `/parks/${encodeURIComponent(park.reference.toLowerCase())}/`;
+      guideLink.href = parkGuidePath(park.reference);
       guideLink.textContent = park.name;
       heading.appendChild(guideLink);
       for (const text of [park.reference, park.counties.join(", ")]) {

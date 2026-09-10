@@ -1,6 +1,8 @@
 import { activateRi2026Event } from "../../data/activate-ri-2026/event";
+import { siteIdentity } from "../../data/site";
 import { eventRoute } from "../../lib/activate-ri/paths";
 import type { EventPhase } from "../../lib/activate-ri/types";
+import { parkGuidePath } from "../../lib/parks/directory";
 import { officialPotaSpotsUrl, type LivePotaSpot } from "../../lib/pota/spots";
 import type { Env } from "../env";
 import {
@@ -190,7 +192,7 @@ function renderPanel(view: ActivateRiEmbedView, now: Date): string {
 }
 
 function renderSpot(spot: LivePotaSpot, now: Date): string {
-  const parkUrl = `https://pota.app/#/park/${encodeURIComponent(spot.parkReference)}`;
+  const parkUrl = `${siteIdentity.url}${parkGuidePath(spot.parkReference)}`;
   const timestamp = normalizedSpotTimestamp(spot.spotTime);
   const age = formatSpotAge(timestamp, now);
 

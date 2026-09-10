@@ -33,6 +33,8 @@ test("event progress shares status and search alongside planner filters and rest
     await expect(progress.getByRole("radio", { name: "Still needed", exact: true })).toBeChecked();
     await expect(cards).toHaveCount(1);
     await expect(cards).toContainText("US-0513");
+    await expect(cards.getByRole("link", { name: "Open local field guide" })).toHaveAttribute("href", "/parks/us-0513/");
+    await expect(cards.getByRole("link")).toHaveCount(1);
 
     await scheduled.check();
     await expect(cards).toHaveCount(0);

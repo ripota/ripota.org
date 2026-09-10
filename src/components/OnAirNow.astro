@@ -69,6 +69,7 @@ const { variant = "compact" } = Astro.props;
     type LivePotaSpotsState,
   } from "../lib/pota/live-spots-store";
   import type { LivePotaSpot } from "../lib/pota/spots";
+  import { parkGuidePath } from "../lib/parks/directory";
 
   document.querySelectorAll<HTMLElement>("[data-on-air-now]").forEach((root) => {
     setupOnAirNow(root);
@@ -162,9 +163,7 @@ const { variant = "compact" } = Astro.props;
     const source = document.createElement("span");
 
     park.className = "on-air-now__park";
-    park.href = spot.parkUrl;
-    park.target = "_blank";
-    park.rel = "noreferrer";
+    park.href = parkGuidePath(spot.parkReference);
     park.textContent = `${spot.parkReference} · ${spot.parkName}`;
 
     activator.className = "on-air-now__activator";

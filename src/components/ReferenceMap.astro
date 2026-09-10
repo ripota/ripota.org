@@ -219,6 +219,7 @@ const payload = JSON.stringify({
 <script is:inline type="application/json" id={dataId} set:html={payload} />
 <script>
   import L from "leaflet";
+  import { parkGuidePath } from "../lib/parks/directory";
   import { fetchPublicActivationStops } from "../lib/activate-ri/public-stops-client";
   import { livePotaSpotsStore } from "../lib/pota/live-spots-store";
   import { shouldWarnAboutStaleSnapshot } from "../lib/pota/live-spots-client";
@@ -763,7 +764,6 @@ const payload = JSON.stringify({
         <span>Map data comes from official POTA park data and reviewed public sources.</span>
         <span class="map-popup__links">
           ${localFieldGuideLink(item)}
-          ${officialLink(item)}
         </span>
       `;
     }
@@ -780,7 +780,6 @@ const payload = JSON.stringify({
         <span class="map-popup__links">
           <a href="/activate-ri-2026/parks/">Open full evidence list</a>
           ${localFieldGuideLink(item)}
-          ${officialLink(item)}
         </span>
       `;
     }
@@ -900,16 +899,8 @@ const payload = JSON.stringify({
     }[status] ?? status;
   }
 
-  function officialLink(item: MapItem): string {
-    if (!item.potaUrl) {
-      return "";
-    }
-
-    return `<a href="${escapeHtml(item.potaUrl)}" target="_blank" rel="noreferrer">Open official POTA page</a>`;
-  }
-
   function localFieldGuideLink(item: MapItem): string {
-    return `<a href="/parks/${encodeURIComponent(item.reference.toLowerCase())}/">Open local field guide</a>`;
+    return `<a href="${escapeHtml(parkGuidePath(item.reference))}">Open local field guide</a>`;
   }
 
   function detailLine(item: MapItem): string {

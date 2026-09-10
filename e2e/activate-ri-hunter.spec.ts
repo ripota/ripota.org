@@ -55,6 +55,8 @@ test("hunter imports, overrides, filters, persists, resets, and clears a local c
     await expect(page.locator("[data-hunter-import-panel]")).not.toHaveAttribute("open", "");
     await expect(page.locator("[data-hunter-saved-note]")).toContainText("Saved in this browser.");
     await expect(page.locator("[data-hunter-progress-text]")).toBeFocused();
+    const huntedPark = page.locator("[data-hunter-complete] li").filter({ hasText: "US-0513" });
+    await expect(huntedPark.getByRole("link", { name: "Open local field guide" })).toHaveAttribute("href", "/parks/us-0513/");
     expect(await page.locator("[data-hunter-results]").evaluate((results) => {
       const importPanel = document.querySelector("[data-hunter-import-panel]");
       return Boolean(importPanel && results.compareDocumentPosition(importPanel) & Node.DOCUMENT_POSITION_FOLLOWING);
@@ -65,6 +67,7 @@ test("hunter imports, overrides, filters, persists, resets, and clears a local c
     await expect(page.getByRole("heading", { name: "Schedule for your remaining parks" })).toBeVisible();
     await expect(page.getByText("1 activation window covering 1 of your 60 remaining parks matches the current filters.")).toBeVisible();
     await expect(page.getByRole("row").filter({ hasText: "US-0514" })).toBeVisible();
+    await expect(page.getByRole("row").filter({ hasText: "US-0514" }).getByRole("link", { name: "John H. Chafee National Wildlife Refuge" })).toHaveAttribute("href", "/parks/us-0514/");
     await expect(page.getByRole("row").filter({ hasText: "US-0513" })).toBeHidden();
     await page.locator("[data-timezone]").selectOption("utc");
     await page.locator('[data-filter="mode"]').selectOption("SSB");

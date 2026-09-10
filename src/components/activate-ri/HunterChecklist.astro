@@ -173,6 +173,7 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
   import type { PublicActivationStop } from "../../lib/activate-ri/types";
   import { trackAnalyticsEvent } from "../../lib/analytics/client";
   import { replaceLiveContent } from "../../lib/activate-ri/live-content";
+  import { parkGuidePath } from "../../lib/parks/directory";
 
   document.querySelectorAll<HTMLElement>("[data-hunter-checklist]").forEach(setupHunterChecklist);
 
@@ -455,12 +456,10 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
       name.textContent = park.name;
       copy.appendChild(reference);
       copy.appendChild(name);
-      const official = document.createElement("a");
-      official.href = park.potaUrl;
-      official.target = "_blank";
-      official.rel = "noopener noreferrer";
-      official.textContent = "Official POTA park";
-      official.dataset.liveKey = `${park.reference}-official`;
+      const guide = document.createElement("a");
+      guide.href = parkGuidePath(park.reference);
+      guide.textContent = "Open local field guide";
+      guide.dataset.liveKey = `${park.reference}-guide`;
       const schedule = document.createElement("a");
       schedule.href = `/activate-ri-2026/schedule/?q=${encodeURIComponent(park.reference)}`;
       schedule.textContent = "View schedule";
@@ -469,7 +468,7 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
       const links = document.createElement("div");
       links.className = "hunter-park-links";
       links.appendChild(schedule);
-      links.appendChild(official);
+      links.appendChild(guide);
       label.appendChild(checkbox);
       label.appendChild(copy);
       item.appendChild(label);

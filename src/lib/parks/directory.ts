@@ -8,7 +8,7 @@ export type ParkGuideNavigationItem = {
 };
 
 export function parkGuidePath(reference: string): string {
-  return `/parks/${reference.trim().toLowerCase()}/`;
+  return `/parks/${encodeURIComponent(reference.trim().toLowerCase())}/`;
 }
 
 export function parkGeometryLabel(

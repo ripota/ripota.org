@@ -64,6 +64,7 @@ import { activateRi2026Event } from "../../data/activate-ri-2026/event";
   import { formatActivationDate, formatActivationTimeRange } from "../../lib/activate-ri/time";
   import { readProgressView, writeProgressView, type ProgressView } from "../../lib/activate-ri/progress-view";
   import { replaceLiveContent } from "../../lib/activate-ri/live-content";
+  import { parkGuidePath } from "../../lib/parks/directory";
 
   document.querySelectorAll<HTMLElement>("[data-pota-progress]").forEach(setupPotaProgress);
 
@@ -272,18 +273,11 @@ import { activateRi2026Event } from "../../data/activate-ri-2026/event";
     }
 
     const localGuide = document.createElement("a");
-    localGuide.href = `/parks/${encodeURIComponent(park.reference.toLowerCase())}/`;
+    localGuide.href = parkGuidePath(park.reference);
     localGuide.textContent = "Open local field guide";
     localGuide.dataset.liveKey = `${park.reference}-guide`;
     article.appendChild(localGuide);
 
-    const official = document.createElement("a");
-    official.href = park.potaUrl;
-    official.target = "_blank";
-    official.rel = "noopener noreferrer";
-    official.textContent = "Open official POTA park page";
-    official.dataset.liveKey = `${park.reference}-official`;
-    article.appendChild(official);
     return article;
   }
 

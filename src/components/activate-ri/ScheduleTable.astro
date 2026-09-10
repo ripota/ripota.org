@@ -186,6 +186,7 @@ const countyOptions = uniqueSortedValues(
     timeZoneOptionForValue,
   } from "../../lib/activate-ri/time";
   import { trackAnalyticsEvent } from "../../lib/analytics/client";
+  import { parkGuidePath } from "../../lib/parks/directory";
 
   document.querySelectorAll<HTMLTableElement>("[data-live-schedule]").forEach(setupLiveSchedule);
 
@@ -601,7 +602,7 @@ const countyOptions = uniqueSortedValues(
     parkHeader.dataset.label = "Park";
     const guideLink = document.createElement("a");
     guideLink.className = "event-table-park-link";
-    guideLink.href = `/parks/${encodeURIComponent(stop.parkReference.toLowerCase())}/`;
+    guideLink.href = parkGuidePath(stop.parkReference);
     guideLink.textContent = park?.name ?? stop.parkReference;
     parkHeader.appendChild(guideLink);
     const reference = document.createElement("span");

@@ -4,6 +4,7 @@ import type {
 } from "../../worker/pota-spot-activity";
 import { spotCoverageLabels } from "./spot-coverage";
 import { replaceLiveContent } from "./live-content";
+import { parkGuidePath } from "../parks/directory";
 
 type ActivityView = "all" | "spotted" | "unspotted";
 const refreshIntervalMilliseconds = 60_000;
@@ -123,11 +124,9 @@ function parkRow(park: ActivityPark): HTMLTableRowElement {
   parkCell.dataset.label = "Park";
   const link = document.createElement("a");
   link.className = "event-table-park-link";
-  link.href = park.potaUrl;
-  link.target = "_blank";
-  link.rel = "noopener noreferrer";
+  link.href = parkGuidePath(park.reference);
   link.textContent = `${park.reference} · ${park.name}`;
-  link.dataset.liveKey = `${park.reference}-official`;
+  link.dataset.liveKey = `${park.reference}-guide`;
   parkCell.appendChild(link);
   if (park.live) {
     const badge = document.createElement("span");

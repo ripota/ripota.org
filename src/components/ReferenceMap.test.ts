@@ -64,7 +64,7 @@ describe("homepage live spots map", () => {
     expect(referenceMapSource).toContain("Open local field guide");
     expect(referenceMapSource).toContain("localFieldGuideLink(item)");
     expect(referenceMapSource).toContain(
-      '/parks/${encodeURIComponent(item.reference.toLowerCase())}/',
+      'parkGuidePath(item.reference)',
     );
   });
 });

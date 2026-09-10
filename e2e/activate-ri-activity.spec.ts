@@ -174,6 +174,8 @@ test("activity filters missing parks, keeps the view on refresh, and explains st
     await expect(page.getByRole("radio", { name: "Spotted (2)", exact: true })).toBeChecked();
     await expect(rows).toHaveCount(2);
     const parkLink = rows.first().getByRole("link");
+    await expect(parkLink).toHaveAttribute("href", `/parks/${spotted.reference.toLowerCase()}/`);
+    await expect(parkLink).not.toHaveAttribute("target");
     await parkLink.focus();
     await page.clock.runFor(60_000);
     await expect(parkLink).toBeFocused();

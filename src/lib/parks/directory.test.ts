@@ -13,6 +13,7 @@ import type { CatalogRecord } from "@ripota/parks/types";
 describe("park directory helpers", () => {
   it("builds stable lowercase reference paths", () => {
     expect(parkGuidePath(" US-2878 ")).toBe("/parks/us-2878/");
+    expect(parkGuidePath(' US-2878/"?# ')).toBe("/parks/us-2878%2F%22%3F%23/");
   });
 
   it("uses one public label for either kind of mapped area", () => {

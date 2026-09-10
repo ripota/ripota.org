@@ -16,7 +16,7 @@ describe("Activate RI POTA result surfaces", () => {
     expect(parksPage).toContain("<ParkCoverageTable />");
   });
 
-  it("provides textual status filters, evidence details, schedules, official links, and source-of-truth copy", () => {
+  it("provides textual status filters, evidence details, schedules, local guides, and source-of-truth copy", () => {
     for (const label of ["All", "Confirmed", "Observed", "Scheduled", "Still needed"]) {
       expect(progress).toContain(`> ${label}</label>`);
     }
@@ -24,7 +24,6 @@ describe("Activate RI POTA result surfaces", () => {
     expect(progress).toContain("All POTA event activation rows");
     expect(progress).toContain("Planned event stops");
     expect(progress).toContain("Open local field guide");
-    expect(progress).toContain("Open official POTA park page");
     expect(progress).toContain("Official Parks on the Air");
     expect(progress).toContain("never POTA confirmation");
   });

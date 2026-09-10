@@ -84,6 +84,11 @@ describe("Activate All RI embed renderer", () => {
     expect(html).not.toContain("K1RI");
     expect(html).toContain("+1 more · full status");
     expect(html).toContain("Spotted 3m ago");
+    expect(html).toContain(
+      'href="https://ripota.org/parks/us-10545/" target="_blank" rel="noreferrer"',
+    );
+    expect(html).toContain('href="https://ripota.org/parks/us-2870/"');
+    expect(html).not.toContain("https://pota.app/#/park/");
   });
 
   it("renders an intentional live empty state", () => {
