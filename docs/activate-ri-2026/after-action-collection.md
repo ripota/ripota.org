@@ -36,8 +36,12 @@ The `EVENT_ARCHIVES` binding uses private R2 bucket
 `ripota-org-event-archives`. The hourly archive trigger creates one complete
 snapshot per UTC day, retrying failed/abandoned attempts on later triggers.
 An atomic database claim and attempt fence prevent overlap from mislabeling
-another attempt. Daily snapshots stop January 1, 2027; stored objects do not
-expire then. Cloudflare collection and snapshots run independently of this Mac.
+another attempt. Automatic snapshots run through September 30, 2026 UTC and
+stop at October 1 00:00 UTC. The cron trigger is limited to September; a fixed
+2026 cutoff in the handler prevents it from restarting in a later September.
+Stored objects retain their January 1, 2027 minimum retention date and do not
+expire when snapshots stop. Cloudflare collection and snapshots run
+independently of this Mac.
 
 Snapshots include the installed park catalog, event evidence, measurement facts,
 legacy/current usage, selected actor/stop state, audit details and Ops metadata.
@@ -87,12 +91,18 @@ and lists verified files and interval/retention metadata. Full recovery SQL
 stays local. Never publish HMAC subjects, raw databases or signed download URLs.
 
 The existing desktop backup automation is separate and runs daily through
-October 15, 2026; its active schedule and history live in the Codex app. It also
+September 30, 2026; its active schedule and history live in the Codex app. It also
 runs this export to preserve Analytics Engine history before its three-month
 expiry. Desktop runs require the Mac and app to be running; the Cloudflare
 snapshots do not.
 
 ## Verification and interpretation
+
+On September 10, 2026, the automatic cloud snapshot and desktop backup/export
+schedules were shortened to finish at the end of September. This changes when
+new automatic backups stop, without deleting existing archives or shortening
+their minimum retention. The original deployment verification below records
+the checks performed before that schedule change.
 
 ### Production verification: September 10, 2026
 

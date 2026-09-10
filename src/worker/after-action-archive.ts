@@ -2,10 +2,12 @@ import { afterActionRetainUntil, afterActionScope, exportAfterActionEvidence } f
 import type { Env } from "./env";
 import { logWorkerError } from "./logging";
 
-export const afterActionArchiveCron = "43 * * * *";
+export const afterActionArchiveCron = "43 * * 9 *";
+export const afterActionSnapshotUntil = "2026-10-01T00:00:00.000Z";
 
 export async function runAfterActionArchive(env: Env, scheduledAt: number): Promise<void> {
-  if (!env.EVENT_ARCHIVES || scheduledAt >= Date.parse(afterActionRetainUntil)) return;
+  const snapshotUntil = Date.parse(afterActionSnapshotUntil);
+  if (!env.EVENT_ARCHIVES || scheduledAt >= snapshotUntil || Date.now() >= snapshotUntil) return;
   const startedAt = new Date().toISOString();
   const day = new Date(scheduledAt).toISOString().slice(0, 10);
   const id = `${afterActionScope}:${day}`;

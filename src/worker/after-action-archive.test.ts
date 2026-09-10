@@ -140,9 +140,31 @@ describe("scheduled after-action snapshots", () => {
     expect((await env.DB.prepare("SELECT status FROM analytics_archive_exports").first())?.status).toBe("complete");
   });
 
-  it("stops new snapshots at the declared retention boundary and skips missing buckets", async () => {
+  it("keeps September 30 snapshots but stops at October 1 without deleting retained evidence", async () => {
+    const { env, objects, put } = setup();
+    const lastSeptemberRun = Date.parse("2026-09-30T23:43:00.000Z");
+    vi.setSystemTime(lastSeptemberRun);
+    await runAfterActionArchive(env, Date.now());
+    const writes = put.mock.calls.length;
+    const retained = [...objects.entries()];
+    expect(writes).toBeGreaterThan(0);
+
+    vi.setSystemTime(new Date("2026-10-01T00:00:00.000Z"));
+    await runAfterActionArchive(env, Date.now());
+    // A delayed September invocation must also stop once October arrives.
+    await runAfterActionArchive(env, lastSeptemberRun - 86_400_000);
+    // The month-limited cron must not resume snapshots in a later year.
+    vi.setSystemTime(new Date("2027-09-01T00:43:00.000Z"));
+    await runAfterActionArchive(env, Date.now());
+
+    expect(put).toHaveBeenCalledTimes(writes);
+    expect([...objects.entries()]).toEqual(retained);
+    expect((await env.DB.prepare("SELECT id,status FROM analytics_archive_exports").all()).results)
+      .toEqual([{ id: "activate-ri-2026:2026-09-30", status: "complete" }]);
+  });
+
+  it("skips missing buckets", async () => {
     const { env, put } = setup();
-    await runAfterActionArchive(env, Date.parse("2027-01-01T00:00:00.000Z"));
     delete env.EVENT_ARCHIVES;
     await runAfterActionArchive(env, today.valueOf());
     expect(put).not.toHaveBeenCalled();
