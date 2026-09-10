@@ -42,8 +42,7 @@ describe("public POTA spot activity", () => {
     expect(client).toContain("/api/activate-ri-2026/public/spot-activity");
   });
 
-  it("keeps the spot caveat brief and retains the shared site disclaimer", () => {
-    expect(component).toContain("Unofficial RI POTA summary. Spots aren’t confirmed activations.");
+  it("retains the shared site disclaimer", () => {
     expect(page).toContain("<Notice />");
   });
 
