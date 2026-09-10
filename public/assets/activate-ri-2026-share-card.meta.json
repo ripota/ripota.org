@@ -1,13 +1,13 @@
 {
-  "fingerprint": "a88ba0e69e62ad9e74dbd7488391df7e245d2404d07516e3816ca4d8e7854ac5",
-  "generatedAt": "2026-09-10T19:17:03.814Z",
+  "fingerprint": "963ded6140d557b7a83100ffeca0a09e0e2df34fb348939d4ae6215d31a9b665",
+  "generatedAt": "2026-09-10T21:40:58.918Z",
   "inputs": {
     "phase": "event-live",
     "event": "ce793635bd287bb27b915f9b8d6372d0b9d3fbcb2a7263bc743f42f10ff826b5",
     "parks": "e42276b4dfffdef8c927908b5c154a537c4fdee33a511ff1a14d73e6453531c7",
-    "status": "b99c7483daa09c57124e0611091cd582aaf656c8df2b2ae7fc7343eaa7732571",
+    "status": "6f44fa23d7e4c5d54d2454156c509b26906d43d11430ba9296e6daedfce6bcde",
     "template": "77b4e7cea6d07cd89d433bccb3b0acc2c826c43e7c4a934fe91a692bbca7a322"
   },
   "parkStatusUrl": "https://ripota.org/api/activate-ri-2026/public/park-status",
-  "snapshotGeneratedAt": "2026-09-10T19:16:51.220Z"
+  "snapshotGeneratedAt": "2026-09-10T21:40:53.290Z"
 }
