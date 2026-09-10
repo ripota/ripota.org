@@ -1,6 +1,7 @@
 import type { Env } from "./env";
 import { opsEmailAudienceSql } from "./ops-email-preferences";
 import { logWorkerError } from "./logging";
+import { recordOperationalFailure } from "./operational-health";
 
 // Append to the same D1 batch as the message insert. The new UUID is absent on
 // nonce replay, so a retry cannot notify new subscribers about an old message.
@@ -102,6 +103,7 @@ async function deliverOne(env: Env, row: Delivery): Promise<void> {
     await finishDelivery(env, row, claim, "sent");
   } catch (error) {
     logWorkerError("ops-message-email-failed", error, { messageId: row.message_id });
+    await recordOperationalFailure(env, "ops_email_delivery");
     await env.DB.prepare(`
       UPDATE activate_ri_ops_email_deliveries SET status = 'failed', last_error = ?, next_attempt_at = ?
       WHERE message_id = ? AND email_normalized = ? AND claim_token = ?
@@ -127,8 +129,9 @@ export async function retryOpsMessageEmails(env: Env, messageId?: string): Promi
 }
 
 export async function scheduleOpsMessageEmails(env: Env, ctx?: ExecutionContext): Promise<void> {
-  const delivery = deliverOpsMessageEmails(env).catch((error) => {
+  const delivery = deliverOpsMessageEmails(env).catch(async (error) => {
     logWorkerError("ops-email-drain-failed", error, {});
+    await recordOperationalFailure(env, "ops_email_drain");
   });
   if (ctx) ctx.waitUntil(delivery); else await delivery;
 }

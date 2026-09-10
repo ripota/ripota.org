@@ -8,6 +8,7 @@ import {
   acceptOpsRules,
   getOpsAccess,
   getOpsBootstrap,
+  getOpsMessage,
   listOpsEvents,
 } from "../ops-db";
 import {
@@ -21,6 +22,7 @@ import { captureFeatureUsage } from "../feature-usage";
 import { opsEmailPreferencesResponse } from "../ops-email-preferences";
 import { opsProfileResponse } from "../ops-profile";
 import { scheduleOpsMessageEmails } from "../ops-notifications";
+import { readOpsEngagement, recordOpsEngagement } from "../ops-engagement";
 
 export async function handleActivateRiOpsApi(
   request: Request,
@@ -53,6 +55,24 @@ export async function handleActivateRiOpsApi(
   }
   if (access.effectiveRoomMode === "off") {
     return privateJson({ ok: false, error: "Ops Room unavailable" }, { status: 503 });
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/activate-ri-2026/ops/engagement") {
+    if (!hasTrustedOrigin(request, env)) return privateJson({ ok: false, error: "Forbidden" }, { status: 403 });
+    if (!await withinOpsRateLimits(env, `engagement:${identity.activatorId}`)) {
+      return privateJson({ ok: false, error: "Too many engagement updates" }, { status: 429 });
+    }
+    const input = await readOpsEngagement(request);
+    if (!input) return privateJson({ ok: false, error: "Invalid engagement payload" }, { status: 400 });
+    await recordOpsEngagement(env, identity.activatorId, input);
+    return privateJson({ ok: true });
+  }
+
+  const messageLookup = url.pathname.match(/^\/api\/activate-ri-2026\/ops\/messages\/([a-f0-9-]{36})$/i);
+  if (request.method === "GET" && messageLookup) {
+    const message = await getOpsMessage(env, messageLookup[1]);
+    return message ? privateJson({ ok: true, message })
+      : privateJson({ ok: false, error: "Message unavailable" }, { status: 404 });
   }
 
   if (request.method === "GET" && url.pathname === "/api/activate-ri-2026/ops/bootstrap") {

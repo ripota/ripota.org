@@ -36,7 +36,15 @@ describe("hunter checklist surface", () => {
     expect(component).toContain("/activate-ri-2026/schedule/?scope=remaining");
     expect(component).toContain("announced activation window");
     expect(component).toContain('data-hunter-planner-copy aria-live="polite"');
-    expect(component).toContain("the personal schedule was opened");
     expect(component).not.toContain("Show event schedule");
+  });
+
+  it("discloses aggregate all-time telemetry while keeping import details local and honoring privacy signals", () => {
+    const privacy = component.match(/<details class="hunter-privacy-details">([\s\S]*?)<\/details>/)?.[1] ?? "";
+    expect(privacy).toMatch(/does not upload or retain your CSV/);
+    expect(privacy).toMatch(/park reference IDs and individual checkbox choices stay in this browser/);
+    expect(privacy).toMatch(/anonymous feature actions and their times, checklist totals and change direction/);
+    expect(privacy).toMatch(/all-time checklist progress, not contacts made during the event/);
+    expect(privacy).toMatch(/skipped when Global Privacy Control or Do Not Track is enabled/);
   });
 });

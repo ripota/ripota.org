@@ -1,6 +1,7 @@
 import type { Env } from "../env";
 import { sanitizeLogText } from "../logging";
 import { hasTrustedOrigin } from "../origin";
+import { recordOperationalFailure } from "../operational-health";
 
 const maximumBodyBytes = 8 * 1024;
 const maximumMessageLength = 500;
@@ -58,6 +59,7 @@ export async function handleClientErrorReport(
     column: report.column,
     cfRay: safeCfRay(request.headers.get("cf-ray")),
   }));
+  await recordOperationalFailure(env, `browser_${report.kind}`);
 
   return emptyResponse(204);
 }

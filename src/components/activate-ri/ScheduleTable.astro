@@ -186,6 +186,7 @@ const countyOptions = uniqueSortedValues(
     timeZoneOptionForValue,
   } from "../../lib/activate-ri/time";
   import { trackAnalyticsEvent } from "../../lib/analytics/client";
+  import type { AnalyticsProperties } from "../../lib/analytics/events";
   import { parkGuidePath } from "../../lib/parks/directory";
 
   document.querySelectorAll<HTMLTableElement>("[data-live-schedule]").forEach(setupLiveSchedule);
@@ -249,6 +250,14 @@ const countyOptions = uniqueSortedValues(
       hunterScope.value = "requested";
     }
     let currentShareUrl = "";
+    let agendaCounts: AnalyticsProperties = {};
+    const trackAgenda = (action: NonNullable<AnalyticsProperties["action"]>, outcome?: AnalyticsProperties["outcome"]) => {
+      const agendaScope = hunterScope?.value === "remaining" ? "remaining"
+        : hunterScope?.value === "requested" ? "requested" : "all";
+      void trackAnalyticsEvent("activate-ri-2026", "hunter_agenda_action", {
+        ...agendaCounts, action, agendaScope, ...(outcome ? { outcome } : {}),
+      });
+    };
     const syncUrl = () => {
       updateScheduleUrl(controls, timezone, hunterScope, search, invalidRequest
         ? initialParams.getAll("parks").join(",") : requested.references.join(","));
@@ -351,14 +360,21 @@ const countyOptions = uniqueSortedValues(
         const count = secondaryFilterCount();
         moreSummary.textContent = count > 0 ? `More filters (${count} active)` : "More filters";
       }
+      agendaCounts = {
+        parkCount: visibleParkIds.size,
+        windowCount: Math.min(visibleCount, 10_000),
+        outcome: !scheduleAvailable ? "unavailable" : missingChecklist || invalidAgenda ? "rejected" : visibleCount > 0 ? "ready" : "empty",
+      };
     };
 
     clearButton?.addEventListener("click", () => {
+      const previousScope = hunterScope?.value;
       controls.forEach((control) => { control.value = "all"; });
       if (hunterScope && hunterScope.value !== "requested") hunterScope.value = "all";
       if (search) search.value = "";
       applyFilters();
       syncUrl();
+      if (hunterScope?.value !== previousScope) trackAgenda("scope_changed");
     });
     search?.addEventListener("input", () => {
       applyFilters();
@@ -382,6 +398,7 @@ const countyOptions = uniqueSortedValues(
     hunterScope?.addEventListener("change", () => {
       applyFilters();
       syncUrl();
+      trackAgenda("scope_changed");
     });
     timezone?.addEventListener("change", () => {
       applySelectedTime(table, timezone.value);
@@ -401,12 +418,16 @@ const countyOptions = uniqueSortedValues(
       if (shareStatus) shareStatus.textContent = "Copy this link to share the agenda.";
       try {
         await navigator.clipboard.writeText(currentShareUrl);
+        trackAgenda("share", "copied");
         if (shareStatus) shareStatus.textContent = "Agenda link copied.";
       } catch {
+        trackAgenda("share", "manual_copy");
         if (shareStatus) shareStatus.textContent = "Select and copy the link above to share this agenda.";
       }
     });
+    let buttonPrintInProgress = false;
     const preparePrint = () => {
+      if (!buttonPrintInProgress) trackAgenda("print", "requested");
       const generated = document.querySelector<HTMLElement>("[data-schedule-print-generated]");
       if (generated) {
         generated.textContent = `Prepared ${new Intl.DateTimeFormat(undefined, {
@@ -426,11 +447,18 @@ const countyOptions = uniqueSortedValues(
       if (unscheduledDisclosure) unscheduledDisclosure.open = unscheduledWasOpen;
     });
     printButton?.addEventListener("click", () => {
-      window.print();
+      trackAgenda("print", "requested");
+      buttonPrintInProgress = true;
+      try {
+        window.print();
+      } finally {
+        buttonPrintInProgress = false;
+      }
     });
     applySelectedTime(table, timezone?.value);
     applyFilters();
     syncUrl();
+    if (hunterScope?.value === "remaining" || hunterScope?.value === "requested") trackAgenda("open");
   }
 
   async function setupLiveSchedule(table: HTMLTableElement): Promise<void> {

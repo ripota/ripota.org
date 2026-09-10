@@ -1,5 +1,11 @@
 # Analytics and after-action reporting review
 
+**September 10 implementation update:** essential collection and retention fixes
+are described in [After-action collection and retention](after-action-collection.md).
+This document preserves the original September 8 assessment and proposals.
+Its October 14 reconciliation cutoff and descriptions of missing instrumentation
+are historical; use the runbook and source for current behavior.
+
 Reviewed September 8, 2026, starting at `c72c7b5b`. The final source check included concurrent commit `0475fbe2`, which centralizes POTA API transport without changing the collection findings below. This is an assessment and proposed collection design, not a record of implemented changes. Three independent reviews covered hunters/checklists, spot correlation, and activator/Ops Room activity; a fourth pass covered ingestion, reporting, production aggregates, and metadata design.
 
 We already have the foundations for a useful after-action report. The biggest gains come from preserving event history and connecting existing structured records. Current feature analytics answer which tools were used; they cannot yet explain hunting progress, passive Ops Room readership, or the sequence from a schedule change to an observed activation.

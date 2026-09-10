@@ -18,6 +18,7 @@ do not establish the state of a later production deployment.
 - [Ops Room launch and incident response](activate-ri-2026/ops-room-launch-and-incident-response.md)
 - [Worker logging and browser error reports](activate-ri-2026/worker-logging-debugging.md)
 - [Analytics collection and reporting](analytics.md)
+- [After-action collection, retention, and verified exports](activate-ri-2026/after-action-collection.md)
 - [Park-change regression checks](activate-ri-2026/park-change-regression-gate.md)
 
 ## Feature status and verification records

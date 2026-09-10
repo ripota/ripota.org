@@ -2,6 +2,7 @@ import { parseAnalyticsEvent } from "../../lib/analytics/events";
 import type { Env } from "../env";
 import { json } from "../http";
 import { hasTrustedOrigin } from "../origin";
+import { persistAnonymousAnalyticsEvent, recordAnalyticsIngestionOutcome } from "../analytics-archive";
 
 const maxBodyBytes = 4_096;
 
@@ -21,6 +22,7 @@ export async function handleAnalyticsEvent(
   }
 
   if (!await withinAnalyticsRateLimit(request, env)) {
+    await recordOutcome(env, "rate_limited");
     return analyticsJson(
       { ok: false, error: "Too many requests" },
       { status: 429, headers: { "retry-after": "60" } },
@@ -28,6 +30,7 @@ export async function handleAnalyticsEvent(
   }
 
   if (!(request.headers.get("content-type") ?? "").includes("application/json")) {
+    await recordOutcome(env, "rejected");
     return analyticsJson(
       { ok: false, error: "Expected application/json" },
       { status: 415 },
@@ -36,11 +39,13 @@ export async function handleAnalyticsEvent(
 
   const declaredLength = Number(request.headers.get("content-length"));
   if (Number.isFinite(declaredLength) && declaredLength > maxBodyBytes) {
+    await recordOutcome(env, "rejected");
     return analyticsJson({ ok: false, error: "Payload too large" }, { status: 413 });
   }
 
   const body = await readBoundedBody(request);
   if (body === null) {
+    await recordOutcome(env, "rejected");
     return analyticsJson({ ok: false, error: "Payload too large" }, { status: 413 });
   }
 
@@ -48,15 +53,17 @@ export async function handleAnalyticsEvent(
   try {
     rawEvent = JSON.parse(body);
   } catch {
+    await recordOutcome(env, "rejected");
     return analyticsJson({ ok: false, error: "Invalid event" }, { status: 400 });
   }
 
   const event = parseAnalyticsEvent(rawEvent);
   if (!event) {
+    await recordOutcome(env, "rejected");
     return analyticsJson({ ok: false, error: "Invalid event" }, { status: 400 });
   }
 
-  if (!env.ANALYTICS || !env.ANALYTICS_HASH_KEY) {
+  if (!env.ANALYTICS_HASH_KEY) {
     return analyticsJson(
       { ok: false, error: "Analytics unavailable" },
       { status: 503 },
@@ -69,26 +76,68 @@ export async function handleAnalyticsEvent(
     event.anonymousId,
   );
   const properties = event.properties ?? {};
+  let inserted: boolean;
+  try {
+    inserted = await persistAnonymousAnalyticsEvent(env.DB, event, subjectHash, new Date().toISOString());
+  } catch {
+    await recordOutcome(env, "storage_failed");
+    return analyticsJson({ ok: false, error: "Analytics unavailable" }, { status: 503 });
+  }
+  await recordOutcome(env, inserted ? "accepted" : "duplicate");
+  if (!inserted) return analyticsJson({ ok: true }, { status: 202 });
 
-  env.ANALYTICS.writeDataPoint({
-    indexes: [subjectHash],
-    blobs: [
-      event.scope,
-      event.name,
-      "anonymous",
-      properties.feature ?? "",
-      properties.action ?? "",
-      properties.placement ?? "",
-      properties.outcome ?? "",
-      properties.errorCode ?? "",
-      properties.filterCategory ?? "",
-      properties.importMethod ?? "",
-      String(event.schemaVersion),
-    ],
-    doubles: [1],
-  });
+  try {
+    if (!env.ANALYTICS) throw new Error("Analytics mirror unavailable");
+    env.ANALYTICS.writeDataPoint({
+      indexes: [subjectHash],
+      blobs: [
+        event.scope,
+        event.name,
+        "anonymous",
+        properties.feature ?? "",
+        properties.action ?? "",
+        properties.placement ?? "",
+        properties.outcome ?? "",
+        properties.errorCode ?? "",
+        properties.filterCategory ?? "",
+        properties.importMethod ?? "",
+        String(event.schemaVersion),
+        ...(event.schemaVersion === 2 ? [
+          event.occurredAt,
+          properties.entryMode ?? "",
+          properties.agendaScope ?? "",
+          properties.direction ?? "",
+          properties.persistence ?? "",
+          properties.importQuality ?? "",
+          properties.pageCategory ?? "",
+          properties.importAttemptId ?? "",
+          event.eventId,
+        ] : []),
+      ],
+      doubles: event.schemaVersion === 1 ? [1] : [
+        1,
+        properties.completedCount ?? -1,
+        properties.totalCount ?? -1,
+        properties.parkCount ?? -1,
+        properties.windowCount ?? -1,
+        properties.examinedRows ?? -1,
+        properties.recoveredRows ?? -1,
+        properties.skippedRows ?? -1,
+        properties.matchedCount ?? -1,
+      ],
+    });
+  } catch {
+    await recordOutcome(env, "mirror_failed");
+    console.error(JSON.stringify({ event: "analytics-mirror-failed" }));
+  }
 
   return analyticsJson({ ok: true }, { status: 202 });
+}
+
+async function recordOutcome(env: Env, outcome: Parameters<typeof recordAnalyticsIngestionOutcome>[1]): Promise<void> {
+  try {
+    await recordAnalyticsIngestionOutcome(env.DB, outcome, new Date().toISOString());
+  } catch { /* Diagnostics must not turn a durable accepted event into a failure. */ }
 }
 
 async function withinAnalyticsRateLimit(

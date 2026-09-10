@@ -1,16 +1,17 @@
 import { parks as references } from "@ripota/parks";
+import { isHistoryReconciliationTime } from "../lib/activate-ri/pota-event";
 
 import {
   normalizePotaSpotHistory,
   potaSpotReferenceEvidence,
   type LivePotaSpot,
 } from "../lib/pota/spots";
-import { isSpotCaptureTime } from "../lib/activate-ri/pota-event";
 import type { Env } from "./env";
 import { logWorkerError } from "./logging";
 import { fetchPotaApi } from "./pota-api";
 import { persistEventSpotObservations } from "./pota-event";
 import { persistPotaSpotHistory } from "./pota-spot-history";
+import { archiveEventSpotReports } from "./pota-evidence-archive";
 
 const collectionStateId = "ri-live-spots";
 const safetySyncIntervalMilliseconds = 10 * 60_000;
@@ -49,6 +50,7 @@ type HistoryOutcome = {
   target: HistoryTarget;
   spots: LivePotaSpot[];
   error: unknown | null;
+  fetchedAt: number;
 };
 
 export type PotaSpotHistorySyncResult = {
@@ -67,6 +69,7 @@ export type PotaSpotHistorySyncResult = {
 export type PotaSpotHistorySyncOptions = {
   fetcher?: typeof fetch;
   now?: () => Date;
+  collectionRunId?: string;
 };
 
 export async function syncPotaSpotHistories(
@@ -91,6 +94,31 @@ export async function syncPotaSpotHistories(
   if (!lease) return emptyResult(false, 0);
 
   try {
+    if (env.ACTIVATE_RI_EVENT_ID && isHistoryReconciliationTime(new Date(startedAt))) {
+      // At most two new pairs per minute, and only after a published stop has
+      // ended or official evidence exists. This can recover missed live spots.
+      await env.DB.prepare(
+        `INSERT OR IGNORE INTO pota_spot_history_sync (
+          activator_callsign, park_reference, first_seen_at, last_seen_at, active
+        ) SELECT activator_callsign, park_reference, ?, ?, 0 FROM (
+          SELECT activator_callsign, park_reference
+          FROM activate_ri_pota_activation_evidence WHERE event_id = ?
+          UNION
+          SELECT a.primary_callsign AS activator_callsign, s.park_reference
+          FROM activate_ri_stops s JOIN activate_ri_activators a ON a.id = s.activator_id
+          WHERE s.event_id = ? AND a.event_id = ? AND a.status = 'approved'
+            AND s.status IN ('scheduled', 'delayed', 'completed')
+            AND s.end_at <= ? AND s.start_at >= '2026-09-10T00:00:00.000Z'
+            AND s.start_at < '2026-09-14T00:00:00.000Z'
+        ) candidates
+        WHERE activator_callsign <> '' AND NOT EXISTS (
+          SELECT 1 FROM pota_spot_history_sync existing
+          WHERE existing.activator_callsign = candidates.activator_callsign
+            AND existing.park_reference = candidates.park_reference
+        ) ORDER BY park_reference, activator_callsign LIMIT 2`,
+      ).bind(startedAt, startedAt, env.ACTIVATE_RI_EVENT_ID, env.ACTIVATE_RI_EVENT_ID,
+        env.ACTIVATE_RI_EVENT_ID, new Date(startedAt - postCloseSyncDelayMilliseconds).toISOString()).run();
+    }
     const existingResult = await env.DB.prepare(
       `SELECT activator_callsign, park_reference, first_seen_at, last_seen_at,
         last_live_spot_id, last_live_count, active, last_history_sync_at,
@@ -171,30 +199,38 @@ export async function syncPotaSpotHistories(
       historyConcurrency,
       async (target): Promise<HistoryOutcome> => {
         try {
+          const reports = await fetchPotaSpotHistory(options.fetcher ?? fetch, target);
+          const fetchedAt = now();
+          await archiveEventSpotReports(env, reports, {
+            observedAt: fetchedAt, sourceFetchedAt: fetchedAt.valueOf(), source: "history",
+            stale: false, runId: options.collectionRunId,
+          });
           return {
             target,
-            spots: await fetchPotaSpotHistory(options.fetcher ?? fetch, target),
+            spots: reports.filter((report) => !/\bQRT\b/i.test(report.comments)),
             error: null,
+            fetchedAt: fetchedAt.valueOf(),
           } satisfies HistoryOutcome;
         } catch (error) {
           logWorkerError("pota-spot-history-sync-failed", error, {
             activatorCallsign: target.activatorCallsign,
             parkReference: target.parkReference,
           });
-          return { target, spots: [], error } satisfies HistoryOutcome;
+          return { target, spots: [], error, fetchedAt: now().valueOf() } satisfies HistoryOutcome;
         }
       },
     );
 
     const successful = outcomes.filter((outcome) => outcome.error === null);
     const historySpots = successful.flatMap((outcome) => outcome.spots);
-    if (historySpots.length > 0) {
-      await persistPotaSpotHistory(env, historySpots, new Date(startedAt));
-      if (env.ACTIVATE_RI_EVENT_ID && isSpotCaptureTime(new Date(startedAt))) {
+    for (const outcome of successful) {
+      if (outcome.spots.length === 0) continue;
+      await persistPotaSpotHistory(env, outcome.spots, new Date(outcome.fetchedAt));
+      if (env.ACTIVATE_RI_EVENT_ID) {
         await persistEventSpotObservations(
           env as Pick<Env, "DB" | "ACTIVATE_RI_EVENT_ID">,
-          historySpots,
-          new Date(startedAt),
+          outcome.spots,
+          new Date(outcome.fetchedAt),
         );
       }
     }
@@ -303,7 +339,7 @@ async function fetchPotaSpotHistory(
   );
   if (!response.ok) throw new Error(`POTA spot history responded with ${response.status}.`);
   const value: unknown = await response.json();
-  return normalizePotaSpotHistory(value, target);
+  return normalizePotaSpotHistory(value, { ...target, retainInactiveReports: true });
 }
 
 function uniqueLivePairs(spots: readonly LivePotaSpot[]): LivePotaSpot[] {

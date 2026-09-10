@@ -1,4 +1,5 @@
 import type { Env } from "./env";
+import { recordOperationalFailure } from "./operational-health";
 
 export type AuthenticatedFeature =
   | "account_security"
@@ -18,7 +19,7 @@ export async function recordFeatureUsage(
   now = new Date(),
 ): Promise<void> {
   const usedAt = now.toISOString();
-  await env.DB.prepare(
+  await env.DB.batch([env.DB.prepare(
     `INSERT INTO analytics_feature_usage (
        scope, subject_type, subject_id, feature,
        first_used_at, last_used_at, use_count
@@ -33,7 +34,14 @@ export async function recordFeatureUsage(
     usage.feature,
     usedAt,
     usedAt,
-  ).run();
+  ), env.DB.prepare(
+    `INSERT INTO analytics_feature_events
+       (id, scope, subject_type, subject_id, feature, occurred_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  ).bind(crypto.randomUUID(), usage.scope, usage.subjectType, usage.subjectId, usage.feature, usedAt),
+  env.DB.prepare(`INSERT INTO analytics_collection_metadata (scope, stream, started_at)
+    VALUES (?, 'authenticated_events', ?) ON CONFLICT(scope, stream) DO UPDATE SET
+    started_at = MIN(started_at, excluded.started_at)`).bind(usage.scope, usedAt)]);
 }
 
 export async function captureFeatureUsage(
@@ -41,12 +49,13 @@ export async function captureFeatureUsage(
   ctx: ExecutionContext | undefined,
   usage: FeatureUsage,
 ): Promise<void> {
-  const capture = recordFeatureUsage(env, usage).catch(() => {
+  const capture = recordFeatureUsage(env, usage).catch(async () => {
     console.error(JSON.stringify({
       event: "analytics-feature-usage-failed",
       scope: usage.scope,
       feature: usage.feature,
     }));
+    await recordOperationalFailure(env, "feature_analytics");
   });
 
   if (ctx) {

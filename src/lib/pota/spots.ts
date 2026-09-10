@@ -18,11 +18,14 @@ export type LivePotaSpot = {
   expiresInSeconds: number | null;
   parkUrl: string;
   spotsUrl: string;
+  /** Only included in report-archive normalization, not the public live feed. */
+  sourceBand?: string;
 };
 
 export type NormalizePotaSpotsOptions = {
   parkNames: ReadonlyMap<string, string>;
   parkLocations: ReadonlyMap<string, string>;
+  retainInactiveReports?: boolean;
 };
 
 export type PotaSpotReferenceEvidence = {
@@ -65,7 +68,7 @@ export function potaSpotReferenceEvidence(
 
 export function normalizeRiPotaSpots(
   value: unknown,
-  { parkNames, parkLocations }: NormalizePotaSpotsOptions,
+  { parkNames, parkLocations, retainInactiveReports = false }: NormalizePotaSpotsOptions,
 ): LivePotaSpot[] {
   if (!Array.isArray(value)) {
     return [];
@@ -73,7 +76,7 @@ export function normalizeRiPotaSpots(
 
   return value
     .flatMap((candidate, index) => {
-      const spot = normalizeRiPotaSpot(candidate, index, parkNames, parkLocations);
+      const spot = normalizeRiPotaSpot(candidate, index, parkNames, parkLocations, retainInactiveReports);
       return spot ? [spot] : [];
     })
     .sort((left, right) => right.spotTime.localeCompare(left.spotTime));
@@ -84,6 +87,7 @@ function normalizeRiPotaSpot(
   index: number,
   parkNames: ReadonlyMap<string, string>,
   parkLocations: ReadonlyMap<string, string>,
+  retainInactiveReports: boolean,
 ): LivePotaSpot | null {
   if (!isRecord(value)) {
     return null;
@@ -104,8 +108,8 @@ function normalizeRiPotaSpot(
     !spotTime ||
     !locationDesc ||
     isInvalidSpot(value.invalid) ||
-    (expiresInSeconds !== null && expiresInSeconds <= 0) ||
-    /\bQRT\b/i.test(comments)
+    (!retainInactiveReports && ((expiresInSeconds !== null && expiresInSeconds <= 0) ||
+      /\bQRT\b/i.test(comments)))
   ) {
     return null;
   }
@@ -128,6 +132,7 @@ function normalizeRiPotaSpot(
     expiresInSeconds,
     parkUrl: officialPotaParkUrl(parkReference),
     spotsUrl: officialPotaSpotsUrl,
+    ...(retainInactiveReports ? { sourceBand: stringValue(value.band).trim() } : {}),
   };
 }
 
@@ -135,11 +140,12 @@ export type NormalizePotaSpotHistoryOptions = {
   parkReference: string;
   parkName: string;
   activatorCallsign: string;
+  retainInactiveReports?: boolean;
 };
 
 export function normalizePotaSpotHistory(
   value: unknown,
-  { parkReference, parkName, activatorCallsign }: NormalizePotaSpotHistoryOptions,
+  { parkReference, parkName, activatorCallsign, retainInactiveReports = false }: NormalizePotaSpotHistoryOptions,
 ): LivePotaSpot[] {
   if (!Array.isArray(value)) {
     throw new Error("POTA spot history was not an array.");
@@ -149,7 +155,7 @@ export function normalizePotaSpotHistory(
     if (!isRecord(candidate)) return [];
     const spotTime = stringValue(candidate.spotTime).trim();
     const comments = stringValue(candidate.comments).trim();
-    if (!spotTime || /\bQRT\b/i.test(comments)) return [];
+    if (!spotTime || (!retainInactiveReports && /\bQRT\b/i.test(comments))) return [];
     const sourceId = stringValue(candidate.spotId).trim();
     return [{
       id: sourceId || `${parkReference}:${activatorCallsign}:${spotTime}:${index}`,
@@ -167,6 +173,7 @@ export function normalizePotaSpotHistory(
       expiresInSeconds: null,
       parkUrl: officialPotaParkUrl(parkReference),
       spotsUrl: officialPotaSpotsUrl,
+      ...(retainInactiveReports ? { sourceBand: stringValue(candidate.band).trim() } : {}),
     }];
   }).sort((left, right) => right.spotTime.localeCompare(left.spotTime));
 }

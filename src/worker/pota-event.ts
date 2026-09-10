@@ -18,6 +18,7 @@ import type { Env } from "./env";
 import { logWorkerError } from "./logging";
 import { fetchPotaApi } from "./pota-api";
 import { currentLivePotaReferences } from "./pota-live-references";
+import { activationRevisionStatement } from "./pota-evidence-archive";
 
 const historyBatchSize = 20;
 const historyConcurrency = 5;
@@ -388,7 +389,9 @@ async function storeActivationEvidence(
   deep: boolean,
 ): Promise<void> {
   const timestamp = new Date(completedAt).toISOString();
-  const statements = evidence.map((row) => env.DB.prepare(
+  const statements = (await Promise.all(evidence.map(async (row) => [
+    await activationRevisionStatement(env, row, timestamp, activationHistorySourceVersion),
+    env.DB.prepare(
     `INSERT INTO activate_ri_pota_activation_evidence (
        event_id, park_reference, location_desc, qso_date, activator_callsign,
        total_qsos, qsos_cw, qsos_data, qsos_phone, qualifying,
@@ -420,7 +423,7 @@ async function storeActivationEvidence(
     timestamp,
     timestamp,
     timestamp,
-  ));
+  )]))).flat();
   for (let index = 0; index < statements.length; index += 50) {
     await env.DB.batch(statements.slice(index, index + 50));
   }

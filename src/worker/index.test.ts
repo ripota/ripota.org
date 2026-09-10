@@ -178,6 +178,16 @@ describe("worker routing", () => {
         feature: "plan_editor",
         use_count: 1,
       });
+      const head = await worker.fetch(request("/activate-ri-2026/activator/plan/", {
+        method: "HEAD", headers: { cookie: cookie ?? "" },
+      }), testEnv);
+      expect(head.status).toBe(200);
+      vi.mocked(testEnv.ASSETS.fetch).mockResolvedValueOnce(new Response("unavailable", { status: 503 }));
+      const failed = await worker.fetch(request("/activate-ri-2026/activator/plan/", {
+        headers: { cookie: cookie ?? "" },
+      }), testEnv);
+      expect(failed.status).toBe(503);
+      expect(await database.DB.prepare(`SELECT COUNT(*) AS count FROM analytics_feature_events`).first()).toEqual({ count: 1 });
     } finally {
       database.close();
     }

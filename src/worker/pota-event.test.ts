@@ -269,6 +269,11 @@ describe("Activate RI POTA reconciliation", () => {
        FROM activate_ri_pota_activation_evidence WHERE park_reference = 'US-7971'`,
     ).all<Record<string, unknown>>();
     expect(rows.results).toHaveLength(3);
+    expect((await database.DB.prepare(
+      `SELECT revision, total_qsos FROM activate_ri_pota_activation_revisions
+       WHERE park_reference = 'US-7971' AND activator_callsign = 'N1FIRST'
+         AND qso_date = '20260911' ORDER BY revision`,
+    ).all()).results).toEqual([{ revision: 1, total_qsos: 12 }, { revision: 2, total_qsos: 24 }]);
     expect(rows.results).toContainEqual({
       activator_callsign: "N1FIRST",
       qso_date: "20260911",

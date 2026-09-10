@@ -17,7 +17,8 @@ describe("Activate RI analytics instrumentation", () => {
     expect(hunterSource).toContain('"hunter_import_succeeded"');
     expect(hunterSource).toContain('"hunter_import_failed"');
     expect(hunterSource).toContain('"hunter_checklist_resumed"');
-    expect(hunterSource).toContain('"hunter_manual_override_used"');
+    expect(hunterSource).toContain('"hunter_checklist_started"');
+    expect(hunterSource).toContain('"hunter_progress_changed"');
     expect(hunterSource).toContain('feature: "hunter_checklist"');
     expect(hunterSource).not.toMatch(/trackAnalyticsEvent\([^)]*(file\.name|park\.reference)/s);
   });

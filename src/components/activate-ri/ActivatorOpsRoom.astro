@@ -47,6 +47,7 @@ const parkNames = Object.fromEntries(
 <script>
   import { continuesOpsMessageGroup, opsMessageTimeLabel } from "../../lib/activate-ri/ops-presentation";
   import { isOpsMessageWithinEditWindow, OPS_MESSAGE_EDIT_WINDOW_MS } from "../../lib/activate-ri/ops-editing";
+  import { startOpsEngagement } from "../../lib/activate-ri/ops-engagement";
 
   type RoomMode = "full" | "announcements" | "off";
   type MembershipStatus = "active" | "muted" | "banned";
@@ -152,6 +153,10 @@ const parkNames = Object.fromEntries(
   let savingEdit = false;
   let editExpiryTimer: number | undefined;
   let linkedMessage = location.hash.startsWith("#ops-message-") ? location.hash.slice(1) : null;
+  const stopEngagement = room ? startOpsEngagement(
+    room, () => roomLoaded && roomMode !== "off" && membershipStatus !== "banned",
+    linkedMessage ? "message_link" : "direct",
+  ) : undefined;
 
   if (room) {
     void initialize();
@@ -202,6 +207,18 @@ const parkNames = Object.fromEntries(
       pinnedMessage = data.pinnedMessage;
       messages.clear();
       data.messages.forEach((message) => messages.set(message.id, message));
+      if (linkedMessage) {
+        const messageId = linkedMessage.slice("ops-message-".length);
+        if (/^[a-f0-9-]{36}$/i.test(messageId) && !messages.has(messageId)) {
+          try {
+            const linked = await fetch(`/api/activate-ri-2026/ops/messages/${encodeURIComponent(messageId)}`);
+            if (linked.ok) {
+              const result = await linked.json() as { message: Message };
+              messages.set(result.message.id, result.message);
+            }
+          } catch { /* The recent feed remains available if an older link cannot load. */ }
+        }
+      }
       cursor = data.cursor;
       localStorage.setItem(cursorKey, String(cursor));
       if (linkedMessage) {
@@ -688,9 +705,11 @@ const parkNames = Object.fromEntries(
     if (!pin || !pinBody || !pinMeta) return;
     if (!pinnedMessage || pinnedMessage.removed) {
       pin.hidden = true;
+      delete pin.dataset.opsExposureMessageId;
       return;
     }
     pin.hidden = false;
+    pin.dataset.opsExposureMessageId = pinnedMessage.id;
     pinBody.textContent = pinnedMessage.body;
     pinMeta.textContent = `Organizer · ${formatTimestamp(pinnedMessage.createdAt)}${
       pinnedMessage.parkReference ? ` · ${pinnedMessage.parkReference} — ${parkNames[pinnedMessage.parkReference] ?? "RI park"}` : ""
@@ -886,8 +905,9 @@ const parkNames = Object.fromEntries(
     if (roomLoaded) connectSocket();
     else void loadRoom();
   });
-  window.addEventListener("beforeunload", () => closeSocket(true));
+  window.addEventListener("beforeunload", () => { stopEngagement?.(); closeSocket(true); });
   window.addEventListener("activate-ri:logout", () => {
+    stopEngagement?.();
     localStorage.removeItem(cursorKey);
     localStorage.removeItem(filterKey);
     void clearDraft();

@@ -3,6 +3,7 @@ import type { Env } from "./env";
 import { ActivateRiOpsRoom } from "./durable-objects/activate-ri-ops-room";
 import { handleActivateRiApi } from "./routes/activate-ri";
 import { createAdminOpsMessage, moderateOpsMessage } from "./ops-db";
+import { recordOpsEngagement } from "./ops-engagement";
 import { createMigratedSqliteD1 } from "./test-utils/sqlite-d1";
 import type { CreateOpsMessageInput, OpsEvent, OpsMessageDto } from "../lib/activate-ri/ops-types";
 
@@ -15,6 +16,45 @@ afterEach(() => {
 });
 
 describe("Activate RI Ops Room D1 flow", () => {
+  it("stores bounded authenticated foreground and daily message exposures without content", async () => {
+    const database = createMigratedSqliteD1();
+    closeDatabase = database.close;
+    const env = testEnv(database.DB);
+    const { cookie, activatorId } = await approvedActivator(env);
+    await handleActivateRiApi(adminRequest("/api/activate-ri-2026/admin/ops/settings", {
+      method: "PATCH", headers: jsonHeaders(), body: JSON.stringify({ roomMode: "full" }),
+    }), env);
+    const created = await createAdminOpsMessage(env, "admin:test", "Organizer", {
+      clientNonce: crypto.randomUUID(), kind: "chat", body: "Private room text", context: null,
+    });
+    if (created?.type !== "message-created") throw new Error("Missing fixture");
+    const input = { messageIds: [created.message.id, created.message.id, crypto.randomUUID()], entrySource: "message_link" } as const;
+    const post = (payload: unknown, origin = "https://ripota.org") => handleActivateRiApi(sessionRequest(
+      "/api/activate-ri-2026/ops/engagement", cookie, {
+        method: "POST", headers: { ...jsonHeaders(cookie), origin }, body: JSON.stringify(payload),
+      },
+    ), env);
+    expect((await post(input)).status).toBe(200);
+    expect((await post(input)).status).toBe(200);
+    expect(await env.DB.prepare(`SELECT COUNT(*) AS count FROM activate_ri_ops_message_exposures`).first()).toEqual({ count: 1 });
+    expect(await env.DB.prepare(`SELECT COUNT(*) AS count FROM activate_ri_ops_foreground_samples`).first()).toEqual({ count: 1 });
+    expect((await post({ ...input, actorId: "forged" })).status).toBe(400);
+    expect((await post({ ...input, messageIds: Array(51).fill(created.message.id) })).status).toBe(400);
+    expect((await post({ ...input, entrySource: "email@example.com" })).status).toBe(400);
+    expect((await post(input, "https://attacker.example")).status).toBe(403);
+    expect((await post({ messageIds: ["x".repeat(9000)], entrySource: "direct" })).status).toBe(400);
+    const stored = await env.DB.prepare(`SELECT * FROM activate_ri_ops_message_exposures`).first();
+    expect(stored).toMatchObject({ activator_id: activatorId, message_id: created.message.id, entry_source: "message_link" });
+    expect(JSON.stringify(stored)).not.toContain("Private room text");
+    await recordOpsEngagement(env, activatorId, { messageIds: [created.message.id], entrySource: "direct" }, new Date(Date.now() + 86400_000));
+    expect(await env.DB.prepare(`SELECT COUNT(*) AS count FROM activate_ri_ops_message_exposures`).first()).toEqual({ count: 2 });
+    await moderateOpsMessage(env, created.message.id, "remove", "organizer@example.com", "Removed");
+    await recordOpsEngagement(env, activatorId, { messageIds: [created.message.id], entrySource: "direct" }, new Date(Date.now() + 2 * 86400_000));
+    expect(await env.DB.prepare(`SELECT COUNT(*) AS count FROM activate_ri_ops_message_exposures`).first()).toEqual({ count: 2 });
+    await env.DB.prepare(`UPDATE activate_ri_ops_memberships SET status = 'banned' WHERE activator_id = ?`).bind(activatorId).run();
+    expect((await post(input)).status).toBe(403);
+  });
+
   it("starts off, enrolls approved activators, and syncs idempotent messages", async () => {
     const database = createMigratedSqliteD1();
     closeDatabase = database.close;
@@ -220,6 +260,13 @@ describe("Activate RI Ops Room D1 flow", () => {
     expect(initial.messages.map((message) => message.id)).toEqual(survivingIds.slice(1));
     expect(initial.messages.every((message) => !message.removed)).toBe(true);
     expect(initial.cursor).toBe(cursor);
+    const oldMessage = await handleActivateRiApi(sessionRequest(`/api/activate-ri-2026/ops/messages/${survivingIds[0]}`, cookie), env);
+    expect(oldMessage.status).toBe(200);
+    await expect(oldMessage.json()).resolves.toMatchObject({ message: { id: survivingIds[0] } });
+    const removedLookup = await handleActivateRiApi(sessionRequest(`/api/activate-ri-2026/ops/messages/${removedIds[0]}`, cookie), env);
+    expect(removedLookup.status).toBe(404);
+    const unauthenticated = await handleActivateRiApi(sessionRequest(`/api/activate-ri-2026/ops/messages/${survivingIds[0]}`, ""), env);
+    expect(unauthenticated.status).toBe(401);
 
     const admin = await handleActivateRiApi(adminRequest("/api/activate-ri-2026/admin/ops"), env);
     const moderation = await admin.json() as typeof initial;

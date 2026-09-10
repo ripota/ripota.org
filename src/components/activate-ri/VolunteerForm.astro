@@ -178,16 +178,19 @@ const turnstileSiteKey =
       const data = await parseResponse(response);
 
       if (response.ok && data.ok) {
+        void trackAnalyticsEvent("activate-ri-2026", "volunteer_submit_completed", { outcome: "succeeded" });
         form.reset();
         setupStopCards({ validatePark: true, setupErrorDescriptions: true });
         setFormStatus(data.message ?? "Submission received for organizer review.", "success");
         resetTurnstile();
         showSubmitConfirmation();
       } else {
+        void trackAnalyticsEvent("activate-ri-2026", "volunteer_submit_completed", { outcome: "rejected" });
         setFormStatus(data.errors?.join(" ") ?? data.message ?? "Submission failed.", "error");
         resetTurnstile();
       }
     } catch {
+      void trackAnalyticsEvent("activate-ri-2026", "volunteer_submit_completed", { outcome: "network_failed" });
       setFormStatus("Submission failed. Please try again later.", "error");
       resetTurnstile();
     } finally {

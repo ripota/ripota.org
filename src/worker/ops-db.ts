@@ -103,6 +103,13 @@ export async function getOpsAccess(
   };
 }
 
+export async function getOpsMessage(env: Env, messageId: string): Promise<OpsMessageDto | null> {
+  const row = await env.DB.prepare(`${messageSelectSql}
+    WHERE event_id = ? AND id = ? AND removed_at IS NULL`)
+    .bind(env.ACTIVATE_RI_EVENT_ID, messageId).first<MessageRow>();
+  return row ? toMessageDto(row) : null;
+}
+
 export async function getOpsBootstrap(
   env: Env,
   activatorId: string,

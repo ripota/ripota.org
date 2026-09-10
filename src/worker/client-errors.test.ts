@@ -1,10 +1,29 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "./env";
 import { handleClientErrorReport } from "./routes/client-errors";
+import { createMigratedSqliteD1 } from "./test-utils/sqlite-d1";
 
 afterEach(() => vi.restoreAllMocks());
 
 describe("client error reports", () => {
+  it.each(["error", "resource", "unhandledrejection"])("retains only a daily coarse count for accepted %s reports", async (kind) => {
+    const db = createMigratedSqliteD1();
+    try {
+      vi.spyOn(console, "error").mockImplementation(() => undefined);
+      const env = { ...testEnv({ limit: vi.fn(async () => ({ success: true })) } as RateLimit), DB: db.DB };
+      const input = { ...validReport(), kind, message: "private@example.com", route: "/account/security/?token=private" };
+      expect((await handleClientErrorReport(request(input), env)).status).toBe(204);
+      expect((await handleClientErrorReport(request(input), env)).status).toBe(204);
+      expect((await handleClientErrorReport(request({ ...input, kind: "unknown" }), env)).status).toBe(400);
+      const rows = (await db.DB.prepare("SELECT * FROM operational_health_daily").all()).results;
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ scope: "activate-ri-2026", category: `browser_${kind}`, count: 2 });
+      expect(JSON.stringify(rows)).not.toMatch(/private|account|token/);
+      vi.spyOn(db.DB, "prepare").mockImplementation(() => { throw new Error("D1 unavailable"); });
+      expect((await handleClientErrorReport(request(input), env)).status).toBe(204);
+    } finally { db.close(); }
+  });
+
   it("logs a bounded, redacted, same-origin report", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const limiter = vi.fn(async () => ({ success: true }));

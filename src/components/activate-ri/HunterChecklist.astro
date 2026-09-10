@@ -146,7 +146,7 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
   <details class="hunter-privacy-details">
     <summary>Privacy details</summary>
     <p class="hunter-privacy">
-      RI POTA does not upload or retain your CSV, callsign, worldwide history, QSO counts, or dates. Only the RI reference IDs in your latest import, manual checkbox choices, schema version, checklist start time, and import time are saved in this browser. We record coarse, anonymous feature use—such as whether an import succeeded or the personal schedule was opened—using a random event-specific browser ID. Custom analytics is skipped when Global Privacy Control or Do Not Track is enabled.
+      RI POTA does not upload or retain your CSV, callsign, worldwide history, QSO counts, or QSO dates. Your park reference IDs and individual checkbox choices stay in this browser. Using a random event-specific browser ID, we retain anonymous feature actions and their times, checklist totals and change direction, import row counts and save outcomes, and schedule scope and counts for the event report. These totals describe your all-time checklist progress, not contacts made during the event. Custom analytics is skipped when Global Privacy Control or Do Not Track is enabled.
     </p>
   </details>
 </section>
@@ -172,6 +172,7 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
   import { buildRequestedAgendaUrl, parseRequestedReferences } from "../../lib/activate-ri/requested-parks";
   import type { PublicActivationStop } from "../../lib/activate-ri/types";
   import { trackAnalyticsEvent } from "../../lib/analytics/client";
+  import type { AnalyticsProperties } from "../../lib/analytics/events";
   import { replaceLiveContent } from "../../lib/activate-ri/live-content";
   import { parkGuidePath } from "../../lib/parks/directory";
 
@@ -197,7 +198,6 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
     let scheduleState: "loading" | "ready" | "unavailable" = "loading";
     let publicStops: PublicActivationStop[] = [];
     let state = loadState();
-    let manualOverrideTracked = false;
 
     render();
     if (hasHunterChecklistData(state)) {
@@ -215,6 +215,7 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
       const alreadySaved = hasHunterChecklistData(saved);
       state = alreadySaved ? saved : startBlankHunterChecklist(state);
       if (!alreadySaved) persistState();
+      void trackAnalyticsEvent("activate-ri-2026", alreadySaved ? "hunter_checklist_resumed" : "hunter_checklist_started", checklistProperties());
       render();
       if (importPanel) importPanel.open = false;
       announce(alreadySaved ? "Your saved checklist is ready." : "Blank checklist ready. All 61 parks are remaining.");
@@ -235,17 +236,23 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
       ].filter(Boolean);
       if (errors.length === 0 && parsed.references.length === 0) errors.push("Enter at least one Rhode Island park reference.");
       if (errors.length > 0) {
+        void trackAnalyticsEvent("activate-ri-2026", "hunter_agenda_action", {
+          action: "build", agendaScope: "requested", parkCount: parsed.references.length, outcome: "rejected",
+        });
         requestedError.textContent = errors.join(" ");
         requestedError.hidden = false;
         requestedInput.setAttribute("aria-invalid", "true");
         requestedInput.focus();
         return;
       }
+      void trackAnalyticsEvent("activate-ri-2026", "hunter_agenda_action", {
+        action: "build", agendaScope: "requested", parkCount: parsed.references.length, outcome: "ready",
+      });
       window.location.assign(buildRequestedAgendaUrl(window.location.origin, parsed.references));
     });
     void loadSchedules();
-    if (state.lastImportedAt) {
-      void trackAnalyticsEvent("activate-ri-2026", "hunter_checklist_resumed");
+    if (hasHunterChecklistData(state)) {
+      void trackAnalyticsEvent("activate-ri-2026", "hunter_checklist_resumed", checklistProperties());
     }
 
     fileInput?.addEventListener("change", () => {
@@ -279,6 +286,7 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
     root.querySelector("[data-hunter-reset-overrides]")?.addEventListener("click", () => {
       state.manualOverrides = {};
       persistState();
+      void trackAnalyticsEvent("activate-ri-2026", "hunter_progress_changed", { ...checklistProperties(), direction: "reset" });
       announce(state.lastImportedAt
         ? "Manual changes reset. Your latest imported RI references are shown."
         : "Manual changes reset. All RI parks are remaining.");
@@ -291,6 +299,7 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
       } catch {
         storageAvailable = false;
       }
+      void trackAnalyticsEvent("activate-ri-2026", "hunter_progress_changed", { ...checklistProperties(), direction: "clear" });
       announce("Checklist data cleared from this browser.");
       if (search) search.value = "";
       if (filter) filter.value = "all";
@@ -304,27 +313,44 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
         feature: "hunter_checklist",
         placement: "schedule",
       });
+      const parkCount = references.length - effectiveHuntedReferences(state, references).size;
+      void trackAnalyticsEvent("activate-ri-2026", "hunter_agenda_action", {
+        action: "open", agendaScope: parkCount > 0 ? "remaining" : "all", parkCount: parkCount || references.length,
+      });
     });
 
     async function importFile(file: File, importMethod: "drop" | "file_picker"): Promise<void> {
       clearError();
       announce(`Importing ${file.name}…`);
-      void trackAnalyticsEvent("activate-ri-2026", "hunter_import_attempted", { importMethod });
+      const importAttemptId = crypto.randomUUID();
+      void trackAnalyticsEvent("activate-ri-2026", "hunter_import_attempted", { importMethod, importAttemptId });
       try {
         if (file.size > HUNTER_CSV_MAX_BYTES) {
           throw new Error("This file is larger than the 5 MB import limit.");
         }
         const parsed = parseHunterParksCsv(await file.text(), references);
         state = applyHunterImport(state, parsed);
-        persistState();
+        const saved = persistState();
         announce(formatHunterImportSummary(parsed));
-        void trackAnalyticsEvent("activate-ri-2026", "hunter_import_succeeded", { importMethod });
+        void trackAnalyticsEvent("activate-ri-2026", saved ? "hunter_import_succeeded" : "hunter_import_failed", {
+          ...checklistProperties(),
+          importMethod,
+          importAttemptId,
+          importQuality: parsed.importedReferenceIds.length === 0 ? "zero_matches"
+            : parsed.recoveredRows > 0 || parsed.skippedRows > 0 ? "partial" : "clean",
+          examinedRows: Math.min(parsed.examinedRows, 1_000_000),
+          recoveredRows: Math.min(parsed.recoveredRows, 1_000_000),
+          skippedRows: Math.min(parsed.skippedRows, 1_000_000),
+          matchedCount: parsed.importedReferenceIds.length,
+          ...(!saved ? { errorCode: "storage_unavailable" as const } : {}),
+        });
         render();
         if (importPanel) importPanel.open = false;
         root.querySelector<HTMLElement>("[data-hunter-progress-text]")?.focus();
       } catch (caught) {
         void trackAnalyticsEvent("activate-ri-2026", "hunter_import_failed", {
           importMethod,
+          importAttemptId,
           errorCode: hunterImportErrorCode(caught),
         });
         showError(caught instanceof Error ? caught.message : "The CSV could not be imported.");
@@ -353,14 +379,25 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
       }
     }
 
-    function persistState(): void {
+    function persistState(): boolean {
       try {
         writeHunterChecklistState(localStorage, state);
         storageAvailable = true;
+        return true;
       } catch {
         storageAvailable = false;
         showError("Browser storage is unavailable. Your current checklist cannot be saved for the next visit.");
+        return false;
       }
+    }
+
+    function checklistProperties(): AnalyticsProperties {
+      return {
+        entryMode: state.lastImportedAt ? "imported" : "blank",
+        completedCount: effectiveHuntedReferences(state, references).size,
+        totalCount: references.length,
+        persistence: storageAvailable ? "saved" : "unavailable",
+      };
     }
 
     function render(): void {
@@ -434,12 +471,11 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
       checkbox.checked = checked;
       checkbox.setAttribute("aria-label", `${park.reference} ${park.name} hunted`);
       checkbox.addEventListener("change", () => {
-        if (!manualOverrideTracked) {
-          manualOverrideTracked = true;
-          void trackAnalyticsEvent("activate-ri-2026", "hunter_manual_override_used");
-        }
         state.manualOverrides[park.reference] = checkbox.checked;
         persistState();
+        void trackAnalyticsEvent("activate-ri-2026", "hunter_progress_changed", {
+          ...checklistProperties(), direction: checkbox.checked ? "hunted" : "remaining",
+        });
         announce(`${park.reference} marked ${checkbox.checked ? "hunted" : "remaining"}.`);
         render();
         const movedCheckbox = root.querySelector<HTMLInputElement>(`#${checkbox.id}`);
@@ -465,6 +501,9 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
       schedule.textContent = "View schedule";
       schedule.dataset.liveKey = `${park.reference}-schedule`;
       schedule.setAttribute("aria-label", `View schedule for ${park.reference}`);
+      schedule.addEventListener("click", () => {
+        void trackAnalyticsEvent("activate-ri-2026", "hunter_schedule_details_opened", { agendaScope: "park", parkCount: 1 });
+      });
       const links = document.createElement("div");
       links.className = "hunter-park-links";
       links.appendChild(schedule);
@@ -559,7 +598,7 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
     if (caught.message.includes("larger than") || caught.message.includes("not supported")) {
       return "unsupported_file";
     }
-    if (caught.message.includes("does not contain any usable")) return "empty_file";
+    if (caught.message.includes("export is empty") || caught.message.includes("does not contain any usable")) return "empty_file";
     if (caught.message.includes("CSV") || caught.message.includes("Reference")) return "invalid_csv";
     return "read_failed";
   }

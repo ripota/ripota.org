@@ -12,6 +12,7 @@ type OptionalBindings = Partial<Pick<
   | "AUTH_RATE_LIMIT_BURST"
   | "CLIENT_ERROR_RATE_LIMIT"
   | "EMAIL"
+  | "EVENT_ARCHIVES"
   | "OPS_RATE_LIMIT_BURST"
   | "OPS_RATE_LIMIT_SUSTAINED"
 >>;

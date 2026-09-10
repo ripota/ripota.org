@@ -14,12 +14,9 @@ import {
 } from "./routes/activate-ri-embed";
 import { handlePotaSpots } from "./routes/pota";
 import { ActivateRiOpsRoom } from "./durable-objects/activate-ri-ops-room";
-import { isSpotCaptureTime } from "../lib/activate-ri/pota-event";
-import {
-  persistEventSpotObservations,
-  runPotaHistoryReconciliation,
-} from "./pota-event";
-import { getRiPotaSpotsSnapshot } from "./routes/pota";
+import { runPotaCollection } from "./pota-collection";
+import { afterActionArchiveCron, runAfterActionArchive } from "./after-action-archive";
+import { observeWorkerRequest, observeWorkerTask, recordOperationalFailure } from "./operational-health";
 import { handleAuthApi } from "./routes/auth";
 import { requireActivator, requireAdmin } from "./auth/authorization";
 import { getAuthConfig } from "./auth/config";
@@ -32,9 +29,7 @@ import { handleAnalyticsEvent } from "./routes/analytics";
 import { captureFeatureUsage, type AuthenticatedFeature } from "./feature-usage";
 import {
   cleanupPotaSpotHistory,
-  persistPotaSpotHistory,
 } from "./pota-spot-history";
-import { syncPotaSpotHistories } from "./pota-spot-history-sync";
 
 export { ActivateRiOpsRoom };
 
@@ -46,7 +41,7 @@ const activateRiPortalPathPattern = /^\/activate-ri-2026\/activator(?:\/(?:plan|
 const accountPathPattern = /^\/account\/(?:sign-in|access|security)\/?$/;
 const potaSpotCleanupCron = "17 5 * * *";
 
-export default {
+const worker = {
   async fetch(
     request: Request,
     env: Env,
@@ -147,6 +142,7 @@ export default {
           headers.append("set-cookie", unified.cookie);
         } catch (error) {
           logWorkerError("legacy-edit-route-unified-upgrade-failed", error);
+          await recordOperationalFailure(env, "legacy_auth_upgrade");
         }
       }
       return withPrivateHeaders(
@@ -189,8 +185,9 @@ export default {
         );
       }
 
+      const assetResponse = await fetchAssetWithoutRedirect(env, request);
       const feature = authenticatedPortalFeature(url.pathname);
-      if (feature) {
+      if (feature && request.method === "GET" && assetResponse.ok) {
         await captureFeatureUsage(env, ctx, {
           scope: env.ACTIVATE_RI_EVENT_ID,
           subjectType: "activator",
@@ -200,7 +197,7 @@ export default {
       }
 
       return withPrivateHeaders(
-        await fetchAssetWithoutRedirect(env, request),
+        assetResponse,
         url.pathname.endsWith("/plan/") || url.pathname.endsWith("/account/") ? "editor" : "portal",
       );
     }
@@ -213,52 +210,38 @@ export default {
     env: Env,
     ctx: ExecutionContext,
   ): void {
+    if (controller.cron === afterActionArchiveCron) {
+      ctx.waitUntil(observeWorkerTask(env, "scheduled_archive", runAfterActionArchive(env, controller.scheduledTime)));
+      return;
+    }
     if (controller.cron === potaSpotCleanupCron) {
-      ctx.waitUntil(runPotaSpotCleanupSchedule(controller, env));
+      ctx.waitUntil(observeWorkerTask(env, "scheduled_spot_cleanup", runPotaSpotCleanupSchedule(controller, env)));
       return;
     }
     ctx.waitUntil(scheduleOpsMessageEmails(env));
-    ctx.waitUntil(runActivateRiPotaSchedule(controller, env));
+    ctx.waitUntil(observeWorkerTask(env, "scheduled_pota", runActivateRiPotaSchedule(controller, env)));
     ctx.waitUntil(cleanupAuthData(env).then((result) => {
       console.log(JSON.stringify({ event: "auth-cleanup", ...result }));
-    }).catch((error) => {
+    }).catch(async (error) => {
       logWorkerError("auth-cleanup-failed", error, { category: "database" });
+      await recordOperationalFailure(env, "auth_cleanup");
     }));
+  },
+};
+
+export default {
+  ...worker,
+  fetch(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
+    return observeWorkerRequest(env, () => worker.fetch(request, env, ctx));
   },
 };
 
 export async function runActivateRiPotaSchedule(
   controller: ScheduledController,
   env: Env,
+  options: { now?: () => Date } = {},
 ): Promise<void> {
-  const now = new Date(controller.scheduledTime);
-  const outcome: Record<string, unknown> = {
-    event: "activate-ri-pota-scheduled",
-    scheduledAt: now.toISOString(),
-  };
-  const spots = await getRiPotaSpotsSnapshot(env, { now: () => now });
-  outcome.spotsAvailable = spots.ok;
-  if (spots.ok) {
-    outcome.rollingObservations = await persistPotaSpotHistory(
-      env,
-      spots.snapshot.spots,
-      now,
-    );
-    outcome.spotHistory = await syncPotaSpotHistories(
-      env,
-      spots.snapshot.spots,
-      { now: () => now },
-    );
-    if (isSpotCaptureTime(now)) {
-      outcome.observations = await persistEventSpotObservations(
-        env,
-        spots.snapshot.spots,
-        now,
-      );
-    }
-  }
-  outcome.history = await runPotaHistoryReconciliation(env, { now: () => now });
-  console.log(JSON.stringify(outcome));
+  await runPotaCollection(controller, env, options);
 }
 
 export async function runPotaSpotCleanupSchedule(

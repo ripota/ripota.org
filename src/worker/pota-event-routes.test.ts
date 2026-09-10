@@ -223,6 +223,8 @@ describe("Activate RI POTA cron guards", () => {
 });
 
 function scheduledController(value: string, cron = "* * * * *"): ScheduledController {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date(value));
   return { scheduledTime: Date.parse(value), cron, noRetry() {} } as ScheduledController;
 }
 

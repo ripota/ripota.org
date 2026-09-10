@@ -10,6 +10,7 @@ import { isSpotCaptureTime } from "../../lib/activate-ri/pota-event";
 import { persistEventSpotObservations } from "../pota-event";
 import { logWorkerError } from "../logging";
 import { fetchPotaApi } from "../pota-api";
+import { archiveEventSpotReports } from "../pota-evidence-archive";
 
 const cacheId = "ri-live-spots";
 const freshnessMilliseconds = 60_000;
@@ -47,6 +48,7 @@ export type PotaSpotsHandlerOptions = {
   fetcher?: typeof fetch;
   now?: () => Date;
   sleep?: (milliseconds: number) => Promise<void>;
+  collectionRunId?: string;
 };
 
 export type RiPotaSpotsSnapshot = {
@@ -92,7 +94,7 @@ export async function handlePotaSpots(
 }
 
 export async function getRiPotaSpotsSnapshot(
-  env: Pick<Env, "DB">,
+  env: Pick<Env, "DB"> & Partial<Pick<Env, "ACTIVATE_RI_EVENT_ID">>,
   options: PotaSpotsHandlerOptions = {},
 ): Promise<RiPotaSpotsSnapshotResult> {
   const now = options.now ?? (() => new Date());
@@ -113,6 +115,7 @@ export async function getRiPotaSpotsSnapshot(
       lease,
       options.fetcher ?? fetch,
       now,
+      options.collectionRunId,
     );
     const responseTime = now().valueOf();
     if (refreshedSnapshot) {
@@ -257,10 +260,11 @@ async function acquireRefreshLease(
 }
 
 async function refreshSnapshot(
-  env: Pick<Env, "DB">,
+  env: Pick<Env, "DB"> & Partial<Pick<Env, "ACTIVATE_RI_EVENT_ID">>,
   lease: RefreshLease,
   fetcher: typeof fetch,
   now: () => Date,
+  collectionRunId?: string,
 ): Promise<StoredSnapshot | null> {
   try {
     const upstreamResponse = await fetchPotaApi("/spot/activator", { fetcher });
@@ -273,9 +277,16 @@ async function refreshSnapshot(
       throw new Error("POTA spots returned an unexpected payload.");
     }
 
+    const fetchedAt = now();
+    await archiveEventSpotReports(env, normalizeRiPotaSpots(upstreamData, {
+      parkNames, parkLocations, retainInactiveReports: true,
+    }), {
+      observedAt: fetchedAt, sourceFetchedAt: fetchedAt.valueOf(), source: "live",
+      stale: false, runId: collectionRunId,
+    });
     const snapshot = {
       spots: normalizeRiPotaSpots(upstreamData, { parkNames, parkLocations }),
-      fetchedAt: now().valueOf(),
+      fetchedAt: fetchedAt.valueOf(),
     };
     const stored = await env.DB.prepare(
       `UPDATE pota_spots_cache

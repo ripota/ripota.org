@@ -1,254 +1,151 @@
-# Privacy-conscious product analytics
+# Product analytics and after-action evidence
 
-Last reviewed against the repository: 2026-09-06.
+Implementation updated September 10, 2026. See the
+[collection and retention runbook](activate-ri-2026/after-action-collection.md)
+for archives, verification, and event boundaries. The September 8 review is a
+historical assessment, not the current implementation contract.
 
-The site uses three complementary sources. They answer different questions and
-should not be collapsed into one system:
+## Sources and privacy
 
-1. Cloudflare Web Analytics or zone traffic analytics answers page-view,
-   referrer, device, geography, and performance questions in aggregate.
-2. Workers Analytics Engine stores allowlisted, anonymous product events from
-   public browser features through `POST /api/analytics/events`.
-3. D1 stores exact domain outcomes and authenticated feature rollups using
-   existing opaque activator IDs.
+The site uses separate sources for separate questions:
 
-The API and storage binding are intentionally site-wide infrastructure. An
-event is selected by the payload's `scope`, currently `activate-ri-2026`, rather
-than by nesting the endpoint under an event route. Future scopes must add a
-server-side event and property allowlist before clients can send them.
+1. Cloudflare Web Analytics or zone analytics provides aggregate traffic and
+   performance information. Dashboard configuration is separate from this code;
+   the repository does not establish that a browser beacon is enabled.
+2. Public semantic actions pass through `POST /api/analytics/events`. D1 now
+   retains each accepted event; Analytics Engine is an optional sampled mirror
+   and also contains historical events from before durable collection began.
+3. Authenticated D1 facts record successful private-feature requests and bounded
+   Ops foreground/message exposure. Plans, changes, messages, and notification
+   delivery processing remain domain records.
 
-## Cloudflare Web Analytics status
+Do not add custom page-view events. Anonymous identifiers are random,
+event-scoped browser UUIDs; the Worker stores only the existing HMAC key.
+Anonymous browser keys are never joined to authenticated activator IDs.
+GPC and DNT disable collection, including retries. No browser park checklist,
+CSV contents, filenames, callsigns, form values, full URLs, IP addresses, or
+referrers are added to public analytics. Requests omit cookies and referrer.
 
-Web Analytics is configured in the Cloudflare dashboard, not in this
-repository. There is no Web Analytics beacon or token in the source, so the
-repository does not prove that the browser beacon is active in production.
-Confirm the production site's Web Analytics configuration in Cloudflare and
-inspect rendered HTML for `beacon.min.js` after deployment. Cloudflare's normal
-proxied request analytics is separate from the optional browser beacon.
+Schema v2 includes an action UUID and client occurrence time. Properties are
+strictly allowlisted enums, UUID import-attempt identifiers, and bounded integer
+counts: checklist entry mode, all-time completed/total counts, change direction,
+persistence outcome, import quality/counts, agenda scope/result counts and page
+category. They do not identify worked parks.
 
-Do not add custom `page_view` events. Use Cloudflare's page analytics for page
-traffic and reserve the custom endpoint for semantic feature interactions.
+The Worker awaits durable storage before returning 202. Retries reuse the action
+UUID and deduplicate by scope, HMAC browser key and action UUID. The client makes
+one bounded in-memory retry for network/transient failures. A closed tab or
+extended offline period can still prevent observation. Legacy v1 clients remain
+accepted, with receipt-time provenance and a generated server action ID.
 
-## Workers Analytics Engine
+Server `received_at` is authoritative for anonymous reporting intervals.
+Client `occurred_at` is retained separately; a clock-skew flag marks differences
+over five minutes. Neither establishes a QSO time.
 
-Analytics Engine is a custom Cloudflare Worker dataset, not a switch for the
-generic Web Analytics product. The `ANALYTICS` binding in `wrangler.jsonc`
-points at `ripota_usage`. Cloudflare creates the dataset table after the first
-successful write. The public client sends no cookies, referrer, IP address,
-user agent, callsign, park reference, filename, form value, CSV content, or URL
-query string into the dataset.
+`ANALYTICS_HASH_KEY` remains a Worker secret. Do not rotate it before completing
+the report: doing so splits one browser across different HMAC subjects.
+D1 acceptance does not depend on the `ripota_usage` mirror being available.
 
-The browser creates an event-scoped random UUID only after a meaningful action.
-It expires at the end of 2026. The Worker replaces it with an HMAC-SHA256 value
-before writing, and the raw UUID is discarded. Global Privacy Control and Do
-Not Track disable custom collection. Authenticated paths do not use anonymous
-browser collection.
+## Public instrumentation
 
-The HMAC key is a production Worker secret. Create it once before deploying and
-do not rotate it until the event report is complete, because rotation splits
-one browser into multiple anonymous subjects:
+- Checklist start, resume, every manual progress change, reset and clear.
+- Import attempt, success/failure, persistence and parser quality, linked by
+  attempt ID. A parsed file is not reported as saved when storage fails.
+- Per-park schedule opening, requested-agenda preparation, scope changes,
+  sharing and print requests, including browser printing.
+- Existing schedule/map/CTA interactions and volunteer submission outcomes.
 
-```bash
-openssl rand -base64 32 | npx wrangler secret put ANALYTICS_HASH_KEY
-```
+An engaged hunter browser has a checklist lifecycle, import, progress,
+schedule-detail or agenda action. A hunter CTA alone expresses interest.
+Browser counts are not people; daily uniques cannot be added to form period
+uniques. Checklist counts are all-time self-reported progress, not event QSOs.
 
-For local end-to-end testing, put a non-production value in the untracked
-`.dev.vars` file. With no key or no dataset binding, the endpoint returns 503
-and the product feature continues normally.
+## Authenticated engagement
 
-Analytics Engine retains data for three months. Export the aggregate report
-after the event and before November 28, 2026 to preserve the reporting window
-that starts on August 31; waiting until December would lose early activity.
-This is an operational export deadline, not an automatic export implemented by
-the repository. See Cloudflare's
-[SQL API](https://developers.cloudflare.com/analytics/analytics-engine/sql-api/)
-and [limits](https://developers.cloudflare.com/analytics/analytics-engine/limits/)
-documentation.
+`analytics_feature_events` records server-timestamped successful GETs of the
+plan/account pages and successful Ops bootstrap loads. HEAD and failed asset
+responses do not increment usage. These are recorded uses, not reading duration
+or completed operations. The lifetime rollup remains for compatibility;
+`analytics_feature_usage_legacy` freezes the pre-migration baseline.
 
-### Dataset columns
+`analytics_collection_metadata` distinguishes schema availability from the first
+accepted fact for each stream. Historical lifetime counts cannot be assigned
+fictional event-day timestamps. Reports show the un-timestamped remainder
+separately, including the migration-to-deployment gap.
 
-| Column | Meaning |
-| --- | --- |
-| `index1` | HMAC of `scope:anonymous-browser-id` |
-| `blob1` | Event scope |
-| `blob2` | Event name |
-| `blob3` | Subject type; currently `anonymous` |
-| `blob4` | Feature enum |
-| `blob5` | Action enum |
-| `blob6` | Placement enum |
-| `blob7` | Outcome enum |
-| `blob8` | Coarse error code enum |
-| `blob9` | Filter category enum |
-| `blob10` | Import method enum |
-| `blob11` | Schema version |
-| `double1` | Count; always `1` |
+Ops engagement uses authenticated, permitted members and server receipt times:
 
-The authoritative event/property allowlist is
-`src/lib/analytics/events.ts`. Do not add free-form values to it.
+- One foreground sample per actor/server UTC minute, deduplicated across tabs.
+- First message exposure per actor/message/UTC date after at least 60% visibility
+  and one second of foreground dwell; includes pinned messages.
+- Hidden pages and an open modal do not produce exposure samples.
+- Bounded `direct`/`message_link` entry context is not proof of email delivery.
+  Older surviving linked messages can be fetched by authorized members.
 
-### Analytics Engine report queries
+These observations establish visible use/exposure, not comprehension,
+acknowledgment, exact duration or causality. They store no message bodies or
+anonymous browser IDs. Editing/removal preserve existing content semantics;
+this work does not add prior message body history.
 
-For the current privacy-safe production summary, run:
-
-```bash
-mise run analytics:report
-```
-
-The command combines Analytics Engine feature events, authenticated D1 feature
-rollups, hunter-checklist browser usage, and Ops Room posting counts. It excludes
-the known initial production ingestion check by default and never prints raw or
-hashed browser identifiers. Use `mise run analytics:report --help` for scope,
-start-time, dataset, database, and JSON-output options. The command uses the
-current Wrangler credentials, which need Account Analytics Read and access to
-the selected remote D1 database. The JSON form is suitable for a
-future scheduled export:
+## Interval reports
 
 ```bash
-mise run analytics:report --json
+mise run analytics:report -- --json \
+  --since 2026-09-10T00:00:00Z --until 2026-09-14T00:00:00Z
 ```
 
-`--since` defaults to `2026-08-31T19:34:14Z`; the command has no end-time
-option. Anonymous events and Ops Room messages are filtered by their event
-timestamps. D1 feature rows are selected by `last_used_at`, but their
-`use_count` and `first_used_at` cover the lifetime of that scope/subject/feature
-row. A later `--since` therefore does not turn feature opens into exact
-within-window counts. Use the bounded SQL examples below for a fixed anonymous
-event reporting interval. The domain conversion query is separate from the
-report command.
+Windows are `[since, until)` in UTC, normalized to whole seconds to match
+Analytics Engine precision. `--until` defaults to now. The known initial
+August 31 ingestion check is excluded by default.
 
-The SQL below documents the underlying report contract and remains useful for
-ad hoc investigation.
+The JSON separates:
 
-Use an Account Analytics Read API token with Cloudflare's SQL API. Restrict all
-event reports by both scope and time range.
+- `anonymous`: Analytics Engine estimates for the entire requested interval.
+- `anonymousDurable`: exact accepted D1 facts and lifecycle/count properties,
+  using server receipt time.
+- `authenticated`: timestamped private-feature facts in the interval.
+- `opsRoom`: posting, foreground samples and first daily message exposures.
+- `collection`: stream start times, legacy usage and interpretation limits.
 
-Feature events and estimated unique browsers:
+**Analytics Engine and durable anonymous sections overlap. Never add them.**
+The engine preserves period-wide historical estimates; D1 supplies exact
+accepted facts after instrumentation starts. No artificial split is invented
+at a subsecond deployment boundary.
 
-```sql
-SELECT
-  blob2 AS event_name,
-  count(DISTINCT index1) AS unique_browsers,
-  sum(_sample_interval * double1) AS interactions
-FROM ripota_usage
-WHERE blob1 = 'activate-ri-2026'
-  AND timestamp >= toDateTime('2026-08-31 00:00:00')
-  AND timestamp < toDateTime('2026-10-01 00:00:00')
-GROUP BY event_name
-ORDER BY unique_browsers DESC
-```
-
-Estimated hunters who meaningfully used the checklist:
+Useful exact feature query:
 
 ```sql
-SELECT count(DISTINCT index1) AS hunter_browsers
-FROM ripota_usage
-WHERE blob1 = 'activate-ri-2026'
-  AND blob2 IN (
-    'hunter_import_attempted',
-    'hunter_import_succeeded',
-    'hunter_import_failed',
-    'hunter_checklist_resumed',
-    'hunter_manual_override_used',
-    'hunter_schedule_details_opened'
-  )
-  AND timestamp >= toDateTime('2026-08-31 00:00:00')
-  AND timestamp < toDateTime('2026-10-01 00:00:00')
-```
-
-Hunter import funnel:
-
-```sql
-SELECT
-  blob2 AS event_name,
-  blob10 AS import_method,
-  blob8 AS error_code,
-  count(DISTINCT index1) AS unique_browsers,
-  sum(_sample_interval * double1) AS interactions
-FROM ripota_usage
-WHERE blob1 = 'activate-ri-2026'
-  AND blob2 IN (
-    'hunter_import_attempted',
-    'hunter_import_succeeded',
-    'hunter_import_failed'
-  )
-  AND timestamp >= toDateTime('2026-08-31 00:00:00')
-  AND timestamp < toDateTime('2026-10-01 00:00:00')
-GROUP BY event_name, import_method, error_code
-ORDER BY event_name, import_method, error_code
-```
-
-`unique_browsers` is an estimate of browsers, not people: storage clearing,
-multiple devices, private browsing, disabled analytics, and shared devices can
-all change the relationship. Interaction totals account for Analytics Engine's
-`_sample_interval`.
-
-## Authenticated feature and domain reporting
-
-Migration `0015_analytics_feature_usage.sql` adds the reusable
-`analytics_feature_usage` rollup. It records only scope, subject type, the
-existing opaque subject ID, feature, first/last use, and use count. The current
-call sites record activators opening `ops_room`, `plan_editor`, or
-`account_security`; the reusable helper also permits a `user` subject. It does
-not duplicate callsigns, email addresses, chat text, form values, or auth
-tokens.
-
-Unique activators recorded opening authenticated features:
-
-```sql
-SELECT
-  feature,
-  COUNT(*) AS unique_activators,
-  SUM(use_count) AS opens,
-  MIN(first_used_at) AS first_use,
-  MAX(last_used_at) AS last_use
-FROM analytics_feature_usage
+SELECT feature, COUNT(DISTINCT subject_id) AS activators, COUNT(*) AS recorded_uses
+FROM analytics_feature_events
 WHERE scope = 'activate-ri-2026'
-  AND subject_type = 'activator'
-GROUP BY feature
-ORDER BY feature;
+  AND occurred_at >= '2026-09-10T00:00:00.000Z'
+  AND occurred_at < '2026-09-14T00:00:00.000Z'
+GROUP BY feature;
 ```
 
-The `ops_room` rollup happens only after a successful Ops Room bootstrap, so it
-answers how many activators opened the feature. Existing message data answers
-how many actively posted, without analyzing message bodies:
+Do not filter lifetime `use_count` by `last_used_at` and call it interval usage.
+Use domain records for submissions, approval, cancellation and confirmed radio
+outcomes. Weight sampled Analytics Engine observations with `_sample_interval`.
 
-```sql
-SELECT
-  COUNT(DISTINCT author_activator_id) AS activators_who_posted,
-  COUNT(*) AS activator_messages
-FROM activate_ri_ops_messages
-WHERE event_id = 'activate-ri-2026'
-  AND author_type = 'activator';
+## Retention and export
+
+D1 evidence is retained for the report, with no automatic event purge.
+Anonymous and spot archives have a minimum retention date of January 1, 2027;
+changing a retention date alone does not delete anything. Later deletion
+requires a deliberate retention decision after verified export.
+
+Cloudflare Analytics Engine stores data for
+[three months](https://developers.cloudflare.com/analytics/analytics-engine/limits/).
+Preserve its historical data separately from D1 backups:
+
+```bash
+mise run analytics:export -- --upload
 ```
 
-Volunteer conversion is a domain fact and should come from the existing D1
-records rather than telemetry. Migration `0006_activator_owned_stops.sql`
-removed `activate_ri_plans`: an activator owns their stops directly, and the
-activator row holds review status. Count retained submissions by that status:
+This creates a private dated bundle, restores/checks a full D1 recovery backup
+locally, exports selected report evidence and historical sampled engine rows,
+and verifies local/uploaded checksums. Full recovery SQL stays local.
+Private R2 receives selected evidence; no public bucket route is added.
 
-```sql
-SELECT
-  a.status AS review_status,
-  COUNT(DISTINCT a.id) AS activators_with_stops,
-  COUNT(s.id) AS stops_submitted
-FROM activate_ri_activators a
-JOIN activate_ri_stops s ON s.activator_id = a.id AND s.event_id = a.event_id
-WHERE a.event_id = 'activate-ri-2026'
-GROUP BY a.status
-ORDER BY a.status;
-```
-
-This includes cancelled stops and withdrawn/rejected activators when their
-records remain. Add explicit status filters when reporting approved or active
-participation, and use the audit trail for historical submission actions.
-
-Admin changes, approvals, authentication, live POTA evidence, and schedule
-state likewise remain in their existing domain/audit tables. Custom product
-analytics should never copy their sensitive payloads.
-
-After exporting and reviewing the final aggregate report, set a deliberate D1
-retention date for `analytics_feature_usage`. Deleting one scope is isolated:
-
-```sql
-DELETE FROM analytics_feature_usage WHERE scope = 'activate-ri-2026';
-```
+See [the runbook](activate-ri-2026/after-action-collection.md) for cloud snapshots,
+retry behavior, manifests and the independent desktop backup schedule.

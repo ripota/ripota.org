@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; -*-
+#MISE description="Export and verify private after-action evidence and Analytics Engine history"
+#MISE raw_args=true
+
+set -euo pipefail
+node --experimental-strip-types scripts/analytics-export.ts "$@"
