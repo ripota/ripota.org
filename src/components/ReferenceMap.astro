@@ -51,11 +51,12 @@ const mapItems = buildReferenceMapItems({
 });
 const potaLegendItems = [
   { label: "On air now", color: "#f6bd46", statuses: ["live"] },
-  { label: "Activated", color: "#2d7a4b", statuses: ["confirmed", "observed"] },
-  { label: "Scheduled", color: "#0b7180", statuses: ["scheduled"] },
+  { label: "Activated", color: "#2d7a4b", statuses: ["confirmed", "observed"], symbol: "✓" },
+  { label: "Scheduled", color: "#3758c8", statuses: ["scheduled"] },
   { label: "Still needed", color: "#707b78", statuses: ["needed"] },
 ];
-const legendItems = isEventMap ? (resultsMode ? potaLegendItems : referenceMapLegendItems) : [];
+const legendItems: readonly { label: string; color: string; statuses: readonly string[]; symbol?: string }[] =
+  isEventMap ? (resultsMode ? potaLegendItems : referenceMapLegendItems) : [];
 const showLegend = legendPlacement !== "none" && legendItems.length > 0;
 const showCaption = caption.trim().length > 0;
 const dataId = `${id}-data`;
@@ -78,7 +79,7 @@ const payload = JSON.stringify({
   potaStatusColors: {
     confirmed: "#2d7a4b",
     observed: "#2d7a4b",
-    scheduled: "#0b7180",
+    scheduled: "#3758c8",
     needed: "#707b78",
   },
 });
@@ -106,7 +107,7 @@ const payload = JSON.stringify({
             data-map-legend-statuses={item.statuses.join(" ")}
             hidden
           >
-            <span style={`--map-status-color: ${item.color}`} />
+            <span style={`--map-status-color: ${item.color}`} aria-hidden="true">{item.symbol}</span>
             {item.label}
           </span>
         ))}
@@ -202,7 +203,7 @@ const payload = JSON.stringify({
             data-map-legend-statuses={item.statuses.join(" ")}
             hidden
           >
-            <span style={`--map-status-color: ${item.color}`} />
+            <span style={`--map-status-color: ${item.color}`} aria-hidden="true">{item.symbol}</span>
             {item.label}
           </span>
         ))}
@@ -557,7 +558,7 @@ const payload = JSON.stringify({
 
   function resultStatusIcon(status: PublicParkPotaStatus["status"] | undefined): L.DivIcon {
     const activityStatus = status === "confirmed" || status === "observed" ? "activated" : status ?? "needed";
-    const symbol = { activated: "✓", scheduled: "S", needed: "—" }[activityStatus];
+    const symbol = { activated: "✓", scheduled: "", needed: "—" }[activityStatus];
     return L.divIcon({
       className: `reference-map-status-symbol reference-map-status-symbol--${activityStatus}`,
       html: `<span aria-hidden="true">${symbol}</span>`,

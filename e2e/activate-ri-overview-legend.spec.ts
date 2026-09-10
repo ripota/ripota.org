@@ -71,7 +71,7 @@ for (const viewport of [
       await expect(progress).toHaveAttribute("value", "3");
       await expect(progress).toHaveAttribute("max", String(references.length));
       await expect(progress).toHaveAccessibleName("Parks activated");
-      await expect(visibleLegendItems).toHaveText(["On air now", "Activated", "Scheduled"]);
+      await expect(visibleLegendItems).toHaveText(["On air now", "✓Activated", "Scheduled"]);
       await expect(legend.locator('[data-map-legend-statuses="needed"]')).toBeHidden();
       await expect(map.locator('.reference-map-marker[fill="#2d7a4b"]')).toHaveCount(3);
       await expect(map.locator(".reference-map-status-symbol--activated")).toHaveText(["✓", "✓", "✓"]);

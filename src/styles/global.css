@@ -775,11 +775,16 @@ p {
 }
 
 .map-legend__item span {
-  width: 0.75rem;
-  height: 0.75rem;
+  display: inline-grid;
+  width: 0.875rem;
+  height: 0.875rem;
+  place-items: center;
   border: 1px solid color-mix(in srgb, var(--surface-ink) 25%, transparent);
   border-radius: 999px;
   background: var(--map-status-color);
+  color: #fff;
+  font-size: 0.625rem;
+  line-height: 1;
 }
 
 .reference-map-preview--legend-below {
@@ -1636,7 +1641,7 @@ p {
 }
 
 .pota-park-card[data-status="scheduled"] {
-  border-left-color: #0b7180;
+  border-left-color: #3758c8;
 }
 
 .pota-park-card__header {
@@ -1668,7 +1673,7 @@ p {
 }
 
 .pota-status-badge[data-status="scheduled"] {
-  background: color-mix(in srgb, #0b7180 18%, var(--surface-raised));
+  background: color-mix(in srgb, #3758c8 18%, var(--surface-raised));
 }
 
 .pota-park-card__live {
