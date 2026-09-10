@@ -119,7 +119,6 @@ const parkNames = Object.fromEntries(
   const socketEvents: RoomEvent[] = [];
   const retryDelays = [1_000, 2_000, 5_000, 10_000, 30_000, 60_000];
   const cursorKey = "activate-ri-ops-cursor";
-  const filterKey = "activate-ri-ops-filter";
   let seenMessages = new Set<string>();
   const visibleMessages = new Set<string>();
   let seenTimer: number | undefined;
@@ -221,10 +220,6 @@ const parkNames = Object.fromEntries(
       }
       cursor = data.cursor;
       localStorage.setItem(cursorKey, String(cursor));
-      if (linkedMessage) {
-        const all = room?.querySelector<HTMLInputElement>('input[name="ops-filter"][value="all"]');
-        if (all) all.checked = true;
-      }
       renderAll();
       if (linkedMessage) {
         const target = document.getElementById(linkedMessage);
@@ -576,9 +571,8 @@ const parkNames = Object.fromEntries(
   }
 
   room?.querySelector("[data-ops-unread]")?.addEventListener("click", () => {
-    const all = room.querySelector<HTMLInputElement>('input[name="ops-filter"][value="all"]');
-    if (all) all.checked = true;
-    localStorage.setItem(filterKey, "all");
+    setFilter("all");
+    updateFilterUrl();
     renderFeed();
     const target = feed?.querySelector<HTMLElement>('[data-unread="true"]');
     target?.scrollIntoView({ block: "nearest" });
@@ -775,9 +769,8 @@ const parkNames = Object.fromEntries(
       }
       applyEvent(result.event);
       if (result.event.type === "message-created" && !feed?.querySelector(`[data-message-id="${CSS.escape(result.event.message.id)}"]`)) {
-        const all = room?.querySelector<HTMLInputElement>('input[name="ops-filter"][value="all"]');
-        if (all) all.checked = true;
-        try { localStorage.setItem(filterKey, "all"); } catch { /* Filtering also works without browser storage. */ }
+        setFilter("all");
+        updateFilterUrl();
         renderFeed();
       }
       if (feed) feed.scrollTop = 0;
@@ -871,7 +864,11 @@ const parkNames = Object.fromEntries(
   });
 
   filters?.addEventListener("change", () => {
-    localStorage.setItem(filterKey, selectedFilter());
+    updateFilterUrl();
+    renderFeed();
+  });
+  window.addEventListener("popstate", () => {
+    restoreFilter();
     renderFeed();
   });
 
@@ -909,7 +906,7 @@ const parkNames = Object.fromEntries(
   window.addEventListener("activate-ri:logout", () => {
     stopEngagement?.();
     localStorage.removeItem(cursorKey);
-    localStorage.removeItem(filterKey);
+    localStorage.removeItem("activate-ri-ops-filter");
     void clearDraft();
     closeSocket(true);
   });
@@ -1054,11 +1051,25 @@ const parkNames = Object.fromEntries(
   }
 
   function restoreFilter(): void {
-    const saved = localStorage.getItem(filterKey);
-    const input = saved
-      ? room?.querySelector<HTMLInputElement>(`input[name="ops-filter"][value="${CSS.escape(saved)}"]`)
-      : null;
-    if (input) input.checked = true;
+    setFilter(new URL(window.location.href).searchParams.get("ops-filter") ?? "all");
+    updateFilterUrl("replace");
+  }
+
+  function setFilter(value: string): void {
+    const inputs = [...room?.querySelectorAll<HTMLInputElement>('input[name="ops-filter"]') ?? []];
+    const selected = inputs.find((input) => input.value === value)
+      ?? inputs.find((input) => input.value === "all");
+    if (selected) selected.checked = true;
+  }
+
+  function updateFilterUrl(mode: "push" | "replace" = "push"): void {
+    const url = new URL(window.location.href);
+    const filter = selectedFilter();
+    if (filter === "all") url.searchParams.delete("ops-filter");
+    else url.searchParams.set("ops-filter", filter);
+    if (url.href === window.location.href) return;
+    if (mode === "replace") history.replaceState(history.state, "", url);
+    else history.pushState(history.state, "", url);
   }
 
   function setConnection(state: string, label: string): void {

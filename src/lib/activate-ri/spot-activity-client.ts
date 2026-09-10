@@ -5,27 +5,27 @@ import type {
 import { spotCoverageLabels } from "./spot-coverage";
 import { replaceLiveContent } from "./live-content";
 import { parkGuidePath } from "../parks/directory";
+import { readSpotActivityView, writeSpotActivityView, type SpotActivityView } from "./spot-activity-view";
 
-type ActivityView = "all" | "spotted" | "unspotted";
 const refreshIntervalMilliseconds = 60_000;
 
 export function setupSpotActivity(root: HTMLElement): void {
   let snapshot: ActivitySnapshot | undefined;
   let refreshing = false;
+  let searchEditing = false;
   const search = root.querySelector<HTMLInputElement>("[data-activity-search]");
   const filters = root.querySelector("[data-activity-filters]");
   const clear = root.querySelector<HTMLButtonElement>("[data-clear-activity]");
   const refreshButton = root.querySelector<HTMLButtonElement>("[data-refresh-activity]");
-  const selectedView = (): ActivityView => {
+  const selectedView = (): SpotActivityView["view"] => {
     const value = root.querySelector<HTMLInputElement>('input[name="activity-view"]:checked')?.value;
     return value === "all" || value === "unspotted" ? value : "spotted";
   };
   const restoreView = () => {
-    const requested = new URL(window.location.href).searchParams.get("view");
-    const view = requested === "all" || requested === "unspotted" ? requested : "spotted";
-    const input = root.querySelector<HTMLInputElement>(`input[value="${view}"]`);
+    const view = readSpotActivityView(new URL(window.location.href));
+    const input = root.querySelector<HTMLInputElement>(`input[name="activity-view"][value="${view.view}"]`);
     if (input) input.checked = true;
-    if (search) search.value = new URL(window.location.href).searchParams.get("q") ?? "";
+    if (search) search.value = view.query;
     renderRows();
   };
   const renderRows = () => {
@@ -54,25 +54,41 @@ export function setupSpotActivity(root: HTMLElement): void {
           : "No Rhode Island spots have been collected in this window yet.";
     }
   };
-  const updateFilters = () => {
-    const url = new URL(window.location.href);
-    url.searchParams.set("view", selectedView());
-    if (search?.value.trim()) url.searchParams.set("q", search.value.trim());
-    else url.searchParams.delete("q");
-    window.history.replaceState(null, "", url);
-    renderRows();
+  const updateUrl = (mode: "push" | "replace" = "push"): boolean => {
+    const url = writeSpotActivityView(new URL(window.location.href), {
+      view: selectedView(), query: search?.value ?? "",
+    });
+    if (url.href === window.location.href) return false;
+    if (mode === "push") window.history.pushState(window.history.state, "", url);
+    else window.history.replaceState(window.history.state, "", url);
+    return true;
   };
-  filters?.addEventListener("change", updateFilters);
-  search?.addEventListener("input", updateFilters);
+  filters?.addEventListener("change", () => {
+    searchEditing = false;
+    updateUrl();
+    renderRows();
+  });
+  search?.addEventListener("input", () => {
+    searchEditing = updateUrl(searchEditing ? "replace" : "push") || searchEditing;
+    renderRows();
+  });
+  search?.addEventListener("blur", () => { searchEditing = false; });
+  search?.addEventListener("change", () => { searchEditing = false; });
   clear?.addEventListener("click", () => {
     if (search) search.value = "";
     const spotted = root.querySelector<HTMLInputElement>('input[name="activity-view"][value="spotted"]');
     if (spotted) spotted.checked = true;
-    updateFilters();
+    searchEditing = false;
+    updateUrl();
+    renderRows();
     search?.focus();
   });
-  window.addEventListener("popstate", restoreView);
+  window.addEventListener("popstate", () => {
+    searchEditing = false;
+    restoreView();
+  });
   restoreView();
+  updateUrl("replace");
 
   const refresh = async () => {
     if (refreshing) return;

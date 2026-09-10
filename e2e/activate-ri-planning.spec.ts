@@ -41,6 +41,7 @@ function parkRow(page: Page, reference: string) {
 
 async function planningViewSnapshot(page: Page) {
   return page.locator("[data-park-planning]").evaluate(root => ({
+    query: root.querySelector<HTMLInputElement>("[data-planning-search]")?.value,
     filters: (Array.from(root.querySelectorAll("[data-filter]")) as unknown as HTMLSelectElement[]).map(control => [control.dataset.filter, control.value]),
     moreOpen: root.querySelector<HTMLDetailsElement>(".park-planning-more")?.open,
     rows: Array.from(root.querySelectorAll<HTMLTableRowElement>("[data-filter-row]")).map(row => ({
@@ -110,6 +111,49 @@ test("park planning compares distinct activators and time slots and expands exis
     await expect(search).toHaveValue("US-0513");
     await expect(rows).toHaveCount(1);
   } finally {
+    await server.stop();
+  }
+});
+
+test("planning search shares its query and keeps a typing session together in history", async ({ page, browser }) => {
+  const server = await startActivateRiServer();
+  const recipient = await browser.newContext();
+  try {
+    await mockPlanning(page);
+    await page.goto(`${server.origin}/activate-ri-2026/parks/?sort=name&mode=SSB&source=club#park-planning`);
+    await expect(page.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(references.length);
+    const beforeSearch = page.url();
+    const historyLength = await page.evaluate(() => history.length);
+    const search = page.locator("[data-planning-search]");
+    await search.pressSequentially("Chafee");
+    await search.press("Enter");
+    await expect(page.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(1);
+    const sharedUrl = page.url();
+    expect(new URL(sharedUrl).searchParams.get("q")).toBe("Chafee");
+    expect(await page.evaluate(() => history.length)).toBe(historyLength + 1);
+    await page.goBack();
+    await expect(page).toHaveURL(beforeSearch);
+    await expect(search).toHaveValue("");
+    await expect(page.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(references.length);
+    await page.goForward();
+    await expect(page).toHaveURL(sharedUrl);
+    await expect(search).toHaveValue("Chafee");
+    const view = await planningViewSnapshot(page);
+    await page.reload();
+    await expect.poll(() => planningViewSnapshot(page)).toEqual(view);
+    const other = await recipient.newPage();
+    await mockPlanning(other);
+    await other.goto(sharedUrl);
+    await expect.poll(() => planningViewSnapshot(other)).toEqual(view);
+    await other.locator("[data-clear-planning]").click();
+    await expect(other.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(references.length);
+    expect(Object.fromEntries(new URL(other.url()).searchParams)).toEqual({ source: "club", more: "1" });
+    expect(new URL(other.url()).hash).toBe("#park-planning");
+    await other.goBack();
+    await expect(other).toHaveURL(sharedUrl);
+    await expect.poll(() => planningViewSnapshot(other)).toEqual(view);
+  } finally {
+    await recipient.close();
     await server.stop();
   }
 });

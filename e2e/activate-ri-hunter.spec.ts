@@ -112,7 +112,7 @@ test("hunter imports, overrides, filters, persists, resets, and clears a local c
     });
     await page.emulateMedia({ media: "screen" });
     await page.evaluate(() => window.dispatchEvent(new Event("afterprint")));
-    await page.goBack();
+    await page.getByRole("link", { name: "Hunter", exact: true }).click();
 
     await page.getByLabel(/US-0514 .* hunted/).check();
     await expect(page.getByRole("heading", { name: /2 of 61 Rhode Island parks hunted/ })).toBeVisible();
@@ -172,6 +172,91 @@ test("a blank checklist persists without a fake import and resets back to all pa
     await page.getByRole("button", { name: "Clear my checklist data", exact: true }).click();
     await expect(page.getByRole("button", { name: "Start a blank checklist", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Start a blank checklist", exact: true })).toBeFocused();
+  } finally {
+    await server.stop();
+  }
+});
+
+test("hunter search and status links restore across import, reload, history, and a fresh browser", async ({ page, browser }) => {
+  const server = await startActivateRiServer();
+  try {
+    await page.route("**/api/activate-ri-2026/public/stops", route => route.fulfill({ json: { ok: true, stops: [] } }));
+    await page.goto(`${server.origin}/activate-ri-2026/hunter/?status=hunted&q=US-0513&source=club&source=email#hunter-requested-parks`);
+    const root = page.locator("[data-hunter-checklist]");
+    const search = root.locator("[data-hunter-search]");
+    const filter = root.locator("[data-hunter-filter]");
+    const remaining = root.locator("[data-hunter-remaining-section]");
+    const completed = root.locator("[data-hunter-complete-section]");
+    await expect(search).toHaveValue("US-0513");
+    await expect(filter).toHaveValue("hunted");
+    await page.getByLabel("Choose CSV file").setInputFiles({ name: "hunter_parks.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+    await expect(completed.locator("li")).toHaveCount(1);
+    await expect(completed).toBeVisible();
+    await expect(remaining).toBeHidden();
+    await expect(completed).toContainText("US-0513");
+
+    await filter.selectOption("remaining");
+    await expect(remaining).toBeVisible();
+    await expect(remaining.locator("li")).toHaveCount(0);
+    await search.fill("US-051");
+    await search.fill("US-0514");
+    await expect(remaining.locator("li")).toHaveCount(1);
+    await expect(remaining).toContainText("US-0514");
+    const sharedUrl = page.url();
+    expect(Object.fromEntries(new URL(sharedUrl).searchParams)).toMatchObject({ status: "remaining", q: "US-0514" });
+    expect(new URL(sharedUrl).searchParams.getAll("source")).toEqual(["club", "email"]);
+    expect(new URL(sharedUrl).hash).toBe("#hunter-requested-parks");
+
+    await page.goBack();
+    await expect(search).toHaveValue("US-0513");
+    await expect(filter).toHaveValue("remaining");
+    await expect(remaining.locator("li")).toHaveCount(0);
+    await page.goBack();
+    await expect(filter).toHaveValue("hunted");
+    await expect(completed).toBeVisible();
+    await expect(completed.locator("li")).toHaveCount(1);
+    await page.goForward();
+    await page.goForward();
+    await expect(page).toHaveURL(sharedUrl);
+    await page.reload();
+    await expect(search).toHaveValue("US-0514");
+    await expect(filter).toHaveValue("remaining");
+    await expect(remaining.locator("li")).toHaveCount(1);
+
+    const fresh = await browser.newContext();
+    try {
+      const recipient = await fresh.newPage();
+      await recipient.route("**/api/activate-ri-2026/public/stops", route => route.fulfill({ json: { ok: true, stops: [] } }));
+      await recipient.goto(sharedUrl);
+      await expect(recipient.locator("[data-hunter-results]")).toBeHidden();
+      await recipient.getByRole("button", { name: "Start a blank checklist", exact: true }).click();
+      await expect(recipient.locator("[data-hunter-search]")).toHaveValue("US-0514");
+      await expect(recipient.locator("[data-hunter-filter]")).toHaveValue("remaining");
+      await expect(recipient.locator("[data-hunter-remaining] li")).toHaveCount(1);
+      await expect(recipient.locator("[data-hunter-progress-text]")).toContainText("0 of 61");
+    } finally {
+      await fresh.close();
+    }
+
+    await root.getByRole("button", { name: "Clear filters", exact: true }).click();
+    await expect(search).toBeFocused();
+    await expect(search).toHaveValue("");
+    await expect(filter).toHaveValue("all");
+    await expect(remaining.locator("li")).toHaveCount(60);
+    await expect(completed.locator("li")).toHaveCount(1);
+    await expect(page).toHaveURL(`${server.origin}/activate-ri-2026/hunter/?source=club&source=email#hunter-requested-parks`);
+    await page.goBack();
+    await expect(page).toHaveURL(sharedUrl);
+    await expect(filter).toHaveValue("remaining");
+    await expect(search).toHaveValue("US-0514");
+    await root.getByRole("button", { name: "Clear my checklist data", exact: true }).click();
+    await expect(page).toHaveURL(`${server.origin}/activate-ri-2026/hunter/?source=club&source=email#hunter-requested-parks`);
+    await expect(root.locator("[data-hunter-results]")).toBeHidden();
+
+    await page.goto(`${server.origin}/activate-ri-2026/hunter/?status=unknown&q=%20%20&source=club#hunter-requested-parks`);
+    await expect(filter).toHaveValue("all");
+    await expect(search).toHaveValue("");
+    await expect(page).toHaveURL(`${server.origin}/activate-ri-2026/hunter/?source=club#hunter-requested-parks`);
   } finally {
     await server.stop();
   }

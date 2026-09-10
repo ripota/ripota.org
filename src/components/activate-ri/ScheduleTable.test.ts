@@ -26,7 +26,7 @@ describe("ScheduleTable markup", () => {
     expect(source).toContain("restoreFiltersFromUrl(controls, timezone, hunterScope)");
     expect(source).toContain("url.searchParams.set(key, control.value)");
     expect(source).toContain('url.searchParams.set("timezone", timezone.value)');
-    expect(source).toContain('window.history.replaceState({}, "", url)');
+    expect(source).toContain('window.history.replaceState(window.history.state, "", url)');
   });
 
   it("loads remaining parks from the browser-local checklist", () => {

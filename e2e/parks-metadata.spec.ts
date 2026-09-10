@@ -50,6 +50,87 @@ for (const viewport of [{ name: "desktop", width: 1440, height: 1000 }, { name: 
       await testInfo.attach(`park-directory-${viewport.name}`, { body: await page.screenshot(), contentType: "image/png" });
     });
 
+    test("directory filter changes restore controls and results through history and a fresh shared visit", async ({ page, context, parksOrigin }) => {
+      const originalUrl = `${parksOrigin}/parks/?source=club&source=email#browse-parks-title`;
+      await page.goto(originalUrl);
+      const search = page.getByRole("searchbox", { name: "Search parks" });
+      const county = page.getByRole("combobox", { name: "County", exact: true });
+      const type = page.getByRole("combobox", { name: "Park type", exact: true });
+      const amenity = page.getByRole("combobox", { name: "Amenity", exact: true });
+      const related = page.getByRole("checkbox", { name: "Possible 2-fers" });
+      const rows = page.locator("[data-park-row]:visible");
+      await expect(rows).toHaveCount(61);
+
+      await search.fill("Lin");
+      await search.fill("Lincoln");
+      await county.selectOption("Providence County");
+      await type.selectOption("park");
+      await amenity.selectOption("picnic-tables");
+      await expect(rows).not.toHaveCount(0);
+      const matchingReferences = await rows.evaluateAll(elements => elements.map(element => (element as HTMLElement).dataset.reference));
+      await related.check();
+      const sharedUrl = page.url();
+      const sharedReferences = await rows.evaluateAll(elements => elements.map(element => (element as HTMLElement).dataset.reference));
+      expect(Object.fromEntries(new URL(sharedUrl).searchParams)).toMatchObject({
+        query: "Lincoln", county: "Providence County", type: "park", amenity: "picnic-tables", related: "1",
+      });
+      expect(new URL(sharedUrl).searchParams.getAll("source")).toEqual(["club", "email"]);
+      expect(new URL(sharedUrl).hash).toBe("#browse-parks-title");
+
+      await page.goBack();
+      await expect(related).not.toBeChecked();
+      await expect(rows).toHaveCount(matchingReferences.length);
+      await page.goForward();
+      await expect(related).toBeChecked();
+      await expect(page).toHaveURL(sharedUrl);
+      await page.reload();
+      await expect(search).toHaveValue("Lincoln");
+      await expect(related).toBeChecked();
+      await expect(rows).toHaveCount(sharedReferences.length);
+
+      const sharedPage = await context.newPage();
+      try {
+        await sharedPage.goto(sharedUrl);
+        await expect(sharedPage.getByRole("searchbox", { name: "Search parks" })).toHaveValue("Lincoln");
+        await expect(sharedPage.getByRole("combobox", { name: "County", exact: true })).toHaveValue("Providence County");
+        await expect(sharedPage.getByRole("combobox", { name: "Park type", exact: true })).toHaveValue("park");
+        await expect(sharedPage.getByRole("combobox", { name: "Amenity", exact: true })).toHaveValue("picnic-tables");
+        await expect(sharedPage.getByRole("checkbox", { name: "Possible 2-fers" })).toBeChecked();
+        await expect(sharedPage.locator("[data-park-row]:visible")).toHaveCount(sharedReferences.length);
+      } finally {
+        await sharedPage.close();
+      }
+
+      await search.press("Enter");
+      await expect(page).toHaveURL(sharedUrl);
+      await expect(related).toBeChecked();
+      await page.getByRole("button", { name: "Clear filters" }).click();
+      await expect(page).toHaveURL(originalUrl);
+      await expect(rows).toHaveCount(61);
+      await page.goBack();
+      await expect(page).toHaveURL(sharedUrl);
+      await expect(related).toBeChecked();
+      for (let index = 0; index < 4; index++) await page.goBack();
+      await expect(search).toHaveValue("Lincoln");
+      await expect(county).toHaveValue("all");
+      await expect(type).toHaveValue("all");
+      await expect(amenity).toHaveValue("all");
+      await page.goBack();
+      await expect(page).toHaveURL(originalUrl);
+      await expect(search).toHaveValue("");
+      await expect(rows).toHaveCount(61);
+    });
+
+    test("directory ignores unknown filter values without losing unrelated parameters", async ({ page, parksOrigin }) => {
+      await page.goto(`${parksOrigin}/parks/?county=unknown&type=unknown&amenity=unknown&related=bogus&source=club#browse-parks-title`);
+      await expect(page.locator("[data-park-row]:visible")).toHaveCount(61);
+      for (const name of ["County", "Park type", "Amenity"]) {
+        await expect(page.getByRole("combobox", { name, exact: true })).toHaveValue("all");
+      }
+      await expect(page.getByRole("checkbox", { name: "Possible 2-fers" })).not.toBeChecked();
+      await expect(page).toHaveURL(`${parksOrigin}/parks/?source=club#browse-parks-title`);
+    });
+
     test("park guides explain orange scope and useful visit information", async ({ page, parksOrigin }, testInfo) => {
       await page.goto(`${parksOrigin}/parks/us-2871/`);
       const visit = page.locator("#plan-your-visit");

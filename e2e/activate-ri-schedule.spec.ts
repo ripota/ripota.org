@@ -185,7 +185,7 @@ test("schedule search preserves typing and Enter while activation windows are lo
       });
     });
     const scheduleRequest = page.waitForRequest("**/api/activate-ri-2026/public/stops");
-    await page.goto(`${server.origin}/activate-ri-2026/schedule/?q=US-0513&timezone=utc`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${server.origin}/activate-ri-2026/schedule/?q=US-0513&timezone=utc&mode=Digital`, { waitUntil: "domcontentloaded" });
     await scheduleRequest;
     await expect(page.locator("[data-print-schedule]")).toBeDisabled();
     await expect(page.locator("[data-live-schedule]")).toHaveAttribute("aria-busy", "true");
@@ -193,8 +193,17 @@ test("schedule search preserves typing and Enter while activation windows are lo
     const search = page.locator("[data-schedule-search]");
     await expect(page.locator("[data-live-loading]")).toBeVisible();
     await expect(search).toHaveValue("US-0513");
+    await expect(page.locator("[data-timezone]")).toHaveValue("utc");
+    await expect(page.locator('[data-filter="mode"]')).toHaveValue("Digital");
+    await page.locator('[data-filter="mode"]').selectOption("all");
+    await page.locator('[data-filter="timeline"]').selectOption("2026-09-13");
+    await page.locator("[data-timezone]").selectOption("pacific");
     await search.fill("US-0514");
     await search.press("Enter");
+    const loadingUrl = page.url();
+    expect(Object.fromEntries(new URL(loadingUrl).searchParams)).toEqual({
+      q: "US-0514", timezone: "pacific", timeline: "2026-09-13",
+    });
     await expect(page.locator("[data-live-loading]")).toBeVisible();
 
     releaseStops();
@@ -205,12 +214,81 @@ test("schedule search preserves typing and Enter while activation windows are lo
     await expect(page.locator("[data-filter-row]:visible")).toHaveCount(1);
     await expect(page.locator("[data-filter-row]:visible")).toContainText("US-0514");
     await expect(page.locator("[data-schedule-count]")).toHaveText("1 matching activation window for “US-0514”.");
-    await expect(page.locator("[data-timezone]")).toHaveValue("utc");
-    await expect(page).toHaveURL(/\?q=US-0514&timezone=utc$/);
+    await expect(page.locator("[data-timezone]")).toHaveValue("pacific");
+    await expect(page.locator('[data-filter="mode"]')).toHaveValue("all");
+    await expect(page.locator('[data-filter="timeline"]')).toHaveValue("2026-09-13");
+    await expect(page).toHaveURL(loadingUrl);
     expect(documentRequests).toBe(1);
     expect(stopRequests).toBe(1);
   } finally {
     releaseStops();
+    await server.stop();
+  }
+});
+
+test("schedule address-bar links restore every filter and navigate search edits through history", async ({ page, browser }) => {
+  const server = await startActivateRiServer();
+  const recipient = await browser.newContext();
+  const stops = [
+    { id: "block", parkReference: "US-0513", plannedDate: "2026-09-12", startTime: "13:00", endTime: "15:00", activatorCallsign: "W1AW", bands: ["20m"], modes: ["SSB"], status: "scheduled" },
+    { id: "chafee", parkReference: "US-0514", plannedDate: "2026-09-13", startTime: "15:00", endTime: "18:00", activatorCallsign: "N1RI", bands: ["40m"], modes: ["CW"], status: "scheduled" },
+  ];
+  try {
+    await page.route("**/api/activate-ri-2026/public/stops", route => route.fulfill({ json: { ok: true, stops } }));
+    await page.goto(`${server.origin}/activate-ri-2026/schedule/?source=club#schedule`);
+    await expect(page.locator("[data-filter-row]:visible")).toHaveCount(2);
+    await page.locator('[data-filter="timeline"]').selectOption("2026-09-13");
+    await page.locator("[data-timezone]").selectOption("utc");
+    await page.locator('[data-filter="mode"]').selectOption("CW");
+    await page.locator('[data-filter="band"]').selectOption("40m");
+    await page.locator('[data-filter="activator"]').selectOption("N1RI");
+    await page.locator('[data-filter="county"]').selectOption("Washington County");
+    const beforeSearch = page.url();
+    const historyLength = await page.evaluate(() => history.length);
+    const search = page.locator("[data-schedule-search]");
+    await search.pressSequentially("Chafee");
+    await expect(page.locator("[data-filter-row]:visible")).toHaveCount(1);
+    const sharedUrl = page.url();
+    expect(Object.fromEntries(new URL(sharedUrl).searchParams)).toEqual({
+      source: "club", timeline: "2026-09-13", timezone: "utc", mode: "CW", band: "40m",
+      activator: "N1RI", county: "Washington County", q: "Chafee",
+    });
+    expect(new URL(sharedUrl).hash).toBe("#schedule");
+    expect(await page.evaluate(() => history.length)).toBe(historyLength + 1);
+    await page.goBack();
+    await expect(page).toHaveURL(beforeSearch);
+    await expect(search).toHaveValue("");
+    await page.goForward();
+    await expect(page).toHaveURL(sharedUrl);
+    await expect(search).toHaveValue("Chafee");
+
+    const other = await recipient.newPage();
+    await other.route("**/api/activate-ri-2026/public/stops", route => route.fulfill({ json: { ok: true, stops } }));
+    await other.goto(sharedUrl);
+    await expect(other.locator("[data-filter-row]:visible")).toHaveCount(1);
+    await expect(other.locator("[data-filter-row]:visible")).toContainText("US-0514");
+    await expect(other.locator("[data-schedule-search]")).toHaveValue("Chafee");
+    await expect(other.locator("[data-timezone]")).toHaveValue("utc");
+    for (const [key, value] of Object.entries({ timeline: "2026-09-13", mode: "CW", band: "40m", activator: "N1RI", county: "Washington County" })) {
+      await expect(other.locator(`[data-filter="${key}"]`)).toHaveValue(value);
+    }
+    await other.reload();
+    await expect(other.locator("[data-filter-row]:visible")).toHaveCount(1);
+    await expect(other).toHaveURL(sharedUrl);
+
+    await page.locator("[data-clear-schedule-filters]").click();
+    await expect(page.locator("[data-filter-row]:visible")).toHaveCount(2);
+    expect(Object.fromEntries(new URL(page.url()).searchParams)).toEqual({ source: "club", timezone: "utc" });
+    await page.goBack();
+    await expect(page).toHaveURL(sharedUrl);
+    await expect(search).toHaveValue("Chafee");
+    await expect(page.locator("[data-filter-row]:visible")).toHaveCount(1);
+    await page.locator("[data-timezone]").selectOption("eastern");
+    await page.goBack();
+    await expect(page.locator("[data-timezone]")).toHaveValue("utc");
+    await expect(page.locator("[data-filter-row]:visible")).toContainText("15:00-18:00 UTC");
+  } finally {
+    await recipient.close();
     await server.stop();
   }
 });

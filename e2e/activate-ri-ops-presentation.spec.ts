@@ -182,6 +182,103 @@ test("room conversations stay compact, readable, and recognizable across screen 
   }
 });
 
+test("room filters deep link, restore browser history, and follow internal view changes", async ({ page, browser }) => {
+  const server = await startActivateRiServer({ legacyLinkIssuanceEnabled: true });
+  try {
+    const activatorId = await signInActivator(page, server);
+    const messages = conversation(activatorId);
+    messages.push(message("announcement", "Check in here for event updates.", "2026-09-11T14:21:00Z", {
+      kind: "announcement", authorType: "admin", authorActivatorId: undefined,
+    }));
+    let cursor = 0;
+    async function mockRoom(target: Page): Promise<void> {
+      await target.route("**/api/activate-ri-2026/ops/bootstrap", (route) => route.fulfill({
+        json: {
+          ok: true, membership: { status: "active", acceptedRulesVersion: "filter-test" },
+          rulesVersion: "filter-test", roomMode: "full", pinnedMessage: null,
+          messages, upcomingStops: [{ id: "my-stop", parkReference: "US-2868", startAt: "2026-09-11T13:00:00Z", endAt: "2026-09-11T16:00:00Z" }], cursor,
+        },
+      }));
+      await target.routeWebSocket("**/api/activate-ri-2026/ops/socket", (socket) => {
+        socket.send(JSON.stringify({ type: "hello", highWatermark: cursor, roomMode: "full" }));
+      });
+    }
+    await mockRoom(page);
+    await page.evaluate(() => localStorage.setItem("activate-ri-ops-filter", "need-backup"));
+    const roomUrl = `${server.origin}/activate-ri-2026/activator/?campaign=share`;
+    const filter = (value: string) => page.locator(`input[name="ops-filter"][value="${value}"]`);
+    const feed = page.locator("[data-ops-feed]");
+    await page.goto(`${roomUrl}&ops-filter=access-note#ops-message-access`);
+    await expect(page.locator("[data-ops-connection-label]")).toHaveText("Live");
+    await expect(filter("access-note")).toBeChecked();
+    await expect(feed.locator("[data-message-id]")).toHaveCount(1);
+    await expect(feed).toContainText("The upper parking lot is closed.");
+    await page.reload();
+    await expect(filter("access-note")).toBeChecked();
+    await expect(feed.locator('[data-message-id="access"]')).toBeVisible();
+
+    for (const [value, messageId] of [["announcement", "announcement"], ["need-backup", "backup"], ["my-parks", "access"]]) {
+      await filter(value).check();
+      await expect(page).toHaveURL(`${roomUrl}&ops-filter=${value}#ops-message-access`);
+      await expect(feed.locator("[data-message-id]")).toHaveCount(1);
+      await expect(feed.locator(`[data-message-id="${messageId}"]`)).toBeVisible();
+    }
+    await page.goBack();
+    await expect(filter("need-backup")).toBeChecked();
+    await expect(feed.locator('[data-message-id="backup"]')).toBeVisible();
+    await page.goForward();
+    await expect(filter("my-parks")).toBeChecked();
+    await expect(feed.locator('[data-message-id="access"]')).toBeVisible();
+
+    // Opening the copied URL in a new authenticated browser restores its filter without device preferences.
+    const sharedContext = await browser.newContext({
+      storageState: { cookies: (await page.context().storageState()).cookies, origins: [] },
+    });
+    try {
+      const shared = await sharedContext.newPage();
+      await mockRoom(shared);
+      await shared.goto(page.url());
+      await expect(shared.locator('input[name="ops-filter"][value="my-parks"]')).toBeChecked();
+      await expect(shared.locator('[data-ops-feed] [data-message-id]')).toHaveCount(1);
+      await expect(shared.locator('[data-message-id="access"]')).toBeVisible();
+    } finally {
+      await sharedContext.close();
+    }
+
+    await page.locator("[data-ops-unread]").click();
+    await expect(filter("all")).toBeChecked();
+    await expect(page).toHaveURL(`${roomUrl}#ops-message-access`);
+    await expect(feed.locator("[data-message-id]")).toHaveCount(messages.length - 1);
+    await page.reload();
+    await expect(filter("all")).toBeChecked();
+    await expect(feed.locator("[data-message-id]")).toHaveCount(messages.length - 1);
+
+    // Posting a message hidden by the active filter switches to All and updates the shareable URL.
+    await filter("need-backup").check();
+    await page.route("**/api/activate-ri-2026/ops/messages", async (route) => {
+      const posted = message("posted", "I am ready at the park.", new Date().toISOString(), { authorActivatorId: activatorId });
+      messages.unshift(posted);
+      await route.fulfill({ json: { ok: true, event: { type: "message-created", sequence: ++cursor, message: posted } } });
+    });
+    await expect(page.locator("[data-ops-connection-label]")).toHaveText("Live");
+    await page.locator("[data-ops-body]").fill("I am ready at the park.");
+    await page.locator("[data-ops-send]").click();
+    await expect(feed.locator('[data-message-id="posted"]')).toBeVisible();
+    await expect(filter("all")).toBeChecked();
+    await expect(page).toHaveURL(`${roomUrl}#ops-message-access`);
+
+    await filter("announcement").check();
+    await filter("all").check();
+    await expect(page).toHaveURL(`${roomUrl}#ops-message-access`);
+    await page.goto(`${roomUrl}&ops-filter=not-a-filter#ops-message-access`);
+    await expect(filter("all")).toBeChecked();
+    await expect(page).toHaveURL(`${roomUrl}#ops-message-access`);
+    await expect(feed.locator("[data-message-id]")).toHaveCount(messages.length - 1);
+  } finally {
+    await server.stop();
+  }
+});
+
 function conversation(activatorId: string): OpsMessageDto[] {
   const own = { authorActivatorId: activatorId, authorLabel: "N1ME - Morgan" };
   return [

@@ -91,6 +91,59 @@ test("invalid, empty, and unavailable agendas never widen to all parks", async (
   }
 });
 
+test("requested-park scopes restore their parks through Back and Forward", async ({ page }) => {
+  const server = await startActivateRiServer();
+  try {
+    await page.route("**/api/activate-ri-2026/public/stops", route => route.fulfill({ json: { ok: true, stops } }));
+    await page.goto(`${server.origin}/activate-ri-2026/schedule/?parks=US-0513&timezone=utc`);
+    const rows = page.locator("[data-filter-row]:visible");
+    const scope = page.locator("[data-hunter-scope]");
+    await expect(rows).toHaveCount(2);
+    const requestedUrl = page.url();
+    await scope.selectOption("all");
+    await expect(rows).toHaveCount(3);
+    expect(new URL(page.url()).searchParams.has("parks")).toBe(false);
+    await expect(page.locator("[data-requested-schedule-summary]")).toBeHidden();
+    await page.goBack();
+    await expect(page).toHaveURL(requestedUrl);
+    await expect(scope).toHaveValue("requested");
+    await expect(rows).toHaveCount(2);
+    await expect(page.locator("[data-requested-schedule-references]")).toHaveText("Requested parks: US-0513.");
+    await page.goForward();
+    await expect(scope).toHaveValue("all");
+    await expect(rows).toHaveCount(3);
+    await scope.selectOption("requested");
+    expect(Object.fromEntries(new URL(page.url()).searchParams)).toEqual({ parks: "US-0513", timezone: "utc" });
+    await expect(rows).toHaveCount(2);
+    const reselectedUrl = page.url();
+    await page.reload();
+    await expect(scope).toHaveValue("requested");
+    await expect(rows).toHaveCount(2);
+    await expect(page).toHaveURL(reselectedUrl);
+  } finally {
+    await server.stop();
+  }
+});
+
+test("explicit default schedule filters show all requested windows and canonicalize the URL", async ({ page }) => {
+  const server = await startActivateRiServer();
+  try {
+    await page.route("**/api/activate-ri-2026/public/stops", route => route.fulfill({ json: { ok: true, stops } }));
+    await page.goto(`${server.origin}/activate-ri-2026/schedule/?parks=US-0513&activator=all&mode=all&band=all&county=all&timeline=all&timezone=eastern&scope=all`);
+    await expect(page.locator("[data-filter-row]:visible")).toHaveCount(2);
+    for (const key of ["activator", "mode", "band", "county", "timeline"]) {
+      await expect(page.locator(`[data-filter="${key}"]`)).toHaveValue("all");
+    }
+    await expect(page.locator('[data-filter="activator"] option[value="ALL"]')).toHaveCount(0);
+    expect(Object.fromEntries(new URL(page.url()).searchParams)).toEqual({ parks: "US-0513" });
+    await page.reload();
+    await expect(page.locator("[data-filter-row]:visible")).toHaveCount(2);
+    await expect(page.locator('[data-filter="activator"]')).toHaveValue("all");
+  } finally {
+    await server.stop();
+  }
+});
+
 test("an old agenda shows its age on screen and in print", async ({ page }) => {
   const server = await startActivateRiServer();
   try {
@@ -108,7 +161,7 @@ test("an old agenda shows its age on screen and in print", async ({ page }) => {
   }
 });
 
-test("shared filters survive removed options and an outage before recovering", async ({ page }) => {
+test("shared dynamic filters survive removed options and outages while invalid static filters reset", async ({ page }) => {
   const server = await startActivateRiServer();
   let unavailable = false;
   let recovered = false;
@@ -118,12 +171,19 @@ test("shared filters survive removed options and an outage before recovering", a
       : route.fulfill({ json: { ok: true, stops: recovered
         ? [{ ...stops[0], activatorCallsign: "N1GONE", modes: ["Digital"], bands: ["70cm"] }]
         : stops } }));
-    await page.goto(`${server.origin}/activate-ri-2026/schedule/?parks=US-0513&mode=Digital&band=70cm&activator=N1GONE`);
+    await page.goto(`${server.origin}/activate-ri-2026/schedule/?parks=US-0513&mode=Digital&band=70cm&activator=N1GONE&timeline=2026-09-99&county=Atlantis`);
     await expect(page.locator("[data-filter-row]:visible")).toHaveCount(0);
+    await expect(page.locator('[data-filter="timeline"]')).toHaveValue("all");
+    await expect(page.locator('[data-filter="county"]')).toHaveValue("all");
+    await expect(page.locator('[data-filter="timeline"] option[value="2026-09-99"]')).toHaveCount(0);
+    await expect(page.locator('[data-filter="county"] option[value="Atlantis"]')).toHaveCount(0);
     await expect(page.locator('[data-filter="mode"]')).toHaveValue("Digital");
     await expect(page.locator('[data-filter="band"]')).toHaveValue("70cm");
     await expect(page.locator('[data-filter="activator"]')).toHaveValue("N1GONE");
     await expect(page.locator("[data-filter-empty]")).toBeVisible();
+    expect(Object.fromEntries(new URL(page.url()).searchParams)).toEqual({
+      parks: "US-0513", mode: "Digital", band: "70cm", activator: "N1GONE",
+    });
     unavailable = true;
     await page.reload();
     await expect(page.locator("[data-requested-schedule-copy]")).toContainText("temporarily unavailable");

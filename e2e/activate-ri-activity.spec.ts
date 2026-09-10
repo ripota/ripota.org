@@ -185,6 +185,70 @@ test("activity filters missing parks, keeps the view on refresh, and explains st
   }
 });
 
+test("activity shares filters with clean defaults and restores searches and views through browser history", async ({ page }) => {
+  const server = await startActivateRiServer();
+  try {
+    const response = await page.request.get(server.origin + "/api/activate-ri-2026/public/spot-activity");
+    const snapshot = await response.json();
+    const spotted = snapshot.unspottedParks.shift();
+    Object.assign(spotted, { spotCount: 1, structuredSpotCount: 1, coverage: { status: "spotted", stop: null } });
+    snapshot.parks.push(spotted);
+    Object.assign(snapshot.summary, { parks: 1, unspottedParks: 60, spots: 1 });
+    await page.route("**/api/activate-ri-2026/public/spot-activity", route => route.fulfill({ json: snapshot }));
+    await page.clock.install({ time: new Date("2026-09-11T12:00:00Z") });
+    await page.goto(`${server.origin}/activate-ri-2026/progress/?view=unknown&q=%20%20&source=club&source=email#pota-activity-title`);
+    const root = page.locator("[data-pota-activity]");
+    const search = root.getByRole("searchbox", { name: "Search parks", exact: true });
+    const rows = root.locator("[data-pota-activity-rows] tr");
+    await expect(root.getByRole("radio", { name: "Spotted (1)", exact: true })).toBeChecked();
+    await expect(search).toHaveValue("");
+    await expect(rows).toHaveCount(1);
+    await expect(page).toHaveURL(`${server.origin}/activate-ri-2026/progress/?source=club&source=email#pota-activity-title`);
+
+    await root.getByRole("radio", { name: "All parks (61)", exact: true }).check();
+    await expect(rows).toHaveCount(61);
+    await search.fill(spotted.reference.slice(0, -1));
+    await search.fill(spotted.reference);
+    await expect(rows).toHaveCount(1);
+    const sharedUrl = page.url();
+    expect(new URL(sharedUrl).searchParams.get("view")).toBe("all");
+    expect(new URL(sharedUrl).searchParams.get("q")).toBe(spotted.reference);
+    expect(new URL(sharedUrl).searchParams.getAll("source")).toEqual(["club", "email"]);
+    expect(new URL(sharedUrl).hash).toBe("#pota-activity-title");
+
+    await page.goBack();
+    await expect(search).toHaveValue("");
+    await expect(root.getByRole("radio", { name: "All parks (61)", exact: true })).toBeChecked();
+    await expect(rows).toHaveCount(61);
+    await page.goBack();
+    await expect(root.getByRole("radio", { name: "Spotted (1)", exact: true })).toBeChecked();
+    await expect(rows).toHaveCount(1);
+    await page.goForward();
+    await page.goForward();
+    await expect(page).toHaveURL(sharedUrl);
+    await expect(search).toHaveValue(spotted.reference);
+    await page.reload();
+    await expect(search).toHaveValue(spotted.reference);
+    await expect(root.getByRole("radio", { name: "All parks (61)", exact: true })).toBeChecked();
+    await expect(rows).toHaveCount(1);
+    await page.clock.runFor(60_000);
+    await expect(page).toHaveURL(sharedUrl);
+    await expect(rows).toHaveCount(1);
+
+    await root.getByRole("button", { name: "Clear filters", exact: true }).click();
+    await expect(search).toBeFocused();
+    await expect(search).toHaveValue("");
+    await expect(root.getByRole("radio", { name: "Spotted (1)", exact: true })).toBeChecked();
+    await expect(page).toHaveURL(`${server.origin}/activate-ri-2026/progress/?source=club&source=email#pota-activity-title`);
+    await page.goBack();
+    await expect(page).toHaveURL(sharedUrl);
+    await expect(search).toHaveValue(spotted.reference);
+    await expect(root.getByRole("radio", { name: "All parks (61)", exact: true })).toBeChecked();
+  } finally {
+    await server.stop();
+  }
+});
+
 test("park results preserve open evidence and keyboard focus across background refreshes", async ({ page }) => {
   const server = await startActivateRiServer();
   try {

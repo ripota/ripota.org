@@ -193,13 +193,16 @@ const amenities = [...new Set(parks.flatMap((park) => park.amenities))].sort((a,
     }
 
     const rows = [...list.querySelectorAll<HTMLElement>("[data-park-row]")];
-    const params = new URLSearchParams(location.search);
-    query.value = params.get("query") ?? "";
-    for (const select of [county, type, amenity]) {
-      const value = params.get(select.name);
-      if (value && [...select.options].some((option) => option.value === value)) select.value = value;
-    }
-    related.checked = params.get("related") === "1";
+    let searchEditing = false;
+    const restoreFilters = (): void => {
+      const params = new URLSearchParams(location.search);
+      query.value = params.get("query")?.trim() ?? "";
+      for (const select of [county, type, amenity]) {
+        const value = params.get(select.name);
+        select.value = value && [...select.options].some((option) => option.value === value) ? value : "all";
+      }
+      related.checked = params.get("related") === "1";
+    };
     const apply = (): void => {
       let visible = 0;
       for (const row of rows) {
@@ -224,23 +227,48 @@ const amenities = [...new Set(parks.flatMap((park) => park.amenities))].sort((a,
       if (empty) {
         empty.hidden = visible !== 0;
       }
+    };
+
+    const updateUrl = (mode: "push" | "replace" = "push"): boolean => {
       const url = new URL(location.href);
       for (const [key, value] of Object.entries({ query: query.value.trim(), county: county.value, type: type.value, amenity: amenity.value, related: related.checked ? "1" : "" })) {
         if (value && (key === "query" || value !== "all")) url.searchParams.set(key, value);
         else url.searchParams.delete(key);
       }
-      history.replaceState(history.state, "", url);
+      if (url.href === location.href) return false;
+      if (mode === "push") history.pushState(history.state, "", url);
+      else history.replaceState(history.state, "", url);
+      return true;
     };
 
-    filters.addEventListener("input", apply);
-    filters.addEventListener("change", apply);
+    filters.addEventListener("submit", (event) => event.preventDefault());
+    query.addEventListener("input", () => {
+      searchEditing = updateUrl(searchEditing ? "replace" : "push") || searchEditing;
+      apply();
+    });
+    query.addEventListener("blur", () => { searchEditing = false; });
+    filters.addEventListener("change", () => {
+      searchEditing = false;
+      updateUrl();
+      apply();
+    });
+    window.addEventListener("popstate", () => {
+      searchEditing = false;
+      restoreFilters();
+      apply();
+    });
     filters.addEventListener("reset", (event) => {
       event.preventDefault();
       query.value = "";
       for (const select of [county, type, amenity]) select.value = "all";
       related.checked = false;
+      searchEditing = false;
+      updateUrl();
       apply();
+      query.focus();
     });
+    restoreFilters();
+    updateUrl("replace");
     apply();
   }
 </script>

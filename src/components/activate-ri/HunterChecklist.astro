@@ -175,6 +175,7 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
   import type { AnalyticsProperties } from "../../lib/analytics/events";
   import { replaceLiveContent } from "../../lib/activate-ri/live-content";
   import { parkGuidePath } from "../../lib/parks/directory";
+  import { readHunterView, writeHunterView, type HunterView } from "../../lib/activate-ri/hunter-view";
 
   document.querySelectorAll<HTMLElement>("[data-hunter-checklist]").forEach(setupHunterChecklist);
 
@@ -198,7 +199,10 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
     let scheduleState: "loading" | "ready" | "unavailable" = "loading";
     let publicStops: PublicActivationStop[] = [];
     let state = loadState();
+    let searchEditing = false;
 
+    restoreFilters();
+    updateUrl("replace");
     render();
     if (hasHunterChecklistData(state)) {
       if (importPanel) importPanel.open = false;
@@ -275,11 +279,27 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
       const file = event.dataTransfer?.files[0];
       if (file) void importFile(file, "drop");
     });
-    search?.addEventListener("input", renderLists);
-    filter?.addEventListener("change", renderLists);
+    search?.addEventListener("input", () => {
+      searchEditing = updateUrl(searchEditing ? "replace" : "push") || searchEditing;
+      renderLists();
+    });
+    search?.addEventListener("blur", () => { searchEditing = false; });
+    search?.addEventListener("change", () => { searchEditing = false; });
+    filter?.addEventListener("change", () => {
+      searchEditing = false;
+      updateUrl();
+      renderLists();
+    });
+    window.addEventListener("popstate", () => {
+      searchEditing = false;
+      restoreFilters();
+      renderLists();
+    });
     clearFilters?.addEventListener("click", () => {
       if (search) search.value = "";
       if (filter) filter.value = "all";
+      searchEditing = false;
+      updateUrl();
       renderLists();
       search?.focus();
     });
@@ -303,6 +323,8 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
       announce("Checklist data cleared from this browser.");
       if (search) search.value = "";
       if (filter) filter.value = "all";
+      searchEditing = false;
+      updateUrl();
       if (storageAvailable) clearError();
       render();
       root.querySelector<HTMLButtonElement>("[data-hunter-start-blank]")?.focus();
@@ -318,6 +340,23 @@ const hunterReferences = references.map(({ reference, name, potaUrl }) => ({
         action: "open", agendaScope: parkCount > 0 ? "remaining" : "all", parkCount: parkCount || references.length,
       });
     });
+
+    function restoreFilters(): void {
+      const view = readHunterView(new URL(window.location.href));
+      if (search) search.value = view.query;
+      if (filter) filter.value = view.status;
+    }
+
+    function updateUrl(mode: "push" | "replace" = "push"): boolean {
+      const url = writeHunterView(new URL(window.location.href), {
+        status: (filter?.value ?? "all") as HunterView["status"],
+        query: search?.value ?? "",
+      });
+      if (url.href === window.location.href) return false;
+      if (mode === "push") window.history.pushState(window.history.state, "", url);
+      else window.history.replaceState(window.history.state, "", url);
+      return true;
+    }
 
     async function importFile(file: File, importMethod: "drop" | "file_picker"): Promise<void> {
       clearError();
