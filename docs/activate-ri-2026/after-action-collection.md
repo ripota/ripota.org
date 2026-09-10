@@ -94,6 +94,33 @@ snapshots do not.
 
 ## Verification and interpretation
 
+### Production verification: September 10, 2026
+
+Implementation commit `a263e3ff` was deployed at 13:42 UTC as Worker version
+`71577b83-3cba-48b1-9d30-bf7a50bfe9a0`. Migrations 0026–0030 were confirmed
+applied. The pre-migration backup restored with SQLite integrity `ok`.
+
+The first recorded production collector run succeeded with fresh source data.
+All 131 retained event detail reports were backfilled, and new spot/QRT records
+were observed in the archive. No operational-health errors were recorded in
+the initial verification window.
+
+A full manual export preserved 22 evidence tables (1,002 rows), 536 returned
+Analytics Engine observations through 13:42:48 UTC, and 28 uploaded files.
+The database restored successfully and every uploaded file passed download
+checksum verification. The archive handler was also invoked once with native
+production D1/R2 bindings to bootstrap today's cloud snapshot while the new
+hourly trigger propagated. Its completion record confirmed 22 tables and 1,019
+rows at 13:45:36 UTC. This verifies the handler and storage path; it does not
+claim that a natural hourly execution was observed during this check.
+
+Validation passed: 888 unit tests, 77 Activate RI browser tests, 47 parks
+desktop/mobile tests, type checking and the local build. The signed commit is
+published on `main`. Private export paths, checksums and backup bookmarks stay
+in the operational verification bundle, outside the repository.
+
+### Measurement boundaries
+
 Tests cover rendered hunter actions, blank/manual/import resumes, every progress
 direction, persistence failures, agenda/share/print, GPC/DNT, retry deduplication,
 malformed inputs, interval boundaries, GET/HEAD semantics, foreground/dwell,
