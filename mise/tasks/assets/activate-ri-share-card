@@ -3,7 +3,7 @@
 #MISE description="Regenerate the Activate RI 2026 social share card image"
 #MISE raw=true
 #USAGE flag "--force" help="Regenerate even when the share card fingerprint is unchanged"
-#USAGE flag "--local-stops" help="Use committed static stops JSON instead of the production public stops API"
+#USAGE flag "--local-stops" help="Use committed stops in the planning view; event progress still uses the production park-status API"
 
 set -euo pipefail
 

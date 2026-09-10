@@ -48,6 +48,26 @@ Dry run mode lists unapplied remote D1 migrations, builds the local assets, and 
 `npx wrangler deploy --env "" --dry-run`. It does not apply migrations or upload a
 Worker version.
 
+## Event social share card
+
+`mise run assets:activate-ri-share-card` captures the current event hero as a
+1200 × 630 PNG. During the event and afterward it fetches production park
+statuses for the Activated count, progress bar, and on-air markers. Before the
+event it uses the public schedule. `--force` regenerates regardless of whether
+the visible state changed; `--local-stops` only overrides the planning schedule.
+
+The GitHub action checks every 30 minutes, at :17 and :47, and commits the PNG
+and metadata only when the card's inputs change. Polling timestamps and new
+evidence for an already activated park do not force a new image. The displayed
+timestamp records the captured snapshot. Each new card gets a new image URL
+in the page's social metadata. Failed or incomplete API responses
+leave the previous card in place.
+
+The workflow commits the asset; it does not deploy the Worker. Use the normal
+`mise run deploy` task to publish committed share-card updates. To use a test
+data source, set `ACTIVATE_RI_SHARE_CARD_PARK_STATUS_URL` or, for the planning
+view, `ACTIVATE_RI_SHARE_CARD_STOPS_URL` to an API with the same response shape.
+
 ## Cloudflare Shape
 
 `wrangler.jsonc` is the source of truth for the deployed Worker:

@@ -6,10 +6,11 @@ import Footer from "../../components/Footer.astro";
 import Notice from "../../components/Notice.astro";
 import SiteHeader from "../../components/SiteHeader.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
+import shareCardMetadata from "../../../public/assets/activate-ri-2026-share-card.meta.json";
 
 const activateRiShareImage = {
-  src: "/assets/activate-ri-2026-share-card.png",
-  alt: "Activate All RI 2026 hero preview with event dates, coverage totals, and the Rhode Island volunteer coverage map.",
+  src: `/assets/activate-ri-2026-share-card.png?v=${encodeURIComponent(shareCardMetadata.generatedAt)}`,
+  alt: "Activate All RI 2026: activated parks, on-air activity, event progress, and a map of Rhode Island parks.",
   width: 1200,
   height: 630,
   type: "image/png",
@@ -18,7 +19,7 @@ const activateRiShareImage = {
 
 <BaseLayout
   title="Activate All RI 2026"
-  description="Activate Rhode Island parks or get ready to hunt the parks you need for your Worked All RI award."
+  description="Follow Activate All RI progress, find Rhode Island parks on the air, and hunt the parks you need for your Worked All RI award."
   canonicalPath="/activate-ri-2026/"
   image={activateRiShareImage}
 >
