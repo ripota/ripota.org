@@ -731,6 +731,7 @@ p {
 }
 
 .reference-map-preview:has(.leaflet-popup) > .map-legend:not(.map-legend--below),
+.reference-map-preview:has(.reference-map-live-tooltip) > .map-legend:not(.map-legend--below),
 .ri-reference-map:has(.leaflet-popup) .leaflet-control-zoom {
   visibility: hidden;
 }
