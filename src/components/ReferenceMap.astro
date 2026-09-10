@@ -226,6 +226,7 @@ const payload = JSON.stringify({
   import { potaParkStatusStore } from "../lib/activate-ri/pota-status-store";
   import type { PublicParkPotaStatus } from "../lib/activate-ri/pota-status-client";
   import { potaSpotReferenceEvidence, type LivePotaSpot } from "../lib/pota/spots";
+  import { formatRadioDetails } from "../lib/pota/radio-details";
   import {
     formatActivationDate,
     formatActivationTimeRange,
@@ -859,12 +860,6 @@ const payload = JSON.stringify({
         `).join("")}
       </span>
     `;
-  }
-
-  function formatRadioDetails(frequency: string, mode: string): string {
-    const parts = [frequency ? `${frequency} kHz` : "", mode]
-      .filter(Boolean);
-    return parts.length > 0 ? parts.join(" · ") : "Not provided";
   }
 
   function coverageStopsHtml(item: MapItem): string {

@@ -70,6 +70,7 @@ const { variant = "compact" } = Astro.props;
   } from "../lib/pota/live-spots-store";
   import type { LivePotaSpot } from "../lib/pota/spots";
   import { parkGuidePath } from "../lib/parks/directory";
+  import { formatRadioDetails } from "../lib/pota/radio-details";
 
   document.querySelectorAll<HTMLElement>("[data-on-air-now]").forEach((root) => {
     setupOnAirNow(root);
@@ -197,12 +198,6 @@ const { variant = "compact" } = Astro.props;
 
   function normalizedSpotTimestamp(value: string): string {
     return /(Z|[+-]\d{2}:?\d{2})$/i.test(value) ? value : `${value}Z`;
-  }
-
-  function formatRadioDetails(frequency: string, mode: string): string {
-    const parts = [frequency ? `${frequency} kHz` : "", mode]
-      .filter(Boolean);
-    return parts.length > 0 ? parts.join(" · ") : "Not provided";
   }
 
   function formatSpotTime(value: string): string {
