@@ -5,6 +5,10 @@ export const mediaLimits = {
   files: 50,
 } as const;
 
+export const mediaUsageNoticeVersion = "ri-pota-media-v1";
+export const mediaUsageNoticeText = "By uploading, you’re sharing these files with other activators and letting RI POTA use them in articles, social posts, and other publicity.";
+export const mediaMetadataLimits = { title: 120, description: 2000 } as const;
+
 const mediaTypes: Record<string, { type: string; kind: "photo" | "video" }> = {
   jpg: { type: "image/jpeg", kind: "photo" },
   jpeg: { type: "image/jpeg", kind: "photo" },
@@ -33,6 +37,9 @@ export type ActivatorMedia = {
   createdAt: string;
   callsign: string;
   parkReference: string | null;
+  title: string | null;
+  description: string | null;
+  canEdit: boolean;
   url: string;
 };
 

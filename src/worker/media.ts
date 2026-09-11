@@ -15,9 +15,12 @@ export type MediaRow = {
   updated_at: string;
   primary_callsign: string;
   park_reference: string | null;
+  title: string | null;
+  description: string | null;
+  usage_notice_version: string | null;
 };
 
-export function serializeMedia(row: MediaRow, audience: "activator" | "admin"): ActivatorMedia {
+export function serializeMedia(row: MediaRow, audience: "activator" | "admin", viewerActivatorId: string | null = null): ActivatorMedia {
   return {
     id: row.id,
     filename: row.filename,
@@ -27,6 +30,9 @@ export function serializeMedia(row: MediaRow, audience: "activator" | "admin"): 
     createdAt: row.created_at,
     callsign: row.primary_callsign,
     parkReference: row.park_reference,
+    title: row.title,
+    description: row.description,
+    canEdit: audience === "admin" || row.activator_id === viewerActivatorId,
     url: `/api/activate-ri-2026/${audience}/media/${row.id}/file`,
   };
 }

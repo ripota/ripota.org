@@ -143,6 +143,7 @@ it("serializes only display metadata and an authenticated content URL", () => {
     object_key: "private/r2/key", filename: "photo.jpg", content_type: "image/jpeg",
     kind: "photo", size: 42, state: "ready", created_at: "2026-09-12T12:00:00.000Z",
     updated_at: "2026-09-12T12:01:00.000Z", primary_callsign: "N1RI", park_reference: null,
+    title: null, description: null, usage_notice_version: "ri-pota-media-v1",
   };
   for (const audience of ["activator", "admin"] as const) {
     const serialized = serializeMedia(row, audience);
@@ -150,5 +151,8 @@ it("serializes only display metadata and an authenticated content URL", () => {
     expect(serialized).not.toHaveProperty("object_key");
     expect(serialized).not.toHaveProperty("activator_id");
     expect(serialized).not.toHaveProperty("state");
+    expect(serialized.canEdit).toBe(audience === "admin");
   }
+  expect(serializeMedia(row, "activator", row.activator_id).canEdit).toBe(true);
+  expect(serializeMedia(row, "activator", "another-activator").canEdit).toBe(false);
 });

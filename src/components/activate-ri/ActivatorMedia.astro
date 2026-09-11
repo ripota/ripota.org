@@ -1,5 +1,5 @@
 ---
-import { formatMediaBytes, mediaAccept, mediaLimits } from "../../lib/activate-ri/media";
+import { formatMediaBytes, mediaAccept, mediaLimits, mediaMetadataLimits, mediaUsageNoticeText } from "../../lib/activate-ri/media";
 import { mediaParks } from "../../lib/activate-ri/media-parks";
 
 interface Props { organizer?: boolean }
@@ -12,18 +12,16 @@ const Heading = organizer ? "h2" : "h1";
   <header class="media-workspace__header">
     <div>
       <p class="eyebrow">{organizer ? "From the field" : "Your activation, captured"}</p>
-      <Heading id={`${prefix}-media-title`}>{organizer ? "Activator photos & videos" : "My photos & videos"}</Heading>
+      <Heading id={`${prefix}-media-title`}>{organizer ? "Activator photos & videos" : "Photos & videos"}</Heading>
       <p class="lead">{organizer
         ? "Review the photos and videos shared by activators."
         : "Share the moments, setups, and scenery from your Rhode Island activations."}</p>
     </div>
-    <span class="media-workspace__privacy">{organizer ? "Private originals" : "Private · You & organizers"}</span>
+    <span class="media-workspace__privacy">Activator gallery</span>
   </header>
 
   <p class="media-workspace__notice">
-    {organizer
-      ? "Each upload is visible only to its activator and event organizers. These files are not published in a public gallery."
-      : "Only you and event organizers can see your uploads. These files are not published in a public gallery."}{" "}
+    Shared files are visible to signed-in activators and organizers. Only the uploader and organizers can edit or delete them.{" "}
     Originals are retained, including any embedded photo location and camera metadata.
   </p>
 
@@ -57,6 +55,7 @@ const Heading = organizer ? "h2" : "h1";
       <div data-media-queue-section hidden>
         <h3>Selected files</h3>
         <ul class="media-queue" data-media-queue aria-label="Selected files"></ul>
+        <p class="form-help media-usage-notice" data-media-usage-notice>{mediaUsageNoticeText}</p>
         <div class="button-row media-upload__actions">
           <button class="button" data-variant="primary" type="button" data-media-upload disabled>Upload selected files</button>
           <button class="button" data-variant="light" type="button" data-media-clear>Clear finished files</button>
@@ -70,25 +69,39 @@ const Heading = organizer ? "h2" : "h1";
   <section class="media-library" aria-labelledby={`${prefix}-media-library-title`}>
     <div class="media-library__header">
       <div>
-        <h2 id={`${prefix}-media-library-title`}>{organizer ? "Shared originals" : "Saved uploads"}</h2>
+        <h2 id={`${prefix}-media-library-title`}>{organizer ? "Activator uploads" : "Gallery"}</h2>
         {!organizer && <p class="form-help" data-media-usage>Loading storage usage…</p>}
       </div>
       <button class="button" data-variant="light" type="button" data-media-refresh>Refresh files</button>
     </div>
+    {!organizer && (
+      <div class="media-scope" role="group" aria-label="Media shown">
+        <button type="button" data-media-view="all" aria-pressed="true">All media</button>
+        <button type="button" data-media-view="mine" aria-pressed="false">My media</button>
+      </div>
+    )}
     <p class="form-status" data-media-status role="status" aria-live="polite">Loading photos and videos…</p>
     <div class="media-empty" data-media-empty hidden>
-      <p>{organizer ? "No uploads yet" : "Your first photo or video goes here"}</p>
-      <span>{organizer ? "Activator uploads will appear here as they arrive." : "Choose files above to start sharing with event organizers."}</span>
+      <p data-media-empty-title>No uploads yet</p>
+      <span data-media-empty-help>Shared photos and videos will appear here as activators upload them.</span>
     </div>
     <div class="media-grid" data-media-gallery></div>
-    {organizer && <button class="button" data-variant="light" type="button" data-media-more hidden>Load more files</button>}
+    <button class="button" data-variant="light" type="button" data-media-more hidden>Load more files</button>
   </section>
 
-  <dialog class="form-confirmation" data-media-park-dialog aria-labelledby={`${prefix}-media-park-title`}>
-    <form class="form-confirmation__body" data-media-park-form>
+  <dialog class="form-confirmation" data-media-details-dialog aria-labelledby={`${prefix}-media-park-title`}>
+    <form class="form-confirmation__body" data-media-details-form>
       <p class="eyebrow">Photo & video details</p>
-      <h2 id={`${prefix}-media-park-title`}>Edit park</h2>
-      <p data-media-park-description></p>
+      <h2 id={`${prefix}-media-park-title`}>Edit details</h2>
+      <p data-media-details-filename></p>
+      <div class="media-park-field">
+        <label for={`${prefix}-media-edit-title`}>Title (optional)</label>
+        <input id={`${prefix}-media-edit-title`} class="media-details-input" type="text" maxlength={mediaMetadataLimits.title} data-media-edit-title />
+      </div>
+      <div class="media-park-field">
+        <label for={`${prefix}-media-edit-description`}>Description (optional)</label>
+        <textarea id={`${prefix}-media-edit-description`} class="media-details-input" rows="4" maxlength={mediaMetadataLimits.description} data-media-edit-description></textarea>
+      </div>
       <div class="media-park-field">
         <label for={`${prefix}-media-edit-park`}>Park for this file</label>
         <select id={`${prefix}-media-edit-park`} class="media-park-select" data-media-edit-park aria-describedby={`${prefix}-media-park-help`}>
@@ -97,10 +110,10 @@ const Heading = organizer ? "h2" : "h1";
         </select>
         <p class="form-help" id={`${prefix}-media-park-help`}>Choose a park for this photo or video, or select General to leave it unassociated.</p>
       </div>
-      <p class="form-status" data-media-park-status role="status" aria-live="polite"></p>
+      <p class="form-status" data-media-details-status role="status" aria-live="polite"></p>
       <div class="form-actions">
-        <button class="button" data-variant="light" type="button" data-media-park-cancel>Cancel</button>
-        <button class="button" data-variant="primary" type="submit" data-media-park-save>Save park</button>
+        <button class="button" data-variant="light" type="button" data-media-details-cancel>Cancel</button>
+        <button class="button" data-variant="primary" type="submit" data-media-details-save>Save details</button>
       </div>
     </form>
   </dialog>
@@ -120,7 +133,7 @@ const Heading = organizer ? "h2" : "h1";
       </div>
     </form>
   </dialog>
-  <noscript><p class="form-status">Enable JavaScript to upload and view your private photos and videos.</p></noscript>
+  <noscript><p class="form-status">Enable JavaScript to upload and view activator photos and videos.</p></noscript>
 </div>
 
 <script>
@@ -138,9 +151,16 @@ const Heading = organizer ? "h2" : "h1";
   .media-upload { display: grid; gap: 1rem; padding: clamp(1rem, 3vw, 1.75rem); border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--surface-raised); }
   .media-workspace .media-upload h2, .media-workspace .media-library h2 { margin: 0; max-width: none; font-size: 1.4rem; }
   .media-workspace .form-help { margin: .4rem 0 0; }
+  .media-workspace .media-upload h3 { font-size: 1.15rem; }
+  .media-workspace .media-usage-notice { margin: 1rem 0 .7rem; max-width: 75ch; font-size: .85rem; }
+  .media-scope { display: inline-flex; justify-self: start; gap: .25rem; border: 1px solid var(--border-subtle); border-radius: 8px; padding: .25rem; background: var(--surface-raised); }
+  .media-scope button { min-height: 44px; border: 0; border-radius: 5px; padding: .55rem 1rem; background: transparent; color: var(--text-primary); font: inherit; font-weight: 700; cursor: pointer; }
+  .media-scope button[aria-pressed="true"] { background: var(--surface-ink); color: var(--surface-page); }
   .media-park-field { display: grid; gap: .4rem; min-width: 0; }
   .media-park-field label, .media-queue__park > span { font-weight: 700; }
-  .media-park-select { display: block; width: 100%; min-width: 0; max-width: 100%; min-height: 44px; border: 1px solid var(--border-subtle); border-radius: 6px; background: var(--surface-raised); color: var(--text-primary); padding: .6rem .7rem; font: inherit; }
+  .media-park-select, .media-details-input { display: block; width: 100%; min-width: 0; max-width: 100%; min-height: 44px; border: 1px solid var(--border-subtle); border-radius: 6px; background: var(--surface-raised); color: var(--text-primary); padding: .6rem .7rem; font: inherit; }
+  textarea.media-details-input { resize: vertical; }
+  [data-media-details-dialog] .form-confirmation__body { display: grid; gap: .85rem; }
   .media-upload > .media-park-field { max-width: 42rem; }
   .media-queue__park { display: grid; gap: .3rem; margin: .65rem 0 .5rem; font-size: .85rem; }
   .media-dropzone { display: grid; gap: .8rem; border: 2px dashed var(--border-subtle); border-radius: 8px; background: var(--surface-page); padding: clamp(1rem, 3vw, 1.5rem); }
@@ -171,6 +191,8 @@ const Heading = organizer ? "h2" : "h1";
   .media-card__body { display: grid; gap: .65rem; padding: 1rem; }
   .media-card__body h3 { margin: 0; font-size: 1rem; overflow-wrap: anywhere; }
   .media-card__meta { margin: 0; color: var(--text-muted); font-size: .85rem; }
+  .media-card__description { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .9rem; }
+  .media-card__filename { margin: 0; color: var(--text-muted); font-size: .8rem; overflow-wrap: anywhere; }
   .media-card__park { margin: 0; color: var(--text-muted); font-size: .85rem; overflow-wrap: anywhere; }
   .media-card__park-actions { display: grid; justify-items: start; gap: .4rem; padding-block: .5rem; border-block: 1px solid var(--border-subtle); }
   .media-card__park-actions .button { min-height: 44px; width: auto; padding: .4rem .65rem; font-size: .85rem; }
@@ -179,7 +201,7 @@ const Heading = organizer ? "h2" : "h1";
   .media-card__actions a { color: var(--link); font-size: .9rem; }
   .media-card__actions .button { min-height: 44px; padding: .45rem .7rem; font-size: .85rem; }
   .media-card__playback-help { margin: 0; color: var(--text-muted); font-size: .8rem; }
-  .media-workspace [data-media-delete-description], .media-workspace [data-media-park-description] { overflow-wrap: anywhere; font-weight: 800; }
+  .media-workspace [data-media-delete-description], .media-workspace [data-media-details-filename] { overflow-wrap: anywhere; font-weight: 800; }
   @media (max-width: 520px) {
     .media-queue__item { grid-template-columns: minmax(0, 1fr); }
     .media-queue__actions { justify-self: start; }

@@ -11,6 +11,7 @@ import { createMigratedSqliteD1 } from "./test-utils/sqlite-d1";
 const origin = "https://ripota.org";
 const base = "/api/activate-ri-2026/activator/media";
 const adminBase = "/api/activate-ri-2026/admin/media";
+const usageNoticeVersion = "ri-pota-media-v1";
 const photo = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, ...new Uint8Array(28)]);
 let database: ReturnType<typeof createMigratedSqliteD1>;
 let env: Env;
@@ -137,10 +138,10 @@ async function seedMedia(activatorId: string, options: {
   const createdAt = options.createdAt ?? new Date().toISOString();
   const key = `test/${id}`;
   await env.DB.prepare(`INSERT INTO activate_ri_media
-    (id, event_id, activator_id, object_key, filename, content_type, kind, size, state, created_at, updated_at)
-    VALUES (?, ?, ?, ?, 'photo.jpg', 'image/jpeg', 'photo', ?, ?, ?, ?)`)
+    (id, event_id, activator_id, object_key, filename, content_type, kind, size, state, created_at, updated_at, usage_notice_version)
+    VALUES (?, ?, ?, ?, 'photo.jpg', 'image/jpeg', 'photo', ?, ?, ?, ?, ?)`)
     .bind(id, options.eventId ?? env.ACTIVATE_RI_EVENT_ID, activatorId, key,
-      options.size ?? photo.length, options.state ?? "ready", createdAt, createdAt).run();
+      options.size ?? photo.length, options.state ?? "ready", createdAt, createdAt, usageNoticeVersion).run();
   objects.set(key, photo);
   return id;
 }
@@ -168,22 +169,6 @@ describe("private activator media", () => {
     await expect(rowCount()).resolves.toBe(0);
   });
 
-  it("does not disclose or mutate another activator's upload", async () => {
-    const [first, second] = await Promise.all([owner(), owner("other")]);
-    const media = await uploadPhoto(first.token);
-    const list = await handleActivateRiApi(request(base, second.token), env);
-    await expect(list.json()).resolves.toMatchObject({ media: [], usage: { files: 0, bytes: 0 } });
-    for (const method of ["GET", "HEAD", "DELETE"]) {
-      const path = method === "DELETE" ? `${base}/${media.id}` : media.url;
-      const denied = await handleActivateRiApi(request(path, second.token, { method, headers: { origin } }), env);
-      expect(denied.status).toBe(404);
-      privateHeaders(denied);
-    }
-    expect(get).not.toHaveBeenCalled();
-    expect(head).not.toHaveBeenCalled();
-    expect(remove).not.toHaveBeenCalled();
-    await expect(rowCount()).resolves.toBe(1);
-  });
 
   it("requires an activator session for every operation, including HEAD", async () => {
     const first = await owner();
@@ -294,6 +279,201 @@ describe("private activator media", () => {
     expect((await handleActivateRiApi(upload(user.token), env)).status).toBe(403);
     expect((await handleActivateRiApi(request(media.url, user.token), env)).status).toBe(200);
     expect((await handleActivateRiApi(request(`${base}/${media.id}`, user.token, { method: "DELETE", headers: { origin } }), env)).status).toBe(200);
+  });
+});
+
+describe("shared activator gallery", () => {
+  it("applies metadata schema updates before the first upload", async () => {
+    database.close();
+    database = createMigratedSqliteD1({ through: "0031_activator_media.sql" });
+    env.DB = database.DB;
+    database.applyMigrationFile("0032_media_park_reference.sql");
+    database.applyMigrationFile("0033_media_sharing_and_details.sql");
+    await expect(rowCount()).resolves.toBe(0);
+    const user = await owner();
+    const media = await uploadPhoto(user.token);
+    expect(media).toMatchObject({ parkReference: null, title: null, description: null, canEdit: true });
+    await expect(env.DB.prepare("SELECT usage_notice_version FROM activate_ri_media WHERE id = ?").bind(media.id).first())
+      .resolves.toEqual({ usage_notice_version: usageNoticeVersion });
+  });
+
+  it("shares ready files with registered activators while retaining owner-only mutations", async () => {
+    const [first, second] = await Promise.all([owner(), owner("other")]);
+    const media = await uploadPhoto(first.token);
+    expect(media).toMatchObject({ title: null, description: null, canEdit: true });
+    await expect(env.DB.prepare("SELECT usage_notice_version, created_at FROM activate_ri_media WHERE id = ?").bind(media.id).first())
+      .resolves.toEqual({ usage_notice_version: usageNoticeVersion, created_at: media.createdAt });
+    const listing = await handleActivateRiApi(request(base, second.token), env);
+    await expect(listing.json()).resolves.toMatchObject({
+      media: [expect.objectContaining({ id: media.id, canEdit: false })],
+      usage: { files: 0, bytes: 0 },
+    });
+    const file = await handleActivateRiApi(request(media.url, second.token), env);
+    expect(file.status).toBe(200);
+    privateHeaders(file);
+    expect(new Uint8Array(await file.arrayBuffer())).toEqual(photo);
+    const metadata = await handleActivateRiApi(request(media.url, second.token, { method: "HEAD" }), env);
+    expect(metadata.status).toBe(200);
+    expect(await metadata.text()).toBe("");
+    const ranged = await handleActivateRiApi(request(media.url, second.token, { headers: { range: "bytes=0-1" } }), env);
+    expect(ranged.status).toBe(206);
+    privateHeaders(ranged);
+    expect(new Uint8Array(await ranged.arrayBuffer())).toEqual(photo.slice(0, 2));
+    const spoofed = await handleActivateRiApi(parkPatch(media.id, second.token, {
+      title: "Mine now", canEdit: true, activatorId: second.activatorId,
+    }), env);
+    expect(spoofed.status).toBe(404);
+    const deleted = await handleActivateRiApi(request(`${base}/${media.id}`, second.token, { method: "DELETE", headers: { origin } }), env);
+    expect(deleted.status).toBe(404);
+    expect(remove).not.toHaveBeenCalled();
+    await expect(env.DB.prepare("SELECT activator_id, title FROM activate_ri_media WHERE id = ?").bind(media.id).first())
+      .resolves.toEqual({ activator_id: first.activatorId, title: null });
+  });
+
+  it("scopes Mine to the caller while All includes other activators and usage stays personal", async () => {
+    const [first, second] = await Promise.all([owner(), owner("other")]);
+    const ownFirst = await seedMedia(first.activatorId);
+    const ownSecond = await seedMedia(first.activatorId);
+    const otherFirst = await seedMedia(second.activatorId);
+    const otherSecond = await seedMedia(second.activatorId);
+    for (const [suffix, expected] of [["", [ownFirst, ownSecond, otherFirst, otherSecond]], ["?scope=mine", [ownFirst, ownSecond]]] as const) {
+      const response = await handleActivateRiApi(request(`${base}${suffix}`, first.token), env);
+      expect(response.status).toBe(200);
+      privateHeaders(response);
+      const result = await response.json() as { media: ActivatorMedia[]; usage: { files: number; bytes: number } };
+      expect(result.media.map((item) => item.id).sort()).toEqual([...expected].sort());
+      expect(result.usage).toEqual({ files: 2, bytes: photo.length * 2 });
+      for (const item of result.media) expect(item.canEdit).toBe([ownFirst, ownSecond].includes(item.id));
+    }
+  });
+
+  it("paginates all shared gallery records without duplicates", async () => {
+    const [first, second] = await Promise.all([owner(), owner("other")]);
+    const timestamp = new Date().toISOString();
+    const ids: string[] = [];
+    for (let index = 0; index < 51; index++) {
+      ids.push(await seedMedia(index % 2 ? first.activatorId : second.activatorId, { createdAt: timestamp }));
+    }
+    const firstResponse = await handleActivateRiApi(request(base, first.token), env);
+    const firstPage = await firstResponse.json() as { media: ActivatorMedia[]; nextCursor: string };
+    expect(firstPage.media).toHaveLength(50);
+    expect(firstPage.nextCursor).toBeTruthy();
+    const secondResponse = await handleActivateRiApi(request(`${base}?cursor=${encodeURIComponent(firstPage.nextCursor)}`, first.token), env);
+    const secondPage = await secondResponse.json() as { media: ActivatorMedia[]; nextCursor: null };
+    expect(secondPage.media).toHaveLength(1);
+    expect(secondPage.nextCursor).toBeNull();
+    expect([...firstPage.media, ...secondPage.media].map((item) => item.id)).toEqual(ids.sort().reverse());
+  });
+
+  it.each(["?scope=someone-else", "?scope=private", "?cursor=invalid"])("rejects invalid gallery filter state %s", async (query) => {
+    const user = await owner();
+    const response = await handleActivateRiApi(request(`${base}${query}`, user.token), env);
+    expect(response.status).toBe(400);
+    privateHeaders(response);
+  });
+
+  it("keeps unfinished uploads and uploads in other events out of the gallery", async () => {
+    const [first, second] = await Promise.all([owner(), owner("other")]);
+    for (const state of ["uploading", "deleting"] as const) {
+      const id = await seedMedia(first.activatorId, { state });
+      expect((await handleActivateRiApi(request(`${base}/${id}/file`, second.token), env)).status).toBe(404);
+    }
+    const otherEvent = await seedMedia(first.activatorId, { eventId: "other-event" });
+    expect((await handleActivateRiApi(request(`${base}/${otherEvent}/file`, second.token), env)).status).toBe(404);
+    const response = await handleActivateRiApi(request(base, second.token), env);
+    await expect(response.json()).resolves.toMatchObject({ media: [] });
+    expect(get).not.toHaveBeenCalled();
+  });
+
+
+
+});
+
+describe("editable media titles and descriptions", () => {
+  it("returns current metadata when another field changes after the initial lookup", async () => {
+    const user = await owner();
+    const media = await uploadPhoto(user.token);
+    const prepare = env.DB.prepare.bind(env.DB);
+    vi.spyOn(env.DB, "prepare").mockImplementation((sql) => {
+      if (sql.includes("title = ?") && sql.includes("RETURNING")) {
+        return {
+          bind: (...values: unknown[]) => ({
+            first: async () => {
+              await prepare("UPDATE activate_ri_media SET description = ? WHERE id = ?")
+                .bind("Description saved by a competing edit.", media.id).run();
+              return prepare(sql).bind(...values).first();
+            },
+          }),
+        } as unknown as D1PreparedStatement;
+      }
+      return prepare(sql);
+    });
+    const response = await handleActivateRiApi(parkPatch(media.id, user.token, { title: "New title" }), env);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ media: { title: "New title", description: "Description saved by a competing edit." } });
+  });
+
+  it("updates metadata independently, trims text, and preserves the file, upload time, and usage notice", async () => {
+    const user = await owner();
+    const media = await uploadPhoto(user.token);
+    const stableColumns = "object_key, size, created_at, usage_notice_version";
+    const before = await env.DB.prepare(`SELECT ${stableColumns} FROM activate_ri_media WHERE id = ?`).bind(media.id).first();
+    const response = await handleActivateRiApi(parkPatch(media.id, user.token, {
+      title: "  Beavertail activation  ", description: "  A sunny afternoon on 20 meters.  ", parkReference: "US-2868",
+    }), env);
+    expect(response.status).toBe(200);
+    privateHeaders(response);
+    await expect(response.json()).resolves.toMatchObject({ media: {
+      title: "Beavertail activation", description: "A sunny afternoon on 20 meters.", parkReference: "US-2868", canEdit: true,
+    } });
+    const changed = await handleActivateRiApi(parkPatch(media.id, user.token, { title: "Sunset activation" }), env);
+    expect(changed.status).toBe(200);
+    await expect(changed.json()).resolves.toMatchObject({ media: { title: "Sunset activation", description: "A sunny afternoon on 20 meters.", parkReference: "US-2868" } });
+    const cleared = await handleActivateRiApi(parkPatch(media.id, user.token, { title: null, description: "   " }), env);
+    expect(cleared.status).toBe(200);
+    await expect(cleared.json()).resolves.toMatchObject({ media: { title: null, description: null, parkReference: "US-2868" } });
+    await expect(env.DB.prepare(`SELECT ${stableColumns} FROM activate_ri_media WHERE id = ?`).bind(media.id).first()).resolves.toEqual(before);
+    expect(store).toHaveBeenCalledTimes(1);
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it("allows organizer metadata corrections without changing the usage notice", async () => {
+    const user = await owner();
+    const id = await seedMedia(user.activatorId);
+    const response = await handleActivateRiApi(parkPatch(id, undefined, {
+      title: "Organizer-corrected title", description: "At Beavertail.",
+    }, adminBase, { "cf-access-authenticated-user-email": "organizer@example.invalid" }), env);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ media: {
+      title: "Organizer-corrected title", description: "At Beavertail.", canEdit: true,
+    } });
+    await expect(env.DB.prepare("SELECT usage_notice_version FROM activate_ri_media WHERE id = ?").bind(id).first())
+      .resolves.toEqual({ usage_notice_version: usageNoticeVersion });
+  });
+
+  it.each([
+    {}, { title: "x".repeat(121) }, { description: "x".repeat(2001) },
+    { title: 1 }, { description: [] }, { title: "bad\u0000title" }, { description: "bad\u0000description" },
+    { canEdit: true }, { activatorId: "another-activator" }, { usageNoticeVersion: "forged" },
+    { consentVersion: "ri-pota-media-v1" }, { title: "Title", unknown: "value" },
+  ])("rejects invalid or self-authorized metadata %j without side effects", async (body) => {
+    const user = await owner();
+    const media = await uploadPhoto(user.token);
+    const before = await env.DB.prepare("SELECT * FROM activate_ri_media WHERE id = ?").bind(media.id).first();
+    const response = await handleActivateRiApi(parkPatch(media.id, user.token, body), env);
+    expect(response.status).toBe(400);
+    privateHeaders(response);
+    await expect(env.DB.prepare("SELECT * FROM activate_ri_media WHERE id = ?").bind(media.id).first()).resolves.toEqual(before);
+    expect(store).toHaveBeenCalledTimes(1);
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it("accepts titles and descriptions at their maximum length", async () => {
+    const user = await owner();
+    const media = await uploadPhoto(user.token);
+    const response = await handleActivateRiApi(parkPatch(media.id, user.token, { title: "t".repeat(120), description: "d".repeat(2000) }), env);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ media: { title: "t".repeat(120), description: "d".repeat(2000) } });
   });
 });
 
@@ -415,7 +595,7 @@ describe("optional media park association", () => {
       ["{broken", "application/json", 400],
       ['{"parkReference":"US-2868"}', "text/plain", 415],
       [JSON.stringify({ parkReference: "US-2868", extra: "x".repeat(65_536) }), "application/json", 413],
-      [JSON.stringify({ parkReference: "US-2868", extra: "é".repeat(600) }), "application/json", 413],
+      [JSON.stringify({ parkReference: "US-2868", extra: "é".repeat(9_000) }), "application/json", 413],
     ] as const) {
       const response = await handleActivateRiApi(request(`${base}/${media.id}`, user.token, {
         method: "PATCH", headers: { origin, "content-type": contentType }, body,
@@ -423,7 +603,7 @@ describe("optional media park association", () => {
       expect(response.status).toBe(status);
       privateHeaders(response);
     }
-    const declaredOversize = parkPatch(media.id, user.token, { parkReference: "US-2868" }, base, { "content-length": "1025" });
+    const declaredOversize = parkPatch(media.id, user.token, { parkReference: "US-2868" }, base, { "content-length": "16385" });
     expect((await handleActivateRiApi(declaredOversize, env)).status).toBe(413);
     await expect(env.DB.prepare("SELECT park_reference FROM activate_ri_media WHERE id = ?").bind(media.id).first())
       .resolves.toEqual({ park_reference: null });
@@ -440,22 +620,6 @@ describe("optional media park association", () => {
     expect(remove).not.toHaveBeenCalled();
   });
 
-  it("migrates existing upload metadata to general uploads without altering the original", async () => {
-    database.close();
-    database = createMigratedSqliteD1({ through: "0031_activator_media.sql" });
-    env.DB = database.DB;
-    const user = await owner();
-    const id = await seedMedia(user.activatorId);
-    const before = await env.DB.prepare("SELECT * FROM activate_ri_media WHERE id = ?").bind(id).first<Record<string, unknown>>();
-    database.applyMigrationFile("0032_media_park_reference.sql");
-    await expect(env.DB.prepare("SELECT * FROM activate_ri_media WHERE id = ?").bind(id).first())
-      .resolves.toEqual({ ...before, park_reference: null });
-    const list = await handleActivateRiApi(request(base, user.token), env);
-    await expect(list.json()).resolves.toMatchObject({ media: [expect.objectContaining({ id, parkReference: null })] });
-    const content = await handleActivateRiApi(request(`${base}/${id}/file`, user.token), env);
-    expect(content.status).toBe(200);
-    expect(new Uint8Array(await content.arrayBuffer())).toEqual(photo);
-  });
 });
 
 describe("upload limits and recovery", () => {

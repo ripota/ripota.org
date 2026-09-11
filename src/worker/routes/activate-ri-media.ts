@@ -1,4 +1,5 @@
-import { mediaContentType, mediaLimits, validateMediaFile } from "../../lib/activate-ri/media";
+import { mediaUsageNoticeVersion, mediaContentType, mediaLimits, validateMediaFile } from "../../lib/activate-ri/media";
+import { parseMediaMetadataPatch } from "../../lib/activate-ri/media-metadata";
 import { validateMediaParkReference } from "../../lib/activate-ri/media-parks";
 import { requireActivator, requireAdmin, type ActivatorIdentity } from "../auth/authorization";
 import type { Env } from "../env";
@@ -38,35 +39,42 @@ async function handleMedia(request: Request, env: Env): Promise<Response> {
   const id = match[2];
   const file = Boolean(match[3]);
   if (!id && request.method === "GET") {
-    if (owner) {
-      const result = await env.DB.prepare(`${mediaSelect}
-        WHERE m.event_id = ? AND m.activator_id = ? AND m.state = 'ready'
-        ORDER BY m.created_at DESC, m.id DESC`).bind(env.ACTIVATE_RI_EVENT_ID, owner.activatorId).all<MediaRow>();
-      const usage = await env.DB.prepare(`SELECT COUNT(*) AS files, COALESCE(SUM(size), 0) AS bytes
-        FROM activate_ri_media WHERE event_id = ? AND activator_id = ?`)
-        .bind(env.ACTIVATE_RI_EVENT_ID, owner.activatorId).first<{ files: number; bytes: number }>();
-      return json({ ok: true, media: result.results.map((row) => serializeMedia(row, audience)), usage, limits: mediaLimits });
-    }
+    const scope = url.searchParams.get("scope") ?? "all";
+    if (!["all", "mine"].includes(scope) || (scope === "mine" && !owner)) return failure("Choose All media or My media.", 400);
     const cursor = url.searchParams.get("cursor");
     if (cursor && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\|[a-f0-9-]{36}$/.test(cursor)) return failure("Invalid gallery cursor.", 400);
     const [createdAt, cursorId] = cursor?.split("|") ?? [null, null];
     const result = await env.DB.prepare(`${mediaSelect}
       WHERE m.event_id = ? AND m.state = 'ready'
+        AND (? IS NULL OR m.activator_id = ?)
         AND (? IS NULL OR m.created_at < ? OR (m.created_at = ? AND m.id < ?))
       ORDER BY m.created_at DESC, m.id DESC LIMIT 51`)
-      .bind(env.ACTIVATE_RI_EVENT_ID, createdAt, createdAt, createdAt, cursorId).all<MediaRow>();
+      .bind(env.ACTIVATE_RI_EVENT_ID,
+        scope === "mine" ? owner!.activatorId : null, scope === "mine" ? owner!.activatorId : null,
+        createdAt, createdAt, createdAt, cursorId).all<MediaRow>();
     const rows = result.results.slice(0, 50);
     const last = rows.at(-1);
-    return json({ ok: true, media: rows.map((row) => serializeMedia(row, audience)), nextCursor: result.results.length > 50 && last ? `${last.created_at}|${last.id}` : null });
+    const usage = owner ? await env.DB.prepare(`SELECT COUNT(*) AS files, COALESCE(SUM(size), 0) AS bytes
+      FROM activate_ri_media WHERE event_id = ? AND activator_id = ?`)
+      .bind(env.ACTIVATE_RI_EVENT_ID, owner.activatorId).first<{ files: number; bytes: number }>() : undefined;
+    return json({ ok: true, media: rows.map((row) => serializeMedia(row, audience, owner?.activatorId)),
+      nextCursor: result.results.length > 50 && last ? `${last.created_at}|${last.id}` : null,
+      ...(owner ? { usage, limits: mediaLimits } : {}) });
   }
   if (!id && request.method === "POST" && owner) return uploadMedia(request, env, owner);
   if (!id) return failure("Method not allowed", 405);
   const row = await env.DB.prepare(`${mediaSelect}
-    WHERE m.event_id = ? AND m.id = ? AND (? IS NULL OR m.activator_id = ?)`)
-    .bind(env.ACTIVATE_RI_EVENT_ID, id, owner?.activatorId ?? null, owner?.activatorId ?? null).first<MediaRow>();
+    WHERE m.event_id = ? AND m.id = ?`)
+    .bind(env.ACTIVATE_RI_EVENT_ID, id).first<MediaRow>();
   if (!row || row.state === "uploading") return failure("Photo or video not found.", 404);
+  // Gallery visibility never grants mutation rights. Other activators may only
+  // read ready files, including downloads and ranges.
+  if (owner && row.activator_id !== owner.activatorId &&
+    (!file || !["GET", "HEAD"].includes(request.method))) {
+    return failure("Photo or video not found.", 404);
+  }
   if (file && ["GET", "HEAD"].includes(request.method) && row.state === "ready") return serveMedia(request, env.ACTIVATOR_MEDIA, row);
-  if (!file && request.method === "PATCH" && row.state === "ready") return updateMediaPark(request, env, row, audience);
+  if (!file && request.method === "PATCH" && row.state === "ready") return updateMediaDetails(request, env, row, audience, owner?.activatorId ?? null);
   if (!file && request.method === "DELETE") {
     await env.DB.prepare("UPDATE activate_ri_media SET state = 'deleting', updated_at = ? WHERE event_id = ? AND id = ?")
       .bind(new Date().toISOString(), env.ACTIVATE_RI_EVENT_ID, row.id).run();
@@ -106,15 +114,16 @@ async function uploadMedia(request: Request, env: Env, owner: ActivatorIdentity)
     filename, content_type: contentType, kind: contentType.startsWith("image/") ? "photo" : "video",
     size, state: "uploading", created_at: now, updated_at: now, primary_callsign: owner.callsign,
     park_reference: parkReference,
+    title: null, description: null, usage_notice_version: mediaUsageNoticeVersion,
   };
   // A single SQL statement reserves both limits, including in-flight uploads,
   // so parallel requests cannot each pass an outdated quota check.
   const reserved = await env.DB.prepare(`INSERT INTO activate_ri_media
-    (id, event_id, activator_id, object_key, filename, content_type, kind, size, state, created_at, updated_at, park_reference)
-    SELECT ?, ?, ?, ?, ?, ?, ?, ?, 'uploading', ?, ?, ?
+    (id, event_id, activator_id, object_key, filename, content_type, kind, size, state, created_at, updated_at, park_reference, usage_notice_version)
+    SELECT ?, ?, ?, ?, ?, ?, ?, ?, 'uploading', ?, ?, ?, ?
     WHERE (SELECT COUNT(*) FROM activate_ri_media WHERE event_id = ? AND activator_id = ?) < ?
       AND (SELECT COALESCE(SUM(size), 0) FROM activate_ri_media WHERE event_id = ? AND activator_id = ?) + ? <= ?`)
-    .bind(id, row.event_id, row.activator_id, row.object_key, filename, contentType, row.kind, size, now, now, parkReference,
+    .bind(id, row.event_id, row.activator_id, row.object_key, filename, contentType, row.kind, size, now, now, parkReference, mediaUsageNoticeVersion,
       row.event_id, row.activator_id, mediaLimits.files, row.event_id, row.activator_id, size, mediaLimits.totalBytes).run();
   if (reserved.meta.changes !== 1) return failure("Your gallery is full (50 files or 500 MB). Remove an upload before adding another.", 409);
   try {
@@ -122,7 +131,7 @@ async function uploadMedia(request: Request, env: Env, owner: ActivatorIdentity)
     const saved = await env.DB.prepare("UPDATE activate_ri_media SET state = 'ready', updated_at = ? WHERE event_id = ? AND id = ? AND state = 'uploading'")
       .bind(new Date().toISOString(), row.event_id, id).run();
     if (saved.meta.changes !== 1) throw new Error("Upload reservation unavailable");
-    return json({ ok: true, media: serializeMedia(row, "activator") }, { status: 201 });
+    return json({ ok: true, media: serializeMedia(row, "activator", owner.activatorId) }, { status: 201 });
   } catch (error) {
     try {
       // If a D1 response was lost after finalization committed, preserve the
@@ -137,18 +146,19 @@ async function uploadMedia(request: Request, env: Env, owner: ActivatorIdentity)
   }
 }
 
-async function updateMediaPark(
+async function updateMediaDetails(
   request: Request,
   env: Env,
   row: MediaRow,
   audience: "activator" | "admin",
+  viewerActivatorId: string | null,
 ): Promise<Response> {
   if (request.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json") {
     return failure("Expected application/json.", 415);
   }
-  if (!request.body) return failure("Enter a park reference or null for a general photo or video.", 400);
-  const maximumBytes = 1024;
-  if (Number(request.headers.get("content-length")) > maximumBytes) return failure("Park details are too large.", 413);
+  if (!request.body) return failure("Enter the file details to update.", 400);
+  const maximumBytes = 16 * 1024;
+  if (Number(request.headers.get("content-length")) > maximumBytes) return failure("File details are too large.", 413);
   const reader = request.body.getReader();
   const bytes = new Uint8Array(maximumBytes);
   let size = 0;
@@ -159,7 +169,7 @@ async function updateMediaPark(
       if (chunk.done) break;
       if (size + chunk.value.byteLength > maximumBytes) {
         await reader.cancel();
-        return failure("Park details are too large.", 413);
+        return failure("File details are too large.", 413);
       }
       bytes.set(chunk.value, size);
       size += chunk.value.byteLength;
@@ -170,16 +180,23 @@ async function updateMediaPark(
   } finally {
     reader.releaseLock();
   }
-  if (!payload || typeof payload !== "object" || Array.isArray(payload) || !("parkReference" in payload) ||
-    !validateMediaParkReference(payload.parkReference)) {
-    return failure("Choose a Rhode Island park from the list, or General — no park.", 400);
-  }
+  const { patch, error } = parseMediaMetadataPatch(payload);
+  if (error !== null) return failure(error, 400);
   const updatedAt = new Date().toISOString();
-  const updated = await env.DB.prepare(`UPDATE activate_ri_media SET park_reference = ?, updated_at = ?
-    WHERE event_id = ? AND id = ? AND activator_id = ? AND state = 'ready'`)
-    .bind(payload.parkReference, updatedAt, env.ACTIVATE_RI_EVENT_ID, row.id, row.activator_id).run();
-  if (updated.meta.changes !== 1) return failure("Photo or video not found.", 404);
-  return json({ ok: true, media: serializeMedia({ ...row, park_reference: payload.parkReference, updated_at: updatedAt }, audience) });
+  const fields: string[] = ["updated_at = ?"];
+  const values: (string | null)[] = [updatedAt];
+  if ("parkReference" in patch) {
+    fields.push("park_reference = ?"); values.push(patch.parkReference ?? null);
+  }
+  for (const key of ["title", "description"] as const) {
+    if (!(key in patch)) continue;
+    fields.push(`${key} = ?`); values.push(patch[key] ?? null);
+  }
+  const updated = await env.DB.prepare(`UPDATE activate_ri_media SET ${fields.join(", ")}
+    WHERE event_id = ? AND id = ? AND activator_id = ? AND state = 'ready' RETURNING *`)
+    .bind(...values, env.ACTIVATE_RI_EVENT_ID, row.id, row.activator_id).first<Omit<MediaRow, "primary_callsign">>();
+  if (!updated) return failure("Photo or video not found.", 404);
+  return json({ ok: true, media: serializeMedia({ ...updated, primary_callsign: row.primary_callsign }, audience, viewerActivatorId) });
 }
 
 type ByteRange = { offset: number; length: number };
