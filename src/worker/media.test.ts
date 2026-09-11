@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { matchesMediaSignature, MediaUploadError, serializeMedia, storeMediaStream, type MediaRow } from "./media";
+import { matchesMediaSignature, MediaUploadError, serializeMedia, storeMediaStream, type MediaAuthor, type MediaRow } from "./media";
 
 // Node lacks the Workers primitive. Keep exact byte-count enforcement so these
 // tests exercise both the upload validator and the known-length stream contract.
@@ -138,11 +138,12 @@ describe("bounded media streaming", () => {
 });
 
 it("serializes only display metadata and an authenticated content URL", () => {
-  const row: MediaRow = {
+  const row: MediaRow & MediaAuthor = {
     id: "media-id", event_id: "activate-ri-2026", activator_id: "private-owner-id",
     object_key: "private/r2/key", filename: "photo.jpg", content_type: "image/jpeg",
     kind: "photo", size: 42, state: "ready", created_at: "2026-09-12T12:00:00.000Z",
     updated_at: "2026-09-12T12:01:00.000Z", primary_callsign: "N1RI", park_reference: null,
+    activator_name: "Rob Jackson", chat_display_name: null,
     title: null, description: null, usage_notice_version: "ri-pota-media-v1",
   };
   for (const audience of ["activator", "admin"] as const) {
@@ -151,8 +152,14 @@ it("serializes only display metadata and an authenticated content URL", () => {
     expect(serialized).not.toHaveProperty("object_key");
     expect(serialized).not.toHaveProperty("activator_id");
     expect(serialized).not.toHaveProperty("state");
+    expect(serialized).not.toHaveProperty("activator_name");
+    expect(serialized).not.toHaveProperty("chat_display_name");
+    expect(serialized.authorLabel).toBe("N1RI - Rob");
+    expect(JSON.stringify(serialized)).not.toContain("Jackson");
     expect(serialized.canEdit).toBe(audience === "admin");
   }
   expect(serializeMedia(row, "activator", row.activator_id).canEdit).toBe(true);
   expect(serializeMedia(row, "activator", "another-activator").canEdit).toBe(false);
+  expect(serializeMedia({ ...row, chat_display_name: "Rob J." }, "activator").authorLabel).toBe("N1RI - Rob J.");
+  expect(serializeMedia({ ...row, chat_display_name: "" }, "activator").authorLabel).toBe("N1RI");
 });

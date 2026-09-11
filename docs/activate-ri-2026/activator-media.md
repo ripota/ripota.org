@@ -6,31 +6,41 @@ workflow, not a production deployment verification.
 ## Experience and access
 
 The signed-in activator portal has a **Photos & videos** page at
-`/activate-ri-2026/activator/media/`. Activators can choose multiple files or
-drop them into the selection, review their selection, and upload sequentially.
-Each file has progress, cancellation, and retry controls. A short note beside
-the upload action explains sharing and reuse:
+`/activate-ri-2026/activator/media/`. The page opens on the tiled gallery, with
+a prominent **Upload photos & videos** button. The upload dialog accepts
+multiple files or dropped files, lets the activator review the selection, and
+uploads sequentially. Each file has progress, cancellation, and retry controls.
+Successful batches return to the gallery; incomplete batches remain available
+for retry. A short note beside the upload action explains sharing and reuse:
 
-> By uploading, you’re sharing these files with other activators and letting
-> RI POTA use them in articles, social posts, and other publicity.
+> By uploading, you’re letting RI POTA share these photos and videos on this
+> website, in articles, on social media, and in other publicity.
 
 Uploading is the action; there is no checkbox or separate permission flow.
 New uploads record notice version `ri-pota-media-v1` with the file's existing
-uploader identity and upload timestamp.
+uploader identity and upload timestamp. The wording clarifies the same sharing
+and publicity scope; existing uploads do not need a new permission action.
 
 The gallery opens on **All media**, showing shared uploads from all activators
-with uploader callsigns. **My media** narrows it to the current activator's own
+with the same uploader byline as chat. The shared author utility combines the
+callsign with the first name or the customized Ops Room display name; an
+explicitly blank display name stays hidden. **My media** narrows it to the current activator's own
 files. That scope is URL-driven (`mediaScope=mine`); default All media is omitted
 from the URL. Reload, Back/Forward, and background refresh preserve the choice.
-Both views paginate and retain the viewer's own storage usage. Photo previews,
-native video controls, and original downloads work in either view.
+Both views paginate. Compact tiles show the image, uploader byline, optional
+title, and an overlaid park reference. Opening a tile shows a larger photo or
+playable video, its details, and an original download. The uploader and organizers
+can edit or delete from that dialog; other activators see the details without
+editing controls. Dialogs lock background scrolling and restore focus on close.
+Filenames remain available for original downloads but are not gallery titles.
 Park tagging is optional. **General — no park** is the default; choosing a park
 sets the initial choice for newly selected files, and each queued file can be
-assigned a different park before uploading. The gallery shows the park name and
-reference or General, and both the uploader and organizers can correct or clear
+assigned a different park before uploading. Park badges reveal the full name
+on hover or keyboard focus, and the details dialog also shows the full park name.
+Both the uploader and organizers can correct or clear
 a saved file's park in **Edit details**. A title (up to 120 characters) and
 description (up to 2,000 characters) are optional in the same dialog. Blank titles
-use the original filename; descriptions are displayed as plain text. Uploading
+stay untitled; descriptions are displayed as plain text. Uploading
 does not require filling out these fields. Any park in the pinned Rhode Island
 reference index is available, including parks outside the activator's submitted plan.
 
@@ -49,9 +59,10 @@ organizers. Activators can edit metadata and delete only their own files;
 organizers can edit metadata and delete any event upload. These permissions
 are enforced by the API, not just hidden controls.
 
-The gallery is not published to the public site or shared in the Ops Room.
-The reuse permission allows editorial use; publishing an article or social post
-is a separate action. Existing unified and legacy activator authentication
+Anonymous gallery browsing is not implemented yet. The upload copy allows RI POTA
+to share media on the website and through editorial/publicity channels without
+promising that viewing will always require sign-in. Publishing a public gallery,
+article, or social post is a separate action. Existing unified and legacy activator authentication
 modes apply; an account without an event
 registration has no upload access. Pending, approved, and withdrawn activators
 can upload. Rejected activators can read and delete their own existing files,
@@ -59,14 +70,13 @@ but cannot add more. Session revocation applies to every file request as well
 as the page and metadata requests.
 
 Supported photos: JPEG, PNG, GIF, WebP, HEIC, HEIF, and AVIF. Supported videos:
-MP4, MOV (QuickTime), and WebM. Limits per activator and event:
+MP4, MOV (QuickTime), and WebM. There is no per-activator total file count or
+storage cap. Individual upload limits remain:
 
 | Limit | Value |
 | --- | --- |
 | Each photo | 20 MiB |
 | Each video | 80 MiB |
-| Saved and in-flight files combined | 50 |
-| Saved and in-flight storage combined | 500 MiB |
 | Upload attempts | 10 per minute |
 
 The interface uses MB labels for binary megabytes. Originals are retained,
@@ -85,6 +95,7 @@ audio file types, and arbitrary attachments are not accepted.
 attach a public custom domain. There are no presigned public URLs. D1 migration
 `0031_activator_media.sql` stores metadata in `activate_ri_media`; object keys
 contain event and random IDs, never the filename or an activator's email.
+Uploads with identical filenames are separate objects and cannot overwrite one another.
 Migration `0032_media_park_reference.sql` adds a nullable `park_reference` column;
 null means a general upload without a park association.
 Migration `0033_media_sharing_and_details.sql` adds optional title/description,
@@ -97,14 +108,15 @@ The optional `X-Media-Park-Reference` header associates a known Rhode Island par
 an absent or empty header keeps the upload general.
 Titles and descriptions start empty and can be added later. No permission
 header or separate acceptance request is required.
-Authentication and the trusted Origin are checked before writes. A single SQL
-statement reserves both count and byte quotas, including concurrent uploads.
+Authentication and the trusted Origin are checked before writes. A database
+record tracks each in-flight upload independently, including concurrent uploads.
 The Worker inspects at most 4 KiB of header data and pipes bytes through a
 `FixedLengthStream` to R2. It marks the record ready only after storage succeeds.
 
 `GET /api/activate-ri-2026/activator/media` lists all ready event uploads.
 `?scope=mine` lists only the caller's own files;
-usage always counts only the caller's files, including in-flight reservations.
+usage always counts only the caller's files, including in-flight uploads, and is
+informational rather than an upload gate.
 The corresponding `/admin/media` route includes all ready event uploads.
 Both return up to 50 records and an opaque `nextCursor` for the next page.
 `GET` and `HEAD` on either audience's `/media/{id}/file` route authorize access
@@ -121,13 +133,13 @@ to preserve unrelated metadata edits made by another editor.
 Ownership/organizer authorization and trusted Origin checks apply. Requests are
 limited to 16 KiB, and only ready records can change. This updates D1 metadata
 without rewriting the R2 object or changing the original upload date. Responses
-include `parkReference`, `title`, `description`, and server-computed `canEdit`;
+include `parkReference`, `title`, `description`, the current `authorLabel`, and server-computed `canEdit`;
 clients cannot grant themselves editing rights.
 
 `DELETE /media/{id}` checks the trusted Origin and ownership or organizer role.
 It first hides the row, then deletes the object, then removes metadata. A failed
 object deletion retains the row and key for retry. Upload failures similarly
-release their reservation when cleanup succeeds. The daily 05:17 UTC job
+remove their tracking record when cleanup succeeds. The daily 05:17 UTC job
 retries up to 50 unfinished/deleting records older than 24 hours. A terminated
 upload may count toward usage until this cleanup runs. Ready uploads are kept
 until the owner or an organizer deletes them; they are not part of the existing
@@ -178,7 +190,8 @@ that have since been deleted; verify media access after restoration.
 - `src/lib/activate-ri/media-parks.test.ts`: optional park references and labels.
 - `src/worker/media.test.ts`: signatures, streaming, cancellation, exact lengths.
 - `src/worker/media.acceptance.test.ts`: SQLite migrations, authorization,
-  quotas, ownership, failure recovery, and range responses.
+  upload counts and sizes above the former caps, duplicate filenames, customized
+  bylines, ownership, failure recovery, and range responses.
 - `e2e/activate-ri-media.spec.ts`: browser workflows against local Wrangler/R2.
 
 Implementation references: [R2 Workers API](https://developers.cloudflare.com/r2/api/workers/workers-api-reference/)

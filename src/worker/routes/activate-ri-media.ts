@@ -5,13 +5,15 @@ import { requireActivator, requireAdmin, type ActivatorIdentity } from "../auth/
 import type { Env } from "../env";
 import { json } from "../http";
 import { logWorkerError } from "../logging";
-import { MediaUploadError, removeMediaObject, serializeMedia, storeMediaStream, type MediaRow } from "../media";
+import { MediaUploadError, removeMediaObject, serializeMedia, storeMediaStream, type MediaAuthor, type MediaRow } from "../media";
 import { hasTrustedOrigin } from "../origin";
 import { withPrivateHeaders } from "../private-response";
 
 const routePattern = /^\/api\/activate-ri-2026\/(activator|admin)\/media(?:\/([a-f0-9-]{36})(\/file)?)?$/;
-const mediaSelect = `SELECT m.*, a.primary_callsign FROM activate_ri_media m
-  INNER JOIN activate_ri_activators a ON a.id = m.activator_id AND a.event_id = m.event_id`;
+const mediaSelect = `SELECT m.*, a.primary_callsign, a.name AS activator_name, membership.chat_display_name
+  FROM activate_ri_media m
+  INNER JOIN activate_ri_activators a ON a.id = m.activator_id AND a.event_id = m.event_id
+  LEFT JOIN activate_ri_ops_memberships membership ON membership.activator_id = a.id AND membership.event_id = a.event_id`;
 
 export async function handleActivateRiMediaApi(request: Request, env: Env): Promise<Response> {
   try {
@@ -51,7 +53,7 @@ async function handleMedia(request: Request, env: Env): Promise<Response> {
       ORDER BY m.created_at DESC, m.id DESC LIMIT 51`)
       .bind(env.ACTIVATE_RI_EVENT_ID,
         scope === "mine" ? owner!.activatorId : null, scope === "mine" ? owner!.activatorId : null,
-        createdAt, createdAt, createdAt, cursorId).all<MediaRow>();
+        createdAt, createdAt, createdAt, cursorId).all<MediaRow & MediaAuthor>();
     const rows = result.results.slice(0, 50);
     const last = rows.at(-1);
     const usage = owner ? await env.DB.prepare(`SELECT COUNT(*) AS files, COALESCE(SUM(size), 0) AS bytes
@@ -65,7 +67,7 @@ async function handleMedia(request: Request, env: Env): Promise<Response> {
   if (!id) return failure("Method not allowed", 405);
   const row = await env.DB.prepare(`${mediaSelect}
     WHERE m.event_id = ? AND m.id = ?`)
-    .bind(env.ACTIVATE_RI_EVENT_ID, id).first<MediaRow>();
+    .bind(env.ACTIVATE_RI_EVENT_ID, id).first<MediaRow & MediaAuthor>();
   if (!row || row.state === "uploading") return failure("Photo or video not found.", 404);
   // Gallery visibility never grants mutation rights. Other activators may only
   // read ready files, including downloads and ranges.
@@ -112,26 +114,23 @@ async function uploadMedia(request: Request, env: Env, owner: ActivatorIdentity)
     id, event_id: env.ACTIVATE_RI_EVENT_ID, activator_id: owner.activatorId,
     object_key: `activator-media/${env.ACTIVATE_RI_EVENT_ID}/${id}`,
     filename, content_type: contentType, kind: contentType.startsWith("image/") ? "photo" : "video",
-    size, state: "uploading", created_at: now, updated_at: now, primary_callsign: owner.callsign,
+    size, state: "uploading", created_at: now, updated_at: now,
     park_reference: parkReference,
     title: null, description: null, usage_notice_version: mediaUsageNoticeVersion,
   };
-  // A single SQL statement reserves both limits, including in-flight uploads,
-  // so parallel requests cannot each pass an outdated quota check.
-  const reserved = await env.DB.prepare(`INSERT INTO activate_ri_media
+  // Track the object before streaming so interrupted uploads remain eligible
+  // for cleanup. Gallery pagination does not cap the number of uploads.
+  await env.DB.prepare(`INSERT INTO activate_ri_media
     (id, event_id, activator_id, object_key, filename, content_type, kind, size, state, created_at, updated_at, park_reference, usage_notice_version)
-    SELECT ?, ?, ?, ?, ?, ?, ?, ?, 'uploading', ?, ?, ?, ?
-    WHERE (SELECT COUNT(*) FROM activate_ri_media WHERE event_id = ? AND activator_id = ?) < ?
-      AND (SELECT COALESCE(SUM(size), 0) FROM activate_ri_media WHERE event_id = ? AND activator_id = ?) + ? <= ?`)
-    .bind(id, row.event_id, row.activator_id, row.object_key, filename, contentType, row.kind, size, now, now, parkReference, mediaUsageNoticeVersion,
-      row.event_id, row.activator_id, mediaLimits.files, row.event_id, row.activator_id, size, mediaLimits.totalBytes).run();
-  if (reserved.meta.changes !== 1) return failure("Your gallery is full (50 files or 500 MB). Remove an upload before adding another.", 409);
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'uploading', ?, ?, ?, ?)`)
+    .bind(id, row.event_id, row.activator_id, row.object_key, filename, contentType, row.kind, size, now, now, parkReference, mediaUsageNoticeVersion).run();
   try {
     await storeMediaStream(env.ACTIVATOR_MEDIA!, row.object_key, request.body, size, contentType);
     const saved = await env.DB.prepare("UPDATE activate_ri_media SET state = 'ready', updated_at = ? WHERE event_id = ? AND id = ? AND state = 'uploading'")
       .bind(new Date().toISOString(), row.event_id, id).run();
     if (saved.meta.changes !== 1) throw new Error("Upload reservation unavailable");
-    return json({ ok: true, media: serializeMedia(row, "activator", owner.activatorId) }, { status: 201 });
+    const author = await currentMediaAuthor(env, row.activator_id);
+    return json({ ok: true, media: serializeMedia({ ...row, ...author }, "activator", owner.activatorId) }, { status: 201 });
   } catch (error) {
     try {
       // If a D1 response was lost after finalization committed, preserve the
@@ -194,9 +193,22 @@ async function updateMediaDetails(
   }
   const updated = await env.DB.prepare(`UPDATE activate_ri_media SET ${fields.join(", ")}
     WHERE event_id = ? AND id = ? AND activator_id = ? AND state = 'ready' RETURNING *`)
-    .bind(...values, env.ACTIVATE_RI_EVENT_ID, row.id, row.activator_id).first<Omit<MediaRow, "primary_callsign">>();
+    .bind(...values, env.ACTIVATE_RI_EVENT_ID, row.id, row.activator_id).first<MediaRow>();
   if (!updated) return failure("Photo or video not found.", 404);
-  return json({ ok: true, media: serializeMedia({ ...updated, primary_callsign: row.primary_callsign }, audience, viewerActivatorId) });
+  const author = await currentMediaAuthor(env, row.activator_id);
+  return json({ ok: true, media: serializeMedia({ ...updated, ...author }, audience, viewerActivatorId) });
+}
+
+async function currentMediaAuthor(env: Env, activatorId: string): Promise<MediaAuthor> {
+  // Resolve the current preference at response time, including when it changes
+  // while a large video is uploading. An explicit blank stays callsign-only.
+  const author = await env.DB.prepare(`SELECT a.primary_callsign, a.name AS activator_name, membership.chat_display_name
+    FROM activate_ri_activators a
+    LEFT JOIN activate_ri_ops_memberships membership ON membership.activator_id = a.id AND membership.event_id = a.event_id
+    WHERE a.event_id = ? AND a.id = ?`)
+    .bind(env.ACTIVATE_RI_EVENT_ID, activatorId).first<MediaAuthor>();
+  if (!author) throw new Error("Media author unavailable");
+  return author;
 }
 
 type ByteRange = { offset: number; length: number };

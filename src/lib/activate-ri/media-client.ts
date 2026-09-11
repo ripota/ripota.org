@@ -1,12 +1,12 @@
 import {
   formatMediaBytes,
   mediaContentType,
-  mediaLimits,
   mediaMetadataLimits,
   validateMediaFile,
   type ActivatorMedia,
 } from "./media";
 import { mediaParkName, mediaParks, validateMediaParkReference } from "./media-parks";
+import { setupMediaDialogs } from "./media-dialogs";
 
 type QueueState = "ready" | "uploading" | "saved" | "error" | "cancelled" | "invalid";
 type QueuedFile = {
@@ -21,7 +21,6 @@ type QueuedFile = {
   actions: HTMLDivElement;
   parkSelect: HTMLSelectElement;
 };
-type MediaUsage = { files: number; bytes: number };
 
 class MediaRequestError extends Error {
   status: number;
@@ -41,7 +40,9 @@ export function setupMediaWorkspace(root: HTMLElement): void {
   const empty = root.querySelector<HTMLElement>("[data-media-empty]")!;
   const refresh = root.querySelector<HTMLButtonElement>("[data-media-refresh]")!;
   const more = root.querySelector<HTMLButtonElement>("[data-media-more]");
-  const usageText = root.querySelector<HTMLElement>("[data-media-usage]");
+  const openUpload = root.querySelector<HTMLButtonElement>("[data-media-open-upload]");
+  const uploadDialog = root.querySelector<HTMLDialogElement>("[data-media-upload-dialog]");
+  const uploadClose = root.querySelector<HTMLButtonElement>("[data-media-upload-close]");
   const picker = root.querySelector<HTMLInputElement>("[data-media-input]");
   const defaultPark = root.querySelector("[data-media-default-park]") as HTMLSelectElement | null;
   const dropzone = root.querySelector<HTMLElement>("[data-media-dropzone]");
@@ -63,9 +64,12 @@ export function setupMediaWorkspace(root: HTMLElement): void {
   const detailsStatus = root.querySelector<HTMLElement>("[data-media-details-status]")!;
   const editTitle = root.querySelector<HTMLInputElement>("[data-media-edit-title]")!;
   const editDescription = root.querySelector<HTMLTextAreaElement>("[data-media-edit-description]")!;
+  const detailsPreview = root.querySelector<HTMLElement>("[data-media-details-preview]")!;
+  const detailDelete = root.querySelector<HTMLButtonElement>("[data-media-detail-delete]")!;
+  const detailDownload = root.querySelector<HTMLAnchorElement>("[data-media-download]")!;
+  const modals = setupMediaDialogs([detailsDialog, deleteDialog, ...(uploadDialog ? [uploadDialog] : [])]);
   let files: ActivatorMedia[] = [];
   let queue: QueuedFile[] = [];
-  let usage: MediaUsage = { files: 0, bytes: 0 };
   let nextCursor: string | null = null;
   let loaded = false;
   let loading = false;
@@ -75,9 +79,7 @@ export function setupMediaWorkspace(root: HTMLElement): void {
   let signedOut = false;
   let activeUpload: XMLHttpRequest | null = null;
   let deleteTarget: ActivatorMedia | null = null;
-  let deleteTrigger: HTMLButtonElement | null = null;
   let detailsTargetId: string | null = null;
-  let detailsTrigger: HTMLButtonElement | null = null;
   let detailsOriginal: ActivatorMedia | null = null;
   let mediaView: "all" | "mine" = "all";
   let listGeneration = 0;
@@ -100,6 +102,15 @@ export function setupMediaWorkspace(root: HTMLElement): void {
   updateControls();
 
   refresh.addEventListener("click", () => void loadFiles());
+  openUpload?.addEventListener("click", () => {
+    if (uploadDialog && !signedOut) modals.open(uploadDialog, openUpload, uploadClose);
+  });
+  uploadClose?.addEventListener("click", () => { if (!uploading) uploadDialog?.close(); });
+  uploadDialog?.addEventListener("cancel", (event) => {
+    if (!uploading) return;
+    event.preventDefault();
+    if (uploadStatus) uploadStatus.textContent = "Uploads are still running. Cancel an individual upload or wait for them to finish.";
+  });
   more?.addEventListener("click", () => void loadFiles(true));
   picker?.addEventListener("change", () => {
     addFiles([...picker.files ?? []]);
@@ -128,25 +139,35 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     updateControls();
   });
   deleteConfirm.addEventListener("click", () => void deleteFile());
+  detailDelete.addEventListener("click", () => {
+    const file = files.find((item) => item.id === detailsTargetId);
+    if (!file?.canEdit || signedOut) return;
+    deleteTarget = file;
+    deleteStatus.textContent = "";
+    root.querySelector<HTMLElement>("[data-media-delete-description]")!.textContent = mediaLabel(file);
+    modals.open(deleteDialog, detailDelete, deleteCancel);
+  });
   deleteDialog.addEventListener("cancel", (event) => {
     if (deleting) event.preventDefault();
   });
   deleteDialog.addEventListener("close", () => {
+    if (deleteDialog.open) return;
     deleteTarget = null;
-    if (deleteTrigger?.isConnected) deleteTrigger.focus();
   });
   detailsForm.addEventListener("submit", (event) => {
     event.preventDefault();
     void saveDetails();
   });
-  detailsCancel.addEventListener("click", () => detailsDialog.close());
+  detailsCancel.addEventListener("click", () => { if (!savingDetails && !deleting) detailsDialog.close(); });
   detailsDialog.addEventListener("cancel", (event) => {
-    if (savingDetails) event.preventDefault();
+    if (savingDetails || deleting) event.preventDefault();
   });
   detailsDialog.addEventListener("close", () => {
+    if (detailsDialog.open) return;
     detailsTargetId = null;
     detailsOriginal = null;
-    if (detailsTrigger?.isConnected) detailsTrigger.focus();
+    detailsPreview.querySelector<HTMLVideoElement>("video")?.pause();
+    detailsPreview.replaceChildren();
   });
   window.addEventListener("beforeunload", (event) => {
     if (uploading) event.preventDefault();
@@ -163,6 +184,7 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     loaded = false;
     deleteDialog.close();
     detailsDialog.close();
+    uploadDialog?.close();
     galleryStatus.textContent = "You have signed out.";
     updateControls();
   });
@@ -223,18 +245,12 @@ export function setupMediaWorkspace(root: HTMLElement): void {
         throw new Error(responseError(body, response.status, "Unable to load files. Try Refresh files again."));
       }
       if (signedOut) return;
-      if (!organizer && (!isRecord(body.usage) || typeof body.usage.files !== "number" || typeof body.usage.bytes !== "number")) {
-        throw new Error("Unable to read storage usage. Try Refresh files again.");
-      }
       const incoming = body.media as ActivatorMedia[];
       files = append ? [...files, ...incoming.filter((item) => !files.some((saved) => saved.id === item.id))] : incoming;
       nextCursor = typeof body.nextCursor === "string" ? body.nextCursor : null;
-      if (!organizer) usage = body.usage as MediaUsage;
       loaded = true;
       renderGallery();
-      galleryStatus.textContent = files.length
-        ? `${files.length} ${files.length === 1 ? "file" : "files"} shown${nextCursor ? " · More available" : ""}.`
-        : "";
+      galleryStatus.textContent = "";
     } catch (error) {
       if (generation === listGeneration && !signedOut) galleryStatus.textContent = errorMessage(error, "Unable to load files. Check your connection and try Refresh files again.");
     } finally {
@@ -246,7 +262,6 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     if (signedOut) return;
     let added = 0;
     for (const file of selected) {
-      if (queue.some((item) => item.file.name === file.name && item.file.size === file.size && item.file.lastModified === file.lastModified)) continue;
       const error = validateMediaFile(file);
       const row = element("li", "media-queue__item");
       const details = element("div");
@@ -288,7 +303,7 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     }
     if (uploadStatus) uploadStatus.textContent = added
       ? `${added} ${added === 1 ? "file added" : "files added"}. Review the selection, then upload when ready.`
-      : "These files are already in your selection.";
+      : "Choose photos or videos to add to your selection.";
     updateControls();
   }
 
@@ -346,9 +361,7 @@ export function setupMediaWorkspace(root: HTMLElement): void {
       if (signedOut) break;
       if (!queue.includes(item)) continue;
       const error = validateMediaFile(item.file)
-        ?? (!validateMediaParkReference(item.parkReference) ? "Choose a Rhode Island park from the list, or leave this file general." : null)
-        ?? (usage.files >= mediaLimits.files ? `Your ${mediaLimits.files}-file limit is reached. Delete a saved file, then retry.` : null)
-        ?? (usage.bytes + item.file.size > mediaLimits.totalBytes ? `This exceeds your ${formatMediaBytes(mediaLimits.totalBytes)} storage limit. Delete saved files, then retry.` : null);
+        ?? (!validateMediaParkReference(item.parkReference) ? "Choose a Rhode Island park from the list, or leave this file general." : null);
       if (error) {
         item.state = "error";
         item.message = error;
@@ -368,8 +381,6 @@ export function setupMediaWorkspace(root: HTMLElement): void {
         item.parkReference = saved.parkReference;
         if (!files.some((file) => file.id === saved.id)) {
           files.unshift(saved);
-          usage.files++;
-          usage.bytes += saved.size;
         }
         savedCount++;
         renderGallery();
@@ -397,7 +408,16 @@ export function setupMediaWorkspace(root: HTMLElement): void {
         ? ` ${rateLimitMessage} ${waiting} selected ${waiting === 1 ? "file remains" : "files remain"} ready to upload. The affected file is kept for retry.`
         : failed ? " Some files did not finish; your selection is kept so you can retry." : ""}`;
     }
-    if (!signedOut) await loadFiles();
+    if (!signedOut) {
+      await loadFiles();
+      if (batch.every((item) => item.state === "saved") && queue.every((item) => item.state === "saved")) {
+        queue = [];
+        queueList?.replaceChildren();
+        if (uploadStatus) uploadStatus.textContent = "";
+        updateControls();
+        uploadDialog?.close();
+      }
+    }
   }
 
   function uploadFile(item: QueuedFile): Promise<ActivatorMedia> {
@@ -431,125 +451,124 @@ export function setupMediaWorkspace(root: HTMLElement): void {
 
   function renderGallery(): void {
     const savedIds = new Set(files.map((file) => file.id));
-    for (const card of gallery.querySelectorAll<HTMLElement>("[data-media-id]")) {
-      if (!savedIds.has(card.dataset.mediaId!)) card.remove();
+    for (const tile of gallery.querySelectorAll<HTMLElement>("[data-media-id]")) {
+      if (!savedIds.has(tile.dataset.mediaId!)) tile.remove();
     }
-    // Keep existing previews mounted so new uploads do not interrupt video playback or keyboard focus.
     files.forEach((file, index) => {
       const current = gallery.children[index] as HTMLElement | undefined;
-      const card = current?.dataset.mediaId === file.id ? current
-        : [...gallery.querySelectorAll<HTMLElement>("[data-media-id]")].find((node) => node.dataset.mediaId === file.id) ?? mediaCard(file);
-      if (card !== current) gallery.insertBefore(card, current ?? null);
-      card.querySelector<HTMLElement>("[data-media-park-label]")!.textContent = parkLabel(file.parkReference);
-      card.querySelector<HTMLElement>("[data-media-title]")!.textContent = file.title || file.filename;
-      const description = card.querySelector<HTMLElement>("[data-media-description]")!;
-      description.textContent = file.description ?? "";
-      description.hidden = !file.description;
-      const filename = card.querySelector<HTMLElement>("[data-media-filename]")!;
-      filename.hidden = !file.title;
-      card.querySelector<HTMLElement>("[data-media-edit-action]")?.toggleAttribute("hidden", !file.canEdit);
-      card.querySelector<HTMLElement>("[data-media-delete-action]")?.toggleAttribute("hidden", !file.canEdit);
+      const tile = current?.dataset.mediaId === file.id ? current
+        : [...gallery.querySelectorAll<HTMLElement>("[data-media-id]")].find((node) => node.dataset.mediaId === file.id) ?? mediaTile(file);
+      if (tile !== current) gallery.insertBefore(tile, current ?? null);
+      const button = tile.querySelector<HTMLButtonElement>("[data-media-open-detail]")!;
+      button.setAttribute("aria-label", `View ${mediaLabel(file)}`);
+      const title = tile.querySelector<HTMLElement>("[data-media-title]")!;
+      title.textContent = file.title ?? "";
+      title.hidden = !file.title;
+      tile.querySelector<HTMLElement>("[data-media-author]")!.textContent = file.authorLabel;
+      const badge = tile.querySelector<HTMLElement>("[data-media-park-badge]")!;
+      const tooltip = tile.querySelector<HTMLElement>("[data-media-park-tooltip]")!;
+      badge.textContent = file.parkReference ?? "";
+      badge.hidden = !file.parkReference;
+      tooltip.textContent = parkLabel(file.parkReference);
+      tooltip.hidden = !file.parkReference;
+      if (file.parkReference) button.setAttribute("aria-describedby", tooltip.id);
+      else button.removeAttribute("aria-describedby");
     });
     empty.hidden = !loaded || files.length > 0;
-    if (usageText) usageText.textContent = `Your storage: ${usage.files} of ${mediaLimits.files} files · ${formatMediaBytes(usage.bytes)} of ${formatMediaBytes(mediaLimits.totalBytes)} used`;
-    root.querySelector<HTMLElement>("[data-media-empty-title]")!.textContent = mediaView === "mine" ? "You have not uploaded any files yet" : "No shared uploads yet";
-    root.querySelector<HTMLElement>("[data-media-empty-help]")!.textContent = mediaView === "mine"
-      ? "Choose photos or videos above to share your activation."
-      : "Shared photos and videos will appear here as activators upload them.";
+    root.querySelector<HTMLElement>("[data-media-empty-title]")!.textContent = mediaView === "mine" ? "Your activation belongs here" : "No shared uploads yet";
+    root.querySelector<HTMLElement>("[data-media-empty-help]")!.textContent = organizer
+      ? "Photos and videos will appear as activators upload them."
+      : "Use Upload photos & videos to share a moment from your activation.";
   }
 
-  function mediaCard(file: ActivatorMedia): HTMLElement {
-    const card = element("article", "media-card");
-    card.dataset.mediaId = file.id;
-    const preview = element("div", "media-card__preview");
-    const fileUrl = `${endpoint}/${encodeURIComponent(file.id)}/file`;
-    const fallback = element("p", "media-card__fallback", "Preview unavailable on this device. Download the original to view it.");
-    if (file.kind === "photo" && !["image/heic", "image/heif"].includes(file.contentType)) {
-      const image = element("img");
-      image.alt = file.filename;
-      image.loading = "lazy";
-      image.decoding = "async";
-      image.src = fileUrl;
-      image.addEventListener("error", () => { image.hidden = true; fallback.hidden = false; });
-      fallback.hidden = true;
-      preview.appendChild(image);
-    } else if (file.kind === "video") {
-      const video = element("video");
-      video.controls = true;
-      video.preload = "none";
-      video.playsInline = true;
-      video.setAttribute("aria-label", file.filename);
-      video.src = fileUrl;
-      video.addEventListener("error", () => { video.hidden = true; fallback.hidden = false; });
-      fallback.hidden = true;
-      preview.appendChild(video);
-    }
-    preview.appendChild(fallback);
-    const body = element("div", "media-card__body");
-    body.appendChild(element("p", "media-card__byline", file.callsign));
-    const title = element("h3", "", file.title || file.filename);
+  function mediaTile(file: ActivatorMedia): HTMLElement {
+    const tile = element("article", "media-tile");
+    tile.dataset.mediaId = file.id;
+    const button = element("button", "media-tile__button");
+    button.type = "button";
+    button.dataset.mediaOpenDetail = "";
+    button.setAttribute("aria-label", `View ${mediaLabel(file)}`);
+    renderPreview(file, button, false);
+    if (file.kind === "video") button.appendChild(element("span", "media-tile__type", "▶ Video"));
+    const badge = element("span", "media-tile__park", file.parkReference ?? "");
+    badge.dataset.mediaParkBadge = "";
+    badge.hidden = !file.parkReference;
+    const tooltip = element("span", "media-tile__tooltip", parkLabel(file.parkReference));
+    tooltip.dataset.mediaParkTooltip = "";
+    tooltip.id = `media-park-${organizer ? "admin" : "activator"}-${file.id}`;
+    tooltip.setAttribute("role", "tooltip");
+    tooltip.hidden = !file.parkReference;
+    button.appendChild(badge);
+    button.appendChild(tooltip);
+    button.addEventListener("click", () => {
+      const current = files.find((item) => item.id === file.id);
+      if (current && !signedOut) openDetails(current, button);
+    });
+    const caption = element("div", "media-tile__caption");
+    const title = element("h3", "", file.title ?? "");
     title.dataset.mediaTitle = "";
-    body.appendChild(title);
-    const filename = element("p", "media-card__filename", file.filename);
-    filename.dataset.mediaFilename = "";
-    filename.hidden = !file.title;
-    body.appendChild(filename);
-    const description = element("p", "media-card__description", file.description ?? "");
-    description.dataset.mediaDescription = "";
-    description.hidden = !file.description;
-    body.appendChild(description);
-    const date = new Date(file.createdAt);
-    body.appendChild(element("p", "media-card__meta", `${file.kind === "photo" ? "Photo" : "Video"} · ${formatMediaBytes(file.size)} · Uploaded ${Number.isFinite(date.valueOf()) ? date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "date unavailable"}`));
-    const parkActions = element("div", "media-card__park-actions");
-    const park = element("p", "media-card__park", parkLabel(file.parkReference));
-    park.dataset.mediaParkLabel = "";
-    const edit = actionButton("Edit details", `Edit details for ${file.filename}`);
-    edit.dataset.mediaEditAction = "";
-    edit.hidden = !file.canEdit;
-    edit.addEventListener("click", () => {
-      const current = files.find((item) => item.id === file.id);
-      if (!current?.canEdit || signedOut) return;
-      detailsTargetId = current.id;
-      detailsOriginal = { ...current };
-      detailsTrigger = edit;
-      detailsStatus.textContent = "";
-      root.querySelector<HTMLElement>("[data-media-details-filename]")!.textContent = organizer
-        ? `${current.filename} · ${current.callsign}` : current.filename;
-      editPark.value = current.parkReference ?? "";
-      editTitle.value = current.title ?? "";
-      editDescription.value = current.description ?? "";
-      detailsDialog.showModal();
-      editTitle.focus();
-    });
-    parkActions.appendChild(park);
-    parkActions.appendChild(edit);
-    body.appendChild(parkActions);
-    const actions = element("div", "media-card__actions");
-    const download = element("a", "", "Download original");
-    download.href = `${fileUrl}?download=1`;
-    download.download = file.filename;
-    download.setAttribute("aria-label", `Download original ${file.filename}`);
-    const remove = actionButton("Delete", `Delete ${file.filename}`);
-    remove.dataset.mediaDeleteAction = "";
-    remove.hidden = !file.canEdit;
-    remove.addEventListener("click", () => {
-      const current = files.find((item) => item.id === file.id);
-      if (!current?.canEdit || signedOut) return;
-      deleteTarget = current;
-      deleteTrigger = remove;
-      deleteStatus.textContent = "";
-      root.querySelector<HTMLElement>("[data-media-delete-description]")!.textContent = organizer
-        ? `${file.filename} · ${file.callsign}` : file.filename;
-      deleteDialog.showModal();
-      deleteCancel.focus();
-    });
-    actions.appendChild(download);
-    actions.appendChild(remove);
-    body.appendChild(actions);
-    if (file.kind === "video") body.appendChild(element("p", "media-card__playback-help", "If this video will not play, download the original to open it on your device."));
-    card.appendChild(preview);
-    card.appendChild(body);
-    return card;
+    title.hidden = !file.title;
+    const author = element("p", "media-tile__author", file.authorLabel);
+    author.dataset.mediaAuthor = "";
+    caption.appendChild(title);
+    caption.appendChild(author);
+    tile.appendChild(button);
+    tile.appendChild(caption);
+    return tile;
+  }
+
+  function renderPreview(file: ActivatorMedia, container: HTMLElement, detail: boolean): void {
+    container.replaceChildren();
+    const fallback = element("span", detail ? "media-detail__fallback" : "media-tile__fallback", detail
+      ? "This device cannot preview this original. Download it to view in another app."
+      : `${file.kind === "photo" ? "Photo" : "Video"} · Open to view`);
+    fallback.hidden = true;
+    const source = `${endpoint}/${encodeURIComponent(file.id)}/file`;
+    if (file.kind === "photo") {
+      // Let browsers with native HEIC/HEIF support preview originals too.
+      const image = element("img");
+      image.alt = detail ? mediaLabel(file) : "";
+      image.loading = detail ? "eager" : "lazy";
+      image.decoding = "async";
+      image.src = source;
+      image.addEventListener("error", () => { image.hidden = true; fallback.hidden = false; });
+      container.appendChild(image);
+    } else {
+      const video = element("video");
+      video.controls = detail;
+      video.preload = "metadata";
+      video.playsInline = true;
+      video.muted = !detail;
+      if (detail) video.setAttribute("aria-label", mediaLabel(file));
+      else { video.tabIndex = -1; video.setAttribute("aria-hidden", "true"); }
+      video.src = source;
+      video.addEventListener("error", () => { video.hidden = true; fallback.hidden = false; });
+      container.appendChild(video);
+    }
+    container.appendChild(fallback);
+  }
+
+  function openDetails(file: ActivatorMedia, trigger: HTMLButtonElement): void {
+    detailsTargetId = file.id;
+    detailsOriginal = file.canEdit ? { ...file } : null;
+    detailsDialog.dataset.mediaId = file.id;
+    detailsStatus.textContent = "";
+    root.querySelector<HTMLElement>("[data-media-details-author]")!.textContent = file.authorLabel;
+    root.querySelector<HTMLElement>("[data-media-details-heading]")!.textContent = file.title || (file.kind === "photo" ? "Photo" : "Video");
+    root.querySelector<HTMLElement>("[data-media-details-park]")!.textContent = parkLabel(file.parkReference);
+    const uploaded = new Date(file.createdAt);
+    root.querySelector<HTMLElement>("[data-media-details-meta]")!.textContent = `${file.kind === "photo" ? "Photo" : "Video"} · ${formatMediaBytes(file.size)} · Uploaded ${Number.isFinite(uploaded.valueOf()) ? uploaded.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "date unavailable"}`;
+    root.querySelector<HTMLElement>("[data-media-details-description]")!.textContent = file.description ?? "";
+    root.querySelector<HTMLElement>("[data-media-details-readonly]")!.hidden = file.canEdit || !file.description;
+    detailsForm.hidden = !file.canEdit;
+    detailDelete.hidden = !file.canEdit;
+    editPark.value = file.parkReference ?? "";
+    editTitle.value = file.title ?? "";
+    editDescription.value = file.description ?? "";
+    detailDownload.href = `${endpoint}/${encodeURIComponent(file.id)}/file?download=1`;
+    detailDownload.download = file.filename;
+    renderPreview(file, detailsPreview, true);
+    modals.open(detailsDialog, trigger, detailsCancel);
   }
 
   async function deleteFile(): Promise<void> {
@@ -571,14 +590,11 @@ export function setupMediaWorkspace(root: HTMLElement): void {
       }
       if (signedOut) return;
       files = files.filter((file) => file.id !== target.id);
-      if (!organizer) {
-        usage.files = Math.max(0, usage.files - 1);
-        usage.bytes = Math.max(0, usage.bytes - target.size);
-      }
       renderGallery();
       deleteDialog.close();
-      refresh.focus();
-      galleryStatus.textContent = `${target.filename} deleted.`;
+      detailsDialog.close();
+      refresh.focus({ preventScroll: true });
+      galleryStatus.textContent = "Media deleted.";
     } catch (error) {
       if (!signedOut) deleteStatus.textContent = errorMessage(error, "Unable to delete the file. Check your connection and try again.");
     } finally {
@@ -614,7 +630,7 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     if (description !== original.description) changes.description = description;
     if (Object.keys(changes).length === 0) {
       detailsDialog.close();
-      galleryStatus.textContent = `No changes for ${target.filename}.`;
+      galleryStatus.textContent = "No changes to this media.";
       return;
     }
     savingDetails = true;
@@ -645,7 +661,7 @@ export function setupMediaWorkspace(root: HTMLElement): void {
       }
       renderGallery();
       detailsDialog.close();
-      galleryStatus.textContent = `Details saved for ${saved.filename}.`;
+      galleryStatus.textContent = "Details saved.";
     } catch (error) {
       if (!signedOut) detailsStatus.textContent = errorMessage(error, "Unable to save these details. Check your connection and try again.");
     } finally {
@@ -661,9 +677,13 @@ export function setupMediaWorkspace(root: HTMLElement): void {
   }
 
   function updateControls(): void {
+    if (uploadClose) uploadClose.disabled = uploading;
+    if (openUpload) openUpload.disabled = signedOut;
     refresh.disabled = loading || uploading || savingDetails || signedOut;
     if (more) { more.hidden = !nextCursor; more.disabled = loading || uploading || savingDetails || signedOut; }
-    detailsSave.disabled = loading || savingDetails || signedOut;
+    detailsSave.disabled = loading || savingDetails || deleting || signedOut;
+    detailDelete.disabled = savingDetails || deleting || signedOut;
+    detailsCancel.disabled = savingDetails || deleting;
     for (const button of scopeButtons) {
       button.setAttribute("aria-pressed", String(button.dataset.mediaView === mediaView));
       button.disabled = uploading || savingDetails || deleting || signedOut;
@@ -708,6 +728,10 @@ function parkLabel(reference: string | null): string {
   return reference && name !== reference ? `${reference} · ${name}` : name;
 }
 
+function mediaLabel(file: ActivatorMedia): string {
+  return `${file.title || (file.kind === "photo" ? "Photo" : "Video")} by ${file.authorLabel}`;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -716,7 +740,7 @@ function isMedia(value: unknown): value is ActivatorMedia {
   return isRecord(value) && typeof value.id === "string" && typeof value.filename === "string"
     && typeof value.contentType === "string" && (value.kind === "photo" || value.kind === "video")
     && typeof value.size === "number" && Number.isFinite(value.size) && value.size >= 0
-    && typeof value.createdAt === "string" && typeof value.callsign === "string" && typeof value.url === "string"
+    && typeof value.createdAt === "string" && typeof value.callsign === "string" && typeof value.authorLabel === "string" && typeof value.url === "string"
     && (value.parkReference === null || typeof value.parkReference === "string")
     && (value.title === null || typeof value.title === "string")
     && (value.description === null || typeof value.description === "string")

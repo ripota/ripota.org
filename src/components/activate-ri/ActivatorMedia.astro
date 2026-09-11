@@ -11,121 +11,115 @@ const Heading = organizer ? "h2" : "h1";
 <div class="media-workspace" data-media-workspace data-media-scope={organizer ? "admin" : "activator"}>
   <header class="media-workspace__header">
     <div>
-      <p class="eyebrow">{organizer ? "From the field" : "Your activation, captured"}</p>
-      <Heading id={`${prefix}-media-title`}>{organizer ? "Activator photos & videos" : "Photos & videos"}</Heading>
-      <p class="lead">{organizer
-        ? "Review the photos and videos shared by activators."
-        : "Share the moments, setups, and scenery from your Rhode Island activations."}</p>
+      <p class="eyebrow">From the field</p>
+      <Heading id={`${prefix}-media-title`}>Photos & videos</Heading>
+      <p class="lead">The places, people, and moments behind our activations.</p>
     </div>
-    <span class="media-workspace__privacy">Activator gallery</span>
+    {!organizer && <button class="button" data-variant="primary" type="button" data-media-open-upload>Upload photos & videos</button>}
   </header>
 
-  <p class="media-workspace__notice">
-    Shared files are visible to signed-in activators and organizers. Only the uploader and organizers can edit or delete them.{" "}
-    Originals are retained, including any embedded photo location and camera metadata.
-  </p>
-
-  {!organizer && (
-    <section class="media-upload" aria-labelledby="media-upload-title">
-      <div>
-        <h2 id="media-upload-title">Add photos or videos</h2>
-        <p class="form-help" id="media-upload-limits">
-          Photos up to {formatMediaBytes(mediaLimits.photoBytes)} each · Videos up to {formatMediaBytes(mediaLimits.videoBytes)} each.{" "}
-          Up to {mediaLimits.files} files and {formatMediaBytes(mediaLimits.totalBytes)} total.
-        </p>
-      </div>
-      <div class="media-park-field">
-        <label for="activator-media-default-park">Park (optional)</label>
-        <select id="activator-media-default-park" class="media-park-select" data-media-default-park aria-describedby="media-default-park-help">
-          <option value="">General — no park</option>
-          {mediaParks.map((park) => <option value={park.reference}>{park.reference} — {park.name}</option>)}
-        </select>
-        <p class="form-help" id="media-default-park-help">Applies to files you choose next. You can choose a different park for each file, or leave it general.</p>
-      </div>
-      <div class="media-dropzone" data-media-dropzone>
-        <label for="activator-media-files">Choose photos and videos</label>
-        <input id="activator-media-files" type="file" multiple accept={mediaAccept} data-media-input
-          aria-describedby="media-upload-limits media-upload-formats" />
-        <p class="form-help">You can also drag files here. Review your selection before uploading.</p>
-      </div>
-      <p class="form-help" id="media-upload-formats">
-        JPEG, PNG, GIF, WebP, HEIC, HEIF, or AVIF photos; MP4, MOV, or WebM videos.{" "}
-        Some originals need to be downloaded to view on your device.
-      </p>
-      <div data-media-queue-section hidden>
-        <h3>Selected files</h3>
-        <ul class="media-queue" data-media-queue aria-label="Selected files"></ul>
-        <p class="form-help media-usage-notice" data-media-usage-notice>{mediaUsageNoticeText}</p>
-        <div class="button-row media-upload__actions">
-          <button class="button" data-variant="primary" type="button" data-media-upload disabled>Upload selected files</button>
-          <button class="button" data-variant="light" type="button" data-media-clear>Clear finished files</button>
+  <section class="media-library" aria-label="Media gallery">
+    <div class="media-library__toolbar">
+      {!organizer && (
+        <div class="media-scope" role="group" aria-label="Media shown">
+          <button type="button" data-media-view="all" aria-pressed="true">All media</button>
+          <button type="button" data-media-view="mine" aria-pressed="false">My media</button>
         </div>
-        <p class="form-help">Files upload one at a time. Keep this page open until they finish.</p>
-      </div>
-      <p class="form-status" data-media-upload-status role="status" aria-live="polite"></p>
-    </section>
-  )}
-
-  <section class="media-library" aria-labelledby={`${prefix}-media-library-title`}>
-    <div class="media-library__header">
-      <div>
-        <h2 id={`${prefix}-media-library-title`}>{organizer ? "Activator uploads" : "Gallery"}</h2>
-        {!organizer && <p class="form-help" data-media-usage>Loading storage usage…</p>}
-      </div>
+      )}
       <button class="button" data-variant="light" type="button" data-media-refresh>Refresh files</button>
     </div>
-    {!organizer && (
-      <div class="media-scope" role="group" aria-label="Media shown">
-        <button type="button" data-media-view="all" aria-pressed="true">All media</button>
-        <button type="button" data-media-view="mine" aria-pressed="false">My media</button>
-      </div>
-    )}
     <p class="form-status" data-media-status role="status" aria-live="polite">Loading photos and videos…</p>
     <div class="media-empty" data-media-empty hidden>
-      <p data-media-empty-title>No uploads yet</p>
-      <span data-media-empty-help>Shared photos and videos will appear here as activators upload them.</span>
+      <p data-media-empty-title>No shared uploads yet</p>
+      <span data-media-empty-help>Share a photo or video from your activation.</span>
     </div>
     <div class="media-grid" data-media-gallery></div>
     <button class="button" data-variant="light" type="button" data-media-more hidden>Load more files</button>
   </section>
 
-  <dialog class="form-confirmation" data-media-details-dialog aria-labelledby={`${prefix}-media-park-title`}>
-    <form class="form-confirmation__body" data-media-details-form>
-      <p class="eyebrow">Photo & video details</p>
-      <h2 id={`${prefix}-media-park-title`}>Edit details</h2>
-      <p data-media-details-filename></p>
-      <div class="media-park-field">
-        <label for={`${prefix}-media-edit-title`}>Title (optional)</label>
-        <input id={`${prefix}-media-edit-title`} class="media-details-input" type="text" maxlength={mediaMetadataLimits.title} data-media-edit-title />
+  {!organizer && (
+    <dialog class="media-modal media-upload-modal" data-media-upload-dialog aria-label="Upload photos & videos">
+      <div class="media-upload">
+        <header class="media-modal__header">
+          <div><p class="eyebrow">Share your activation</p><h2>Upload photos & videos</h2></div>
+          <button class="media-close" type="button" data-media-upload-close aria-label="Close upload">✕</button>
+        </header>
+        <p class="form-help" id="media-upload-limits">Photos up to {formatMediaBytes(mediaLimits.photoBytes)} each · Videos up to {formatMediaBytes(mediaLimits.videoBytes)} each.</p>
+        <div class="media-park-field">
+          <label for="activator-media-default-park">Park (optional)</label>
+          <select id="activator-media-default-park" class="media-park-select" data-media-default-park aria-describedby="media-default-park-help">
+            <option value="">General — no park</option>
+            {mediaParks.map((park) => <option value={park.reference}>{park.reference} — {park.name}</option>)}
+          </select>
+          <p class="form-help" id="media-default-park-help">Applies to files you choose next. You can change the park for each file.</p>
+        </div>
+        <div class="media-dropzone" data-media-dropzone>
+          <label for="activator-media-files">Choose photos and videos</label>
+          <input id="activator-media-files" type="file" multiple accept={mediaAccept} data-media-input aria-describedby="media-upload-limits media-upload-formats" />
+          <p class="form-help">Or drag files here.</p>
+        </div>
+        <p class="form-help" id="media-upload-formats">JPEG, PNG, GIF, WebP, HEIC, HEIF, or AVIF photos; MP4, MOV, or WebM videos. Originals, including embedded location and camera metadata, are retained.</p>
+        <div data-media-queue-section hidden>
+          <h3>Selected files</h3>
+          <ul class="media-queue" data-media-queue aria-label="Selected files"></ul>
+          <p class="form-help media-usage-notice" data-media-usage-notice>{mediaUsageNoticeText}</p>
+          <div class="button-row media-upload__actions">
+            <button class="button" data-variant="primary" type="button" data-media-upload disabled>Upload selected files</button>
+            <button class="button" data-variant="light" type="button" data-media-clear>Clear finished files</button>
+          </div>
+          <p class="form-help">Files upload one at a time. Keep this dialog open until they finish.</p>
+        </div>
+        <p class="form-status" data-media-upload-status role="status" aria-live="polite"></p>
       </div>
-      <div class="media-park-field">
-        <label for={`${prefix}-media-edit-description`}>Description (optional)</label>
-        <textarea id={`${prefix}-media-edit-description`} class="media-details-input" rows="4" maxlength={mediaMetadataLimits.description} data-media-edit-description></textarea>
+    </dialog>
+  )}
+
+  <dialog class="media-modal media-details-modal" data-media-details-dialog aria-label="Media details">
+    <div class="media-detail">
+      <header class="media-modal__header media-detail__header">
+        <div><p class="eyebrow" data-media-details-author></p><h2 data-media-details-heading>Media details</h2></div>
+        <button class="media-close" type="button" data-media-details-cancel aria-label="Close details">✕</button>
+      </header>
+      <div class="media-detail__layout">
+        <div class="media-detail__preview" data-media-details-preview></div>
+        <div class="media-detail__information">
+          <p class="media-detail__park" data-media-details-park></p>
+          <p class="media-detail__meta" data-media-details-meta></p>
+          <div data-media-details-readonly><p class="media-detail__description" data-media-details-description></p></div>
+          <form class="media-detail__form" data-media-details-form hidden>
+            <div class="media-park-field">
+              <label for={`${prefix}-media-edit-title`}>Title (optional)</label>
+              <input id={`${prefix}-media-edit-title`} class="media-details-input" type="text" maxlength={mediaMetadataLimits.title} data-media-edit-title />
+            </div>
+            <div class="media-park-field">
+              <label for={`${prefix}-media-edit-description`}>Description (optional)</label>
+              <textarea id={`${prefix}-media-edit-description`} class="media-details-input" rows="4" maxlength={mediaMetadataLimits.description} data-media-edit-description></textarea>
+            </div>
+            <div class="media-park-field">
+              <label for={`${prefix}-media-edit-park`}>Park for this file</label>
+              <select id={`${prefix}-media-edit-park`} class="media-park-select" data-media-edit-park>
+                <option value="">General — no park</option>
+                {mediaParks.map((park) => <option value={park.reference}>{park.reference} — {park.name}</option>)}
+              </select>
+            </div>
+            <p class="form-status" data-media-details-status role="status" aria-live="polite"></p>
+            <button class="button" data-variant="primary" type="submit" data-media-details-save>Save details</button>
+          </form>
+          <div class="media-detail__actions">
+            <a data-media-download>Download original</a>
+            <button class="button" data-variant="light" type="button" data-media-detail-delete hidden>Delete media</button>
+          </div>
+        </div>
       </div>
-      <div class="media-park-field">
-        <label for={`${prefix}-media-edit-park`}>Park for this file</label>
-        <select id={`${prefix}-media-edit-park`} class="media-park-select" data-media-edit-park aria-describedby={`${prefix}-media-park-help`}>
-          <option value="">General — no park</option>
-          {mediaParks.map((park) => <option value={park.reference}>{park.reference} — {park.name}</option>)}
-        </select>
-        <p class="form-help" id={`${prefix}-media-park-help`}>Choose a park for this photo or video, or select General to leave it unassociated.</p>
-      </div>
-      <p class="form-status" data-media-details-status role="status" aria-live="polite"></p>
-      <div class="form-actions">
-        <button class="button" data-variant="light" type="button" data-media-details-cancel>Cancel</button>
-        <button class="button" data-variant="primary" type="submit" data-media-details-save>Save details</button>
-      </div>
-    </form>
+    </div>
   </dialog>
 
   <dialog class="form-confirmation" data-media-delete-dialog aria-labelledby={`${prefix}-media-delete-title`}>
     <form method="dialog" class="form-confirmation__body">
       <p class="eyebrow">Remove an upload</p>
-      <h2 id={`${prefix}-media-delete-title`}>Delete this file?</h2>
+      <h2 id={`${prefix}-media-delete-title`}>Delete this media?</h2>
       <p data-media-delete-description></p>
-      <p>{organizer
-        ? "This removes the saved original. The activator can upload it again if they still have a copy."
-        : "This removes the saved original. You can upload it again if you still have a copy."}</p>
+      <p>This removes the original. It can be uploaded again if the activator still has a copy.</p>
       <p class="form-status" data-media-delete-status role="status" aria-live="polite"></p>
       <div class="form-actions">
         <button class="button" data-variant="light" value="cancel" data-media-delete-cancel>Keep file</button>
@@ -142,70 +136,94 @@ const Heading = organizer ? "h2" : "h1";
 </script>
 
 <style is:global>
-  .media-workspace { display: grid; gap: 1.5rem; min-width: 0; }
-  .media-workspace__header { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
-  .media-workspace .media-workspace__header h1, .media-workspace .media-workspace__header h2 { max-width: none; font-size: clamp(2rem, 5vw, 3rem); }
-  .media-workspace__header .lead { margin-top: .75rem; max-width: 52ch; }
-  .media-workspace__privacy { border: 1px solid var(--border-subtle); border-radius: 999px; padding: .45rem .75rem; color: var(--text-muted); font-size: .8rem; font-weight: 700; white-space: nowrap; }
-  .media-workspace__notice { margin: 0; border-left: 3px solid var(--accent); padding: .5rem 1rem; color: var(--text-muted); max-width: 85ch; }
-  .media-upload { display: grid; gap: 1rem; padding: clamp(1rem, 3vw, 1.75rem); border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--surface-raised); }
-  .media-workspace .media-upload h2, .media-workspace .media-library h2 { margin: 0; max-width: none; font-size: 1.4rem; }
-  .media-workspace .form-help { margin: .4rem 0 0; }
-  .media-workspace .media-upload h3 { font-size: 1.15rem; }
-  .media-workspace .media-usage-notice { margin: 1rem 0 .7rem; max-width: 75ch; font-size: .85rem; }
-  .media-scope { display: inline-flex; justify-self: start; gap: .25rem; border: 1px solid var(--border-subtle); border-radius: 8px; padding: .25rem; background: var(--surface-raised); }
-  .media-scope button { min-height: 44px; border: 0; border-radius: 5px; padding: .55rem 1rem; background: transparent; color: var(--text-primary); font: inherit; font-weight: 700; cursor: pointer; }
+  .media-workspace { display: grid; gap: 1.4rem; min-width: 0; }
+  .media-workspace__header, .media-library__toolbar, .media-modal__header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+  .media-workspace__header { flex-wrap: wrap; }
+  .media-workspace .media-workspace__header h1, .media-workspace .media-workspace__header h2 { margin: 0; max-width: none; font-size: clamp(2rem, 4vw, 2.75rem); }
+  .media-workspace__header .lead { margin: .6rem 0 0; max-width: 54ch; font-size: 1rem; }
+  .media-workspace .eyebrow { margin: 0 0 .3rem; }
+  .media-library { display: grid; gap: 1rem; min-width: 0; }
+  .media-library__toolbar { flex-wrap: wrap; }
+  .media-library__toolbar > .button { margin-left: auto; }
+  .media-workspace .form-status { margin: 0; }
+  .media-library > .form-status:empty { display: none; }
+  .media-scope { display: inline-flex; gap: .25rem; border: 1px solid var(--border-subtle); border-radius: 8px; padding: .25rem; background: var(--surface-raised); }
+  .media-scope button { min-height: 44px; border: 0; border-radius: 5px; padding: .5rem .8rem; background: transparent; color: var(--text-primary); font: inherit; font-weight: 700; cursor: pointer; }
   .media-scope button[aria-pressed="true"] { background: var(--surface-ink); color: var(--surface-page); }
-  .media-park-field { display: grid; gap: .4rem; min-width: 0; }
-  .media-park-field label, .media-queue__park > span { font-weight: 700; }
-  .media-park-select, .media-details-input { display: block; width: 100%; min-width: 0; max-width: 100%; min-height: 44px; border: 1px solid var(--border-subtle); border-radius: 6px; background: var(--surface-raised); color: var(--text-primary); padding: .6rem .7rem; font: inherit; }
+  .media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr)); gap: 1rem; }
+  .media-tile { min-width: 0; }
+  .media-tile__button { display: block; position: relative; width: 100%; aspect-ratio: 4 / 3; overflow: hidden; padding: 0; border: 0; border-radius: 9px; background: color-mix(in srgb, var(--surface-ink) 8%, var(--surface-page)); color: var(--text-primary); cursor: pointer; }
+  .media-tile__button > img, .media-tile__button > video { width: 100%; height: 100%; object-fit: cover; }
+  .media-tile__button > video { pointer-events: none; }
+  .media-tile__fallback { display: grid; position: absolute; inset: 0; align-content: center; gap: .35rem; padding: .7rem; font: inherit; font-size: .85rem; text-align: center; }
+  .media-tile__type { position: absolute; left: .55rem; bottom: .55rem; border-radius: 4px; padding: .2rem .4rem; background: #142b27d9; color: #fff; font-size: .75rem; font-weight: 700; }
+  .media-tile__park { position: absolute; top: .55rem; right: .55rem; border: 1px solid #ffffff45; border-radius: 999px; padding: .25rem .5rem; background: #142b27e6; color: #fff; font-size: .72rem; font-weight: 800; }
+  .media-tile__tooltip { position: absolute; top: 2.8rem; right: .5rem; left: .5rem; width: fit-content; margin-left: auto; max-width: calc(100% - 1rem); border-radius: 5px; padding: .4rem .6rem; background: var(--surface-raised); color: var(--text-primary); font-size: .8rem; text-align: left; opacity: 0; pointer-events: none; }
+  .media-tile__button:hover .media-tile__tooltip, .media-tile__button:focus-visible .media-tile__tooltip { opacity: 1; }
+  .media-tile__caption { display: grid; gap: .15rem; padding: .5rem .1rem .15rem; }
+  .media-tile__caption h3 { margin: 0; font: inherit; font-size: .9rem; font-weight: 700; overflow-wrap: anywhere; }
+  .media-tile__author { margin: 0; color: var(--text-muted); font-size: .8rem; overflow-wrap: anywhere; }
+  .media-empty { border: 1px dashed var(--border-subtle); border-radius: 10px; text-align: center; padding: 3rem 1rem; }
+  .media-empty p { margin: 0 0 .4rem; font-size: 1.15rem; font-weight: 800; }
+  .media-empty span { color: var(--text-muted); }
+  .media-modal { max-height: calc(100dvh - 2rem); border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--surface-raised); color: var(--text-primary); padding: 0; overscroll-behavior: contain; }
+  .media-modal::backdrop { background: #102322aa; }
+  .media-upload-modal { width: min(94vw, 46rem); }
+  .media-details-modal { width: min(96vw, 72rem); }
+  .media-modal__header { align-items: start; }
+  .media-workspace .media-modal__header h2 { margin: 0; max-width: none; font-size: clamp(1.4rem, 3vw, 1.8rem); overflow-wrap: anywhere; }
+  .media-close { display: grid; place-items: center; flex: 0 0 auto; width: 44px; height: 44px; padding: 0; border: 1px solid var(--border-subtle); border-radius: 50%; background: var(--surface-raised); color: var(--text-primary); font-size: 1.05rem; cursor: pointer; }
+  .media-close:disabled { opacity: .4; cursor: wait; }
+  .media-upload { display: grid; gap: 1rem; padding: clamp(1rem, 3vw, 1.75rem); }
+  .media-upload h3 { margin: 0; font-size: 1.1rem; }
+  .media-workspace .form-help { margin: .35rem 0 0; font-size: .85rem; }
+  .media-workspace .media-usage-notice { margin: .8rem 0; max-width: 75ch; }
+  .media-park-field { display: grid; gap: .35rem; min-width: 0; }
+  .media-park-field label, .media-queue__park > span { font-weight: 700; font-size: .9rem; }
+  .media-park-select, .media-details-input { display: block; width: 100%; min-width: 0; max-width: 100%; min-height: 44px; border: 1px solid var(--border-subtle); border-radius: 6px; background: var(--surface-raised); color: var(--text-primary); padding: .55rem .65rem; font: inherit; }
   textarea.media-details-input { resize: vertical; }
-  [data-media-details-dialog] .form-confirmation__body { display: grid; gap: .85rem; }
-  .media-upload > .media-park-field { max-width: 42rem; }
-  .media-queue__park { display: grid; gap: .3rem; margin: .65rem 0 .5rem; font-size: .85rem; }
-  .media-dropzone { display: grid; gap: .8rem; border: 2px dashed var(--border-subtle); border-radius: 8px; background: var(--surface-page); padding: clamp(1rem, 3vw, 1.5rem); }
-  .media-dropzone[data-dragging="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface-page)); }
+  .media-queue__park { display: grid; gap: .3rem; margin: .5rem 0; font-size: .85rem; }
+  .media-dropzone { display: grid; gap: .8rem; border: 2px dashed var(--border-subtle); border-radius: 8px; background: var(--surface-page); padding: 1rem; }
+  .media-dropzone[data-dragging="true"] { border-color: var(--accent); }
   .media-dropzone label { font-weight: 800; }
   .media-dropzone input { max-width: 100%; min-width: 0; color: var(--text-muted); }
-  .media-dropzone input::file-selector-button { margin-right: .7rem; border: 1px solid var(--border-subtle); border-radius: 6px; background: var(--surface-raised); color: var(--text-primary); padding: .65rem .8rem; cursor: pointer; font: inherit; font-weight: 700; }
-  .media-queue { display: grid; gap: .6rem; margin: .8rem 0 1rem; padding: 0; list-style: none; }
-  .media-queue__item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .35rem 1rem; align-items: center; border: 1px solid var(--border-subtle); border-radius: 8px; padding: .8rem; }
+  .media-dropzone input::file-selector-button { margin-right: .6rem; border: 1px solid var(--border-subtle); border-radius: 6px; background: var(--surface-raised); color: var(--text-primary); padding: .6rem .7rem; cursor: pointer; font: inherit; font-weight: 700; }
+  .media-queue { display: grid; gap: .6rem; margin: .8rem 0; padding: 0; list-style: none; }
+  .media-queue__item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .35rem .8rem; align-items: center; border: 1px solid var(--border-subtle); border-radius: 8px; padding: .75rem; }
   .media-queue__name { display: block; overflow-wrap: anywhere; }
-  .media-queue__detail, .media-queue__status { margin: .15rem 0 0; color: var(--text-muted); font-size: .85rem; }
+  .media-queue__detail, .media-queue__status { margin: .15rem 0 0; color: var(--text-muted); font-size: .8rem; }
   .media-queue__status[data-error="true"] { color: light-dark(#a52218, #ffb4ab); }
   .media-queue__progress { grid-column: 1 / -1; width: 100%; height: .5rem; accent-color: var(--accent); }
   .media-queue__actions { display: flex; flex-wrap: wrap; gap: .4rem; }
-  .media-queue__actions .button { min-height: 44px; padding: .5rem .65rem; font-size: .85rem; }
+  .media-queue__actions .button { min-height: 44px; padding: .5rem .6rem; font-size: .85rem; }
   .media-upload__actions { flex-wrap: wrap; }
-  .media-library { display: grid; gap: 1rem; min-width: 0; }
-  .media-library__header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
-  .media-workspace .form-status { margin: 0; }
-  .media-empty { border: 1px dashed var(--border-subtle); border-radius: 10px; text-align: center; padding: 2.5rem 1rem; }
-  .media-empty p { margin: 0 0 .4rem; font-size: 1.15rem; font-weight: 800; }
-  .media-empty span { color: var(--text-muted); }
-  .media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 1rem; }
-  .media-card { min-width: 0; overflow: hidden; border: 1px solid var(--border-subtle); border-radius: 10px; background: var(--surface-raised); }
-  .media-card__preview { position: relative; display: grid; align-items: center; aspect-ratio: 4 / 3; background: color-mix(in srgb, var(--surface-ink) 7%, var(--surface-page)); overflow: hidden; }
-  .media-card__preview img, .media-card__preview video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
-  .media-card__fallback { margin: 0; padding: 1rem; text-align: center; color: var(--text-muted); font-size: .9rem; }
-  .media-card__body { display: grid; gap: .65rem; padding: 1rem; }
-  .media-card__body h3 { margin: 0; font-size: 1rem; overflow-wrap: anywhere; }
-  .media-card__meta { margin: 0; color: var(--text-muted); font-size: .85rem; }
-  .media-card__description { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .9rem; }
-  .media-card__filename { margin: 0; color: var(--text-muted); font-size: .8rem; overflow-wrap: anywhere; }
-  .media-card__park { margin: 0; color: var(--text-muted); font-size: .85rem; overflow-wrap: anywhere; }
-  .media-card__park-actions { display: grid; justify-items: start; gap: .4rem; padding-block: .5rem; border-block: 1px solid var(--border-subtle); }
-  .media-card__park-actions .button { min-height: 44px; width: auto; padding: .4rem .65rem; font-size: .85rem; }
-  .media-card__byline { margin: 0; font-weight: 800; color: var(--accent-strong); }
-  .media-card__actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: .75rem; }
-  .media-card__actions a { color: var(--link); font-size: .9rem; }
-  .media-card__actions .button { min-height: 44px; padding: .45rem .7rem; font-size: .85rem; }
-  .media-card__playback-help { margin: 0; color: var(--text-muted); font-size: .8rem; }
-  .media-workspace [data-media-delete-description], .media-workspace [data-media-details-filename] { overflow-wrap: anywhere; font-weight: 800; }
+  .media-detail__header { padding: 1.1rem 1.25rem; border-bottom: 1px solid var(--border-subtle); }
+  .media-detail__layout { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(16rem, 1fr); }
+  .media-detail__preview { display: grid; place-items: center; min-height: 22rem; background: #101918; color: #fff; }
+  .media-detail__preview > img, .media-detail__preview > video { display: block; width: 100%; max-height: 72dvh; object-fit: contain; }
+  .media-detail__fallback { padding: 1.5rem; color: #e7eee8; text-align: center; }
+  .media-detail__information { display: grid; align-content: start; gap: 1rem; min-width: 0; padding: 1.25rem; }
+  .media-detail__park { margin: 0; font-weight: 700; color: var(--accent-strong); font-size: .9rem; overflow-wrap: anywhere; }
+  .media-detail__meta { margin: -.4rem 0 0; color: var(--text-muted); font-size: .8rem; }
+  .media-detail__description { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .media-detail__form { display: grid; gap: .85rem; }
+  .media-detail__actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: .7rem; padding-top: .8rem; border-top: 1px solid var(--border-subtle); }
+  .media-detail__actions a { color: var(--link); font-size: .9rem; }
+  .media-detail__actions .button { min-height: 44px; padding: .45rem .65rem; font-size: .85rem; }
+  @media (max-width: 700px) {
+    .media-detail__layout { grid-template-columns: minmax(0, 1fr); }
+    .media-detail__preview { min-height: 12rem; }
+    .media-detail__preview > img, .media-detail__preview > video { max-height: 48dvh; }
+    .media-detail__information { padding: 1rem; }
+  }
   @media (max-width: 520px) {
+    .media-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem .6rem; }
     .media-queue__item { grid-template-columns: minmax(0, 1fr); }
     .media-queue__actions { justify-self: start; }
-    .media-workspace__privacy { font-size: .75rem; }
     .media-upload__actions > .button { width: 100%; }
+    .media-library__toolbar > .button { width: auto; padding-inline: .65rem; font-size: .8rem; }
+    .media-scope button { font-size: .85rem; padding-inline: .65rem; }
+    .media-tile__park { top: .35rem; right: .35rem; font-size: .65rem; padding: .2rem .4rem; }
+    .media-tile__tooltip { top: 2.3rem; font-size: .72rem; }
   }
 </style>

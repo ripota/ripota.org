@@ -8,13 +8,13 @@ import SiteHeader from "../../../components/SiteHeader.astro";
 import BaseLayout from "../../../layouts/BaseLayout.astro";
 ---
 
-<BaseLayout title="Activate All RI 2026 Photos & Videos" description="Share activation photos and videos with fellow activators and event organizers." privatePage>
+<BaseLayout title="Activate All RI 2026 Photos & Videos" description="Explore and share photos and videos from Rhode Island activations." privatePage>
   <SiteHeader variant="solid" showEventLink />
   <main id="main">
-    <section class="section event-page" aria-labelledby="activator-media-title">
+    <section class="section event-page media-page" aria-labelledby="activator-media-title">
       <div class="container stack">
         <EventNav />
-        <ActivatorPortalNav />
+        <ActivatorPortalNav showEnrollmentPrompt={false} />
         <ActivatorMedia />
       </div>
     </section>
@@ -22,3 +22,7 @@ import BaseLayout from "../../../layouts/BaseLayout.astro";
   </main>
   <Footer />
 </BaseLayout>
+
+<style>
+  .media-page { padding-block: clamp(1rem, 3vw, 2rem) 3rem; }
+</style>

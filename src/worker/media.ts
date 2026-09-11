@@ -1,4 +1,5 @@
 import type { ActivatorMedia } from "../lib/activate-ri/media";
+import { opsActivatorAuthorLabel } from "../lib/activate-ri/ops-author";
 import type { Env } from "./env";
 
 export type MediaRow = {
@@ -13,14 +14,19 @@ export type MediaRow = {
   state: "uploading" | "ready" | "deleting";
   created_at: string;
   updated_at: string;
-  primary_callsign: string;
   park_reference: string | null;
   title: string | null;
   description: string | null;
   usage_notice_version: string | null;
 };
 
-export function serializeMedia(row: MediaRow, audience: "activator" | "admin", viewerActivatorId: string | null = null): ActivatorMedia {
+export type MediaAuthor = {
+  primary_callsign: string;
+  activator_name: string;
+  chat_display_name: string | null;
+};
+
+export function serializeMedia(row: MediaRow & MediaAuthor, audience: "activator" | "admin", viewerActivatorId: string | null = null): ActivatorMedia {
   return {
     id: row.id,
     filename: row.filename,
@@ -29,6 +35,7 @@ export function serializeMedia(row: MediaRow, audience: "activator" | "admin", v
     size: row.size,
     createdAt: row.created_at,
     callsign: row.primary_callsign,
+    authorLabel: opsActivatorAuthorLabel(row.primary_callsign, row.activator_name, row.chat_display_name),
     parkReference: row.park_reference,
     title: row.title,
     description: row.description,

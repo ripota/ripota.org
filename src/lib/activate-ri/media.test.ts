@@ -40,6 +40,8 @@ describe("photo and video upload validation", () => {
   });
 
   it("enforces separate photo and video size boundaries", () => {
+    expect(mediaLimits.photoBytes).toBe(20 * 1024 * 1024);
+    expect(mediaLimits.videoBytes).toBe(80 * 1024 * 1024);
     for (const [name, type, limit] of [
       ["photo.jpg", "image/jpeg", mediaLimits.photoBytes],
       ["video.mp4", "video/mp4", mediaLimits.videoBytes],

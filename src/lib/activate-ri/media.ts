@@ -1,12 +1,11 @@
 export const mediaLimits = {
   photoBytes: 20 * 1024 * 1024,
   videoBytes: 80 * 1024 * 1024,
-  totalBytes: 500 * 1024 * 1024,
-  files: 50,
 } as const;
 
+// This wording clarifies the same sharing permission; existing uploads keep v1.
 export const mediaUsageNoticeVersion = "ri-pota-media-v1";
-export const mediaUsageNoticeText = "By uploading, you’re sharing these files with other activators and letting RI POTA use them in articles, social posts, and other publicity.";
+export const mediaUsageNoticeText = "By uploading, you’re letting RI POTA share these photos and videos on this website, in articles, on social media, and in other publicity.";
 export const mediaMetadataLimits = { title: 120, description: 2000 } as const;
 
 const mediaTypes: Record<string, { type: string; kind: "photo" | "video" }> = {
@@ -36,6 +35,7 @@ export type ActivatorMedia = {
   size: number;
   createdAt: string;
   callsign: string;
+  authorLabel: string;
   parkReference: string | null;
   title: string | null;
   description: string | null;

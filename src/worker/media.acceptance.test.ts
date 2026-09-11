@@ -91,16 +91,25 @@ function request(path: string, token?: string, init: RequestInit = {}): Request 
   return new Request(`${origin}${path}`, { ...init, headers });
 }
 
-function upload(token?: string, overrides: Record<string, string | null> = {}): Request {
+function upload(token?: string, overrides: Record<string, string | null> = {}, contents: Uint8Array<ArrayBuffer> = photo): Request {
   const headers = new Headers({
-    origin, "content-type": "image/jpeg", "content-length": String(photo.length),
+    origin, "content-type": "image/jpeg", "content-length": String(contents.length),
     "x-media-filename": encodeURIComponent("Activation — café.jpg"),
   });
   for (const [name, value] of Object.entries(overrides)) {
     if (value === null) headers.delete(name);
     else headers.set(name, value);
   }
-  return request(base, token, { method: "POST", headers, body: photo });
+  return request(base, token, { method: "POST", headers, body: contents });
+}
+
+async function setChatDisplayName(activatorId: string, displayName: string | null, eventId: string = env.ACTIVATE_RI_EVENT_ID): Promise<void> {
+  const now = new Date().toISOString();
+  await env.DB.prepare(`INSERT INTO activate_ri_ops_memberships
+    (event_id, activator_id, status, created_at, updated_at, chat_display_name)
+    VALUES (?, ?, 'active', ?, ?, ?)
+    ON CONFLICT (event_id, activator_id) DO UPDATE SET chat_display_name = excluded.chat_display_name`)
+    .bind(eventId, activatorId, now, now, displayName).run();
 }
 
 async function uploadPhoto(token: string): Promise<ActivatorMedia> {
@@ -150,11 +159,13 @@ describe("private activator media", () => {
   it("uploads, lists, downloads and removes an owner's photo", async () => {
     const user = await owner();
     const media = await uploadPhoto(user.token);
-    expect(media).toMatchObject({ filename: "Activation — café.jpg", kind: "photo", size: photo.length, callsign: "N1OWN" });
+    expect(media).toMatchObject({ filename: "Activation — café.jpg", kind: "photo", size: photo.length, callsign: "N1OWN", authorLabel: "N1OWN - owner" });
     expect(media).not.toHaveProperty("object_key");
     const list = await handleActivateRiApi(request(base, user.token), env);
     privateHeaders(list);
-    await expect(list.json()).resolves.toMatchObject({ ok: true, media: [media], usage: { files: 1, bytes: photo.length }, limits: mediaLimits });
+    await expect(list.json()).resolves.toMatchObject({ ok: true, media: [media], usage: { files: 1, bytes: photo.length }, limits: {
+      photoBytes: 20 * 1024 * 1024, videoBytes: 80 * 1024 * 1024,
+    } });
 
     const file = await handleActivateRiApi(request(`${media.url}?download=1`, user.token), env);
     expect(file.status).toBe(200);
@@ -167,6 +178,31 @@ describe("private activator media", () => {
     expect(deleted.status).toBe(200);
     expect(objects.size).toBe(0);
     await expect(rowCount()).resolves.toBe(0);
+  });
+
+  it("keeps same-name uploads distinct and deleting one preserves the other original", async () => {
+    const user = await owner();
+    const contents = [Uint8Array.from(photo), Uint8Array.from(photo)];
+    contents[0][contents[0].length - 1] = 11;
+    contents[1][contents[1].length - 1] = 22;
+    const responses = await Promise.all(contents.map((bytes) => handleActivateRiApi(upload(user.token, {}, bytes), env)));
+    expect(responses.map((response) => response.status)).toEqual([201, 201]);
+    const saved = await Promise.all(responses.map(async (response) => (await response.json() as { media: ActivatorMedia }).media));
+    expect(saved[0].filename).toBe(saved[1].filename);
+    expect(saved[0].id).not.toBe(saved[1].id);
+    expect(saved[0].url).not.toBe(saved[1].url);
+    const rows = await env.DB.prepare("SELECT object_key FROM activate_ri_media").all<{ object_key: string }>();
+    expect(new Set(rows.results.map((row) => row.object_key)).size).toBe(2);
+    for (const [index, media] of saved.entries()) {
+      const original = await handleActivateRiApi(request(`${media.url}?download=1`, user.token), env);
+      expect(original.status).toBe(200);
+      expect(new Uint8Array(await original.arrayBuffer())).toEqual(contents[index]);
+    }
+    expect((await handleActivateRiApi(request(`${base}/${saved[0].id}`, user.token, { method: "DELETE", headers: { origin } }), env)).status).toBe(200);
+    const remaining = await handleActivateRiApi(request(saved[1].url, user.token), env);
+    expect(remaining.status).toBe(200);
+    expect(new Uint8Array(await remaining.arrayBuffer())).toEqual(contents[1]);
+    expect(objects.size).toBe(1);
   });
 
 
@@ -384,9 +420,68 @@ describe("shared activator gallery", () => {
     await expect(response.json()).resolves.toMatchObject({ media: [] });
     expect(get).not.toHaveBeenCalled();
   });
+});
 
+describe("media author preferences", () => {
+  it("defaults to the first name without requiring Ops Room membership or exposing private author fields", async () => {
+    const user = await owner();
+    await env.DB.prepare("UPDATE activate_ri_activators SET name = ? WHERE id = ?")
+      .bind("Rob Jackson", user.activatorId).run();
+    await env.DB.prepare("DELETE FROM activate_ri_ops_memberships WHERE activator_id = ?").bind(user.activatorId).run();
+    const uploaded = await handleActivateRiApi(upload(user.token, { "x-media-author-label": "K1FAKE - Spoofed" }), env);
+    expect(uploaded.status).toBe(201);
+    const body = await uploaded.json() as { media: ActivatorMedia };
+    expect(body.media).toMatchObject({ callsign: "N1OWN", authorLabel: "N1OWN - Rob" });
+    expect(JSON.stringify(body)).not.toMatch(/Jackson|owner@example|activator_name|chat_display_name|email_normalized/);
+    const list = await handleActivateRiApi(request(base, user.token), env);
+    await expect(list.json()).resolves.toMatchObject({ media: [expect.objectContaining({ authorLabel: "N1OWN - Rob" })] });
+  });
 
+  it("uses the current custom, blank, or default author name across shared galleries and metadata edits", async () => {
+    const [user, other] = await Promise.all([owner(), owner("other")]);
+    await env.DB.prepare("UPDATE activate_ri_activators SET name = ? WHERE id = ?")
+      .bind("Rob Jackson", user.activatorId).run();
+    await setChatDisplayName(user.activatorId, "Rob J.");
+    await setChatDisplayName(user.activatorId, "Unrelated event name", "another-event");
+    await setChatDisplayName(other.activatorId, "Other activator name");
+    const media = await uploadPhoto(user.token);
+    expect(media.authorLabel).toBe("N1OWN - Rob J.");
+    const adminHeaders = { "cf-access-authenticated-user-email": "organizer@example.invalid" };
+    for (const [preference, expected] of [["", "N1OWN"], ["Rob J.", "N1OWN - Rob J."], [null, "N1OWN - Rob"]] as const) {
+      await setChatDisplayName(user.activatorId, preference);
+      for (const [path, token, headers] of [
+        [base, user.token, {}], [base, other.token, {}], [adminBase, undefined, adminHeaders],
+      ] as const) {
+        const listed = await handleActivateRiApi(request(path, token, { headers }), env);
+        expect(listed.status).toBe(200);
+        const body = await listed.json() as { media: ActivatorMedia[] };
+        expect(body.media).toHaveLength(1);
+        expect(body.media[0].authorLabel).toBe(expected);
+        expect(JSON.stringify(body)).not.toMatch(/Jackson|@example|activator_name|chat_display_name|Unrelated event|Other activator/);
+      }
+      for (const [path, token, headers] of [[base, user.token, {}], [adminBase, undefined, adminHeaders]] as const) {
+        const edited = await handleActivateRiApi(parkPatch(media.id, token, { title: "A coastal activation" }, path, headers), env);
+        expect(edited.status).toBe(200);
+        await expect(edited.json()).resolves.toMatchObject({ media: { authorLabel: expected } });
+      }
+    }
+    expect(store).toHaveBeenCalledTimes(1);
+    const original = await handleActivateRiApi(request(media.url, user.token), env);
+    expect(new Uint8Array(await original.arrayBuffer())).toEqual(photo);
+  });
 
+  it("uses a preference changed while the file is uploading in the upload response", async () => {
+    const user = await owner();
+    await setChatDisplayName(user.activatorId, "Before upload");
+    store.mockImplementationOnce(async (_bucket, key, body) => {
+      objects.set(key, new Uint8Array(await new Response(body).arrayBuffer()));
+      await setChatDisplayName(user.activatorId, "After upload");
+    });
+    const media = await uploadPhoto(user.token);
+    expect(media.authorLabel).toBe("N1OWN - After upload");
+    const original = await handleActivateRiApi(request(media.url, user.token), env);
+    expect(new Uint8Array(await original.arrayBuffer())).toEqual(photo);
+  });
 });
 
 describe("editable media titles and descriptions", () => {
@@ -401,6 +496,7 @@ describe("editable media titles and descriptions", () => {
             first: async () => {
               await prepare("UPDATE activate_ri_media SET description = ? WHERE id = ?")
                 .bind("Description saved by a competing edit.", media.id).run();
+              await setChatDisplayName(user.activatorId, "Current name");
               return prepare(sql).bind(...values).first();
             },
           }),
@@ -410,7 +506,7 @@ describe("editable media titles and descriptions", () => {
     });
     const response = await handleActivateRiApi(parkPatch(media.id, user.token, { title: "New title" }), env);
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({ media: { title: "New title", description: "Description saved by a competing edit." } });
+    await expect(response.json()).resolves.toMatchObject({ media: { title: "New title", description: "Description saved by a competing edit.", authorLabel: "N1OWN - Current name" } });
   });
 
   it("updates metadata independently, trims text, and preserves the file, upload time, and usage notice", async () => {
@@ -455,6 +551,7 @@ describe("editable media titles and descriptions", () => {
     {}, { title: "x".repeat(121) }, { description: "x".repeat(2001) },
     { title: 1 }, { description: [] }, { title: "bad\u0000title" }, { description: "bad\u0000description" },
     { canEdit: true }, { activatorId: "another-activator" }, { usageNoticeVersion: "forged" },
+    { authorLabel: "K1FAKE - Spoofed" }, { callsign: "K1FAKE" }, { chatDisplayName: "Spoofed" },
     { consentVersion: "ri-pota-media-v1" }, { title: "Title", unknown: "value" },
   ])("rejects invalid or self-authorized metadata %j without side effects", async (body) => {
     const user = await owner();
@@ -627,6 +724,7 @@ describe("upload limits and recovery", () => {
     [{ "content-length": null }, 411], [{ "content-length": "-1" }, 400],
     [{ "content-length": "0" }, 400], [{ "content-length": "1.5" }, 400],
     [{ "content-length": String(mediaLimits.photoBytes + 1) }, 413],
+    [{ "content-length": String(mediaLimits.videoBytes + 1), "x-media-filename": "video.mp4", "content-type": "video/mp4" }, 413],
     [{ "x-media-filename": "%broken" }, 400], [{ "x-media-filename": "..%2Fphoto.jpg" }, 400],
     [{ "x-media-filename": "image.svg", "content-type": "image/svg+xml" }, 400],
   ] as const)("rejects invalid upload headers %j before storage", async (headers, status) => {
@@ -650,25 +748,40 @@ describe("upload limits and recovery", () => {
     await expect(rowCount()).resolves.toBe(0);
   });
 
-  it("reserves quota atomically when two uploads compete for the final slot", async () => {
+  it("accepts concurrent uploads beyond 50 files while retaining 50-item pagination", async () => {
     const user = await owner();
     for (let index = 0; index < 49; index++) await seedMedia(user.activatorId);
     const responses = await Promise.all([
       handleActivateRiApi(upload(user.token), env), handleActivateRiApi(upload(user.token), env),
     ]);
-    expect(responses.map((response) => response.status).sort()).toEqual([201, 409]);
-    expect(store).toHaveBeenCalledTimes(1);
-    await expect(rowCount()).resolves.toBe(50);
+    expect(responses.map((response) => response.status)).toEqual([201, 201]);
+    expect(store).toHaveBeenCalledTimes(2);
+    await expect(rowCount()).resolves.toBe(51);
+    const first = await handleActivateRiApi(request(`${base}?scope=mine`, user.token), env);
+    const page = await first.json() as { media: ActivatorMedia[]; nextCursor: string; usage: { files: number; bytes: number }; limits: unknown };
+    expect(page.media).toHaveLength(50);
+    expect(page.nextCursor).toBeTruthy();
+    expect(page.usage).toEqual({ files: 51, bytes: 51 * photo.length });
+    expect(page.limits).toEqual({ photoBytes: 20 * 1024 * 1024, videoBytes: 80 * 1024 * 1024 });
+    const second = await handleActivateRiApi(request(`${base}?scope=mine&cursor=${encodeURIComponent(page.nextCursor)}`, user.token), env);
+    const last = await second.json() as { media: ActivatorMedia[]; nextCursor: null };
+    expect(last.media).toHaveLength(1);
+    expect(last.nextCursor).toBeNull();
+    expect(new Set([...page.media, ...last.media].map((media) => media.id)).size).toBe(51);
   });
 
-  it("counts in-flight and deleting files toward the byte quota", async () => {
+  it("accepts uploads beyond 500 MiB and still reports in-flight and deleting storage", async () => {
     const user = await owner();
-    await seedMedia(user.activatorId, { state: "uploading", size: mediaLimits.totalBytes - photo.length + 1 });
+    for (let index = 0; index < 26; index++) await seedMedia(user.activatorId, { size: mediaLimits.photoBytes });
+    await seedMedia(user.activatorId, { state: "uploading", size: mediaLimits.photoBytes });
+    await seedMedia(user.activatorId, { state: "deleting", size: mediaLimits.photoBytes });
     const response = await handleActivateRiApi(upload(user.token), env);
-    expect(response.status).toBe(409);
-    expect(store).not.toHaveBeenCalled();
-    await env.DB.prepare("UPDATE activate_ri_media SET state = 'deleting'").run();
-    expect((await handleActivateRiApi(upload(user.token), env)).status).toBe(409);
+    expect(response.status).toBe(201);
+    expect(store).toHaveBeenCalledTimes(1);
+    const list = await handleActivateRiApi(request(`${base}?scope=mine`, user.token), env);
+    const body = await list.json() as { media: ActivatorMedia[]; usage: { files: number; bytes: number } };
+    expect(body.media).toHaveLength(27);
+    expect(body.usage).toEqual({ files: 29, bytes: 28 * mediaLimits.photoBytes + photo.length });
   });
 
   it("releases a reservation after content validation fails", async () => {
