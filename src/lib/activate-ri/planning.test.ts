@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deriveParkPlans, myScheduledParkReferences } from "./planning";
+import { deriveParkPlans, myPlannedParkReferences } from "./planning";
 import type { PublicActivationStop, PublicParkSummary } from "./types";
 
 const parks: PublicParkSummary[] = [
@@ -40,7 +40,7 @@ describe("deriveParkPlans", () => {
     expect(plan.stops).toHaveLength(6);
   });
 
-  it("counts scheduled and delayed stops while excluding cancelled, completed, pending, and sample stops", () => {
+  it("counts scheduled and delayed stops while retaining done stops separately", () => {
     const [plan] = deriveParkPlans([parks[0]], [
       stop("scheduled"),
       stop("delayed", { status: "delayed", activatorCallsign: "K1ABC", startTime: "13:00" }),
@@ -52,7 +52,22 @@ describe("deriveParkPlans", () => {
 
     expect(plan.activatorCount).toBe(2);
     expect(plan.timeSlotCount).toBe(2);
-    expect(plan.stops.map((entry) => entry.id)).toEqual(["scheduled", "delayed"]);
+    expect(plan.completedStopCount).toBe(1);
+    expect(plan.stops.map((entry) => entry.id)).toEqual(["completed", "scheduled", "delayed"]);
+  });
+
+  it("keeps POTA-confirmed stops in the plan without counting them as upcoming coverage", () => {
+    const [plan] = deriveParkPlans([parks[0]], [
+      stop("confirmed", { activity: "confirmed" }),
+      stop("spotted", { activity: "spotted", activatorCallsign: "K1SPOT", startTime: "13:00" }),
+      stop("tomorrow", { plannedDate: "2026-09-13" }),
+    ]);
+
+    expect(plan.activatorCount).toBe(2);
+    expect(plan.timeSlotCount).toBe(2);
+    expect(plan.completedStopCount).toBe(1);
+    expect(plan.stops.map((entry) => entry.id)).toEqual(["confirmed", "spotted", "tomorrow"]);
+    expect([...myPlannedParkReferences(plan.stops, "N1RWJ")]).toEqual(["US-2868"]);
   });
 
   it.each([
@@ -118,7 +133,7 @@ describe("deriveParkPlans", () => {
     ];
     const plans = deriveParkPlans(parks, stops, {
       timeline: "2026-09-12",
-      myParkReferences: myScheduledParkReferences(stops, "N1RWJ"),
+      myParkReferences: myPlannedParkReferences(stops, "N1RWJ"),
     });
 
     expect(plans.map((plan) => plan.reference)).toEqual(["US-2872", "US-2868"]);
@@ -165,28 +180,28 @@ describe("deriveParkPlans", () => {
   });
 });
 
-describe("myScheduledParkReferences", () => {
+describe("myPlannedParkReferences", () => {
   it("returns distinct parks for the normalized callsign across the event", () => {
-    const references = myScheduledParkReferences([
+    const references = myPlannedParkReferences([
       stop("first", { activatorCallsign: " n1rwj ", plannedDate: "2026-09-10" }),
       stop("repeat", { plannedDate: "2026-09-13" }),
       stop("delayed", { parkReference: "US-2872", status: "delayed" }),
       stop("another-operator", { parkReference: "US-2874", activatorCallsign: "K1ABC" }),
+      stop("completed", { parkReference: "US-2874", status: "completed" }),
     ], " n1Rwj ");
 
-    expect([...references]).toEqual(["US-2868", "US-2872"]);
+    expect([...references]).toEqual(["US-2868", "US-2872", "US-2874"]);
   });
 
-  it("excludes inactive and sample stops and does not match an empty callsign", () => {
+  it("excludes cancelled, pending, and sample stops and does not match an empty callsign", () => {
     const stops = [
       stop("cancelled", { status: "cancelled" }),
-      stop("completed", { status: "completed" }),
       stop("pending", { status: "pending-review" }),
       stop("sample-example"),
       stop("empty-callsign", { activatorCallsign: "" }),
     ];
 
-    expect([...myScheduledParkReferences(stops, "N1RWJ")]).toEqual([]);
-    expect([...myScheduledParkReferences(stops, " ")]).toEqual([]);
+    expect([...myPlannedParkReferences(stops, "N1RWJ")]).toEqual([]);
+    expect([...myPlannedParkReferences(stops, " ")]).toEqual([]);
   });
 });

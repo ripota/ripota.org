@@ -1,4 +1,5 @@
 import type {
+  ActivationStopActivity,
   ActivationStopInput,
   NormalizedRouteSubmission,
   StopExportRow,
@@ -117,6 +118,7 @@ export type PendingStopDto = {
   public_notes: string;
   organizer_notes: string;
   status: string;
+  activity?: ActivationStopActivity;
   created_at: string;
   updated_at: string;
 };

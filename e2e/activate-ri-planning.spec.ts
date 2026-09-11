@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { parks as references } from "@ripota/parks";
 import type { PublicActivationStop } from "../src/lib/activate-ri/types";
+import type { PublicPotaParkStatusSnapshot } from "../src/lib/activate-ri/pota-status-client";
 import { startActivateRiServer } from "./helpers/activate-ri-server";
 
 test.setTimeout(60_000);
@@ -25,9 +26,25 @@ const planningStops = [
   stop("sample-roger", "US-0789", "N1RI"),
 ];
 
+function parkStatusSnapshot(): PublicPotaParkStatusSnapshot {
+  return {
+    generatedAt: "2026-09-11T12:00:00Z", lastPotaSyncAt: "2026-09-11T12:00:00Z", lastSpotIngestAt: "2026-09-11T12:00:00Z",
+    stale: false, warning: null,
+    eventWindow: { startDate: "2026-09-10", endDate: "2026-09-13", timezone: "UTC" },
+    summary: { total: references.length, confirmed: 1, observedNotConfirmed: 1, scheduledNotConfirmed: 0, stillNeeded: references.length - 2, withoutConfirmation: references.length - 1 },
+    parks: references.map(park => ({
+      reference: park.reference, name: park.name, potaUrl: park.potaUrl,
+      status: park.reference === "US-0513" ? "confirmed" : park.reference === "US-0514" ? "observed" : "needed",
+      live: false, scheduled: false, observed: ["US-0513", "US-0514"].includes(park.reference),
+      attemptRecorded: false, confirmation: null, confirmations: [], attempts: [], lastObservation: null,
+    })),
+  };
+}
+
 async function mockPlanning(page: Page, callsign?: string): Promise<void> {
   await page.clock.install({ time: new Date("2026-09-06T12:00:00Z") });
   await page.route("**/api/activate-ri-2026/public/stops", route => route.fulfill({ json: { ok: true, stops: planningStops } }));
+  await page.route("**/api/activate-ri-2026/public/park-status", route => route.fulfill({ json: { ok: true, ...parkStatusSnapshot() } }));
   await page.route("**/api/auth/session", route => route.fulfill({
     json: callsign
       ? { ok: true, signedIn: true, user: { id: "planning-user", email: "planning@example.invalid" }, activator: { callsign } }
@@ -110,6 +127,69 @@ test("park planning compares distinct activators and time slots and expands exis
     await page.goBack();
     await expect(search).toHaveValue("US-0513");
     await expect(rows).toHaveCount(1);
+  } finally {
+    await server.stop();
+  }
+});
+
+test("park planning shows park evidence separately from each activator's done stops and refreshes it", async ({ page }, testInfo) => {
+  const server = await startActivateRiServer();
+  const snapshot = parkStatusSnapshot();
+  const trustom = snapshot.parks.find(park => park.reference === "US-0517")!;
+  trustom.status = "observed";
+  trustom.attemptRecorded = true;
+  snapshot.summary.observedNotConfirmed += 1;
+  snapshot.summary.stillNeeded -= 1;
+  const ninigret = snapshot.parks.find(park => park.reference === "US-0515")!;
+  ninigret.status = "confirmed";
+  ninigret.observed = true;
+  snapshot.summary.confirmed += 1;
+  snapshot.summary.withoutConfirmation -= 1;
+  snapshot.summary.stillNeeded -= 1;
+  let evidenceUnavailable = false;
+  try {
+    await mockPlanning(page, "N1RI");
+    await page.route("**/api/activate-ri-2026/public/park-status", route => evidenceUnavailable
+      ? route.fulfill({ status: 503 })
+      : route.fulfill({ json: { ok: true, ...snapshot } }));
+    await page.route("**/api/activate-ri-2026/public/stops", route => route.fulfill({ json: { ok: true, stops: [
+      ...planningStops,
+      stop("ninigret-confirmed", "US-0515", "N1RI", { activity: "confirmed" }),
+      stop("ninigret-spotted", "US-0515", "K1SPOT", { activity: "spotted" }),
+    ] } }));
+    await page.goto(`${server.origin}/activate-ri-2026/parks/?activator=N1RI&expanded=US-0513,US-0515,US-0517`);
+    await expect(parkRow(page, "US-0513").locator("[data-planning-park-status]")).toHaveText("POTA confirmed");
+    await expect(parkRow(page, "US-0514").locator("[data-planning-park-status]")).toHaveText("Spotted");
+    await expect(parkRow(page, "US-0517").locator("[data-planning-park-status]")).toHaveText("Attempt recorded");
+    await expect(parkRow(page, "US-0517").locator("summary")).toHaveText("0 activators · 0 time slots · 1 done");
+    await expect(parkRow(page, "US-0517").locator('[data-stop-id="trustom-completed"]')).toContainText("Done");
+    await expect(parkRow(page, "US-0515").locator("summary")).toHaveText("2 activators · 2 time slots · 1 done");
+    await expect(parkRow(page, "US-0515").locator('[data-stop-id="ninigret-confirmed"]')).toContainText("Done");
+    await expect(parkRow(page, "US-0515").locator('[data-stop-id="ninigret-confirmed"] .pota-status-badge')).toHaveText("POTA confirmed");
+    await expect(parkRow(page, "US-0515").locator('[data-stop-id="ninigret-spotted"] .pota-status-badge')).toHaveText("Spotted");
+    await expect(parkRow(page, "US-0513").locator('[data-stop-id="block-second"]')).toContainText("Scheduled");
+    await expect(parkRow(page, "US-0513").locator('[data-stop-id="block-second"]')).not.toContainText("Done");
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.locator("[data-park-planning]").screenshot({ path: testInfo.outputPath("park-status-desktop.png") });
+    await page.setViewportSize({ width: 320, height: 740 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.locator("[data-park-planning]").screenshot({ path: testInfo.outputPath("park-status-mobile.png") });
+
+    const chosenUrl = page.url();
+    const chafee = snapshot.parks.find(park => park.reference === "US-0514")!;
+    chafee.status = "confirmed";
+    await page.getByRole("button", { name: "Refresh plans", exact: true }).click();
+    await expect(parkRow(page, "US-0514").locator("[data-planning-park-status]")).toHaveText("POTA confirmed");
+    await expect(page).toHaveURL(chosenUrl);
+    await expect(parkRow(page, "US-0517").locator("details")).toHaveAttribute("open", "");
+    evidenceUnavailable = true;
+    await page.getByRole("button", { name: "Refresh plans", exact: true }).click();
+    await expect(page.locator("[data-planning-evidence-status]")).toContainText("Showing the last available POTA park status");
+    await expect(parkRow(page, "US-0514").locator("[data-planning-park-status]")).toHaveText("POTA confirmed");
+    await expect(parkRow(page, "US-0517").locator('[data-stop-id="trustom-completed"]')).toContainText("Done");
+    await page.reload();
+    await expect(parkRow(page, "US-0514").locator("[data-planning-park-status]")).toHaveText("Park status unavailable");
+    await expect(parkRow(page, "US-0517").locator('[data-stop-id="trustom-completed"]')).toContainText("Done");
   } finally {
     await server.stop();
   }
@@ -198,15 +278,15 @@ test("My parks keeps the activator's event parks while counts include everyone's
     await expect(myParks).toBeEnabled();
     await myParks.check();
     const rows = page.locator("[data-live-coverage] [data-filter-row]:visible");
-    await expect(rows).toHaveCount(2);
+    await expect(rows).toHaveCount(3);
     await expect(parkRow(page, "US-0514").locator("summary")).toHaveText("2 activators · 1 time slot");
     await expect(parkRow(page, "US-0515")).toBeHidden();
     await page.locator('[data-filter="timeline"]').selectOption("2026-09-12");
-    await expect(rows).toHaveCount(2);
+    await expect(rows).toHaveCount(3);
     await expect(parkRow(page, "US-0514")).toBeVisible();
     await expect(parkRow(page, "US-0514")).toContainText("0 activators · 0 time slots");
     await expect(parkRow(page, "US-0514").getByRole("link", { name: "Add an activation", exact: true })).toHaveAttribute("href", "/activate-ri-2026/activator/plan/?park=US-0514&date=2026-09-12");
-    await expect(page.locator("[data-planning-status]")).toContainText(/2 (of your )?parks/);
+    await expect(page.locator("[data-planning-status]")).toContainText(/3 (of your )?parks/);
     await myParks.uncheck();
     await expect(rows).toHaveCount(references.length);
   } finally {
@@ -246,7 +326,7 @@ test("My parks explains sign-in and the empty state for an activator with no pub
     await myParks.check();
     await expect(page.locator("[data-live-coverage] [data-filter-row]:visible")).toHaveCount(0);
     await expect(page.locator("[data-planning-status]")).toContainText(/0 (of your )?parks/);
-    await expect(page.locator("[data-live-coverage]")).toContainText("No published scheduled parks in your plan match these filters.");
+    await expect(page.locator("[data-live-coverage]")).toContainText("No published parks in your plan match these filters.");
     await myParks.uncheck();
     await expect(page.locator("[data-live-coverage] [data-filter-row]:visible")).toHaveCount(references.length);
   } finally {
@@ -416,7 +496,7 @@ test("late schedule and account responses preserve view changes made during load
     await expect.poll(() => new URL(page.url()).searchParams.get("more")).toBe("0");
     const chosenUrl = page.url();
     releaseStops();
-    await expect(page.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(2);
+    await expect(page.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(3);
     await expect(parkRow(page, "US-0514").locator("summary")).toHaveText("0 activators · 0 time slots");
     await expect(page).toHaveURL(chosenUrl);
     releaseSession();
@@ -429,7 +509,7 @@ test("late schedule and account responses preserve view changes made during load
     await expect(page.locator(".park-planning-more")).not.toHaveAttribute("open", "");
     await expect(page).toHaveURL(chosenUrl);
     await page.reload();
-    await expect(page.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(2);
+    await expect(page.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(3);
     await expect(page.locator('[data-filter="mode"]')).toHaveValue("all");
     await expect(page).toHaveURL(chosenUrl);
   } finally {
@@ -493,7 +573,7 @@ test("legacy My parks links canonicalize the owner while explicit shared owners 
     await page.goto(`${server.origin}/activate-ri-2026/parks/?mine=1&sort=slots&timeline=2026-09-12&expanded=US-0514`);
     await expect.poll(() => new URL(page.url()).searchParams.get("activator")).toBe("N1RI");
     expect(new URL(page.url()).searchParams.has("mine")).toBe(false);
-    await expect(page.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(2);
+    await expect(page.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(3);
     await expect(parkRow(page, "US-0514").locator("details")).toHaveAttribute("open", "");
     await expect(parkRow(page, "US-0514").locator("summary")).toHaveText("0 activators · 0 time slots");
     await expect(page.locator('[data-filter="sort"]')).toHaveValue("slots");
@@ -506,7 +586,7 @@ test("legacy My parks links canonicalize the owner while explicit shared owners 
     await expect.poll(() => new URL(page.url()).searchParams.get("activator")).toBe("N1RI");
     expect(new URL(page.url()).searchParams.has("mine")).toBe(false);
     await expect(page.locator("[data-my-parks-label]")).toHaveText("N1RI's parks");
-    await expect(page.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(2);
+    await expect(page.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(3);
     await expect(parkRow(page, "US-0514").locator("summary")).toHaveText("2 activators · 1 time slot");
     await expect(parkRow(page, "US-0515")).toBeHidden();
   } finally {

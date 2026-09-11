@@ -772,8 +772,8 @@ describe("handleActivateRiApi", () => {
         text: expect.stringContaining(
           [
             "Current stops:",
-            "- Sep 11, 2026 05:00-07:00 EDT: Beavertail State Park (US-2868)",
-            "- Sep 12, 2026 05:00-07:00 EDT: Colt State Park (US-2872)",
+            "- Sep 11, 2026 05:00-07:00 EDT: Beavertail State Park (US-2868) · Status: Pending review",
+            "- Sep 12, 2026 05:00-07:00 EDT: Colt State Park (US-2872) · Status: Pending review",
           ].join("\n"),
         ),
       }),
@@ -852,7 +852,7 @@ describe("handleActivateRiApi", () => {
         subject: "Your Activate All RI 2026 plan was cancelled",
         text: expect.stringContaining(
           [
-            "Cancelled stops:",
+            "Full itinerary:",
             "- Sep 11, 2026 05:00-07:00 EDT: Beavertail State Park (US-2868)",
           ].join("\n"),
         ),
@@ -1348,7 +1348,7 @@ describe("handleActivateRiApi", () => {
     expect(match).toHaveBeenCalledOnce();
     expect(put).toHaveBeenCalledOnce();
     expect(waitUntil).toHaveBeenCalledOnce();
-    expect(testEnv.DB.prepare).toHaveBeenCalledOnce();
+    expect(testEnv.DB.prepare).toHaveBeenCalledTimes(3);
   });
 
   it("returns cached public live stops without querying D1", async () => {
@@ -1408,7 +1408,7 @@ describe("handleActivateRiApi", () => {
     expect(body.stops).toHaveLength(1);
     expect(match).not.toHaveBeenCalled();
     expect(put).not.toHaveBeenCalled();
-    expect(testEnv.DB.prepare).toHaveBeenCalledOnce();
+    expect(testEnv.DB.prepare).toHaveBeenCalledTimes(3);
   });
 
   it("lists admin activity events for authenticated admins", async () => {

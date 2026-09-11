@@ -19,7 +19,8 @@ const stops = Array.from({ length: 54 }, (_, index) => ({
   activatorName: "Synthetic long activator display name for print verification",
   bands: ["160m", "80m", "60m", "40m", "30m", "20m", "17m", "15m", "12m", "10m", "6m", "2m"],
   modes: ["CW", "SSB", "FT8", "FM"],
-  status: index % 3 === 0 ? "delayed" : "scheduled",
+  status: index === 1 ? "completed" : index % 3 === 0 ? "delayed" : "scheduled",
+  ...(index === 0 ? { activity: "spotted" } : index === 2 ? { activity: "confirmed" } : {}),
   publicNotes: "PUBLIC_NOTE_MUST_NOT_EXPORT https://example.invalid/private-notes",
   organizerNotes: "ORGANIZER_NOTE_MUST_NOT_EXPORT",
   submitterEmail: "PRIVATE_EMAIL_MUST_NOT_EXPORT@example.invalid",
@@ -67,7 +68,7 @@ for (const format of ["Letter", "A4"] as const) {
         for (const [index, printedPage] of printedPages.entries()) {
           expect(printedPage.width).toBeCloseTo(format === "Letter" ? 792 : 842, -1);
           expect(printedPage.height).toBeCloseTo(format === "Letter" ? 612 : 595, -1);
-          for (const header of ["Date", "Time", "Park", "Activator", "Bands", "Modes"]) {
+          for (const header of ["Date", "Time", "Park", "Status", "Activator", "Bands", "Modes"]) {
             expect(printedPage.text, `Page ${index + 1} repeats ${header}`).toContain(header);
           }
           for (const item of printedPage.textItems) {
@@ -83,6 +84,9 @@ for (const format of ["Letter", "A4"] as const) {
           expect(text).toContain("23:45-01:15 UTC (+1 day)");
           expect(text).toContain("Sep 13, 2026");
           expect(text).toContain("Delayed");
+          expect(text).toContain("Done");
+          expect(text).toContain("Spotted");
+          if (scenario === "long") expect(text).toContain("POTA confirmed");
           for (const stop of currentStops) {
             const containingPages = printedPages.filter((printedPage) => printedPage.text.includes(stop.activatorCallsign));
             expect(containingPages, `${stop.activatorCallsign} prints once without a split row`).toHaveLength(1);

@@ -1,4 +1,5 @@
 import { matchesTimeline, parkCounties } from "./listing";
+import { isStopDone } from "./stop-status";
 import { stopTimeRangeToInstants } from "./time";
 import type { PublicActivationStop, PublicParkSummary } from "./types";
 
@@ -10,6 +11,7 @@ export type ParkPlanSummary = {
   counties: string[];
   activatorCount: number;
   timeSlotCount: number;
+  completedStopCount: number;
   stops: PublicActivationStop[];
 };
 
@@ -28,7 +30,7 @@ export function deriveParkPlans(
   const stopsByPark = new Map<string, PublicActivationStop[]>();
 
   for (const stop of stops) {
-    if (!isScheduledStop(stop) || !matchesTimeline(stop.plannedDate, filters.timeline ?? "all")) {
+    if (!isPlanStop(stop) || !matchesTimeline(stop.plannedDate, filters.timeline ?? "all")) {
       continue;
     }
 
@@ -45,15 +47,17 @@ export function deriveParkPlans(
     )
     .map((park): ParkPlanSummary => {
       const parkStops = (stopsByPark.get(park.reference) ?? []).sort(compareStops);
+      const scheduledStops = parkStops.filter(isScheduledStop);
 
       return {
         reference: park.reference,
         name: park.name,
         counties: park.counties,
-        activatorCount: new Set(parkStops.map((stop) => normalizeCallsign(stop.activatorCallsign))).size,
-        timeSlotCount: new Set(parkStops.map((stop) =>
+        activatorCount: new Set(scheduledStops.map((stop) => normalizeCallsign(stop.activatorCallsign))).size,
+        timeSlotCount: new Set(scheduledStops.map((stop) =>
           `${stop.plannedDate}/${stop.startTime}/${stop.endTime}`,
         )).size,
+        completedStopCount: parkStops.filter(isStopDone).length,
         stops: parkStops,
       };
     });
@@ -75,7 +79,7 @@ export function deriveParkPlans(
   });
 }
 
-export function myScheduledParkReferences(
+export function myPlannedParkReferences(
   stops: readonly PublicActivationStop[],
   callsign: string,
 ): Set<string> {
@@ -85,13 +89,17 @@ export function myScheduledParkReferences(
   }
 
   return new Set(stops
-    .filter((stop) => isScheduledStop(stop) && normalizeCallsign(stop.activatorCallsign) === normalizedCallsign)
+    .filter((stop) => isPlanStop(stop) && normalizeCallsign(stop.activatorCallsign) === normalizedCallsign)
     .map((stop) => stop.parkReference));
 }
 
 function isScheduledStop(stop: PublicActivationStop): boolean {
   return !stop.id.startsWith("sample-") &&
-    (stop.status === "scheduled" || stop.status === "delayed");
+    (stop.status === "scheduled" || stop.status === "delayed") && !isStopDone(stop);
+}
+
+function isPlanStop(stop: PublicActivationStop): boolean {
+  return !stop.id.startsWith("sample-") && (isScheduledStop(stop) || isStopDone(stop));
 }
 
 function normalizeCallsign(callsign: string): string {

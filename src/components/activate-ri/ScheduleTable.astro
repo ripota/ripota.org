@@ -22,6 +22,7 @@ const countyOptions = uniqueSortedValues(
   <p data-schedule-print-loaded></p>
   <p>Activation windows are planned estimates, not guaranteed contacts. Confirm live activity with official POTA spots or HamAlert.</p>
   <p>Event-day filters use Rhode Island time. Dates and times below use the selected time zone.</p>
+  <p>Activity matches each stop's activator and UTC date. Spotted means activity was seen; POTA confirmed means a qualifying activation was logged.</p>
   <p>{siteIdentity.disclaimer}</p>
 </header>
 
@@ -64,6 +65,8 @@ const countyOptions = uniqueSortedValues(
   or <a href="https://hamalert.org/" target="_blank" rel="noopener noreferrer">HamAlert</a>{" "}
   for current activity. Shared agendas show the latest published plans when opened.
 </p>
+
+<p class="schedule-activity-note">Activity matches each stop's activator and UTC date. Spotted means activity was seen; POTA confirmed means a qualifying activation was logged.</p>
 
 <form class="event-filters" data-event-filters aria-label="Schedule filters">
   <label class="event-filter schedule-search">
@@ -154,6 +157,7 @@ const countyOptions = uniqueSortedValues(
         <th scope="col">Date</th>
         <th scope="col">Time</th>
         <th scope="col">Park</th>
+        <th scope="col">Status</th>
         <th scope="col">Activator</th>
         <th scope="col">Bands</th>
         <th scope="col">Modes</th>
@@ -161,10 +165,10 @@ const countyOptions = uniqueSortedValues(
     </thead>
     <tbody>
       <tr data-live-loading>
-        <td colspan="6" data-label="Schedule">Loading approved activation windows...</td>
+        <td colspan="7" data-label="Schedule">Loading approved activation windows...</td>
       </tr>
       <tr data-filter-empty hidden>
-        <td colspan="6" data-label="Schedule">No scheduled activation windows match these filters.</td>
+        <td colspan="7" data-label="Schedule">No scheduled activation windows match these filters.</td>
       </tr>
     </tbody>
   </table>
@@ -188,6 +192,7 @@ const countyOptions = uniqueSortedValues(
   import { trackAnalyticsEvent } from "../../lib/analytics/client";
   import type { AnalyticsProperties } from "../../lib/analytics/events";
   import { parkGuidePath } from "../../lib/parks/directory";
+  import { scheduleStopStatusLabel, stopActivityLabel } from "../../lib/activate-ri/stop-status";
 
   document.querySelectorAll<HTMLTableElement>("[data-live-schedule]").forEach(setupLiveSchedule);
 
@@ -595,7 +600,7 @@ const countyOptions = uniqueSortedValues(
     if (stops.length === 0) {
       const row = document.createElement("tr");
       const cell = document.createElement("td");
-      cell.colSpan = 6;
+      cell.colSpan = 7;
       cell.dataset.label = "Schedule";
       cell.textContent = "Approved activation windows will appear here after organizer review.";
       row.appendChild(cell);
@@ -613,7 +618,7 @@ const countyOptions = uniqueSortedValues(
     empty.dataset.filterEmpty = "";
     empty.hidden = true;
     const emptyCell = document.createElement("td");
-    emptyCell.colSpan = 6;
+    emptyCell.colSpan = 7;
     emptyCell.dataset.label = "Schedule";
     emptyCell.textContent = "No scheduled activation windows match these filters.";
     empty.appendChild(emptyCell);
@@ -623,7 +628,7 @@ const countyOptions = uniqueSortedValues(
   function renderScheduleUnavailable(body: HTMLTableSectionElement): void {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
-    cell.colSpan = 6;
+    cell.colSpan = 7;
     cell.dataset.label = "Schedule";
     cell.append("The schedule is temporarily unavailable. Reload to try again, or check ");
     const officialSpots = document.createElement("a");
@@ -668,11 +673,19 @@ const countyOptions = uniqueSortedValues(
     guideLink.textContent = park?.name ?? stop.parkReference;
     parkHeader.appendChild(guideLink);
     const reference = document.createElement("span");
-    reference.textContent = stop.status === "scheduled"
-      ? stop.parkReference
-      : `${stop.parkReference} · ${statusLabel(stop.status)}`;
+    reference.textContent = stop.parkReference;
     parkHeader.appendChild(reference);
     row.appendChild(parkHeader);
+
+    const status = document.createElement("td");
+    status.dataset.label = "Status";
+    const stopStatus = document.createElement("span");
+    stopStatus.dataset.stopStatus = stop.status;
+    stopStatus.className = "schedule-stop-status";
+    stopStatus.textContent = scheduleStopStatusLabel(stop);
+    status.appendChild(stopStatus);
+    if (stop.activity) status.appendChild(createActivityBadge(stop.activity));
+    row.appendChild(status);
 
     appendActivatorCell(
       row,
@@ -692,6 +705,18 @@ const countyOptions = uniqueSortedValues(
     cell.dataset.label = label;
     cell.textContent = text;
     row.appendChild(cell);
+  }
+
+  function createActivityBadge(activity: NonNullable<PublicStop["activity"]>): HTMLSpanElement {
+    const badge = document.createElement("span");
+    badge.dataset.scheduleActivity = activity;
+    badge.className = "pota-status-badge schedule-activity";
+    badge.dataset.status = activity === "confirmed" ? "confirmed" : "observed";
+    badge.textContent = `${activity === "confirmed" ? "✓ " : ""}${stopActivityLabel(activity)}`;
+    badge.title = activity === "confirmed"
+      ? "POTA has confirmed a qualifying activation by this activator at this park on this stop's UTC date."
+      : "This activator was spotted at this park on this stop's UTC date. A spot does not confirm a completed activation.";
+    return badge;
   }
 
   function appendActivatorCell(
@@ -796,8 +821,9 @@ const countyOptions = uniqueSortedValues(
     item.appendChild(dateTime);
 
     const operatingPlan = document.createElement("span");
-    operatingPlan.textContent = `${stop.bands.length ? stop.bands.join(", ") : "TBD"} / ${stop.modes.length ? stop.modes.join(", ") : "TBD"} · ${statusLabel(stop.status)}`;
+    operatingPlan.textContent = `${stop.bands.length ? stop.bands.join(", ") : "TBD"} / ${stop.modes.length ? stop.modes.join(", ") : "TBD"} · ${scheduleStopStatusLabel(stop)}`;
     item.appendChild(operatingPlan);
+    if (stop.activity) item.appendChild(createActivityBadge(stop.activity));
 
     if (stop.publicNotes?.trim()) {
       const notes = document.createElement("span");
@@ -961,18 +987,6 @@ const countyOptions = uniqueSortedValues(
       : Math.max(margin, triggerRect.top - cardRect.height - 8);
     card.style.left = `${left}px`;
     card.style.top = `${top}px`;
-  }
-
-  function statusLabel(status: string): string {
-    const labels: Record<string, string> = {
-      "pending-review": "Pending review",
-      scheduled: "Scheduled",
-      delayed: "Delayed",
-      cancelled: "Cancelled",
-      completed: "Completed",
-    };
-
-    return labels[status] ?? status;
   }
 
   type PersonalScheduleSummary = {
@@ -1249,11 +1263,32 @@ const countyOptions = uniqueSortedValues(
 </script>
 
 <style>
+  :global(.schedule-stop-status) {
+    display: block;
+    font-weight: 700;
+  }
+
+  :global(.schedule-activity) {
+    display: inline-block;
+    margin-top: 0.3rem;
+    width: fit-content;
+  }
+
+  :global(.schedule-activity[data-schedule-activity="spotted"]) {
+    font-weight: 600;
+  }
+
+  :global(.schedule-activity[data-schedule-activity="confirmed"]) {
+    background: #24603b;
+    color: #fff;
+  }
+
   :global(.schedule-print-activator) {
     display: none;
   }
 
   .schedule-estimate-note,
+  .schedule-activity-note,
   .schedule-share {
     margin-bottom: 1rem;
   }
@@ -1340,7 +1375,14 @@ const countyOptions = uniqueSortedValues(
   }
 
   @media print {
+    :global(.schedule-activity[data-schedule-activity]) {
+      background: transparent;
+      color: #111;
+      border: 1px solid #aaa;
+    }
+
     .schedule-estimate-note,
+    .schedule-activity-note,
     .schedule-agenda-screen-only,
     .schedule-share,
     [data-schedule-loaded],

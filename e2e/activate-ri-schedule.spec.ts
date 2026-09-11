@@ -4,6 +4,59 @@ import { startActivateRiServer } from "./helpers/activate-ri-server";
 
 test.setTimeout(60_000);
 
+test("schedule status belongs to each stop and survives filtering, reload, mobile, and print", async ({ page }, testInfo) => {
+  const server = await startActivateRiServer();
+  const base = {
+    parkReference: "US-0513", plannedDate: "2026-09-12", startTime: "13:00", endTime: "15:00",
+    activatorCallsign: "N1RI", bands: ["20m"], modes: ["SSB"], publicNotes: "", status: "scheduled",
+  };
+  let activity = "spotted";
+  try {
+    await page.route("**/api/activate-ri-2026/public/stops", route => route.fulfill({ json: { ok: true, stops: [
+      { ...base, id: "my-activity", activity },
+      { ...base, id: "another-activator", activatorCallsign: "W1AW" },
+      { ...base, id: "my-next-day", plannedDate: "2026-09-13" },
+      { ...base, id: "manual-completion", parkReference: "US-0514", status: "completed" },
+    ] } }));
+    await page.goto(`${server.origin}/activate-ri-2026/schedule/?activator=N1RI&timezone=utc`);
+    const rows = page.locator("[data-filter-row]:visible");
+    await expect(rows).toHaveCount(3);
+    const today = page.locator('[data-filter-row][data-park-reference="US-0513"][data-date="2026-09-12"][data-activator="N1RI"]:visible');
+    const tomorrow = page.locator('[data-filter-row][data-date="2026-09-13"]:visible');
+    await expect(today.locator('[data-label="Status"]')).toHaveText("ScheduledSpotted");
+    await expect(tomorrow.locator('[data-label="Status"]')).toHaveText("Scheduled");
+    await expect(page.locator('[data-filter-row][data-park-reference="US-0514"]:visible [data-label="Status"]')).toHaveText("Done");
+    await page.locator('[data-filter="activator"]').selectOption("all");
+    await expect(page.locator('[data-filter-row][data-activator="W1AW"]:visible [data-label="Status"]')).toHaveText("Scheduled");
+    await page.goBack();
+    await expect(page.locator('[data-filter="activator"]')).toHaveValue("N1RI");
+
+    activity = "confirmed";
+    await page.getByRole("button", { name: "Reload schedule", exact: true }).click();
+    await expect(today.locator('[data-label="Status"]')).toHaveText("Done✓ POTA confirmed");
+    await expect(tomorrow.locator('[data-label="Status"]')).toHaveText("Scheduled");
+    await expect(page.locator('[data-filter="activator"]')).toHaveValue("N1RI");
+    await today.locator(".activator-popover__trigger").click();
+    const card = page.getByRole("dialog", { name: "Activation plan for N1RI" });
+    await expect(card.locator('[data-activator-schedule-stop]').filter({ hasText: "Sep 12, 2026" }).filter({ hasText: "US-0513" })).toContainText("Done");
+    await expect(card.locator('[data-activator-schedule-stop]').filter({ hasText: "Sep 13, 2026" })).not.toContainText("POTA confirmed");
+    await page.keyboard.press("Escape");
+
+    await page.setViewportSize({ width: 320, height: 740 });
+    await expect(today.locator('[data-label="Status"]')).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath("schedule-status-mobile.png"), fullPage: true });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.screenshot({ path: testInfo.outputPath("schedule-status-desktop.png"), fullPage: true });
+    await page.emulateMedia({ media: "print" });
+    await expect(page.getByRole("columnheader", { name: "Status", exact: true })).toBeVisible();
+    await expect(today.locator('[data-label="Status"]')).toContainText("POTA confirmed");
+    await expect(rows).toHaveCount(3);
+  } finally {
+    await server.stop();
+  }
+});
+
 test("schedule offers park planning even when every park already has an activator", async ({ page }) => {
   const server = await startActivateRiServer();
   try {

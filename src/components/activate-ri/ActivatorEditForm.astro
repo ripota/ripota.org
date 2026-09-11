@@ -96,6 +96,7 @@ const turnstileSiteKey =
 
 <script>
   import { readPlanningPrefill } from "../../lib/activate-ri/planning-prefill";
+  import { scheduleStopStatusLabel, stopActivityLabel } from "../../lib/activate-ri/stop-status";
   import {
     applyRepeatedStopPreferences,
     clearFieldError,
@@ -143,6 +144,7 @@ const turnstileSiteKey =
     public_notes?: unknown;
     organizer_notes?: unknown;
     status?: unknown;
+    activity?: unknown;
   };
 
   type PlanDto = {
@@ -411,14 +413,13 @@ const turnstileSiteKey =
       const reference = stringValue(stop.park_reference);
       const heading = document.createElement("h2");
       heading.textContent = [reference, parkNames[reference]].filter(Boolean).join(" · ");
-      const status = stringValue(stop.status);
       const timing = {
         plannedDate: stringValue(stop.planned_date),
         startTime: stringValue(stop.start_time),
         endTime: stringValue(stop.end_time),
       };
       card.appendChild(heading);
-      card.appendChild(printParagraph(`Status: ${status ? status[0].toUpperCase() + status.slice(1) : "Not specified"}`));
+      card.appendChild(printParagraph(`Status: ${stopStatusSummary(stop)}`));
       card.appendChild(printParagraph(formatActivationDateTimeRange(timing)));
       card.appendChild(printParagraph(formatActivationDateTimeRange(timing, timeZoneOptionForValue("utc"))));
       card.appendChild(printParagraph(`Bands: ${arrayValue(stop.bands).join(", ") || "Not specified"} · Modes: ${arrayValue(stop.modes).join(", ") || "Not specified"}`));
@@ -473,6 +474,13 @@ const turnstileSiteKey =
     return stop.status === "cancelled" || stop.status === "completed";
   }
 
+  function stopStatusSummary(stop: StopDto): string {
+    const status = stringValue(stop.status);
+    const activity = stop.activity === "spotted" || stop.activity === "confirmed" ? stop.activity : undefined;
+    const label = status ? scheduleStopStatusLabel({ status, activity }) : "Not specified";
+    return `${label}${activity ? ` · ${stopActivityLabel(activity)}` : ""}`;
+  }
+
   function planStatusMessage(plan: PlanDto, stops: StopDto[]): string {
     if (stops.length > 0 && stops.every((stop) => stop.status === "cancelled")) {
       return "All stops cancelled. Saving this plan will not restore them.";
@@ -496,7 +504,7 @@ const turnstileSiteKey =
       const card = document.createElement("article");
       card.dataset.readonlyStop = stringValue(stop.status);
       const heading = document.createElement("h3");
-      heading.textContent = `${stringValue(stop.park_reference)} — ${stop.status === "cancelled" ? "Cancelled" : "Completed"}`;
+      heading.textContent = `${stringValue(stop.park_reference)} — ${stopStatusSummary(stop)}`;
       const timing = document.createElement("p");
       timing.textContent = formatActivationDateTimeRange({
         plannedDate: stringValue(stop.planned_date),
@@ -536,10 +544,11 @@ const turnstileSiteKey =
     if (preferences) {
       applyRepeatedStopPreferences(node, preferences);
     }
-    if (stop.status === "delayed") {
+    if (stop.status === "delayed" || stop.activity === "spotted" || stop.activity === "confirmed") {
       const status = document.createElement("p");
       status.className = "form-help";
-      status.textContent = "Status: Delayed";
+      status.dataset.editStopStatus = "";
+      status.textContent = `Status: ${stopStatusSummary(stop)}`;
       node.querySelector(".activation-stop-card__header")?.insertAdjacentElement("afterend", status);
     }
     editStops.appendChild(node);

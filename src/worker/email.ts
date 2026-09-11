@@ -3,6 +3,8 @@ import { parks as references } from "@ripota/parks";
 import type { Env } from "./env";
 import { sanitizeLogText } from "./logging";
 import { formatActivationDateTimeRange } from "../lib/activate-ri/time";
+import { scheduleStopStatusLabel, stopActivityLabel } from "../lib/activate-ri/stop-status";
+import { enrichPlanStopActivity } from "./stop-activity";
 
 export type SendEmailResult =
   | {
@@ -55,8 +57,9 @@ export async function sendActivatorEditLinkEmail(
   const statusLabel = requiresAdminApproval
     ? "Pending organizer approval"
     : "Live on the public schedule";
-  const stopLines = planStopSummaryLines(
-    { stops: plan.stops ?? [] },
+  const stopLines = await planStopSummaryLines(
+    env,
+    { ...plan, stops: plan.stops ?? [] },
     { includeCancelled: false },
   );
 
@@ -82,8 +85,9 @@ export async function sendActivatorApprovalEmail(
   helpUrl: string,
   scheduleUrl: string,
 ): Promise<SendEmailResult> {
-  const stopLines = planStopSummaryLines(
-    { stops: plan.stops ?? [] },
+  const stopLines = await planStopSummaryLines(
+    env,
+    { ...plan, stops: plan.stops ?? [] },
     { includeCancelled: false },
   );
 
@@ -109,7 +113,7 @@ export async function sendActivatorPlanUpdatedEmail(
   plan: EditablePlanDto,
   planUrl: string,
 ): Promise<SendEmailResult> {
-  const stopLines = planStopSummaryLines(plan, { includeCancelled: false });
+  const stopLines = await planStopSummaryLines(env, plan, { includeCancelled: false });
   const statusLabel = planStatusLabel(plan.status);
 
   return sendActivatorReceiptEmail(env, {
@@ -129,7 +133,7 @@ export async function sendActivatorPlanCancelledEmail(
   plan: EditablePlanDto,
   planUrl: string,
 ): Promise<SendEmailResult> {
-  const stopLines = planStopSummaryLines(plan, { includeCancelled: true });
+  const stopLines = await planStopSummaryLines(env, plan, { includeCancelled: true });
   const statusLabel = plan.status === "approved"
     ? "Approved plan with cancelled itinerary"
     : planStatusLabel("withdrawn");
@@ -141,7 +145,7 @@ export async function sendActivatorPlanCancelledEmail(
     introLines: ["Your Activate All RI 2026 activation plan has been cancelled."],
     statusLabel,
     stopLines,
-    stopsHeading: "Cancelled stops",
+    stopsHeading: "Full itinerary",
     planUrl,
   });
 }
@@ -161,7 +165,7 @@ export async function sendActivatorSecureAccessRevokedEmail(
       "Sign in with a passkey or request a short-lived email link to return.",
     ],
     statusLabel: planStatusLabel(plan.status),
-    stopLines: planStopSummaryLines(plan, { includeCancelled: true }),
+    stopLines: await planStopSummaryLines(env, plan, { includeCancelled: true }),
     stopsHeading: "Current stops",
     planUrl,
     helpUrl,
@@ -537,11 +541,13 @@ const referencesByCode = new Map(
   references.map((reference) => [reference.reference, reference.name]),
 );
 
-function planStopSummaryLines(
-  plan: { stops: EditablePlanDto["stops"] },
+async function planStopSummaryLines(
+  env: Env,
+  plan: { submitter_callsign: string; stops: EditablePlanDto["stops"] },
   options: { includeCancelled: boolean },
-): string[] {
-  const lines = plan.stops
+): Promise<string[]> {
+  const [enrichedPlan] = await enrichPlanStopActivity(env, [plan]);
+  const lines = enrichedPlan.stops
     .filter((stop) => options.includeCancelled || stop.status !== "cancelled")
     .sort((left, right) =>
       left.planned_date.localeCompare(right.planned_date) ||
@@ -549,14 +555,14 @@ function planStopSummaryLines(
       left.park_reference.localeCompare(right.park_reference) ||
       parkName(left.park_reference).localeCompare(parkName(right.park_reference)),
     )
-    .map(
-      (stop) =>
-        `- ${formatActivationDateTimeRange({
-          plannedDate: stop.planned_date,
-          startTime: stop.start_time,
-          endTime: stop.end_time,
-        })}: ${parkLabel(stop.park_reference)}`,
-    );
+    .map((stop) => {
+      const { activity } = stop;
+      return `- ${formatActivationDateTimeRange({
+        plannedDate: stop.planned_date,
+        startTime: stop.start_time,
+        endTime: stop.end_time,
+      })}: ${parkLabel(stop.park_reference)} · Status: ${scheduleStopStatusLabel({ status: stop.status, activity })}${activity ? ` · ${stopActivityLabel(activity)}` : ""}`;
+    });
 
   return lines.length > 0 ? lines : ["- No current stops."];
 }

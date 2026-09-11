@@ -232,24 +232,18 @@ const payload = JSON.stringify({
     formatActivationTimeRange,
   } from "../lib/activate-ri/time";
   import {
+    scheduleStopStatusLabel,
+    stopActivityLabel,
+  } from "../lib/activate-ri/stop-status";
+  import type { PublicActivationStop } from "../lib/activate-ri/types";
+  import {
     referenceMapFitBoundsOptions,
     referenceMapLeafletOptions,
   } from "../lib/reference-map";
   import type { LocationGeometryKind } from "../lib/location/classify";
   import { trackAnalyticsEvent } from "../lib/analytics/client";
 
-  type PublicStop = {
-    id: string;
-    parkReference: string;
-    plannedDate: string;
-    startTime: string;
-    endTime: string;
-    activatorCallsign: string;
-    bands: string[];
-    modes: string[];
-    publicNotes?: string;
-    status: string;
-  };
+  type PublicStop = PublicActivationStop;
 
   type PublicPark = {
     reference: string;
@@ -874,7 +868,8 @@ const payload = JSON.stringify({
         ${stops.map((stop) => `
           <span class="map-popup__stop">
             <b>${escapeHtml(stop.activatorCallsign)}</b>
-            <span>${escapeHtml(stopStatusLabel(stop.status))}</span>
+            <span>${escapeHtml(scheduleStopStatusLabel(stop))}</span>
+            ${stop.activity ? `<span>${escapeHtml(stopActivityLabel(stop.activity))}</span>` : ""}
             <span>${escapeHtml(formatActivationDate(stop))}, ${escapeHtml(formatActivationTimeRange(stop))}</span>
             <span>${escapeHtml(formatList(stop.bands))} / ${escapeHtml(formatList(stop.modes))}</span>
             ${stop.publicNotes ? `<span>${escapeHtml(stop.publicNotes)}</span>` : ""}
@@ -882,16 +877,6 @@ const payload = JSON.stringify({
         `).join("")}
       </span>
     `;
-  }
-
-  function stopStatusLabel(status: string): string {
-    return {
-      "pending-review": "Pending review",
-      scheduled: "Scheduled",
-      delayed: "Delayed",
-      cancelled: "Cancelled",
-      completed: "Completed",
-    }[status] ?? status;
   }
 
   function localFieldGuideLink(item: MapItem): string {

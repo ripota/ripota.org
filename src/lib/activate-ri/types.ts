@@ -37,6 +37,8 @@ export type ActivationStopStatus =
   | "cancelled"
   | "completed";
 
+export type ActivationStopActivity = "spotted" | "confirmed";
+
 export type PublicActivationStop = {
   id: string;
   parkReference: string;
@@ -49,6 +51,7 @@ export type PublicActivationStop = {
   modes: string[];
   publicNotes: string;
   status: ActivationStopStatus;
+  activity?: ActivationStopActivity;
 };
 
 export type ParkCoverageStatus =

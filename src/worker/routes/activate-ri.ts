@@ -53,6 +53,7 @@ import {
   sendAdminActivityEmail,
   sendAdminPendingPlanEmail,
 } from "../email";
+import { enrichPlanStopActivity, enrichStopActivity } from "../stop-activity";
 import { tokenHash } from "../edit-token";
 import type { Env } from "../env";
 import { json, readJson } from "../http";
@@ -426,7 +427,7 @@ async function handlePublicStops(
 
   const response = json({
     ok: true,
-    stops: planRowsToPublicStops(await listPublicStopRows(env)),
+    stops: await enrichStopActivity(env, planRowsToPublicStops(await listPublicStopRows(env))),
     generatedAt: new Date().toISOString(),
   }, { headers: publicJsonCacheHeaders });
 
@@ -565,7 +566,7 @@ async function handleActivatorPlansLookup(
     return privateJson({ ok: false, error: "Plans not found" }, { status: 404 });
   }
 
-  return privateJson({ ok: true, activator: data.activator, plans: data.plans });
+  return privateJson({ ok: true, activator: data.activator, plans: await enrichPlanStopActivity(env, data.plans) });
 }
 
 async function handleActivatorPlanUpdate(
@@ -1177,7 +1178,7 @@ async function handleEditPlansLookup(
     return json({ ok: false, error: "Plans not found" }, { status: 404 });
   }
 
-  return json({ ok: true, activator: data.activator, plans: data.plans });
+  return json({ ok: true, activator: data.activator, plans: await enrichPlanStopActivity(env, data.plans) });
 }
 
 async function handleEditPlanUpdate(

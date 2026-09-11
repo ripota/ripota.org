@@ -65,6 +65,7 @@ import { activateRi2026Event } from "../../data/activate-ri-2026/event";
   import { readProgressView, writeProgressView, type ProgressView } from "../../lib/activate-ri/progress-view";
   import { replaceLiveContent } from "../../lib/activate-ri/live-content";
   import { parkGuidePath } from "../../lib/parks/directory";
+  import { scheduleStopStatusLabel, stopActivityLabel } from "../../lib/activate-ri/stop-status";
 
   document.querySelectorAll<HTMLElement>("[data-pota-progress]").forEach(setupPotaProgress);
 
@@ -211,7 +212,7 @@ import { activateRi2026Event } from "../../data/activate-ri-2026/event";
     const badge = document.createElement("span");
     badge.className = "pota-status-badge";
     badge.dataset.status = park.status;
-    badge.textContent = statusLabel(park.status);
+    badge.textContent = statusLabel(park);
     header.appendChild(heading);
     header.appendChild(badge);
     article.appendChild(header);
@@ -247,7 +248,17 @@ import { activateRi2026Event } from "../../data/activate-ri-2026/event";
       const list = document.createElement("ul");
       for (const stop of activeStops) {
         const item = document.createElement("li");
-        item.textContent = `${stop.activatorCallsign} · ${formatActivationDate(stop)}, ${formatActivationTimeRange(stop)} · ${stop.status}`;
+        item.dataset.stopId = stop.id;
+        item.dataset.stopStatus = stop.status;
+        item.textContent = `${stop.activatorCallsign} · ${formatActivationDate(stop)}, ${formatActivationTimeRange(stop)} · ${scheduleStopStatusLabel(stop)}`;
+        if (stop.activity) {
+          const activity = document.createElement("span");
+          activity.className = "pota-status-badge";
+          activity.dataset.status = stop.activity === "confirmed" ? "confirmed" : "observed";
+          activity.textContent = stopActivityLabel(stop.activity);
+          item.appendChild(document.createTextNode(" "));
+          item.appendChild(activity);
+        }
         list.appendChild(item);
       }
       planned.appendChild(list);
@@ -288,8 +299,11 @@ import { activateRi2026Event } from "../../data/activate-ri-2026/event";
     return element;
   }
 
-  function statusLabel(status: PublicParkPotaStatus["status"]): string {
-    return { confirmed: "POTA confirmed", observed: "Activity observed", scheduled: "Scheduled", needed: "Still needed" }[status];
+  function statusLabel(park: PublicParkPotaStatus): string {
+    if (park.status === "confirmed") return "POTA confirmed";
+    if (park.observed) return "Spotted";
+    if (park.attemptRecorded) return "Attempt recorded";
+    return park.status === "scheduled" ? "Scheduled" : "Still needed";
   }
 
   function formatQsoDate(value: string): string {
@@ -306,4 +320,5 @@ import { activateRi2026Event } from "../../data/activate-ri-2026/event";
 
 <style>
   .pota-progress-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 1rem 0; }
+  :global(.pota-progress .pota-status-badge[data-status="confirmed"]) { background: #24603b; color: #fff; }
 </style>

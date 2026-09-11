@@ -16,6 +16,7 @@ type SavedStop = {
   public_notes: string;
   organizer_notes: string;
   status: string;
+  activity?: "spotted" | "confirmed";
 };
 
 type SavedPlan = {
@@ -51,6 +52,7 @@ for (const format of ["Letter", "A4"] as const) {
         public_notes: `PRINT_STOP_${String(index + 1).padStart(2, "0")} Bring a spare battery and check the trail entrance before setting up the station.`,
         organizer_notes: `Organizer stop note ${String(index + 1).padStart(2, "0")}: available to help another activator after this stop.`,
         status: index === 0 ? "delayed" : index === 1 ? "completed" : index === 2 ? "cancelled" : "scheduled",
+        activity: index === 3 ? "confirmed" : index === 4 ? "spotted" : undefined,
       }));
       const printedPlan: SavedPlan = {
         ...plan,
@@ -75,6 +77,9 @@ for (const format of ["Letter", "A4"] as const) {
       await expect(history).toBeVisible();
       await expect(history.locator('[data-readonly-stop="cancelled"]')).toContainText(stops[2].park_reference);
       await expect(history.locator('[data-readonly-stop="completed"]')).toContainText(stops[1].park_reference);
+      await expect(page.locator("[data-stops-container] [data-edit-stop-status]")).toHaveText([
+        "Status: Delayed", "Status: Done · POTA confirmed", "Status: Scheduled · Spotted",
+      ]);
 
       await page.locator('[name="submitterName"]').fill("UNSAVED_NAME_MUST_NOT_EXPORT");
       await page.locator('[name="organizerNotes"]').fill("UNSAVED_NOTE_MUST_NOT_EXPORT");
@@ -95,7 +100,7 @@ for (const format of ["Letter", "A4"] as const) {
       for (const value of [
         "My activation plan", "Activate All RI 2026", printedPlan.submitter_callsign,
         printedPlan.submitter_name, printedPlan.club, "Approved", "Prepared", "EDT", "UTC",
-        printedPlan.public_notes, printedPlan.organizer_notes, "Delayed", "Completed", "Scheduled",
+        printedPlan.public_notes, printedPlan.organizer_notes, "Delayed", "Done", "Scheduled", "POTA confirmed", "Spotted",
         "23:45-01:15 UTC (+1 day)", "Sep 13, 2026", "not an official Parks on the Air property",
       ]) expect(text).toContain(value);
       expect(text).toMatch(/organizer/i);
