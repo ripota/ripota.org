@@ -3,6 +3,7 @@ import progress from "./PotaParkProgress.astro?raw";
 import hero from "./EventHeroContent.astro?raw";
 import map from "../ReferenceMap.astro?raw";
 import parksPage from "../../pages/activate-ri-2026/parks.astro?raw";
+import parkEvidence from "../../lib/activate-ri/park-evidence.ts?raw";
 import admin from "./AdminPotaStatus.astro?raw";
 
 describe("Activate RI POTA result surfaces", () => {
@@ -16,16 +17,30 @@ describe("Activate RI POTA result surfaces", () => {
     expect(parksPage).toContain("<ParkCoverageTable />");
   });
 
-  it("provides textual status filters, evidence details, schedules, local guides, and source-of-truth copy", () => {
-    for (const label of ["All", "Confirmed", "Observed", "Scheduled", "Still needed"]) {
-      expect(progress).toContain(`> ${label}</label>`);
+  it("keeps overall progress compact while the page provides a single park listing", () => {
+    for (const statistic of ["confirmed", "observed", "scheduled", "needed"]) {
+      expect(progress).toContain(`data-pota-${statistic}`);
     }
-    expect(progress).toContain("Declared N-fer via");
-    expect(progress).toContain("All POTA event activation rows");
-    expect(progress).toContain("Planned event stops");
-    expect(progress).toContain("Open local field guide");
+    expect(progress).toContain("data-pota-progress-bar");
+    expect(progress).toContain("potaParkStatusStore.subscribe");
+    expect(progress).not.toContain("data-pota-results");
+    expect(progress).not.toContain("data-pota-search");
+    expect(progress).not.toContain("data-pota-filters");
+    expect(progress).not.toContain("<ReferenceMap");
+    expect(parksPage.match(/<ParkCoverageTable\s*\/>/g)).toHaveLength(1);
+    expect(parksPage).toContain("Show park map");
     expect(progress).toContain("Official Parks on the Air");
     expect(progress).toContain("never POTA confirmation");
+  });
+
+  it("preserves POTA evidence independently from planned stops", () => {
+    expect(parkEvidence).toContain("Declared N-fer via");
+    expect(parkEvidence).toContain("All POTA event activation rows");
+    expect(parkEvidence).toContain("a current spot is activity evidence, not confirmation");
+    expect(parkEvidence).toContain("Scheduled event coverage; no POTA confirmation yet.");
+    expect(parkEvidence).toContain("Attempt recorded:");
+    expect(parkEvidence).not.toContain("Planned event stops");
+    expect(parkEvidence).not.toContain("Open local field guide");
   });
 
   it("uses result map colors, text popups, current-spot overlay, and reduced-motion-compatible live marker class", () => {

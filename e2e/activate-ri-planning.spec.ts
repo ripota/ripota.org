@@ -158,9 +158,9 @@ test("park planning shows park evidence separately from each activator's done st
       stop("ninigret-spotted", "US-0515", "K1SPOT", { activity: "spotted" }),
     ] } }));
     await page.goto(`${server.origin}/activate-ri-2026/parks/?activator=N1RI&expanded=US-0513,US-0515,US-0517`);
-    await expect(parkRow(page, "US-0513").locator("[data-planning-park-status]")).toHaveText("POTA confirmed");
-    await expect(parkRow(page, "US-0514").locator("[data-planning-park-status]")).toHaveText("Spotted");
-    await expect(parkRow(page, "US-0517").locator("[data-planning-park-status]")).toHaveText("Attempt recorded");
+    await expect(parkRow(page, "US-0513").locator("[data-planning-park-status] .pota-status-badge")).toHaveText("POTA confirmed");
+    await expect(parkRow(page, "US-0514").locator("[data-planning-park-status] .pota-status-badge")).toHaveText("Spotted");
+    await expect(parkRow(page, "US-0517").locator("[data-planning-park-status] .pota-status-badge")).toHaveText("Attempt recorded");
     await expect(parkRow(page, "US-0517").locator("summary")).toHaveText("0 activators · 0 time slots · 1 done");
     await expect(parkRow(page, "US-0517").locator('[data-stop-id="trustom-completed"]')).toContainText("Done");
     await expect(parkRow(page, "US-0515").locator("summary")).toHaveText("2 activators · 2 time slots · 1 done");
@@ -178,14 +178,14 @@ test("park planning shows park evidence separately from each activator's done st
     const chosenUrl = page.url();
     const chafee = snapshot.parks.find(park => park.reference === "US-0514")!;
     chafee.status = "confirmed";
-    await page.getByRole("button", { name: "Refresh plans", exact: true }).click();
-    await expect(parkRow(page, "US-0514").locator("[data-planning-park-status]")).toHaveText("POTA confirmed");
+    await page.getByRole("button", { name: "Refresh parks", exact: true }).click();
+    await expect(parkRow(page, "US-0514").locator("[data-planning-park-status] .pota-status-badge")).toHaveText("POTA confirmed");
     await expect(page).toHaveURL(chosenUrl);
     await expect(parkRow(page, "US-0517").locator("details")).toHaveAttribute("open", "");
     evidenceUnavailable = true;
-    await page.getByRole("button", { name: "Refresh plans", exact: true }).click();
+    await page.getByRole("button", { name: "Refresh parks", exact: true }).click();
     await expect(page.locator("[data-planning-evidence-status]")).toContainText("Showing the last available POTA park status");
-    await expect(parkRow(page, "US-0514").locator("[data-planning-park-status]")).toHaveText("POTA confirmed");
+    await expect(parkRow(page, "US-0514").locator("[data-planning-park-status] .pota-status-badge")).toHaveText("POTA confirmed");
     await expect(parkRow(page, "US-0517").locator('[data-stop-id="trustom-completed"]')).toContainText("Done");
     await page.reload();
     await expect(parkRow(page, "US-0514").locator("[data-planning-park-status]")).toHaveText("Park status unavailable");
@@ -351,7 +351,7 @@ test("refresh updates counts without dropping selected modes or hiding zero-plan
     stops = [];
     const reloaded = page.waitForRequest(request => request.url().endsWith("/api/activate-ri-2026/public/stops")
       && request.headers()["cache-control"] === "no-cache");
-    await page.getByRole("button", { name: "Refresh plans", exact: true }).click();
+    await page.getByRole("button", { name: "Refresh parks", exact: true }).click();
     await reloaded;
     await expect(parkRow(page, "US-0514").locator("summary")).toHaveText("0 activators · 0 time slots");
     await expect(rows).toHaveCount(countyParkCount);
@@ -360,7 +360,7 @@ test("refresh updates counts without dropping selected modes or hiding zero-plan
     await expect(page.locator('[data-filter="county"]')).toHaveValue("Washington County");
     await expect(page).toHaveURL(filteredUrl);
     await expect(page.locator("[data-planning-status]")).toContainText("SSB");
-    await expect(page.getByRole("button", { name: "Refresh plans", exact: true })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Refresh parks", exact: true })).toBeEnabled();
   } finally {
     await server.stop();
   }
@@ -372,8 +372,9 @@ test("a failed schedule request does not portray all parks as having zero activa
     await mockPlanning(page);
     await page.route("**/api/activate-ri-2026/public/stops", route => route.fulfill({ status: 503 }));
     await page.goto(`${server.origin}/activate-ri-2026/parks/`);
-    await expect(page.locator("[data-live-coverage]").getByText("Live coverage is unavailable.", { exact: false })).toBeVisible();
-    await expect(page.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(0);
+    await expect(page.locator("[data-planning-status]")).toContainText("Activation plans are unavailable.");
+    await expect(page.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(references.length);
+    await expect(parkRow(page, "US-0513")).toContainText("Activation plans unavailable");
     await expect(page.locator("[data-live-coverage]")).not.toContainText("0 activators");
   } finally {
     await server.stop();
@@ -611,7 +612,7 @@ test("Back to legacy My parks during refresh waits for the new account before ch
     });
     await page.goto(`${server.origin}/activate-ri-2026/parks/?mine=1`);
     const mine = page.locator("[data-my-parks]");
-    const refresh = page.getByRole("button", { name: "Refresh plans", exact: true });
+    const refresh = page.getByRole("button", { name: "Refresh parks", exact: true });
     await expect(page.getByRole("link", { name: "Sign in to see my parks", exact: true })).toBeVisible();
     await mine.uncheck();
     await expect(page.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(references.length);
@@ -672,7 +673,7 @@ test("disclosure clicks update the shared view before late data can replace thei
     expect(opened).toEqual({ expanded: "US-0513", more: "1" });
     const openedUrl = page.url();
     releaseSession();
-    const refresh = page.getByRole("button", { name: "Refresh plans", exact: true });
+    const refresh = page.getByRole("button", { name: "Refresh parks", exact: true });
     await expect(refresh).toBeEnabled();
     await expect(parkRow(page, "US-0513").locator("details")).toHaveAttribute("open", "");
     await expect(page.locator(".park-planning-more")).toHaveAttribute("open", "");

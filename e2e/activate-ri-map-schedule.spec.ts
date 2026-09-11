@@ -106,11 +106,14 @@ for (const viewport of [
       await page.goBack();
       await marker.click();
       await results.click();
-      await expect(page).toHaveURL(`${server.origin}/activate-ri-2026/parks/?progress-q=US-7865#park-results`);
-      const cards = page.locator("[data-pota-results] .pota-park-card");
+      await expect.poll(() => new URL(page.url()).searchParams.get("q")).toBe("US-7865");
+      expect(new URL(page.url()).searchParams.has("progress-q")).toBe(false);
+      expect(new URL(page.url()).searchParams.get("expanded")).toBe("US-7865");
+      expect(new URL(page.url()).hash).toBe("#park-results");
+      const cards = page.locator("[data-live-coverage] [data-filter-row]");
       await expect(cards).toHaveCount(1);
       await expect(cards).toContainText("East State Beach");
-      await expect(cards.locator("[data-planned-stops]")).toHaveJSProperty("open", true);
+      await expect(cards.locator(".park-plan-details")).toHaveJSProperty("open", true);
       await expect(cards.getByText(/K1NW/)).toBeVisible();
 
       failStops = true;

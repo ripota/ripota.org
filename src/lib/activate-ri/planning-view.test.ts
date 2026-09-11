@@ -8,6 +8,7 @@ const parks: PublicParkSummary[] = [
 ];
 
 const defaults: PlanningView = {
+  query: "", status: "all",
   sort: "activators", timeline: "all", county: "all", mode: "all", band: "all",
   activator: "", mine: false, expanded: [], moreFilters: false,
 };
@@ -23,6 +24,7 @@ describe("planning view URLs", () => {
 
   it("round-trips every view property, keeping unrelated parameters and the page anchor", () => {
     const view: PlanningView = {
+      query: "Beavertail", status: "confirmed",
       sort: "slots", timeline: "2026-09-12", county: "Newport County", mode: "CW", band: "20m",
       activator: "N1RWJ/P", mine: false, expanded: ["US-2868", "US-2872"], moreFilters: false,
     };
@@ -37,10 +39,26 @@ describe("planning view URLs", () => {
   });
 
   it("removes explicit defaults and the obsolete coverage filter", () => {
-    const result = writePlanningView(url("?sort=name&timeline=main&county=Newport+County&mode=CW&band=20m&activator=N1RWJ&mine=1&expanded=US-2868&more=1&coverage=needed&source=club#park-planning"), defaults);
+    const result = writePlanningView(url("?q=park&progress-q=park&progress-status=confirmed&sort=name&timeline=main&county=Newport+County&mode=CW&band=20m&activator=N1RWJ&mine=1&expanded=US-2868&more=1&coverage=needed&source=club#park-planning"), defaults);
 
     expect([...result.searchParams.entries()]).toEqual([["source", "club"]]);
     expect(result.hash).toBe("#park-planning");
+  });
+
+  it("migrates a legacy result link into the single park list with its plans expanded", () => {
+    const original = url("?progress-q=us-2868&progress-status=confirmed#park-results");
+    const view = readPlanningView(original, parks);
+    expect(view).toEqual({ ...defaults, query: "us-2868", status: "confirmed", expanded: ["US-2868"] });
+    const result = writePlanningView(original, view);
+    expect(result.searchParams.get("q")).toBe("us-2868");
+    expect(result.searchParams.has("progress-q")).toBe(false);
+    expect(result.hash).toBe("#park-results");
+    expect(readPlanningView(result, parks)).toEqual(view);
+  });
+
+  it("gives the unified query precedence and validates park status", () => {
+    const view = readPlanningView(url("?q=Colt&progress-q=US-2868&progress-status=invalid"), parks);
+    expect(view).toEqual({ ...defaults, query: "Colt" });
   });
 
   it("normalizes invalid sort, county, and day choices and deduplicates only known park references", () => {

@@ -11,7 +11,7 @@ export type RequestedReferences = {
 };
 
 const referencePattern = /^[A-Z]{1,4}-\d{4,6}$/;
-const publicScheduleFilters = ["q", "activator", "mode", "band", "timeline", "county", "timezone"];
+const publicScheduleFilters = ["q", "activity", "activator", "mode", "band", "timeline", "county", "timezone"];
 
 export function parseRequestedReferences(
   input: string,

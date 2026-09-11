@@ -54,7 +54,7 @@ for (const path of ["/activate-ri-2026/", "/activate-ri-2026/parks/"]) {
       await page.goto(server.origin + path);
       const planning = page.locator('[data-event-view="planning"]');
       const results = page.locator('[data-event-view="results"]');
-      await expect(planning).toBeVisible();
+      await expect(planning).toHaveJSProperty("hidden", false);
       await expect(results).toBeHidden();
       if (path.endsWith("/parks/")) {
         await expect(page.locator("#park-planning")).toBeVisible();
@@ -75,10 +75,12 @@ for (const path of ["/activate-ri-2026/", "/activate-ri-2026/parks/"]) {
       await expect(page.locator("[data-event-phase-views]")).toHaveAttribute("data-phase", "event-live");
       await expect(results).toContainText(path.endsWith("/parks/") ? "Confirmed by POTA" : "Activated");
       if (path.endsWith("/parks/")) {
-        await expect(results.locator(".pota-park-card")).toHaveCount(61);
+        await expect(results.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(0);
+        await expect(page.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(61);
+        await expect(page.getByRole("searchbox", { name: "Search parks" })).toHaveCount(1);
         await expect(page.locator("#park-planning")).toBeVisible();
         await expect(page.locator("[data-live-coverage]")).toBeVisible();
-        await expect(results.getByRole("link", { name: "Plan another activation", exact: true })).toHaveAttribute("href", "#park-planning");
+        await expect(page.getByRole("heading", { name: "Event parks", exact: true })).toBeVisible();
       } else {
         await expect(results.locator("[data-hero-pota-updated]")).toContainText("Sep 10");
         await expect(results.getByRole("link", { name: "See RI on air now", exact: true })).toHaveAttribute("href", "/on-air/");
@@ -254,16 +256,19 @@ test("park results preserve open evidence and keyboard focus across background r
   try {
     await page.clock.install({ time: new Date("2026-09-11T12:00:00Z") });
     const park = references[0];
+    const confirmation = { qsoDate: "20260911", activeCallsign: "W1AW", totalQsos: 12, qsosCw: 12, qsosData: 0, qsosPhone: 0 };
     await page.route("**/api/activate-ri-2026/public/park-status", route => route.fulfill({ json: {
       ok: true, generatedAt: "2026-09-11T12:00:00Z", lastPotaSyncAt: "2026-09-11T12:00:00Z", lastSpotIngestAt: null,
       stale: false, warning: null,
       eventWindow: { startDate: "2026-09-10", endDate: "2026-09-13", timezone: "UTC" },
-      summary: { total: 61, confirmed: 0, observedNotConfirmed: 0, scheduledNotConfirmed: 1, stillNeeded: 60, withoutConfirmation: 61 },
+      summary: { total: 61, confirmed: 1, observedNotConfirmed: 0, scheduledNotConfirmed: 0, stillNeeded: 60, withoutConfirmation: 60 },
       parks: references.map(item => ({
         reference: item.reference, name: item.name, potaUrl: item.potaUrl,
-        status: item.reference === park.reference ? "scheduled" : "needed", live: false,
+        status: item.reference === park.reference ? "confirmed" : "needed", live: false,
         scheduled: item.reference === park.reference, observed: false, attemptRecorded: false,
-        confirmation: null, confirmations: [], attempts: [], lastObservation: null,
+        confirmation: item.reference === park.reference ? confirmation : null,
+        confirmations: item.reference === park.reference ? [confirmation, { ...confirmation, activeCallsign: "N1BS" }] : [],
+        attempts: [], lastObservation: null,
       })),
     } }));
     await page.route("**/api/activate-ri-2026/public/stops", route => route.fulfill({ json: { ok: true, stops: [{
@@ -271,10 +276,10 @@ test("park results preserve open evidence and keyboard focus across background r
       startTime: "13:00", endTime: "14:00", bands: ["20m"], modes: ["CW"], publicNotes: "", status: "scheduled",
     }] } }));
     await page.goto(`${server.origin}/activate-ri-2026/parks/`);
-    const results = page.locator("[data-pota-progress]");
+    const results = page.locator("[data-park-planning]");
     await results.getByRole("searchbox", { name: "Search parks" }).fill(park.reference);
-    await expect(results.locator(".pota-park-card")).toHaveCount(1);
-    const details = results.locator(".pota-park-card details");
+    await expect(results.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(1);
+    const details = results.locator(".park-evidence details");
     const summary = details.locator("summary");
     await summary.click();
     await expect(details).toHaveAttribute("open", "");
@@ -283,7 +288,7 @@ test("park results preserve open evidence and keyboard focus across background r
     await expect(summary).toBeFocused();
     await expect(details).toHaveAttribute("open", "");
     await results.getByRole("button", { name: "Clear filters", exact: true }).click();
-    await expect(results.locator(".pota-park-card")).toHaveCount(61);
+    await expect(results.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(61);
     await expect(results.getByRole("searchbox", { name: "Search parks" })).toBeFocused();
   } finally {
     await server.stop();

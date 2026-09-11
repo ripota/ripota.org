@@ -1,8 +1,11 @@
 import { timelineOptions } from "./listing";
 import type { PlanningSort } from "./planning";
 import type { PublicParkSummary } from "./types";
+import { readProgressView, type ProgressView } from "./progress-view";
 
 export type PlanningView = {
+  query: string;
+  status: ProgressView["status"];
   sort: PlanningSort;
   timeline: string;
   county: string;
@@ -16,6 +19,8 @@ export type PlanningView = {
 
 export function readPlanningView(url: URL, parks: readonly PublicParkSummary[]): PlanningView {
   const params = url.searchParams;
+  const progress = readProgressView(url);
+  const query = params.has("q") ? params.get("q")!.trim() : progress.query;
   const sort = params.get("sort");
   const timeline = params.get("timeline") ?? "all";
   const county = params.get("county") ?? "all";
@@ -27,9 +32,15 @@ export function readPlanningView(url: URL, parks: readonly PublicParkSummary[]):
   const expanded = uniqueSorted((params.get("expanded") ?? "").split(",")
     .map((reference) => reference.trim().toUpperCase())
     .filter((reference) => knownReferences.has(reference)));
+  // Existing map/result links should still reveal the selected park's plans.
+  if (!params.has("q") && !params.has("expanded") && knownReferences.has(query.toUpperCase())) {
+    expanded.push(query.toUpperCase());
+  }
   const more = params.get("more");
 
   return {
+    query,
+    status: progress.status,
     sort: sort === "slots" || sort === "name" ? sort : "activators",
     timeline: timelineOptions.some((option) => option.value === timeline) ? timeline : "all",
     county: parks.some((park) => park.counties.includes(county)) ? county : "all",
@@ -46,6 +57,11 @@ export function writePlanningView(url: URL, view: PlanningView): URL {
   const result = new URL(url.href);
   const params = result.searchParams;
   params.delete("coverage");
+  params.delete("progress-q");
+  if (view.query.trim()) params.set("q", view.query.trim());
+  else params.delete("q");
+  if (view.status === "all") params.delete("progress-status");
+  else params.set("progress-status", view.status);
 
   for (const key of ["sort", "timeline", "county", "mode", "band"] as const) {
     const defaultValue = key === "sort" ? "activators" : "all";

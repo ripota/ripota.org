@@ -1706,12 +1706,11 @@ p {
 
 .pota-progress {
   display: grid;
-  gap: 1.25rem;
+  gap: 0.75rem;
 }
 
 .pota-progress__summary,
-.pota-progress__notice,
-.pota-park-card {
+.pota-progress__notice {
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
   background: var(--surface-raised);
@@ -1720,27 +1719,55 @@ p {
 
 .pota-progress__summary {
   display: grid;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .pota-progress__summary h2 {
-  max-width: 18ch;
-  font-size: clamp(2rem, 5vw, 3.4rem);
+  font-size: clamp(1.4rem, 3vw, 1.9rem);
+}
+
+.pota-progress__summary [data-pota-summary-status] {
+  margin: 0.35rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
 }
 
 .pota-progress__summary > progress {
   width: 100%;
-  height: 1.25rem;
+  height: 0.85rem;
   accent-color: #2d7a4b;
 }
 
 .pota-progress__summary .coverage-summary {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   margin: 0;
+}
+
+.pota-progress__summary .coverage-summary div {
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.pota-progress__summary .coverage-summary dt {
+  font-size: 0.85rem;
+}
+
+.pota-progress__summary .coverage-summary dd {
+  font-size: 1.6rem;
 }
 
 .pota-progress__notice {
   border-left: 5px solid var(--accent);
   color: var(--text-muted);
+}
+
+.pota-progress > .pota-progress__notice {
+  margin: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font-size: 0.85rem;
 }
 
 .pota-status-filters {
@@ -1782,43 +1809,6 @@ p {
   max-width: 520px;
 }
 
-.pota-park-results {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
-  gap: 0.9rem;
-}
-
-.pota-park-card {
-  display: grid;
-  align-content: start;
-  gap: 0.75rem;
-  min-width: 0;
-  border-left: 6px solid #707b78;
-}
-
-.pota-park-card[data-status="confirmed"] {
-  border-left-color: #2d7a4b;
-}
-
-.pota-park-card[data-status="observed"] {
-  border-left-color: #b56b00;
-}
-
-.pota-park-card[data-status="scheduled"] {
-  border-left-color: #3758c8;
-}
-
-.pota-park-card__header {
-  display: flex;
-  gap: 0.75rem;
-  align-items: flex-start;
-  justify-content: space-between;
-}
-
-.pota-park-card h3 {
-  font-size: 1.25rem;
-}
-
 .pota-status-badge {
   flex: 0 0 auto;
   border-radius: 999px;
@@ -1838,34 +1828,6 @@ p {
 
 .pota-status-badge[data-status="scheduled"] {
   background: color-mix(in srgb, #3758c8 18%, var(--surface-raised));
-}
-
-.pota-park-card__live {
-  color: #7d4d00;
-  font-weight: 900;
-}
-
-.pota-park-card details {
-  border-top: 1px solid var(--border-subtle);
-  padding-top: 0.65rem;
-}
-
-.pota-park-card summary {
-  color: var(--link-strong);
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.pota-park-card ul {
-  display: grid;
-  gap: 0.35rem;
-  margin-bottom: 0;
-  padding-left: 1.2rem;
-}
-
-.pota-park-card > a {
-  color: var(--link);
-  font-weight: 800;
 }
 
 .pota-progress__empty {
@@ -3473,10 +3435,6 @@ p {
   .hunter-results__header,
   .hunter-lists {
     grid-template-columns: 1fr;
-  }
-
-  .pota-park-card__header {
-    display: grid;
   }
 
   .pota-status-badge {

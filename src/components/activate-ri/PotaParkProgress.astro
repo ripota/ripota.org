@@ -1,5 +1,4 @@
 ---
-import ReferenceMap from "../ReferenceMap.astro";
 import { activateRi2026Event } from "../../data/activate-ri-2026/event";
 ---
 
@@ -22,152 +21,44 @@ import { activateRi2026Event } from "../../data/activate-ri-2026/event";
   <p class="pota-progress__notice">
     This is an unofficial RI POTA community summary. Official Parks on the Air references, spots, logs, rules, and activation validity remain the source of truth. A planned or organizer-completed stop is never POTA confirmation.
   </p>
-
-  <ReferenceMap
-    id="activate-ri-pota-results-map"
-    variant="coverage"
-    title="Map of Activate All RI POTA evidence"
-    caption="Map colors summarize the same text statuses listed below. A gold pulse means a current POTA spot, not a confirmed activation."
-    legendPlacement="below"
-    legendTitle="POTA evidence"
-    resultsMode
-  />
-
-  <fieldset id="park-results" class="pota-status-filters" data-pota-filters>
-    <legend>Filter by park status</legend>
-    <label><input type="radio" name="pota-status-filter" value="all" checked /> All</label>
-    <label><input type="radio" name="pota-status-filter" value="confirmed" /> Confirmed</label>
-    <label><input type="radio" name="pota-status-filter" value="observed" /> Observed</label>
-    <label><input type="radio" name="pota-status-filter" value="scheduled" /> Scheduled</label>
-    <label><input type="radio" name="pota-status-filter" value="needed" /> Still needed</label>
-  </fieldset>
-  <label class="event-filter pota-progress__search">
-    Search parks
-    <input class="event-filter__control" type="search" data-pota-search placeholder="Reference or park name" />
-  </label>
-  <div class="pota-progress-actions">
-    <button class="button" data-variant="light" type="button" data-pota-clear disabled>Clear filters</button>
-    <button class="button" data-variant="light" type="button" data-pota-refresh>Refresh progress</button>
-  </div>
-  <p data-pota-filter-status role="status" aria-live="polite"></p>
-  <p data-pota-schedule-status role="status" aria-live="polite"></p>
-  <div class="pota-park-results" data-pota-results></div>
-  <p class="pota-progress__empty" data-pota-empty hidden>No parks match this filter and search.</p>
 </section>
 
 <script>
   import { potaParkStatusStore } from "../../lib/activate-ri/pota-status-store";
   import { subscribeEventPhase } from "../../lib/activate-ri/event-phase";
-  import type { PublicParkPotaStatus, PublicPotaParkStatusSnapshot } from "../../lib/activate-ri/pota-status-client";
-  import { fetchPublicActivationStops } from "../../lib/activate-ri/public-stops-client";
-  import type { PublicActivationStop } from "../../lib/activate-ri/types";
-  import { formatActivationDate, formatActivationTimeRange } from "../../lib/activate-ri/time";
-  import { readProgressView, writeProgressView, type ProgressView } from "../../lib/activate-ri/progress-view";
-  import { replaceLiveContent } from "../../lib/activate-ri/live-content";
-  import { parkGuidePath } from "../../lib/parks/directory";
-  import { scheduleStopStatusLabel, stopActivityLabel } from "../../lib/activate-ri/stop-status";
+  import type { PublicPotaParkStatusSnapshot } from "../../lib/activate-ri/pota-status-client";
 
   document.querySelectorAll<HTMLElement>("[data-pota-progress]").forEach(setupPotaProgress);
 
   function setupPotaProgress(root: HTMLElement): void {
-    const results = root.querySelector("[data-pota-results]") as HTMLElement | null;
-    const search = root.querySelector("[data-pota-search]") as HTMLInputElement | null;
-    const filters = root.querySelector("[data-pota-filters]") as HTMLFieldSetElement | null;
-    const clear = root.querySelector<HTMLButtonElement>("[data-pota-clear]");
-    const refresh = root.querySelector<HTMLButtonElement>("[data-pota-refresh]");
     let snapshot: PublicPotaParkStatusSnapshot | undefined;
-    let stops: PublicActivationStop[] = [];
-    let searchEditing = false;
-    let renderedQuery = "";
-
-    restoreFilters();
-    updateUrl("replace");
-    render();
-    search?.addEventListener("input", () => {
-      searchEditing = updateUrl(searchEditing ? "replace" : "push") || searchEditing;
-      render();
-    });
-    search?.addEventListener("blur", () => { searchEditing = false; });
-    search?.addEventListener("change", () => { searchEditing = false; });
-    filters?.addEventListener("change", () => {
-      searchEditing = false;
-      updateUrl();
-      render();
-    });
-    window.addEventListener("popstate", () => {
-      searchEditing = false;
-      restoreFilters();
-      render();
-    });
-    clear?.addEventListener("click", () => {
-      if (search) search.value = "";
-      const all = filters?.querySelector<HTMLInputElement>('input[value="all"]');
-      if (all) all.checked = true;
-      searchEditing = false;
-      updateUrl();
-      render();
-      search?.focus();
-    });
-    async function loadStops(): Promise<void> {
-      try {
-        stops = await fetchPublicActivationStops();
-        setText("[data-pota-schedule-status]", "");
-        render();
-      } catch {
-        setText("[data-pota-schedule-status]", "Planned activation details are temporarily unavailable. Use Refresh progress to try again.");
-      }
-    }
-    refresh?.addEventListener("click", async () => {
-      refresh.disabled = true;
-      await Promise.all([potaParkStatusStore.refresh(), loadStops()]);
-      refresh.disabled = false;
-    });
-    void loadStops();
+    let refreshFailed = false;
 
     potaParkStatusStore.subscribe((state) => {
       if (state.status === "ready") {
         snapshot = state.snapshot;
-        renderSummary(state.snapshot, state.refreshFailed);
-        render();
+        refreshFailed = state.refreshFailed;
+        renderSummary(state.snapshot);
       } else if (state.status === "unavailable") {
         root.querySelector("[data-pota-progress-bar]")?.removeAttribute("value");
-        root.querySelector("[data-pota-summary-status]")?.replaceChildren(
-          "Event progress is temporarily unavailable. Use Refresh progress to try again.",
+        setText(
+          "[data-pota-summary-status]",
+          "Event progress is temporarily unavailable. Refresh the parks below to try again.",
         );
       }
     });
     subscribeEventPhase((phase) => {
       root.dataset.phase = phase;
       if (phase === "event-live" || phase === "post-event") potaParkStatusStore.start();
-      if (snapshot) renderSummary(snapshot, false);
+      if (snapshot) renderSummary(snapshot);
     });
 
-    function restoreFilters(): void {
-      const view = readProgressView(new URL(window.location.href));
-      if (search) search.value = view.query;
-      filters?.querySelectorAll<HTMLInputElement>('input[name="pota-status-filter"]').forEach((control) => {
-        control.checked = control.value === view.status;
-      });
-    }
-
-    function updateUrl(mode: "push" | "replace" = "push"): boolean {
-      const view: ProgressView = {
-        status: filters?.querySelector<HTMLInputElement>('input[name="pota-status-filter"]:checked')?.value as ProgressView["status"] ?? "all",
-        query: search?.value ?? "",
-      };
-      const url = writeProgressView(new URL(window.location.href), view);
-      if (url.href === window.location.href) return false;
-      if (mode === "push") window.history.pushState(window.history.state, "", url);
-      else window.history.replaceState(window.history.state, "", url);
-      return true;
-    }
-
-    function renderSummary(value: PublicPotaParkStatusSnapshot, refreshFailed: boolean): void {
+    function renderSummary(value: PublicPotaParkStatusSnapshot): void {
       setText("[data-pota-confirmed]", `${value.summary.confirmed} / ${value.summary.total}`);
       setText("[data-pota-observed]", String(value.summary.observedNotConfirmed));
       setText("[data-pota-scheduled]", String(value.summary.scheduledNotConfirmed));
       setText("[data-pota-needed]", String(value.summary.stillNeeded));
-      const progress = root.querySelector("[data-pota-progress-bar]") as HTMLProgressElement | null;
+      const progress = root.querySelector<HTMLProgressElement>("[data-pota-progress-bar]");
       if (progress) {
         progress.max = value.summary.total;
         progress.value = value.summary.confirmed;
@@ -182,148 +73,9 @@ import { activateRi2026Event } from "../../data/activate-ri-2026/event";
       );
     }
 
-    function render(): void {
-      const filter = filters?.querySelector<HTMLInputElement>('input[name="pota-status-filter"]:checked')?.value ?? "all";
-      const query = search?.value.trim().toLowerCase() ?? "";
-      if (clear) clear.disabled = !query && filter === "all";
-      if (!snapshot || !results) return;
-      const parks = snapshot.parks.filter((park) =>
-        (filter === "all" || park.status === filter) &&
-        (!query || park.reference.toLowerCase().includes(query) || park.name.toLowerCase().includes(query)),
-      );
-      const cards = parks.map((park) => parkCard(
-        park,
-        stops.filter((stop) => stop.parkReference === park.reference),
-        park.reference.toLowerCase() === query,
-      ));
-      replaceLiveContent(results, cards);
-      if (query !== renderedQuery) {
-        // Selecting an exact reference also reveals an existing card. Later refreshes
-        // keep the disclosure choice preserved by replaceLiveContent.
-        const selectedCard = cards.find((_, index) => parks[index].reference.toLowerCase() === query);
-        const planned = selectedCard?.querySelector<HTMLDetailsElement>("details[data-planned-stops]");
-        if (planned) planned.open = true;
-      }
-      renderedQuery = query;
-      setText("[data-pota-filter-status]", `Showing ${parks.length} of ${snapshot.parks.length} parks${query ? ` matching “${search?.value.trim()}”` : ""}.`);
-      const empty = root.querySelector("[data-pota-empty]") as HTMLElement | null;
-      if (empty) empty.hidden = parks.length > 0;
-    }
-
     function setText(selector: string, value: string): void {
       root.querySelector(selector)?.replaceChildren(value);
     }
-  }
-
-  function parkCard(park: PublicParkPotaStatus, stops: PublicActivationStop[], revealPlannedStops: boolean): HTMLElement {
-    const article = document.createElement("article");
-    article.className = "pota-park-card";
-    article.dataset.status = park.status;
-    const header = document.createElement("div");
-    header.className = "pota-park-card__header";
-    const heading = document.createElement("h3");
-    heading.textContent = `${park.reference} · ${park.name}`;
-    const badge = document.createElement("span");
-    badge.className = "pota-status-badge";
-    badge.dataset.status = park.status;
-    badge.textContent = statusLabel(park);
-    header.appendChild(heading);
-    header.appendChild(badge);
-    article.appendChild(header);
-
-    if (park.live) article.appendChild(paragraph("On air now — a current spot is activity evidence, not confirmation.", "pota-park-card__live"));
-    if (park.confirmation) {
-      article.appendChild(paragraph(
-        `${park.confirmation.activeCallsign} · ${formatQsoDate(park.confirmation.qsoDate)} UTC · ${park.confirmation.totalQsos} QSOs`,
-      ));
-    } else if (park.lastObservation) {
-      const evidence = park.lastObservation.evidenceKind === "declared_nfer"
-        ? `Declared N-fer via ${park.lastObservation.declaredByReference ?? "another park"}`
-        : "Last spotted";
-      article.appendChild(paragraph(
-        `${evidence} ${formatUtcTimestamp(park.lastObservation.lastObservedAt)} · ${park.lastObservation.activeCallsign}`,
-      ));
-    } else if (park.attempts[0]) {
-      article.appendChild(paragraph(
-        `Attempt recorded: ${park.attempts[0].activeCallsign} · ${park.attempts[0].totalQsos} QSOs; not confirmed.`,
-      ));
-    } else {
-      article.appendChild(paragraph(park.scheduled ? "Scheduled event coverage; no POTA confirmation yet." : "No event POTA evidence yet."));
-    }
-
-    const activeStops = stops.filter((stop) => stop.status !== "cancelled");
-    if (activeStops.length > 0) {
-      const planned = document.createElement("details");
-      planned.dataset.liveKey = `${park.reference}-planned`;
-      planned.dataset.plannedStops = "";
-      planned.open = revealPlannedStops;
-      const summary = document.createElement("summary");
-      summary.dataset.liveKey = `${park.reference}-planned-summary`;
-      summary.textContent = `Planned event stops (${activeStops.length}) — estimates, not confirmation`;
-      planned.appendChild(summary);
-      const list = document.createElement("ul");
-      for (const stop of activeStops) {
-        const item = document.createElement("li");
-        item.dataset.stopId = stop.id;
-        item.dataset.stopStatus = stop.status;
-        item.textContent = `${stop.activatorCallsign} · ${formatActivationDate(stop)}, ${formatActivationTimeRange(stop)} · ${scheduleStopStatusLabel(stop)}`;
-        if (stop.activity) {
-          const activity = document.createElement("span");
-          activity.className = "pota-status-badge";
-          activity.dataset.status = stop.activity === "confirmed" ? "confirmed" : "observed";
-          activity.textContent = stopActivityLabel(stop.activity);
-          item.appendChild(document.createTextNode(" "));
-          item.appendChild(activity);
-        }
-        list.appendChild(item);
-      }
-      planned.appendChild(list);
-      article.appendChild(planned);
-    }
-
-    const allEvidence = [...park.confirmations, ...park.attempts];
-    if (allEvidence.length > 1) {
-      const details = document.createElement("details");
-      details.dataset.liveKey = `${park.reference}-evidence`;
-      const summary = document.createElement("summary");
-      summary.dataset.liveKey = `${park.reference}-evidence-summary`;
-      summary.textContent = `All POTA event activation rows (${allEvidence.length})`;
-      details.appendChild(summary);
-      const list = document.createElement("ul");
-      for (const evidence of allEvidence) {
-        const item = document.createElement("li");
-        item.textContent = `${evidence.activeCallsign} · ${formatQsoDate(evidence.qsoDate)} UTC · ${evidence.totalQsos} QSOs${evidence.totalQsos >= 10 ? " · confirmed" : " · attempt"}`;
-        list.appendChild(item);
-      }
-      details.appendChild(list);
-      article.appendChild(details);
-    }
-
-    const localGuide = document.createElement("a");
-    localGuide.href = parkGuidePath(park.reference);
-    localGuide.textContent = "Open local field guide";
-    localGuide.dataset.liveKey = `${park.reference}-guide`;
-    article.appendChild(localGuide);
-
-    return article;
-  }
-
-  function paragraph(value: string, className = ""): HTMLParagraphElement {
-    const element = document.createElement("p");
-    element.textContent = value;
-    if (className) element.className = className;
-    return element;
-  }
-
-  function statusLabel(park: PublicParkPotaStatus): string {
-    if (park.status === "confirmed") return "POTA confirmed";
-    if (park.observed) return "Spotted";
-    if (park.attemptRecorded) return "Attempt recorded";
-    return park.status === "scheduled" ? "Scheduled" : "Still needed";
-  }
-
-  function formatQsoDate(value: string): string {
-    return /^\d{8}$/.test(value) ? `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6)}` : value;
   }
 
   function formatUtcTimestamp(value: string): string {
@@ -333,9 +85,3 @@ import { activateRi2026Event } from "../../data/activate-ri-2026/event";
       : value;
   }
 </script>
-
-<style>
-  #park-results { scroll-margin-top: 2rem; }
-  .pota-progress-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 1rem 0; }
-  :global(.pota-progress .pota-status-badge[data-status="confirmed"]) { background: #24603b; color: #fff; }
-</style>

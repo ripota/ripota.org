@@ -10,7 +10,8 @@ describe("ParkCoverageTable markup", () => {
   it("keeps current coverage unknown until the public request succeeds", () => {
     expect(source).toContain("Loading the event schedule…");
     expect(source).toContain("Live coverage is unavailable");
-    expect(source).toContain("if (!stops) return");
+    expect(source).toContain("Loading activation plans…");
+    expect(source).toContain("Activation plans unavailable");
   });
 
   it("replaces the binary coverage filter with planning controls", () => {

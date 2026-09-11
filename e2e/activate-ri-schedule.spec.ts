@@ -26,6 +26,21 @@ test("schedule status belongs to each stop and survives filtering, reload, mobil
     await expect(today.locator('[data-label="Status"]')).toHaveText("ScheduledSpotted");
     await expect(tomorrow.locator('[data-label="Status"]')).toHaveText("Scheduled");
     await expect(page.locator('[data-filter-row][data-park-reference="US-0514"]:visible [data-label="Status"]')).toHaveText("Done");
+    const activityFilters = page.getByRole("group", { name: "Filter by activation activity" });
+    await activityFilters.getByRole("radio", { name: "Spotted", exact: true }).check();
+    await expect(rows).toHaveCount(1);
+    await expect(today).toBeVisible();
+    await activityFilters.getByRole("radio", { name: "Not spotted", exact: true }).check();
+    await expect(rows).toHaveCount(2);
+    await expect(tomorrow).toBeVisible();
+    await expect(today).not.toBeVisible();
+    await page.goBack();
+    await expect(activityFilters.getByRole("radio", { name: "Spotted", exact: true })).toBeChecked();
+    await expect(rows).toHaveCount(1);
+    await page.goForward();
+    await expect(activityFilters.getByRole("radio", { name: "Not spotted", exact: true })).toBeChecked();
+    await expect(rows).toHaveCount(2);
+    await activityFilters.getByRole("radio", { name: "All", exact: true }).check();
     await page.locator('[data-filter="activator"]').selectOption("all");
     await expect(page.locator('[data-filter-row][data-activator="W1AW"]:visible [data-label="Status"]')).toHaveText("Scheduled");
     await page.goBack();
@@ -36,6 +51,16 @@ test("schedule status belongs to each stop and survives filtering, reload, mobil
     await expect(today.locator('[data-label="Status"]')).toHaveText("Done✓ POTA confirmed");
     await expect(tomorrow.locator('[data-label="Status"]')).toHaveText("Scheduled");
     await expect(page.locator('[data-filter="activator"]')).toHaveValue("N1RI");
+    await activityFilters.getByRole("radio", { name: "Spotted", exact: true }).check();
+    await expect(rows).toHaveCount(0);
+    await expect(page.locator("[data-filter-empty]")).toBeVisible();
+    await activityFilters.getByRole("radio", { name: "Not spotted", exact: true }).check();
+    await expect(rows).toHaveCount(2);
+    await expect(today).not.toBeVisible();
+    await activityFilters.getByRole("radio", { name: "POTA confirmed", exact: true }).check();
+    await expect(rows).toHaveCount(1);
+    await expect(page.locator("[data-schedule-print-summary]")).toContainText("POTA confirmed");
+    await activityFilters.getByRole("radio", { name: "All", exact: true }).check();
     await today.locator(".activator-popover__trigger").click();
     const card = page.getByRole("dialog", { name: "Activation plan for N1RI" });
     await expect(card.locator('[data-activator-schedule-stop]').filter({ hasText: "Sep 12, 2026" }).filter({ hasText: "US-0513" })).toContainText("Done");
@@ -232,6 +257,7 @@ test("schedule search preserves typing and Enter while activation windows are lo
               bands: ["40m"],
               modes: ["CW"],
               status: "scheduled",
+              activity: "confirmed",
             },
           ],
         }),
@@ -251,11 +277,12 @@ test("schedule search preserves typing and Enter while activation windows are lo
     await page.locator('[data-filter="mode"]').selectOption("all");
     await page.locator('[data-filter="timeline"]').selectOption("2026-09-13");
     await page.locator("[data-timezone]").selectOption("pacific");
+    await page.getByRole("radio", { name: "Spotted", exact: true }).check();
     await search.fill("US-0514");
     await search.press("Enter");
     const loadingUrl = page.url();
     expect(Object.fromEntries(new URL(loadingUrl).searchParams)).toEqual({
-      q: "US-0514", timezone: "pacific", timeline: "2026-09-13",
+      q: "US-0514", timezone: "pacific", timeline: "2026-09-13", activity: "spotted",
     });
     await expect(page.locator("[data-live-loading]")).toBeVisible();
 
@@ -264,13 +291,18 @@ test("schedule search preserves typing and Enter while activation windows are lo
     await expect(page.locator("[data-print-schedule]")).toBeEnabled();
     await expect(page.locator("[data-live-schedule]")).toHaveAttribute("aria-busy", "false");
     await expect(search).toHaveValue("US-0514");
+    await expect(page.getByRole("radio", { name: "Spotted", exact: true })).toBeChecked();
+    await expect(page.locator("[data-filter-row]:visible")).toHaveCount(0);
+    await expect(page.locator("[data-filter-empty]")).toBeVisible();
+    await expect(page).toHaveURL(loadingUrl);
+    await page.getByRole("radio", { name: "POTA confirmed", exact: true }).check();
     await expect(page.locator("[data-filter-row]:visible")).toHaveCount(1);
     await expect(page.locator("[data-filter-row]:visible")).toContainText("US-0514");
     await expect(page.locator("[data-schedule-count]")).toHaveText("1 matching activation window for “US-0514”.");
     await expect(page.locator("[data-timezone]")).toHaveValue("pacific");
     await expect(page.locator('[data-filter="mode"]')).toHaveValue("all");
     await expect(page.locator('[data-filter="timeline"]')).toHaveValue("2026-09-13");
-    await expect(page).toHaveURL(loadingUrl);
+    await expect.poll(() => new URL(page.url()).searchParams.get("activity")).toBe("confirmed");
     expect(documentRequests).toBe(1);
     expect(stopRequests).toBe(1);
   } finally {
@@ -284,12 +316,13 @@ test("schedule address-bar links restore every filter and navigate search edits 
   const recipient = await browser.newContext();
   const stops = [
     { id: "block", parkReference: "US-0513", plannedDate: "2026-09-12", startTime: "13:00", endTime: "15:00", activatorCallsign: "W1AW", bands: ["20m"], modes: ["SSB"], status: "scheduled" },
-    { id: "chafee", parkReference: "US-0514", plannedDate: "2026-09-13", startTime: "15:00", endTime: "18:00", activatorCallsign: "N1RI", bands: ["40m"], modes: ["CW"], status: "scheduled" },
+    { id: "chafee", parkReference: "US-0514", plannedDate: "2026-09-13", startTime: "15:00", endTime: "18:00", activatorCallsign: "N1RI", bands: ["40m"], modes: ["CW"], status: "scheduled", activity: "confirmed" },
   ];
   try {
     await page.route("**/api/activate-ri-2026/public/stops", route => route.fulfill({ json: { ok: true, stops } }));
     await page.goto(`${server.origin}/activate-ri-2026/schedule/?source=club#schedule`);
     await expect(page.locator("[data-filter-row]:visible")).toHaveCount(2);
+    await page.getByRole("radio", { name: "POTA confirmed", exact: true }).check();
     await page.locator('[data-filter="timeline"]').selectOption("2026-09-13");
     await page.locator("[data-timezone]").selectOption("utc");
     await page.locator('[data-filter="mode"]').selectOption("CW");
@@ -303,11 +336,14 @@ test("schedule address-bar links restore every filter and navigate search edits 
     await expect(page.locator("[data-filter-row]:visible")).toHaveCount(1);
     const sharedUrl = page.url();
     expect(Object.fromEntries(new URL(sharedUrl).searchParams)).toEqual({
-      source: "club", timeline: "2026-09-13", timezone: "utc", mode: "CW", band: "40m",
+      source: "club", activity: "confirmed", timeline: "2026-09-13", timezone: "utc", mode: "CW", band: "40m",
       activator: "N1RI", county: "Washington County", q: "Chafee",
     });
     expect(new URL(sharedUrl).hash).toBe("#schedule");
     expect(await page.evaluate(() => history.length)).toBe(historyLength + 1);
+    await page.getByRole("button", { name: "Share agenda", exact: true }).click();
+    const agendaUrl = new URL(await page.locator("[data-schedule-share-url]").inputValue());
+    expect(agendaUrl.searchParams.get("activity")).toBe("confirmed");
     await page.goBack();
     await expect(page).toHaveURL(beforeSearch);
     await expect(search).toHaveValue("");
@@ -322,24 +358,33 @@ test("schedule address-bar links restore every filter and navigate search edits 
     await expect(other.locator("[data-filter-row]:visible")).toContainText("US-0514");
     await expect(other.locator("[data-schedule-search]")).toHaveValue("Chafee");
     await expect(other.locator("[data-timezone]")).toHaveValue("utc");
+    await expect(other.getByRole("radio", { name: "POTA confirmed", exact: true })).toBeChecked();
     for (const [key, value] of Object.entries({ timeline: "2026-09-13", mode: "CW", band: "40m", activator: "N1RI", county: "Washington County" })) {
       await expect(other.locator(`[data-filter="${key}"]`)).toHaveValue(value);
     }
     await other.reload();
     await expect(other.locator("[data-filter-row]:visible")).toHaveCount(1);
     await expect(other).toHaveURL(sharedUrl);
+    await expect(other.getByRole("radio", { name: "POTA confirmed", exact: true })).toBeChecked();
 
     await page.locator("[data-clear-schedule-filters]").click();
     await expect(page.locator("[data-filter-row]:visible")).toHaveCount(2);
+    await expect(page.getByRole("radio", { name: "All", exact: true })).toBeChecked();
     expect(Object.fromEntries(new URL(page.url()).searchParams)).toEqual({ source: "club", timezone: "utc" });
     await page.goBack();
     await expect(page).toHaveURL(sharedUrl);
     await expect(search).toHaveValue("Chafee");
+    await expect(page.getByRole("radio", { name: "POTA confirmed", exact: true })).toBeChecked();
     await expect(page.locator("[data-filter-row]:visible")).toHaveCount(1);
     await page.locator("[data-timezone]").selectOption("eastern");
     await page.goBack();
     await expect(page.locator("[data-timezone]")).toHaveValue("utc");
     await expect(page.locator("[data-filter-row]:visible")).toContainText("15:00-18:00 UTC");
+
+    await other.goto(`${server.origin}/activate-ri-2026/schedule/?activity=invalid&source=club#schedule`);
+    await expect(other.getByRole("radio", { name: "All", exact: true })).toBeChecked();
+    await expect(other.locator("[data-filter-row]:visible")).toHaveCount(2);
+    await expect(other).toHaveURL(`${server.origin}/activate-ri-2026/schedule/?source=club#schedule`);
   } finally {
     await recipient.close();
     await server.stop();

@@ -7,6 +7,7 @@ import Notice from "../../components/Notice.astro";
 import SiteHeader from "../../components/SiteHeader.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import EventPhaseViews from "../../components/activate-ri/EventPhaseViews.astro";
+import ReferenceMap from "../../components/ReferenceMap.astro";
 ---
 
 <BaseLayout
@@ -19,30 +20,32 @@ import EventPhaseViews from "../../components/activate-ri/EventPhaseViews.astro"
     <section class="section event-page" aria-label="Event park coverage">
       <div class="container">
         <EventNav />
-        <EventPhaseViews>
-        <div slot="planning">
         <div class="section-header">
           <p class="eyebrow">Park coverage</p>
-          <h1 id="parks-title">Activation plans by park</h1>
+          <h1 id="parks-title">Event parks</h1>
           <p class="lead">
-            Find planned activations across Rhode Island. Additional times, bands,
-            and modes are welcome at parks already scheduled.
+            See each park’s progress, compare planned activations, and find your next
+            park to activate. Additional times, bands, and modes are always welcome.
           </p>
         </div>
-        </div>
+        <EventPhaseViews>
         <div slot="results">
-          <div class="section-header">
-            <p class="eyebrow">Park coverage</p>
-            <h1>Event progress by park</h1>
-            <p class="lead">Follow current spots, planned activations, and POTA confirmations across Rhode Island.</p>
-            <p><a class="button" href="#park-planning">Plan another activation</a></p>
-          </div>
           <PotaParkProgress />
         </div>
         </EventPhaseViews>
-        <section id="park-planning" aria-labelledby="park-planning-title">
-          <h2 id="park-planning-title">Choose a park to activate</h2>
-          <p>Start with parks with fewer activators, or compare time slots to give hunters another opportunity.</p>
+        <details class="park-map-disclosure">
+          <summary>Show park map</summary>
+          <ReferenceMap
+            id="activate-ri-pota-results-map"
+            variant="coverage"
+            title="Map of event parks"
+            caption="Explore locations, then use the park list to compare status and activation plans. A gold pulse means a current POTA spot."
+            legendPlacement="below"
+            legendTitle="POTA evidence"
+            resultsMode
+          />
+        </details>
+        <section id="park-planning" aria-label="Park status and activation plans">
           <ParkCoverageTable />
         </section>
       </div>
@@ -54,6 +57,6 @@ import EventPhaseViews from "../../components/activate-ri/EventPhaseViews.astro"
 
 <style>
   #park-planning { scroll-margin-top: 2rem; }
-  #park-planning > h2 { font-size: clamp(1.65rem, 3vw, 2.3rem); margin-bottom: 0.5rem; }
-  #park-planning > p { margin-bottom: 1.4rem; }
+  .park-map-disclosure { margin: 1.5rem 0 2rem; }
+  .park-map-disclosure > summary { width: fit-content; cursor: pointer; font-weight: 700; color: var(--surface-ink); padding: 0.5rem 0; }
 </style>

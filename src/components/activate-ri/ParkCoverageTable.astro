@@ -9,6 +9,15 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
 
 <div data-park-planning>
   <form class="event-filters park-planning-filters" data-event-filters aria-label="Park planning filters">
+    <fieldset id="park-results" class="pota-status-filters" data-pota-filters aria-describedby="park-status-help">
+      <legend>Filter by park status</legend>
+      <label><input type="radio" name="pota-status-filter" value="all" checked /> All</label>
+      <label><input type="radio" name="pota-status-filter" value="confirmed" /> Confirmed</label>
+      <label><input type="radio" name="pota-status-filter" value="observed" /> Observed</label>
+      <label><input type="radio" name="pota-status-filter" value="scheduled" /> Scheduled</label>
+      <label><input type="radio" name="pota-status-filter" value="needed" /> Still needed</label>
+    </fieldset>
+    <p id="park-status-help" class="park-planning-note">Confirmed means a qualifying activation is logged in POTA. Observed includes spots and recorded attempts awaiting confirmation. Scheduled parks have plans but no POTA evidence yet; still needed parks have neither.</p>
     <label class="event-filter">
       Search parks
       <input class="event-filter__control" type="search" data-planning-search placeholder="Reference or park name" />
@@ -64,13 +73,13 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
       </div>
     </details>
   </form>
-  <p class="park-planning-note">Counts include published scheduled and delayed plans for the selected dates, bands, and modes. Done stops remain in the details. Park status includes event activity by any activator: Spotted means activity was seen, and POTA confirmed means a qualifying activation was logged. Parks with no matching plans stay in the list.</p>
+  <p class="park-planning-note">Park status covers the whole event, by any activator. Plan counts reflect the selected dates, bands, and modes; done stops remain in the details. Parks with no matching plans stay in the list.</p>
   <p class="park-planning-note" data-planning-evidence-status role="status"></p>
   <div class="park-planning-status">
     <p data-planning-status role="status">Loading the event schedule…</p>
     <div class="park-planning-actions">
       <button class="button" data-variant="light" type="button" data-clear-planning disabled>Clear filters</button>
-      <button class="button" data-variant="light" type="button" data-reload-planning>Refresh plans</button>
+      <button class="button" data-variant="light" type="button" data-reload-planning>Refresh parks</button>
     </div>
   </div>
   <div class="event-table-wrap">
@@ -94,6 +103,7 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
   import { parkGuidePath } from "../../lib/parks/directory";
   import { potaParkStatusStore, type PotaParkStatusState } from "../../lib/activate-ri/pota-status-store";
   import { scheduleStopStatusLabel, stopActivityLabel } from "../../lib/activate-ri/stop-status";
+  import { createParkEvidence } from "../../lib/activate-ri/park-evidence";
 
   document.querySelectorAll<HTMLElement>("[data-park-planning]").forEach(setupPlanning);
 
@@ -102,6 +112,7 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
     const body = table.querySelector("tbody")!;
     const form = root.querySelector<HTMLFormElement>("form")!;
     const controls = Array.from(form.querySelectorAll("[data-filter]")) as unknown as HTMLSelectElement[];
+    const statusFilters = Array.from(form.querySelectorAll<HTMLInputElement>('[name="pota-status-filter"]'));
     const mine = root.querySelector<HTMLInputElement>("[data-my-parks]")!;
     const mineLabel = root.querySelector<HTMLElement>("[data-my-parks-label]")!;
     const mineHelp = root.querySelector<HTMLElement>("[data-my-parks-help]")!;
@@ -115,6 +126,7 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
     const parks = JSON.parse(table.dataset.parks ?? "[]") as PublicParkSummary[];
     let view = readPlanningView(new URL(window.location.href), parks);
     let stops: PublicActivationStop[] | null = null;
+    let stopsUnavailable = false;
     let callsign = "";
     let sessionLoading = true;
     let loadedAt: Date | null = null;
@@ -124,7 +136,7 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
     let searchEditing = false;
     let parkStatusState: PotaParkStatusState = { status: "loading" };
 
-    search.value = new URL(window.location.href).searchParams.get("q")?.trim() ?? "";
+    search.value = view.query;
     syncControls();
     updateUrl("replace");
     render();
@@ -138,7 +150,7 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
     clear.addEventListener("click", () => {
       search.value = "";
       searchEditing = false;
-      view = { ...view, sort: "activators", timeline: "all", county: "all", mode: "all", band: "all", activator: "", mine: false };
+      view = { ...view, query: "", status: "all", sort: "activators", timeline: "all", county: "all", mode: "all", band: "all", activator: "", mine: false };
       syncControls();
       updateUrl();
       render();
@@ -147,6 +159,9 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
     form.addEventListener("change", (event) => {
       searchEditing = false;
       const target = event.target;
+      // Search already renders on input. Rendering again on blur can replace
+      // a disclosure between pointerdown and click and swallow that click.
+      if (target === search) return;
       if (target === mine) {
         view.activator = mine.checked ? callsign : "";
         view.mine = mine.checked && !callsign;
@@ -154,6 +169,8 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
         const key = target.dataset.filter;
         if (key === "sort") view.sort = target.value === "name" || target.value === "slots" ? target.value : "activators";
         else if (key === "timeline" || key === "county" || key === "mode" || key === "band") view[key] = target.value;
+      } else if (target instanceof HTMLInputElement && target.name === "pota-status-filter") {
+        view.status = target.value as typeof view.status;
       }
       syncControls();
       updateUrl();
@@ -177,8 +194,8 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
     });
     window.addEventListener("popstate", () => {
       searchEditing = false;
-      search.value = new URL(window.location.href).searchParams.get("q")?.trim() ?? "";
       view = readPlanningView(new URL(window.location.href), parks);
+      search.value = view.query;
       resolveMyParks();
       syncControls();
       updateUrl("replace");
@@ -192,7 +209,7 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
       const evidenceStatus = root.querySelector<HTMLElement>("[data-planning-evidence-status]")!;
       evidenceStatus.textContent = state.status === "ready"
         ? state.snapshot.warning ?? (state.refreshFailed || state.snapshot.stale ? "Showing the last available POTA park status; the latest update is unavailable." : "")
-        : state.status === "unavailable" ? "POTA park status is unavailable. Use Refresh plans to try again." : "";
+        : state.status === "unavailable" ? "POTA park status is unavailable. Use Refresh parks to try again." : "";
       render();
     });
     potaParkStatusStore.start();
@@ -205,6 +222,7 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
     }
 
     function syncControls(): void {
+      for (const control of statusFilters) control.checked = control.value === view.status;
       const active = (stops ?? []).filter((stop) => !stop.id.startsWith("sample-") && (stop.status === "scheduled" || stop.status === "delayed" || stop.status === "completed"));
       for (const key of ["mode", "band"] as const) {
         const control = controls.find((candidate) => candidate.dataset.filter === key)!;
@@ -225,7 +243,7 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
       mineHelp.textContent = sharedScope
         ? `${view.activator}'s planned and done parks across the event, with scheduled counts for everyone.`
         : sessionLoading ? "Checking sign-in…"
-        : sessionFailed ? "Could not check your account. Refresh plans to try again."
+        : sessionFailed ? "Could not check your account. Refresh parks to try again."
         : callsign ? `Your planned and done parks across the event, with scheduled counts for everyone. Signed in as ${callsign}.`
         : accountSignedIn ? "Your parks will appear after your activation plan is approved."
         : "Sign in to filter to parks in your activation plan.";
@@ -234,9 +252,8 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
     }
 
     function updateUrl(mode: "push" | "replace" = "push"): boolean {
+      view.query = search.value.trim();
       const url = writePlanningView(new URL(window.location.href), view);
-      if (search.value.trim()) url.searchParams.set("q", search.value.trim());
-      else url.searchParams.delete("q");
       const changed = url.href !== window.location.href;
       if (changed) {
         if (mode === "push") window.history.pushState(window.history.state, "", url);
@@ -270,13 +287,14 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
           headers.set("cache-control", "no-cache");
           return fetch(input, { ...init, headers, cache: "no-store" });
         } : undefined);
+        stopsUnavailable = false;
         loadedAt = new Date();
         syncControls();
         render();
       } catch {
-        stops = null;
-        status.textContent = "Live coverage is unavailable. Use Refresh plans to try again.";
-        showMessage("Live coverage is unavailable. Use Refresh plans to try again.");
+        stopsUnavailable = true;
+        stops ??= [];
+        render();
       }
     }
 
@@ -306,26 +324,52 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
 
     function render(): void {
       const query = search.value.trim().toLowerCase();
-      clear.disabled = !query && !mine.checked && controls.every((control) => control.value === "all" || (control.dataset.filter === "sort" && control.value === "activators"));
+      clear.disabled = !query && view.status === "all" && !mine.checked && controls.every((control) => control.value === "all" || (control.dataset.filter === "sort" && control.value === "activators"));
       const activeMore = (["mode", "band"] as const).filter((key) => view[key] !== "all").length;
       root.querySelector("[data-planning-more-summary]")!.textContent = activeMore ? `More filters (${activeMore} active)` : "More filters";
-      if (!stops) return;
+      if (!stops && parkStatusState.status !== "ready") return;
+      if (!stops && (view.mine || view.activator)) {
+        status.textContent = "Loading activation plans…";
+        showMessage("Loading activation plans…");
+        return;
+      }
+      if (stopsUnavailable && (view.mine || view.activator)) {
+        status.textContent = "Live coverage is unavailable. Use Refresh parks to try again.";
+        showMessage("Activation plans are unavailable. Refresh parks to try again, or clear My parks to browse park status.");
+        return;
+      }
+      if (view.status !== "all" && parkStatusState.status !== "ready") {
+        const message = parkStatusState.status === "loading"
+          ? "Loading park status…"
+          : "POTA park status is unavailable. Refresh parks to try again, or choose All to browse activation plans.";
+        status.textContent = message;
+        showMessage(message);
+        return;
+      }
       if (view.mine) {
         const message = sessionLoading ? "Checking your activation plan…" : accountSignedIn ? "Your account has no published activation plan yet. Clear My parks to find a park to activate." : "Sign in with an activator account to see your scheduled parks, or clear My parks to see all parks.";
         status.textContent = message;
         showMessage(message);
         return;
       }
-      const personalParks = callsign ? myPlannedParkReferences(stops, callsign) : new Set<string>();
-      const filteredStops = filterPublicStops(stops, parks, { mode: view.mode, band: view.band });
+      const publishedStops = stops ?? [];
+      const personalParks = callsign ? myPlannedParkReferences(publishedStops, callsign) : new Set<string>();
+      const filteredStops = filterPublicStops(publishedStops, parks, { mode: view.mode, band: view.band });
       const rows = deriveParkPlans(parks, filteredStops, {
         timeline: view.timeline, county: view.county, sort: view.sort,
-        ...(view.activator ? { myParkReferences: myPlannedParkReferences(stops, view.activator) } : {}),
-      }).filter((park) => !query || `${park.reference} ${park.name}`.toLowerCase().includes(query));
+        ...(view.activator ? { myParkReferences: myPlannedParkReferences(publishedStops, view.activator) } : {}),
+      }).filter((park) =>
+        (!query || `${park.reference} ${park.name}`.toLowerCase().includes(query)) &&
+        (view.status === "all" || (parkStatusState.status === "ready" &&
+          parkStatusState.snapshot.parks.some((evidence) => evidence.reference === park.reference && evidence.status === view.status))),
+      );
       const selectedScope = controls.filter((control) => control.dataset.filter !== "sort" && control.value !== "all")
         .map((control) => control.selectedOptions[0]?.textContent ?? "");
+      if (view.status !== "all") selectedScope.unshift(statusFilters.find((control) => control.checked)?.parentElement?.textContent?.trim() ?? view.status);
       const scope = selectedScope.length ? selectedScope.join(" · ") : "All event dates";
-      const loaded = loadedAt ? ` Updated ${new Intl.DateTimeFormat(undefined, { timeStyle: "short" }).format(loadedAt)}.` : "";
+      const loaded = !stops ? " Loading activation plans…"
+        : stopsUnavailable ? " Activation plans are unavailable. Use Refresh parks to try again."
+        : loadedAt ? ` Updated ${new Intl.DateTimeFormat(undefined, { timeStyle: "short" }).format(loadedAt)}.` : "";
       status.textContent = `${rows.length} ${rows.length === 1 ? "park" : "parks"}${query ? ` matching “${search.value.trim()}”` : ""} · ${view.activator ? `${mineLabel.textContent} · ` : ""}${scope}.${loaded}`;
       if (!rows.length) {
         showMessage(view.activator ? `No published parks in ${view.activator === callsign ? "your plan" : `${view.activator}'s plan`} match these filters. Clear ${mineLabel.textContent} to find another park to activate.` : "No parks match these filters.");
@@ -426,6 +470,8 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
         details.appendChild(list);
       }
       plans.appendChild(details);
+      if (!stops) plans.textContent = "Loading activation plans…";
+      else if (stopsUnavailable) plans.textContent = "Activation plans unavailable";
       const actions = document.createElement("td");
       actions.dataset.label = "Your next activation";
       const add = document.createElement("a");
@@ -468,20 +514,23 @@ const counties = uniqueSortedValues(publicParks.map((park) => park.counties));
         cell.textContent = parkStatusState.status === "loading" ? "Loading park status…" : "Park status unavailable";
         return cell;
       }
-      const badge = document.createElement("span");
-      badge.className = "pota-status-badge";
-      badge.dataset.status = park.status;
-      badge.textContent = park.status === "confirmed" ? "POTA confirmed" : park.observed ? "Spotted" : park.attemptRecorded ? "Attempt recorded" : "No POTA confirmation";
-      badge.title = park.status === "confirmed"
-        ? "POTA-confirmed activation during this event, by any activator. Individual plan status is shown separately."
-        : "POTA confirmation may follow after an activator uploads their log.";
-      cell.appendChild(badge);
+      cell.appendChild(createParkEvidence(park));
       return cell;
     }
   }
 </script>
 
 <style is:global>
+  #park-results { scroll-margin-top: 2rem; }
+  .park-planning-filters > .pota-status-filters,
+  .park-planning-filters > #park-status-help { grid-column: 1 / -1; margin: 0; }
+  .park-planning-filters > #park-status-help { margin-top: -0.5rem; }
+  .park-evidence { display: grid; gap: 0.55rem; }
+  .park-evidence p { margin: 0; font-size: 0.88rem; }
+  .park-evidence__live { color: var(--surface-ink); font-weight: 700; }
+  .park-evidence details { font-size: 0.88rem; }
+  .park-evidence summary { cursor: pointer; font-weight: 700; }
+  .park-evidence ul { padding-left: 1rem; }
   .event-filters.park-planning-filters { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
   .park-planning-filters > .event-filter,
   .park-planning-personal { display: grid; grid-row: span 3; grid-template-rows: subgrid; gap: 0.35rem; min-width: 0; }

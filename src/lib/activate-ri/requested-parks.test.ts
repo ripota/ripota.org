@@ -27,7 +27,7 @@ describe("portable requested agenda URLs", () => {
     const filters = new URLSearchParams({
       parks: "US-9999", scope: "remaining", token: "private-token", email: "private@example.invalid",
       q: "Block & Island", activator: "W1AW", mode: "SSB", band: "20m", timeline: "2026-09-12",
-      county: "Washington County", timezone: "utc",
+      county: "Washington County", timezone: "utc", activity: "confirmed",
     });
     const url = new URL(buildRequestedAgendaUrl(
       "https://user:secret@ripota.org/private?secret=keep-out#private-fragment",
@@ -40,7 +40,7 @@ describe("portable requested agenda URLs", () => {
     expect(url.hash).toBe("");
     expect(Object.fromEntries(url.searchParams)).toEqual({
       parks: "US-0513,US-0514", q: "Block & Island", activator: "W1AW", mode: "SSB", band: "20m",
-      timeline: "2026-09-12", county: "Washington County", timezone: "utc",
+      timeline: "2026-09-12", county: "Washington County", timezone: "utc", activity: "confirmed",
     });
     expect(filters.get("parks")).toBe("US-9999");
   });

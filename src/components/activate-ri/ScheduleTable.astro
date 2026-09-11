@@ -69,6 +69,13 @@ const countyOptions = uniqueSortedValues(
 <p class="schedule-activity-note">Activity matches each stop's activator and UTC date. Spotted means activity was seen; POTA confirmed means a qualifying activation was logged.</p>
 
 <form class="event-filters" data-event-filters aria-label="Schedule filters">
+  <fieldset class="pota-status-filters schedule-activity-filters" data-schedule-activity-filters>
+    <legend>Filter by activation activity</legend>
+    <label><input type="radio" name="schedule-activity" value="all" checked /> All</label>
+    <label><input type="radio" name="schedule-activity" value="confirmed" /> POTA confirmed</label>
+    <label><input type="radio" name="schedule-activity" value="spotted" /> Spotted</label>
+    <label><input type="radio" name="schedule-activity" value="not-spotted" /> Not spotted</label>
+  </fieldset>
   <label class="event-filter schedule-search">
     Search parks
     <input class="event-filter__control" type="search" name="q" data-schedule-search placeholder="Reference or park name" />
@@ -219,6 +226,8 @@ const countyOptions = uniqueSortedValues(
     const timezone = filters.querySelector("[data-timezone]") as HTMLSelectElement | null;
     const hunterScope = filters.querySelector("[data-hunter-scope]") as HTMLSelectElement | null;
     const search = filters.querySelector<HTMLInputElement>("[data-schedule-search]");
+    const activityControls = Array.from(filters.querySelectorAll<HTMLInputElement>('input[name="schedule-activity"]'));
+    const selectedActivity = () => activityControls.find((control) => control.checked);
     const moreFilters = filters.querySelector<HTMLDetailsElement>("[data-schedule-more-filters]");
     const moreSummary = filters.querySelector<HTMLElement>("[data-schedule-more-summary]");
     const mySchedule = filters.querySelector<HTMLInputElement>("[data-my-schedule]");
@@ -263,6 +272,9 @@ const countyOptions = uniqueSortedValues(
     const restoreViewFromUrl = () => {
       restoreFiltersFromUrl(controls, timezone, hunterScope);
       const params = new URL(window.location.href).searchParams;
+      const requestedActivity = params.get("activity");
+      const activity = activityControls.some((control) => control.value === requestedActivity) ? requestedActivity : "all";
+      activityControls.forEach((control) => { control.checked = control.value === activity; });
       if (search) search.value = params.get("q")?.trim() ?? "";
       if (params.has("parks")) {
         requestedInput = params.getAll("parks").join(",");
@@ -287,7 +299,7 @@ const countyOptions = uniqueSortedValues(
       });
     };
     const syncUrl = (mode: "push" | "replace" = "push") => {
-      const changed = updateScheduleUrl(controls, timezone, hunterScope, search, invalidRequest
+      const changed = updateScheduleUrl(controls, timezone, hunterScope, search, selectedActivity()?.value ?? "all", invalidRequest
         ? requestedInput : requested.references.join(","), mode);
       if (sharePanel) sharePanel.hidden = true;
       return changed;
@@ -312,6 +324,7 @@ const countyOptions = uniqueSortedValues(
       const invalidAgenda = useRequested && invalidRequest;
       const query = search?.value.trim() ?? "";
       const normalizedQuery = query.toLowerCase();
+      const activity = selectedActivity()?.value ?? "all";
 
       for (const row of rows) {
         const isVisible =
@@ -320,6 +333,7 @@ const countyOptions = uniqueSortedValues(
           (!useRemaining || remainingIds.has(row.dataset.parkReference ?? "")) &&
           (!useRequested || requestedIds.has(row.dataset.parkReference ?? "")) &&
           (!normalizedQuery || (row.dataset.parkSearch ?? "").includes(normalizedQuery)) &&
+          (activity === "all" || row.dataset.activity === activity) &&
           matchesList(row.dataset.modes, values.mode) &&
           matchesList(row.dataset.activator, values.activator) &&
           matchesList(row.dataset.bands, values.band) &&
@@ -359,6 +373,7 @@ const countyOptions = uniqueSortedValues(
         hunterScope,
         remainingParkCount: remainingParks.length,
         searchQuery: query,
+        activityLabel: activity !== "all" ? selectedActivity()?.parentElement?.textContent?.trim() ?? "" : "",
         timezone,
         useRemaining,
         requestedReferences: useRequested ? requested.references : null,
@@ -368,7 +383,7 @@ const countyOptions = uniqueSortedValues(
         printButton.disabled = missingChecklist || invalidAgenda || !scheduleAvailable;
       }
       if (clearButton) {
-        clearButton.disabled = !query && !useRemaining && controls.every((control) => control.value === "all");
+        clearButton.disabled = !query && activity === "all" && !useRemaining && controls.every((control) => control.value === "all");
       }
       if (shareButton) shareButton.disabled = missingChecklist || invalidAgenda || !scheduleAvailable;
       const sharedReferences = useRequested ? requested.references
@@ -379,6 +394,7 @@ const countyOptions = uniqueSortedValues(
         if (control.dataset.filter && control.value !== "all") sharedFilters.set(control.dataset.filter, control.value);
       }
       if (query) sharedFilters.set("q", query);
+      if (activity !== "all") sharedFilters.set("activity", activity);
       if (timezone?.value) sharedFilters.set("timezone", timezone.value);
       currentShareUrl = buildRequestedAgendaUrl(window.location.origin, sharedReferences, sharedFilters);
       if (matchingCount) {
@@ -401,6 +417,7 @@ const countyOptions = uniqueSortedValues(
       const previousScope = hunterScope?.value;
       searchEditing = false;
       controls.forEach((control) => { control.value = "all"; });
+      activityControls.forEach((control) => { control.checked = control.value === "all"; });
       if (hunterScope && hunterScope.value !== "requested") hunterScope.value = "all";
       if (search) search.value = "";
       applyFilters();
@@ -413,6 +430,11 @@ const countyOptions = uniqueSortedValues(
     });
     search?.addEventListener("blur", () => { searchEditing = false; });
     search?.addEventListener("change", () => { searchEditing = false; });
+    activityControls.forEach((control) => control.addEventListener("change", () => {
+      searchEditing = false;
+      applyFilters();
+      syncUrl();
+    }));
     controls.forEach((control) => control.addEventListener("change", () => {
       searchEditing = false;
       applyFilters();
@@ -700,6 +722,7 @@ const countyOptions = uniqueSortedValues(
     row.dataset.modes = stop.modes.join("|");
     row.dataset.parkReference = stop.parkReference;
     row.dataset.parkSearch = `${stop.parkReference} ${park?.name ?? ""}`.toLowerCase();
+    row.dataset.activity = stop.activity ?? "not-spotted";
 
     appendCell(row, "Date", formatActivationDate(stop));
     appendCell(row, "Time", formatActivationTimeRange(stop));
@@ -1049,6 +1072,7 @@ const countyOptions = uniqueSortedValues(
     hunterScope: HTMLSelectElement | null;
     remainingParkCount: number;
     searchQuery: string;
+    activityLabel: string;
     timezone: HTMLSelectElement | null;
     useRemaining: boolean;
     requestedReferences: string[] | null;
@@ -1060,6 +1084,7 @@ const countyOptions = uniqueSortedValues(
     hunterScope,
     remainingParkCount,
     searchQuery,
+    activityLabel,
     timezone,
     useRemaining,
     requestedReferences,
@@ -1082,7 +1107,7 @@ const countyOptions = uniqueSortedValues(
       : hunterScope?.selectedOptions[0]?.textContent?.trim() ?? "All scheduled parks";
     const timezoneLabel = timezone?.selectedOptions[0]?.textContent?.trim();
     const searchLabel = searchQuery ? `Search: “${searchQuery}”` : "";
-    const details = [scopeLabel, timezoneLabel, searchLabel, ...activeFilters].filter(Boolean).join(" · ");
+    const details = [scopeLabel, timezoneLabel, activityLabel, searchLabel, ...activeFilters].filter(Boolean).join(" · ");
     summary.textContent = `${visibleCount} matching activation window${visibleCount === 1 ? "" : "s"} · ${details}`;
   }
 
@@ -1241,6 +1266,7 @@ const countyOptions = uniqueSortedValues(
     timezone: HTMLSelectElement | null,
     hunterScope: HTMLSelectElement | null,
     search: HTMLInputElement | null,
+    activity: string,
     requestedInput: string,
     mode: "push" | "replace",
   ): boolean {
@@ -1248,6 +1274,8 @@ const countyOptions = uniqueSortedValues(
     if (hunterScope?.value === "requested") url.searchParams.set("parks", requestedInput);
     else url.searchParams.delete("parks");
     const query = search?.value.trim();
+    if (activity !== "all") url.searchParams.set("activity", activity);
+    else url.searchParams.delete("activity");
     if (query) {
       url.searchParams.set("q", query);
     } else {
@@ -1364,6 +1392,7 @@ const countyOptions = uniqueSortedValues(
   }
 
   .schedule-my-schedule,
+  .schedule-activity-filters,
   .schedule-secondary-filters {
     grid-column: 1 / -1;
   }
