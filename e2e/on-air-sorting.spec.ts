@@ -95,6 +95,7 @@ for (const viewport of [{ name: "desktop", width: 1440, height: 1000 }, { name: 
       const originalUrl = `${onAirOrigin}/on-air/?source=club&source=email#on-air-now-title`;
       await page.goto(originalUrl);
       await expectOrder(page, defaultOrder);
+      await expectSort(page, "spotted", "desc");
       const mobileSort = page.getByRole("combobox", { name: "Sort live spots" });
       if (viewport.name === "mobile") {
         await expect(mobileSort).toBeVisible();
@@ -153,6 +154,10 @@ for (const viewport of [{ name: "desktop", width: 1440, height: 1000 }, { name: 
       const screenshot = testInfo.outputPath(`on-air-sorting-${viewport.name}.png`);
       await page.screenshot({ path: screenshot });
       await testInfo.attach(`on-air-sorting-${viewport.name}`, { path: screenshot, contentType: "image/png" });
+      await page.goForward();
+      await expect(page).toHaveURL(originalUrl);
+      await expectSort(page, "spotted", "desc");
+      await expectOrder(page, defaultOrder);
     });
   });
 }
@@ -185,6 +190,7 @@ test("live refresh preserves the chosen sort through an empty feed and returning
   await expect(page.locator("[data-on-air-list] tr")).toHaveCount(0);
   await expect(page.locator("[data-on-air-empty]")).toBeVisible();
   await expect(page.locator("[data-on-air-sort-select]")).toHaveValue("frequency:asc");
+  await expect(page.getByRole("button", { name: "Reset sort", exact: true })).toBeVisible();
   await expect(page).toHaveURL(sharedUrl);
 
   feed.spots = [...initialSpots].reverse();
@@ -215,6 +221,9 @@ async function expectSort(page: Page, column: Column, direction: Direction): Pro
   await expect(page.locator(`[data-on-air-sort-column="${column}"]`)).toHaveAttribute("aria-sort", direction === "asc" ? "ascending" : "descending");
   await expect(page.locator("[data-on-air-sort-column][aria-sort]")).toHaveCount(1);
   await expect(page.locator("[data-on-air-sort-select]")).toHaveValue(`${column}:${direction}`);
+  const reset = page.getByRole("button", { name: "Reset sort", exact: true });
+  if (column === "spotted" && direction === "desc") await expect(reset).toBeHidden();
+  else await expect(reset).toBeVisible();
   const params = new URL(page.url()).searchParams;
   expect(params.get("sort")).toBe(column === "spotted" ? null : column);
   expect(params.get("direction")).toBe(direction === "desc" ? null : direction);

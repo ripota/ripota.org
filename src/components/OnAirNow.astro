@@ -47,7 +47,7 @@ const columns = [
             </select>
           </label>
           <p class="on-air-now__sort-hint">Select a column to sort; select again to reverse.</p>
-          <button type="button" class="on-air-now__sort-reset" data-on-air-sort-reset>Reset sort</button>
+          <button type="button" class="on-air-now__sort-reset" data-on-air-sort-reset hidden>Reset sort</button>
         </div>
         <table class="on-air-now__table" aria-labelledby="on-air-now-title" data-on-air-table hidden>
           <thead class="on-air-now__table-header" data-on-air-table-header>
@@ -118,6 +118,7 @@ const columns = [
     let sort = full ? readLiveSpotsSort(new URLSearchParams(window.location.search)) : defaultLiveSpotsSort;
     let state: LivePotaSpotsState = { status: "loading" };
     const select = root.querySelector("[data-on-air-sort-select]") as HTMLSelectElement | null;
+    const reset = root.querySelector<HTMLButtonElement>("[data-on-air-sort-reset]");
 
     if (full) {
       updateUrl("replace");
@@ -137,7 +138,7 @@ const columns = [
         const [column, direction] = select.value.split(":");
         setSort(readLiveSpotsSort(new URLSearchParams({ sort: column, direction })));
       });
-      root.querySelector("[data-on-air-sort-reset]")?.addEventListener("click", () => setSort(defaultLiveSpotsSort));
+      reset?.addEventListener("click", () => setSort(defaultLiveSpotsSort));
       window.addEventListener("popstate", () => {
         sort = readLiveSpotsSort(new URLSearchParams(window.location.search));
         updateUrl("replace");
@@ -166,6 +167,9 @@ const columns = [
 
     function updateControls(): void {
       if (select) select.value = `${sort.column}:${sort.direction}`;
+      if (reset) {
+        reset.hidden = sort.column === defaultLiveSpotsSort.column && sort.direction === defaultLiveSpotsSort.direction;
+      }
       root.querySelectorAll<HTMLElement>("[data-on-air-sort-column]").forEach((header) => {
         const active = header.dataset.onAirSortColumn === sort.column;
         if (active) header.setAttribute("aria-sort", sort.direction === "asc" ? "ascending" : "descending");
