@@ -1,6 +1,7 @@
 import { expect, test as base, type Locator, type Page } from "@playwright/test";
 import { parks as references } from "@ripota/parks";
 import type { PublicPotaParkStatusSnapshot } from "../src/lib/activate-ri/pota-status-client";
+import type { PublicActivationStop } from "../src/lib/activate-ri/types";
 import type { LivePotaSpot } from "../src/lib/pota/spots";
 import { startActivateRiServer } from "./helpers/activate-ri-server";
 
@@ -8,6 +9,7 @@ const eventNow = "2026-09-11T12:00:00Z";
 type Feed = {
   checkedAt: string;
   spots: LivePotaSpot[];
+  stops: PublicActivationStop[];
   snapshot: PublicPotaParkStatusSnapshot;
   statusUnavailable: boolean;
   requests: { spots: number; statuses: number; stops: number };
@@ -22,6 +24,11 @@ const test = base.extend<{ feed: Feed }, { onAirOrigin: string }>({
     const feed: Feed = {
       checkedAt: eventNow,
       spots: [spot(1, "W1AW", "14062"), spot(3, "K1RI", "7050")],
+      stops: [{
+        id: "upcoming-confirmed-park", parkReference: references[0].reference,
+        plannedDate: "2026-09-12", startTime: "10:00", endTime: "13:00",
+        activatorCallsign: "K1NW", bands: ["20m"], modes: ["CW"], publicNotes: "", status: "scheduled",
+      }],
       snapshot: eventSnapshot(),
       statusUnavailable: false,
       requests: { spots: 0, statuses: 0, stops: 0 },
@@ -40,7 +47,7 @@ const test = base.extend<{ feed: Feed }, { onAirOrigin: string }>({
     });
     await context.route("**/api/activate-ri-2026/public/stops", route => {
       feed.requests.stops += 1;
-      return route.fulfill({ json: { ok: true, stops: [] } });
+      return route.fulfill({ json: { ok: true, stops: feed.stops } });
     });
     await context.route("**/api/auth/session", route => route.fulfill({ json: { ok: true, signedIn: false } }));
     await context.route("**/api/analytics/events", route => route.fulfill({ status: 202, json: { ok: true } }));
@@ -84,7 +91,7 @@ for (const viewport of [
       "On air now", "✓Activated", "Scheduled", "Still needed",
     ]);
     await expect(page.locator("[data-on-air-list] tr")).toHaveCount(2);
-    expect(feed.requests).toEqual({ spots: 1, statuses: 1, stops: 0 });
+    expect(feed.requests).toEqual({ spots: 1, statuses: 1, stops: 1 });
 
     const progressBounds = await progress.boundingBox();
     const listingBounds = await listing.boundingBox();
@@ -104,6 +111,19 @@ for (const viewport of [
       })).toBe(true);
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await map.locator(".reference-map-marker").first().click();
+    const popup = map.locator(".leaflet-popup");
+    await expect(popup).toContainText(references[0].reference);
+    await expect(popup).toContainText("Activated");
+    await expect(popup.locator("[data-map-upcoming-stops]")).toContainText("K1NW");
+    await expect(popup.locator("[data-map-upcoming-stops]")).toContainText("Sep 12, 2026, 06:00-09:00 EDT");
+    await expect(popup.getByRole("link", { name: "View this park’s schedule", exact: true })).toHaveAttribute(
+      "href", `/activate-ri-2026/schedule/?q=${references[0].reference}`,
+    );
+    await expect(popup.getByRole("link", { name: "View activation results", exact: true })).toHaveAttribute(
+      "href", `/activate-ri-2026/parks/?progress-q=${references[0].reference}#park-results`,
+    );
+    await map.locator(".leaflet-popup-close-button").click();
     const screenshot = testInfo.outputPath(`on-air-event-${viewport.name}.png`);
     await page.screenshot({ path: screenshot, fullPage: true, animations: "disabled" });
     await testInfo.attach(`on-air-event-${viewport.name}`, { path: screenshot, contentType: "image/png" });
@@ -126,6 +146,8 @@ for (const phase of [
     await expect(popup).toContainText("W1AW");
     await expect(popup).toContainText("14062 kHz");
     await expect(popup).not.toContainText(/scheduled|still needed|needs coverage|activated|confirmation/i);
+    await expect(popup.getByRole("link", { name: "View this park’s schedule", exact: true })).toHaveCount(0);
+    await expect(popup.getByRole("link", { name: "View activation results", exact: true })).toHaveCount(0);
     await map.locator(".leaflet-popup-close-button").click();
     await page.getByRole("heading", { name: "Rhode Island on air", exact: true }).hover();
     expect(feed.requests).toEqual({ spots: 1, statuses: 0, stops: 0 });
@@ -171,7 +193,7 @@ test("event progress recovers from unavailable evidence and shares polling with 
   await expect(map.locator(".leaflet-popup")).not.toContainText(/still needed|no event POTA evidence yet/i);
   await map.locator(".leaflet-popup-close-button").click();
   await page.getByRole("heading", { name: "Rhode Island on air", exact: true }).hover();
-  expect(feed.requests).toEqual({ spots: 1, statuses: 1, stops: 0 });
+  expect(feed.requests).toEqual({ spots: 1, statuses: 1, stops: 1 });
 
   feed.statusUnavailable = false;
   feed.snapshot.parks[3] = { ...feed.snapshot.parks[3], status: "observed", observed: true };
@@ -182,7 +204,7 @@ test("event progress recovers from unavailable evidence and shares polling with 
   await expect(page.locator('#on-air-map .reference-map-marker[fill="#2d7a4b"]')).toHaveCount(4);
   await expect(page.locator("[data-map-live-status]")).toBeHidden();
   expect(feed.requests.statuses).toBe(2);
-  expect(feed.requests.stops).toBe(0);
+  expect(feed.requests.stops).toBe(1);
   expect(feed.requests.spots).toBeGreaterThan(1);
   expect(feed.requests.spots).toBeLessThanOrEqual(3);
   const firstLiveRequests = feed.requests.spots;
@@ -192,7 +214,7 @@ test("event progress recovers from unavailable evidence and shares polling with 
   await expectEventContext(page, 4);
   await expect(progress).toContainText(/last|refresh|unavailable|behind/i);
   expect(feed.requests.statuses).toBe(3);
-  expect(feed.requests.stops).toBe(0);
+  expect(feed.requests.stops).toBe(1);
   // Advancing the clock can leave a fetch in flight across two timer ticks.
   // The shared store should coalesce it, and must never add a poll per consumer.
   expect(feed.requests.spots).toBeGreaterThan(firstLiveRequests);
@@ -205,7 +227,7 @@ test("event progress recovers from unavailable evidence and shares polling with 
   await expectEventContext(page, 3);
   await expect(progress).not.toContainText(/unavailable|refresh failed/i);
   expect(feed.requests.statuses).toBe(4);
-  expect(feed.requests.stops).toBe(0);
+  expect(feed.requests.stops).toBe(1);
   expect(feed.requests.spots).toBeGreaterThan(liveRequests);
   expect(feed.requests.spots).toBeLessThanOrEqual(7);
 });
@@ -214,6 +236,7 @@ test("an open page gains event progress and all park statuses at the UTC event s
   const url = await openOnAir(page, feed, onAirOrigin, "2026-09-09T23:59:45Z", "?sort=frequency&direction=asc");
   await expectLiveContext(page, 2);
   expect(feed.requests.statuses).toBe(0);
+  expect(feed.requests.stops).toBe(0);
   feed.checkedAt = "2026-09-10T00:00:15Z";
   await page.clock.runFor(30_000);
   await expectEventContext(page, 3);
@@ -223,7 +246,7 @@ test("an open page gains event progress and all park statuses at the UTC event s
   ]);
   await expectSortPreserved(page, url, ["K1RI", "W1AW"]);
   expect(feed.requests.statuses).toBe(1);
-  expect(feed.requests.stops).toBe(0);
+  expect(feed.requests.stops).toBe(1);
 });
 
 test("an open page drops event context at the UTC cutoff and keeps sorted live updates", async ({ page, feed, onAirOrigin }) => {
@@ -231,6 +254,7 @@ test("an open page drops event context at the UTC cutoff and keeps sorted live u
   await expectEventContext(page, 3);
   await expectSortPreserved(page, url, ["K1RI", "W1AW"]);
   const eventRequests = feed.requests.statuses;
+  expect(feed.requests.stops).toBe(1);
   feed.checkedAt = "2026-09-14T00:00:15Z";
   await page.clock.runFor(30_000);
   await expectLiveContext(page, 2);
@@ -241,7 +265,7 @@ test("an open page drops event context at the UTC cutoff and keeps sorted live u
   await expectLiveContext(page, 2);
   await expectSortPreserved(page, url, ["N1POTA", "W1AW"]);
   expect(feed.requests.statuses).toBe(eventRequests);
-  expect(feed.requests.stops).toBe(0);
+  expect(feed.requests.stops).toBe(1);
 });
 
 async function openOnAir(page: Page, feed: Feed, origin: string, date: string, query = ""): Promise<string> {

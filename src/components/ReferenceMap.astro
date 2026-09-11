@@ -224,6 +224,7 @@ const payload = JSON.stringify({
   import L from "leaflet";
   import { parkGuidePath } from "../lib/parks/directory";
   import { fetchPublicActivationStops } from "../lib/activate-ri/public-stops-client";
+  import { upcomingMapStops } from "../lib/activate-ri/map-schedule";
   import { livePotaSpotsStore, type LivePotaSpotsState } from "../lib/pota/live-spots-store";
   import { shouldWarnAboutStaleSnapshot } from "../lib/pota/live-spots-client";
   import { potaParkStatusStore } from "../lib/activate-ri/pota-status-store";
@@ -318,6 +319,12 @@ const payload = JSON.stringify({
     const map = L.map(mapElement, referenceMapLeafletOptions);
     const bounds = L.latLngBounds([]);
     const layersByReference = new Map<string, MapItemLayers>();
+
+    map.on("popupopen", ({ popup }) => {
+      // Phase maps can initialize while hidden; size the popup when it opens.
+      popup.options.maxWidth = Math.max(190, Math.min(300, mapElement.clientWidth - 40));
+      popup.update();
+    });
 
     if (payload.variant === "coverage" || payload.variant === "volunteer") {
       map.on("popupopen", () => {
@@ -424,8 +431,9 @@ const payload = JSON.stringify({
         }
       });
       potaParkStatusStore.start();
-    } else if (payload.variant === "coverage" || payload.variant === "volunteer") {
-      refreshLiveCoverage(mapElement, payload, layersByReference);
+    }
+    if (payload.variant === "coverage" || payload.variant === "volunteer") {
+      void refreshLiveCoverage(mapElement, payload, layersByReference);
     }
   }
 
@@ -487,6 +495,7 @@ const payload = JSON.stringify({
       unsubscribeEventStatus?.();
       unsubscribeEventStatus = undefined;
       if (mode === "event") {
+        void refreshLiveCoverage(mapElement, payload, layersByReference);
         unsubscribeEventStatus = potaParkStatusStore.subscribe((state) => {
           payload.eventStatusState = state.status;
           updatePotaStatuses(mapElement, payload, layersByReference,
@@ -804,11 +813,11 @@ const payload = JSON.stringify({
         payload,
       );
 
+      payload.coverageState = "ready";
       for (const item of payload.items) {
         item.coverage = coverageByReference.get(item.reference) ?? item.coverage;
         updateMapItemLayers(payload, item, layersByReference.get(item.reference));
       }
-      payload.coverageState = "ready";
       const status = mapElement.closest(".map-preview")?.querySelector<HTMLElement>("[data-map-coverage-status]");
       if (status) status.hidden = true;
       updateMapLegend(mapElement, payload);
@@ -836,7 +845,7 @@ const payload = JSON.stringify({
       : payload.items.map((item) => item.coverage?.status).filter(Boolean));
 
     mapPreview.querySelectorAll<HTMLElement>("[data-map-legend-item]").forEach((item) => {
-      if (payload.coverageState && payload.coverageState !== "ready") {
+      if (!payload.resultsMode && payload.variant !== "on-air" && payload.coverageState && payload.coverageState !== "ready") {
         item.hidden = true;
         return;
       }
@@ -923,13 +932,16 @@ const payload = JSON.stringify({
       return `
         <strong>${escapeHtml(item.reference)}</strong>
         <span>${escapeHtml(item.name)}</span>
-        <em>${escapeHtml(detailLine(item))}</em>
         <span><b>${escapeHtml(statusLabel)}</b>${itemStyle(payload, item).isLive ? " · On air now" : ""}</span>
+        <span class="map-popup__links">
+          ${parkScheduleLink(item)}
+          <a href="/activate-ri-2026/parks/?progress-q=${encodeURIComponent(item.reference)}#park-results">View activation results</a>
+        </span>
+        ${upcomingStopsHtml(payload, item)}
         ${payload.variant === "on-air" ? liveSpotsHtml(item) : ""}
         ${unknownEventStatus ? "" : potaEvidenceHtml(status)}
-        ${status?.scheduled ? "<span>Event coverage is also scheduled.</span>" : ""}
+        <em>${escapeHtml(detailLine(item))}</em>
         <span class="map-popup__links">
-          <a href="/activate-ri-2026/parks/">Open full evidence list</a>
           ${localFieldGuideLink(item)}
         </span>
       `;
@@ -947,9 +959,34 @@ const payload = JSON.stringify({
       <span><b>${escapeHtml(item.coverage?.label ?? (payload.coverageState === "loading" ? "Loading schedule…" : "Schedule unavailable"))}</b></span>
       ${coverageStopsHtml(item)}
       <span class="map-popup__links">
+        ${parkScheduleLink(item)}
         <a href="/activate-ri-2026/parks/">Open coverage table</a>
         ${localFieldGuideLink(item)}
         ${volunteerAction}
+      </span>
+    `;
+  }
+
+  function parkScheduleLink(item: MapItem): string {
+    return `<a href="/activate-ri-2026/schedule/?q=${encodeURIComponent(item.reference)}">View this park’s schedule</a>`;
+  }
+
+  function upcomingStopsHtml(payload: MapPayload, item: MapItem): string {
+    if (payload.coverageState !== "ready") {
+      return `<span>${payload.coverageState === "unavailable" ? "Planned activations are temporarily unavailable." : "Loading planned activations…"}</span>`;
+    }
+    const stops = upcomingMapStops(item.coverage?.stops ?? []);
+    if (stops.length === 0) return "<span>No upcoming activation windows published.</span>";
+    return `
+      <span class="map-popup__stops" data-map-upcoming-stops>
+        <b>Now and upcoming</b>
+        ${stops.slice(0, 3).map((stop) => `
+          <span class="map-popup__stop">
+            <b>${escapeHtml(stop.activatorCallsign)}${stop.status === "delayed" ? " · Delayed" : ""}</b>
+            <span>${escapeHtml(formatActivationDate(stop))}, ${escapeHtml(formatActivationTimeRange(stop))}</span>
+          </span>
+        `).join("")}
+        ${stops.length > 3 ? `<span>${stops.length - 3} more windows in the park schedule.</span>` : ""}
       </span>
     `;
   }

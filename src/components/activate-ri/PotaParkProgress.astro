@@ -33,7 +33,7 @@ import { activateRi2026Event } from "../../data/activate-ri-2026/event";
     resultsMode
   />
 
-  <fieldset class="pota-status-filters" data-pota-filters>
+  <fieldset id="park-results" class="pota-status-filters" data-pota-filters>
     <legend>Filter by park status</legend>
     <label><input type="radio" name="pota-status-filter" value="all" checked /> All</label>
     <label><input type="radio" name="pota-status-filter" value="confirmed" /> Confirmed</label>
@@ -78,6 +78,7 @@ import { activateRi2026Event } from "../../data/activate-ri-2026/event";
     let snapshot: PublicPotaParkStatusSnapshot | undefined;
     let stops: PublicActivationStop[] = [];
     let searchEditing = false;
+    let renderedQuery = "";
 
     restoreFilters();
     updateUrl("replace");
@@ -190,7 +191,20 @@ import { activateRi2026Event } from "../../data/activate-ri-2026/event";
         (filter === "all" || park.status === filter) &&
         (!query || park.reference.toLowerCase().includes(query) || park.name.toLowerCase().includes(query)),
       );
-      replaceLiveContent(results, parks.map((park) => parkCard(park, stops.filter((stop) => stop.parkReference === park.reference))));
+      const cards = parks.map((park) => parkCard(
+        park,
+        stops.filter((stop) => stop.parkReference === park.reference),
+        park.reference.toLowerCase() === query,
+      ));
+      replaceLiveContent(results, cards);
+      if (query !== renderedQuery) {
+        // Selecting an exact reference also reveals an existing card. Later refreshes
+        // keep the disclosure choice preserved by replaceLiveContent.
+        const selectedCard = cards.find((_, index) => parks[index].reference.toLowerCase() === query);
+        const planned = selectedCard?.querySelector<HTMLDetailsElement>("details[data-planned-stops]");
+        if (planned) planned.open = true;
+      }
+      renderedQuery = query;
       setText("[data-pota-filter-status]", `Showing ${parks.length} of ${snapshot.parks.length} parks${query ? ` matching “${search?.value.trim()}”` : ""}.`);
       const empty = root.querySelector("[data-pota-empty]") as HTMLElement | null;
       if (empty) empty.hidden = parks.length > 0;
@@ -201,7 +215,7 @@ import { activateRi2026Event } from "../../data/activate-ri-2026/event";
     }
   }
 
-  function parkCard(park: PublicParkPotaStatus, stops: PublicActivationStop[]): HTMLElement {
+  function parkCard(park: PublicParkPotaStatus, stops: PublicActivationStop[], revealPlannedStops: boolean): HTMLElement {
     const article = document.createElement("article");
     article.className = "pota-park-card";
     article.dataset.status = park.status;
@@ -241,6 +255,8 @@ import { activateRi2026Event } from "../../data/activate-ri-2026/event";
     if (activeStops.length > 0) {
       const planned = document.createElement("details");
       planned.dataset.liveKey = `${park.reference}-planned`;
+      planned.dataset.plannedStops = "";
+      planned.open = revealPlannedStops;
       const summary = document.createElement("summary");
       summary.dataset.liveKey = `${park.reference}-planned-summary`;
       summary.textContent = `Planned event stops (${activeStops.length}) — estimates, not confirmation`;
@@ -319,6 +335,7 @@ import { activateRi2026Event } from "../../data/activate-ri-2026/event";
 </script>
 
 <style>
+  #park-results { scroll-margin-top: 2rem; }
   .pota-progress-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 1rem 0; }
   :global(.pota-progress .pota-status-badge[data-status="confirmed"]) { background: #24603b; color: #fff; }
 </style>
