@@ -14,6 +14,7 @@ export type MediaRow = {
   created_at: string;
   updated_at: string;
   primary_callsign: string;
+  park_reference: string | null;
 };
 
 export function serializeMedia(row: MediaRow, audience: "activator" | "admin"): ActivatorMedia {
@@ -25,6 +26,7 @@ export function serializeMedia(row: MediaRow, audience: "activator" | "admin"): 
     size: row.size,
     createdAt: row.created_at,
     callsign: row.primary_callsign,
+    parkReference: row.park_reference,
     url: `/api/activate-ri-2026/${audience}/media/${row.id}/file`,
   };
 }

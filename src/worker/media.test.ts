@@ -142,7 +142,7 @@ it("serializes only display metadata and an authenticated content URL", () => {
     id: "media-id", event_id: "activate-ri-2026", activator_id: "private-owner-id",
     object_key: "private/r2/key", filename: "photo.jpg", content_type: "image/jpeg",
     kind: "photo", size: 42, state: "ready", created_at: "2026-09-12T12:00:00.000Z",
-    updated_at: "2026-09-12T12:01:00.000Z", primary_callsign: "N1RI",
+    updated_at: "2026-09-12T12:01:00.000Z", primary_callsign: "N1RI", park_reference: null,
   };
   for (const audience of ["activator", "admin"] as const) {
     const serialized = serializeMedia(row, audience);

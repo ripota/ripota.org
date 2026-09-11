@@ -5,16 +5,20 @@ import {
   validateMediaFile,
   type ActivatorMedia,
 } from "./media";
+import { mediaParkName, mediaParks, validateMediaParkReference } from "./media-parks";
 
 type QueueState = "ready" | "uploading" | "saved" | "error" | "cancelled" | "invalid";
 type QueuedFile = {
   file: File;
   state: QueueState;
   message: string;
+  parkReference: string | null;
+  savedId: string | null;
   row: HTMLLIElement;
   status: HTMLParagraphElement;
   progress: HTMLProgressElement;
   actions: HTMLDivElement;
+  parkSelect: HTMLSelectElement;
 };
 type MediaUsage = { files: number; bytes: number };
 
@@ -38,6 +42,7 @@ export function setupMediaWorkspace(root: HTMLElement): void {
   const more = root.querySelector<HTMLButtonElement>("[data-media-more]");
   const usageText = root.querySelector<HTMLElement>("[data-media-usage]");
   const picker = root.querySelector<HTMLInputElement>("[data-media-input]");
+  const defaultPark = root.querySelector("[data-media-default-park]") as HTMLSelectElement | null;
   const dropzone = root.querySelector<HTMLElement>("[data-media-dropzone]");
   const queueSection = root.querySelector<HTMLElement>("[data-media-queue-section]");
   const queueList = root.querySelector<HTMLElement>("[data-media-queue]");
@@ -48,6 +53,12 @@ export function setupMediaWorkspace(root: HTMLElement): void {
   const deleteConfirm = root.querySelector<HTMLButtonElement>("[data-media-delete-confirm]")!;
   const deleteCancel = root.querySelector<HTMLButtonElement>("[data-media-delete-cancel]")!;
   const deleteStatus = root.querySelector<HTMLElement>("[data-media-delete-status]")!;
+  const parkDialog = root.querySelector<HTMLDialogElement>("[data-media-park-dialog]")!;
+  const parkForm = root.querySelector<HTMLFormElement>("[data-media-park-form]")!;
+  const editPark = (root.querySelector("[data-media-edit-park]") as HTMLSelectElement | null)!;
+  const parkSave = root.querySelector<HTMLButtonElement>("[data-media-park-save]")!;
+  const parkCancel = root.querySelector<HTMLButtonElement>("[data-media-park-cancel]")!;
+  const parkStatus = root.querySelector<HTMLElement>("[data-media-park-status]")!;
   let files: ActivatorMedia[] = [];
   let queue: QueuedFile[] = [];
   let usage: MediaUsage = { files: 0, bytes: 0 };
@@ -56,10 +67,13 @@ export function setupMediaWorkspace(root: HTMLElement): void {
   let loading = false;
   let uploading = false;
   let deleting = false;
+  let savingPark = false;
   let signedOut = false;
   let activeUpload: XMLHttpRequest | null = null;
   let deleteTarget: ActivatorMedia | null = null;
   let deleteTrigger: HTMLButtonElement | null = null;
+  let parkTargetId: string | null = null;
+  let parkTrigger: HTMLButtonElement | null = null;
 
   refresh.addEventListener("click", () => void loadFiles());
   more?.addEventListener("click", () => void loadFiles(true));
@@ -97,6 +111,18 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     deleteTarget = null;
     if (deleteTrigger?.isConnected) deleteTrigger.focus();
   });
+  parkForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void savePark();
+  });
+  parkCancel.addEventListener("click", () => parkDialog.close());
+  parkDialog.addEventListener("cancel", (event) => {
+    if (savingPark) event.preventDefault();
+  });
+  parkDialog.addEventListener("close", () => {
+    parkTargetId = null;
+    if (parkTrigger?.isConnected) parkTrigger.focus();
+  });
   window.addEventListener("beforeunload", (event) => {
     if (uploading) event.preventDefault();
   });
@@ -109,13 +135,14 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     queueList?.replaceChildren();
     loaded = false;
     deleteDialog.close();
+    parkDialog.close();
     galleryStatus.textContent = "You have signed out.";
     updateControls();
   });
   void loadFiles();
 
   async function loadFiles(append = false): Promise<void> {
-    if (loading || signedOut || (append && !nextCursor)) return;
+    if (loading || savingPark || signedOut || (append && !nextCursor)) return;
     loading = true;
     updateControls();
     galleryStatus.textContent = "Loading photos and videos…";
@@ -164,9 +191,24 @@ export function setupMediaWorkspace(root: HTMLElement): void {
       progress.value = 0;
       progress.setAttribute("aria-label", `Upload progress for ${file.name}`);
       const actions = element("div", "media-queue__actions");
-      const item: QueuedFile = { file, state: error ? "invalid" : "ready", message: error ?? "Ready to upload", row, status, progress, actions };
+      const parkField = element("label", "media-queue__park");
+      parkField.appendChild(element("span", "", "Park"));
+      const parkSelect = element("select", "media-park-select");
+      parkSelect.dataset.mediaQueuePark = "";
+      parkSelect.setAttribute("aria-label", `Park for ${file.name}`);
+      parkSelect.appendChild(parkOption("", mediaParkName(null)));
+      mediaParks.forEach((park) => parkSelect.appendChild(parkOption(park.reference, `${park.reference} — ${park.name}`)));
+      const parkReference = defaultPark?.value || null;
+      parkSelect.value = parkReference ?? "";
+      const item: QueuedFile = {
+        file, state: error ? "invalid" : "ready", message: error ?? "Ready to upload",
+        parkReference, savedId: null, row, status, progress, actions, parkSelect,
+      };
+      parkSelect.addEventListener("change", () => { item.parkReference = parkSelect.value || null; });
+      parkField.appendChild(parkSelect);
       details.appendChild(name);
       details.appendChild(size);
+      details.appendChild(parkField);
       details.appendChild(status);
       row.appendChild(details);
       row.appendChild(actions);
@@ -188,6 +230,8 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     item.status.textContent = item.message;
     item.status.dataset.error = String(item.state === "error" || item.state === "invalid");
     item.progress.hidden = item.state !== "uploading";
+    item.parkSelect.value = item.parkReference ?? "";
+    item.parkSelect.disabled = item.state === "uploading" || item.state === "saved" || item.state === "invalid";
     item.actions.replaceChildren();
     if (item.state === "uploading") {
       const cancel = actionButton("Cancel", `Cancel upload of ${item.file.name}`);
@@ -234,6 +278,7 @@ export function setupMediaWorkspace(root: HTMLElement): void {
       if (signedOut) break;
       if (!queue.includes(item)) continue;
       const error = validateMediaFile(item.file)
+        ?? (!validateMediaParkReference(item.parkReference) ? "Choose a Rhode Island park from the list, or leave this file general." : null)
         ?? (usage.files >= mediaLimits.files ? `Your ${mediaLimits.files}-file limit is reached. Delete a saved file, then retry.` : null)
         ?? (usage.bytes + item.file.size > mediaLimits.totalBytes ? `This exceeds your ${formatMediaBytes(mediaLimits.totalBytes)} storage limit. Delete saved files, then retry.` : null);
       if (error) {
@@ -251,6 +296,8 @@ export function setupMediaWorkspace(root: HTMLElement): void {
         if (signedOut) break;
         item.state = "saved";
         item.message = "Saved privately";
+        item.savedId = saved.id;
+        item.parkReference = saved.parkReference;
         if (!files.some((file) => file.id === saved.id)) {
           files.unshift(saved);
           usage.files++;
@@ -292,6 +339,7 @@ export function setupMediaWorkspace(root: HTMLElement): void {
       xhr.open("POST", endpoint);
       xhr.setRequestHeader("content-type", mediaContentType(item.file.name, item.file.type));
       xhr.setRequestHeader("x-media-filename", encodeURIComponent(item.file.name));
+      if (item.parkReference) xhr.setRequestHeader("x-media-park-reference", item.parkReference);
       xhr.setRequestHeader("accept", "application/json");
       xhr.responseType = "json";
       xhr.timeout = 10 * 60 * 1000;
@@ -321,10 +369,10 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     // Keep existing previews mounted so new uploads do not interrupt video playback or keyboard focus.
     files.forEach((file, index) => {
       const current = gallery.children[index] as HTMLElement | undefined;
-      if (current?.dataset.mediaId === file.id) return;
-      const existing = [...gallery.querySelectorAll<HTMLElement>("[data-media-id]")]
-        .find((card) => card.dataset.mediaId === file.id);
-      gallery.insertBefore(existing ?? mediaCard(file), current ?? null);
+      const card = current?.dataset.mediaId === file.id ? current
+        : [...gallery.querySelectorAll<HTMLElement>("[data-media-id]")].find((node) => node.dataset.mediaId === file.id) ?? mediaCard(file);
+      if (card !== current) gallery.insertBefore(card, current ?? null);
+      card.querySelector<HTMLElement>("[data-media-park-label]")!.textContent = parkLabel(file.parkReference);
     });
     empty.hidden = !loaded || files.length > 0;
     if (usageText) usageText.textContent = `${usage.files} of ${mediaLimits.files} files · ${formatMediaBytes(usage.bytes)} of ${formatMediaBytes(mediaLimits.totalBytes)} used`;
@@ -361,7 +409,26 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     if (organizer) body.appendChild(element("p", "media-card__byline", file.callsign));
     body.appendChild(element("h3", "", file.filename));
     const date = new Date(file.createdAt);
-    body.appendChild(element("p", "media-card__meta", `${file.kind === "photo" ? "Photo" : "Video"} · ${formatMediaBytes(file.size)} · ${Number.isFinite(date.valueOf()) ? date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "Uploaded"}`));
+    body.appendChild(element("p", "media-card__meta", `${file.kind === "photo" ? "Photo" : "Video"} · ${formatMediaBytes(file.size)} · Uploaded ${Number.isFinite(date.valueOf()) ? date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "date unavailable"}`));
+    const parkActions = element("div", "media-card__park-actions");
+    const park = element("p", "media-card__park", parkLabel(file.parkReference));
+    park.dataset.mediaParkLabel = "";
+    const edit = actionButton("Edit park", `Edit park for ${file.filename}`);
+    edit.addEventListener("click", () => {
+      const current = files.find((item) => item.id === file.id);
+      if (!current || signedOut) return;
+      parkTargetId = current.id;
+      parkTrigger = edit;
+      parkStatus.textContent = "";
+      root.querySelector<HTMLElement>("[data-media-park-description]")!.textContent = organizer
+        ? `${current.filename} · ${current.callsign}` : current.filename;
+      editPark.value = current.parkReference ?? "";
+      parkDialog.showModal();
+      editPark.focus();
+    });
+    parkActions.appendChild(park);
+    parkActions.appendChild(edit);
+    body.appendChild(parkActions);
     const actions = element("div", "media-card__actions");
     const download = element("a", "", "Download original");
     download.href = `${fileUrl}?download=1`;
@@ -418,9 +485,57 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     }
   }
 
+  async function savePark(): Promise<void> {
+    if (!parkTargetId || savingPark || loading || signedOut) return;
+    const targetId = parkTargetId;
+    const parkReference = editPark.value || null;
+    if (!validateMediaParkReference(parkReference)) {
+      parkStatus.textContent = "Choose a Rhode Island park from the list, or leave this file general.";
+      editPark.focus();
+      return;
+    }
+    savingPark = true;
+    updateControls();
+    parkSave.disabled = true;
+    parkCancel.disabled = true;
+    editPark.disabled = true;
+    parkStatus.textContent = "Saving park…";
+    try {
+      const response = await fetch(`${endpoint}/${encodeURIComponent(targetId)}`, {
+        method: "PATCH",
+        headers: { accept: "application/json", "content-type": "application/json" },
+        body: JSON.stringify({ parkReference }),
+      });
+      const body: unknown = await response.json().catch(() => null);
+      if (!response.ok || !isRecord(body) || body.ok !== true || !isMedia(body.media)) {
+        throw new Error(responseError(body, response.status, "Unable to save the park. Please try again."));
+      }
+      if (signedOut) return;
+      const saved = body.media;
+      files = files.map((file) => file.id === targetId ? saved : file);
+      for (const item of queue) {
+        if (item.savedId !== targetId) continue;
+        item.parkReference = saved.parkReference;
+        renderQueueItem(item);
+      }
+      renderGallery();
+      parkDialog.close();
+      galleryStatus.textContent = `Park saved for ${saved.filename}: ${parkLabel(saved.parkReference)}.`;
+    } catch (error) {
+      if (!signedOut) parkStatus.textContent = errorMessage(error, "Unable to save the park. Check your connection and try again.");
+    } finally {
+      savingPark = false;
+      parkSave.disabled = false;
+      parkCancel.disabled = false;
+      editPark.disabled = false;
+      updateControls();
+    }
+  }
+
   function updateControls(): void {
-    refresh.disabled = loading || uploading || signedOut;
-    if (more) { more.hidden = !nextCursor; more.disabled = loading || signedOut; }
+    refresh.disabled = loading || uploading || savingPark || signedOut;
+    if (more) { more.hidden = !nextCursor; more.disabled = loading || savingPark || signedOut; }
+    parkSave.disabled = loading || savingPark || signedOut;
     if (queueSection) queueSection.hidden = queue.length === 0;
     const ready = queue.filter((item) => item.state === "ready").length;
     if (uploadButton) {
@@ -450,6 +565,17 @@ function actionButton(label: string, accessibleLabel: string): HTMLButtonElement
   return button;
 }
 
+function parkOption(value: string, label: string): HTMLOptionElement {
+  const option = element("option", "", label);
+  option.value = value;
+  return option;
+}
+
+function parkLabel(reference: string | null): string {
+  const name = mediaParkName(reference);
+  return reference && name !== reference ? `${reference} · ${name}` : name;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -458,7 +584,8 @@ function isMedia(value: unknown): value is ActivatorMedia {
   return isRecord(value) && typeof value.id === "string" && typeof value.filename === "string"
     && typeof value.contentType === "string" && (value.kind === "photo" || value.kind === "video")
     && typeof value.size === "number" && Number.isFinite(value.size) && value.size >= 0
-    && typeof value.createdAt === "string" && typeof value.callsign === "string" && typeof value.url === "string";
+    && typeof value.createdAt === "string" && typeof value.callsign === "string" && typeof value.url === "string"
+    && (value.parkReference === null || typeof value.parkReference === "string");
 }
 
 function responseError(body: unknown, status: number, fallback: string): string {

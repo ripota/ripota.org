@@ -1,5 +1,6 @@
 ---
 import { formatMediaBytes, mediaAccept, mediaLimits } from "../../lib/activate-ri/media";
+import { mediaParks } from "../../lib/activate-ri/media-parks";
 
 interface Props { organizer?: boolean }
 const { organizer = false } = Astro.props;
@@ -34,6 +35,14 @@ const Heading = organizer ? "h2" : "h1";
           Photos up to {formatMediaBytes(mediaLimits.photoBytes)} each · Videos up to {formatMediaBytes(mediaLimits.videoBytes)} each.{" "}
           Up to {mediaLimits.files} files and {formatMediaBytes(mediaLimits.totalBytes)} total.
         </p>
+      </div>
+      <div class="media-park-field">
+        <label for="activator-media-default-park">Park (optional)</label>
+        <select id="activator-media-default-park" class="media-park-select" data-media-default-park aria-describedby="media-default-park-help">
+          <option value="">General — no park</option>
+          {mediaParks.map((park) => <option value={park.reference}>{park.reference} — {park.name}</option>)}
+        </select>
+        <p class="form-help" id="media-default-park-help">Applies to files you choose next. You can choose a different park for each file, or leave it general.</p>
       </div>
       <div class="media-dropzone" data-media-dropzone>
         <label for="activator-media-files">Choose photos and videos</label>
@@ -75,6 +84,27 @@ const Heading = organizer ? "h2" : "h1";
     {organizer && <button class="button" data-variant="light" type="button" data-media-more hidden>Load more files</button>}
   </section>
 
+  <dialog class="form-confirmation" data-media-park-dialog aria-labelledby={`${prefix}-media-park-title`}>
+    <form class="form-confirmation__body" data-media-park-form>
+      <p class="eyebrow">Photo & video details</p>
+      <h2 id={`${prefix}-media-park-title`}>Edit park</h2>
+      <p data-media-park-description></p>
+      <div class="media-park-field">
+        <label for={`${prefix}-media-edit-park`}>Park for this file</label>
+        <select id={`${prefix}-media-edit-park`} class="media-park-select" data-media-edit-park aria-describedby={`${prefix}-media-park-help`}>
+          <option value="">General — no park</option>
+          {mediaParks.map((park) => <option value={park.reference}>{park.reference} — {park.name}</option>)}
+        </select>
+        <p class="form-help" id={`${prefix}-media-park-help`}>Choose a park for this photo or video, or select General to leave it unassociated.</p>
+      </div>
+      <p class="form-status" data-media-park-status role="status" aria-live="polite"></p>
+      <div class="form-actions">
+        <button class="button" data-variant="light" type="button" data-media-park-cancel>Cancel</button>
+        <button class="button" data-variant="primary" type="submit" data-media-park-save>Save park</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog class="form-confirmation" data-media-delete-dialog aria-labelledby={`${prefix}-media-delete-title`}>
     <form method="dialog" class="form-confirmation__body">
       <p class="eyebrow">Remove an upload</p>
@@ -108,6 +138,11 @@ const Heading = organizer ? "h2" : "h1";
   .media-upload { display: grid; gap: 1rem; padding: clamp(1rem, 3vw, 1.75rem); border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--surface-raised); }
   .media-workspace .media-upload h2, .media-workspace .media-library h2 { margin: 0; max-width: none; font-size: 1.4rem; }
   .media-workspace .form-help { margin: .4rem 0 0; }
+  .media-park-field { display: grid; gap: .4rem; min-width: 0; }
+  .media-park-field label, .media-queue__park > span { font-weight: 700; }
+  .media-park-select { display: block; width: 100%; min-width: 0; max-width: 100%; min-height: 44px; border: 1px solid var(--border-subtle); border-radius: 6px; background: var(--surface-raised); color: var(--text-primary); padding: .6rem .7rem; font: inherit; }
+  .media-upload > .media-park-field { max-width: 42rem; }
+  .media-queue__park { display: grid; gap: .3rem; margin: .65rem 0 .5rem; font-size: .85rem; }
   .media-dropzone { display: grid; gap: .8rem; border: 2px dashed var(--border-subtle); border-radius: 8px; background: var(--surface-page); padding: clamp(1rem, 3vw, 1.5rem); }
   .media-dropzone[data-dragging="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface-page)); }
   .media-dropzone label { font-weight: 800; }
@@ -136,12 +171,15 @@ const Heading = organizer ? "h2" : "h1";
   .media-card__body { display: grid; gap: .65rem; padding: 1rem; }
   .media-card__body h3 { margin: 0; font-size: 1rem; overflow-wrap: anywhere; }
   .media-card__meta { margin: 0; color: var(--text-muted); font-size: .85rem; }
+  .media-card__park { margin: 0; color: var(--text-muted); font-size: .85rem; overflow-wrap: anywhere; }
+  .media-card__park-actions { display: grid; justify-items: start; gap: .4rem; padding-block: .5rem; border-block: 1px solid var(--border-subtle); }
+  .media-card__park-actions .button { min-height: 44px; width: auto; padding: .4rem .65rem; font-size: .85rem; }
   .media-card__byline { margin: 0; font-weight: 800; color: var(--accent-strong); }
   .media-card__actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: .75rem; }
   .media-card__actions a { color: var(--link); font-size: .9rem; }
   .media-card__actions .button { min-height: 44px; padding: .45rem .7rem; font-size: .85rem; }
   .media-card__playback-help { margin: 0; color: var(--text-muted); font-size: .8rem; }
-  .media-workspace [data-media-delete-description] { overflow-wrap: anywhere; font-weight: 800; }
+  .media-workspace [data-media-delete-description], .media-workspace [data-media-park-description] { overflow-wrap: anywhere; font-weight: 800; }
   @media (max-width: 520px) {
     .media-queue__item { grid-template-columns: minmax(0, 1fr); }
     .media-queue__actions { justify-self: start; }

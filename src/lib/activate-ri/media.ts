@@ -32,6 +32,7 @@ export type ActivatorMedia = {
   size: number;
   createdAt: string;
   callsign: string;
+  parkReference: string | null;
   url: string;
 };
 

@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
 import type { ActivatorMedia } from "../src/lib/activate-ri/media";
 import { startActivateRiServer } from "./helpers/activate-ri-server";
@@ -18,7 +19,7 @@ const video = {
   buffer: Buffer.from("GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQJChYECGFOAZwH/////////EU2bdKtNu4tTq4QVSalmU6yBoU27i1OrhBZUrmtTrIHLTbuMU6uEElTDZ1OsggEY7AEAAAAAAABoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmpSrXsYMPQkBNgIxMYXZmNjMuMS4xMDFXQYxMYXZmNjMuMS4xMDEWVK5ryK4BAAAAAAAAP9eBAXPFiMJfhnov8wYYnIEAIrWcg3VuZIiBAIaFVl9WUDiDgQEj44OEHc1lAOCQsIEYuoEYmoECVbCEVbmBARJUw2fWc3OfY8CAZ8iZRaOHRU5DT0RFUkSHjExhdmY2My4xLjEwMXNzsWPAi2PFiMJfhnov8wYYZ8igRaOHRU5DT0RFUkSHk0xhdmM2My4xLjEwMSBsaWJ2cHgfQ7Z11ueBAKO6gQAAgJACAJ0BKhgAGAAARwiFhYiFhIgCAgJ1qgIH+RXeYP7/jeT//bQP/20D/9tA/+2gf43m81qxAKOVgQH0ALEBAAEQEAAYABhYL/QACHAA", "base64"),
 };
 
-test("activators upload private originals, play previews, and manage files with organizers", async ({ page, browser, request }, testInfo) => {
+test("activators upload private originals with optional parks and manage files with organizers", async ({ page, browser, request }) => {
   const server = await startActivateRiServer({ legacyLinkIssuanceEnabled: true, seedAccountOnly: true });
   const otherContext = await browser.newContext();
   const adminContext = await browser.newContext({ extraHTTPHeaders: adminHeaders });
@@ -30,25 +31,36 @@ test("activators upload private originals, play previews, and manage files with 
     await page.getByRole("link", { name: "Photos & Videos", exact: true }).click();
     await expect(page).toHaveURL(`${server.origin}${pagePath}`);
     await expect(page.locator("[data-media-usage]")).toContainText("0 of 50 files");
+    const defaultPark = page.getByLabel("Park (optional)", { exact: true });
+    await expect(defaultPark).toHaveValue("");
+    await defaultPark.selectOption("US-2868");
     await page.getByLabel("Choose photos and videos", { exact: true }).setInputFiles([photo, video]);
     await expect(page.locator('[data-media-queue] [data-state="ready"]')).toHaveCount(2);
+    await expect(page.getByLabel(`Park for ${photo.name}`, { exact: true })).toHaveValue("US-2868");
+    await expect(page.getByLabel(`Park for ${video.name}`, { exact: true })).toHaveValue("US-2868");
+    await page.getByLabel(`Park for ${video.name}`, { exact: true }).selectOption("");
     await expect(page.locator("[data-media-gallery] article")).toHaveCount(0);
-    const uploads: Array<Promise<{ status: number; size: string | undefined }>> = [];
+    await captureMediaScreenshots(page, "upload", ".media-upload");
+    const uploads: Array<Promise<{ status: number; size: string | undefined; park: string | undefined }>> = [];
     page.on("response", (response) => {
       if (response.url() === `${server.origin}${apiPath}` && response.request().method() === "POST") {
-        uploads.push(response.request().allHeaders().then((headers) => ({ status: response.status(), size: headers["content-length"] })));
+        uploads.push(response.request().allHeaders().then((headers) => ({
+          status: response.status(), size: headers["content-length"], park: headers["x-media-park-reference"],
+        })));
       }
     });
     await page.getByRole("button", { name: "Upload 2 files", exact: true }).click();
     await expect(page.locator('[data-media-queue] [data-state="saved"]'), server.output()).toHaveCount(2);
     expect(await Promise.all(uploads)).toEqual([
-      { status: 201, size: String(photo.buffer.length) },
-      { status: 201, size: String(video.buffer.length) },
+      { status: 201, size: String(photo.buffer.length), park: "US-2868" },
+      { status: 201, size: String(video.buffer.length), park: undefined },
     ]);
     await expect(page.locator("[data-media-usage]")).toContainText("2 of 50 files");
     await page.reload();
     const gallery = page.locator("[data-media-gallery]");
     await expect(gallery.locator("article")).toHaveCount(2);
+    await expect(gallery.locator("article").filter({ hasText: photo.name }).locator("[data-media-park-label]")).toContainText("US-2868");
+    await expect(gallery.locator("article").filter({ hasText: video.name }).locator("[data-media-park-label]")).toHaveText("General — no park");
     const image = gallery.getByRole("img", { name: photo.name, exact: true });
     await image.scrollIntoViewIfNeeded();
     await expect.poll(() => image.evaluate((node: HTMLImageElement) => node.complete && node.naturalWidth)).toBe(32);
@@ -56,6 +68,7 @@ test("activators upload private originals, play previews, and manage files with 
     await player.evaluate((node: HTMLVideoElement) => node.play());
     await expect.poll(() => player.evaluate((node: HTMLVideoElement) => node.currentTime)).toBeGreaterThan(0);
     expect(await player.evaluate((node: HTMLVideoElement) => { node.pause(); return node.videoWidth; })).toBe(24);
+    await captureMediaScreenshots(page, "gallery", ".media-library");
 
     const listed = await page.request.get(`${server.origin}${apiPath}`);
     const body = await listed.json() as { media: ActivatorMedia[]; usage: { files: number; bytes: number } };
@@ -65,6 +78,8 @@ test("activators upload private originals, play previews, and manage files with 
     const savedVideo = body.media.find((file) => file.filename === video.name)!;
     expect(savedPhoto.kind).toBe("photo");
     expect(savedVideo.kind).toBe("video");
+    expect(savedPhoto.parkReference).toBe("US-2868");
+    expect(savedVideo.parkReference).toBeNull();
     for (const [saved, fixture] of [[savedPhoto, photo], [savedVideo, video]] as const) {
       const fileUrl = `${server.origin}${saved.url}`;
       const original = await page.request.get(fileUrl);
@@ -129,6 +144,9 @@ test("activators upload private originals, play previews, and manage files with 
     expect((await (await otherPage.request.get(`${server.origin}${apiPath}`)).json()).media).toEqual([]);
     expect((await otherPage.request.get(`${server.origin}${savedPhoto.url}`)).status()).toBe(404);
     expect((await otherPage.request.delete(`${server.origin}${apiPath}/${savedVideo.id}`, { headers: { origin: server.origin } })).status()).toBe(404);
+    expect((await otherPage.request.patch(`${server.origin}${apiPath}/${savedPhoto.id}`, {
+      headers: { origin: server.origin }, data: { parkReference: "US-2869" },
+    })).status()).toBe(404);
 
     const adminPage = await adminContext.newPage();
     await adminPage.goto(`${server.origin}/activate-ri-2026/admin/#media`);
@@ -139,10 +157,25 @@ test("activators upload private originals, play previews, and manage files with 
     const adminPhoto = await adminPage.request.get(`${server.origin}${adminPath}/${savedPhoto.id}/file`);
     expect(adminPhoto.status()).toBe(200);
     expect(await adminPhoto.body()).toEqual(photo.buffer);
+    const adminGallery = adminPage.locator("[data-media-gallery]");
+    await expect(adminGallery.locator(`[data-media-id="${savedPhoto.id}"] [data-media-park-label]`)).toContainText("US-2868");
+    await expect(adminGallery.locator(`[data-media-id="${savedVideo.id}"] [data-media-park-label]`)).toHaveText("General — no park");
+
+    await changePark(page, photo.name, "US-2869");
+    await page.reload();
+    await expect(gallery.locator(`[data-media-id="${savedPhoto.id}"] [data-media-park-label]`)).toContainText("US-2869");
+    await changePark(page, photo.name, "");
+    await page.reload();
+    await expect(gallery.locator(`[data-media-id="${savedPhoto.id}"] [data-media-park-label]`)).toHaveText("General — no park");
+    await adminPage.getByRole("button", { name: "Refresh files", exact: true }).click();
+    await expect(adminGallery.locator(`[data-media-id="${savedPhoto.id}"] [data-media-park-label]`)).toHaveText("General — no park");
+    await changePark(adminPage, video.name, "US-2868");
+    await page.reload();
+    await expect(gallery.locator(`[data-media-id="${savedVideo.id}"] [data-media-park-label]`)).toContainText("US-2868");
+    expect(await (await page.request.get(videoUrl)).body()).toEqual(video.buffer);
 
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.evaluate(() => { if (document.activeElement instanceof HTMLElement) document.activeElement.blur(); });
-    await page.screenshot({ path: testInfo.outputPath("media-desktop.png"), fullPage: true });
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(image).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -152,7 +185,6 @@ test("activators upload private originals, play previews, and manage files with 
       return videoBounds.left >= previewBounds.left - 1 && videoBounds.right <= previewBounds.right + 1
         && videoBounds.top >= previewBounds.top - 1 && videoBounds.bottom <= previewBounds.bottom + 1;
     })).toBe(true);
-    await page.screenshot({ path: testInfo.outputPath("media-mobile.png"), fullPage: true });
     await gallery.getByRole("button", { name: `Delete ${photo.name}`, exact: true }).click();
     const confirm = page.getByRole("dialog", { name: "Delete this file?" });
     await expect(confirm.getByRole("button", { name: "Keep file", exact: true })).toBeFocused();
@@ -206,6 +238,7 @@ test("selection rejects unsupported files and preserves uploads for retry and ca
     await page.getByRole("button", { name: "Clear finished files", exact: true }).click();
 
     let attempts = 0;
+    const retryParks: Array<string | undefined> = [];
     await page.route(`**${apiPath}`, async (route) => {
       if (route.request().method() !== "POST") return route.continue();
       if (route.request().headers()["x-media-filename"] === "cancel.png") {
@@ -215,19 +248,23 @@ test("selection rejects unsupported files and preserves uploads for retry and ca
         return;
       }
       attempts++;
+      retryParks.push(route.request().headers()["x-media-park-reference"]);
       if (attempts === 1) await route.fulfill({ status: 503, json: { error: "Storage is temporarily unavailable. Please retry." } });
       else await route.continue();
     });
+    await page.getByLabel("Park (optional)", { exact: true }).selectOption("US-2868");
     await page.getByLabel("Choose photos and videos", { exact: true }).setInputFiles(photo);
     await page.getByRole("button", { name: "Upload 1 file", exact: true }).click();
     const retryRow = page.locator("[data-media-queue] li").filter({ hasText: photo.name });
     await expect(retryRow).toHaveAttribute("data-state", "error");
     await expect(retryRow).toContainText("Storage is temporarily unavailable");
+    await expect(page.getByLabel(`Park for ${photo.name}`, { exact: true })).toHaveValue("US-2868");
     await expect(page.locator("[data-media-gallery] article")).toHaveCount(0);
     await page.getByRole("button", { name: `Retry upload of ${photo.name}`, exact: true }).click();
     await expect(retryRow).toHaveAttribute("data-state", "saved");
     await expect(page.locator("[data-media-gallery] article")).toHaveCount(1);
     expect(attempts).toBe(2);
+    expect(retryParks).toEqual(["US-2868", "US-2868"]);
 
     await page.getByLabel("Choose photos and videos", { exact: true }).setInputFiles({ ...photo, name: "cancel.png" });
     await page.getByRole("button", { name: "Upload 1 file", exact: true }).click();
@@ -272,7 +309,7 @@ test("a throttled batch preserves unattempted files and resumes through explicit
       }
       const id = `00000000-0000-4000-8000-${String(saved.length + 1).padStart(12, "0")}`;
       const media: ActivatorMedia = {
-        id, filename, contentType: "image/png", kind: "photo", size: photo.buffer.length,
+        id, filename, contentType: "image/png", kind: "photo", size: photo.buffer.length, parkReference: null,
         createdAt: "2026-09-11T12:00:00.000Z", callsign: "N1BAT", url: `${apiPath}/${id}/file`,
       };
       saved.push(media);
@@ -310,6 +347,26 @@ test("a throttled batch preserves unattempted files and resumes through explicit
     await server.stop();
   }
 });
+
+async function captureMediaScreenshots(page: Page, name: string, selector: string): Promise<void> {
+  const directory = resolve("tmp/media-screenshots");
+  mkdirSync(directory, { recursive: true });
+  for (const [layout, width] of [["desktop", 1280], ["mobile", 390]] as const) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.evaluate(() => { if (document.activeElement instanceof HTMLElement) document.activeElement.blur(); });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.locator(selector).screenshot({ path: resolve(directory, `${name}-${layout}.png`), animations: "disabled" });
+  }
+  await page.setViewportSize({ width: 1280, height: 900 });
+}
+
+async function changePark(page: Page, filename: string, parkReference: string): Promise<void> {
+  await page.getByRole("button", { name: `Edit park for ${filename}`, exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Edit park", exact: true });
+  await dialog.getByLabel("Park for this file", { exact: true }).selectOption(parkReference);
+  await dialog.getByRole("button", { name: "Save park", exact: true }).click();
+  await expect(dialog).toBeHidden();
+}
 
 async function signInActivator(page: Page, origin: string, callsign: string): Promise<void> {
   const response = await page.request.post(`${origin}/api/activate-ri-2026/plans`, {

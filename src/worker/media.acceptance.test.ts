@@ -109,6 +109,14 @@ async function uploadPhoto(token: string): Promise<ActivatorMedia> {
   return result.media;
 }
 
+function parkPatch(id: string, token: string | undefined, body: unknown, routeBase = base, headers: Record<string, string> = {}): Request {
+  return request(`${routeBase}/${id}`, token, {
+    method: "PATCH",
+    headers: { origin, "content-type": "application/json", ...headers },
+    body: JSON.stringify(body),
+  });
+}
+
 function privateHeaders(response: Response): void {
   expect(response.headers.get("cache-control")).toBe("private, no-store");
   expect(response.headers.get("x-content-type-options")).toBe("nosniff");
@@ -187,6 +195,7 @@ describe("private activator media", () => {
         request(base, token), upload(token), request(media.url, token),
         request(media.url, token, { method: "HEAD" }),
         request(`${base}/${media.id}`, token, { method: "DELETE", headers: { origin } }),
+        parkPatch(media.id, token, { parkReference: "US-2868" }),
       ]) {
         const denied = await handleActivateRiApi(operation, env);
         expect(denied.status).toBe(401);
@@ -204,6 +213,7 @@ describe("private activator media", () => {
     await env.DB.prepare("UPDATE auth_sessions SET revoked_at = ? WHERE id = ?")
       .bind(new Date().toISOString(), first.sessionId).run();
     expect((await handleActivateRiApi(request(media.url, first.token), env)).status).toBe(401);
+    expect((await handleActivateRiApi(parkPatch(media.id, first.token, { parkReference: "US-2868" }), env)).status).toBe(401);
     expect(get).not.toHaveBeenCalled();
   });
 
@@ -284,6 +294,167 @@ describe("private activator media", () => {
     expect((await handleActivateRiApi(upload(user.token), env)).status).toBe(403);
     expect((await handleActivateRiApi(request(media.url, user.token), env)).status).toBe(200);
     expect((await handleActivateRiApi(request(`${base}/${media.id}`, user.token, { method: "DELETE", headers: { origin } }), env)).status).toBe(200);
+  });
+});
+
+describe("optional media park association", () => {
+  it.each([null, ""])("keeps uploads with park header %j general", async (reference) => {
+    const user = await owner();
+    const response = await handleActivateRiApi(upload(user.token, { "x-media-park-reference": reference }), env);
+    expect(response.status).toBe(201);
+    const result = await response.json() as { media: ActivatorMedia };
+    expect(result.media.parkReference).toBeNull();
+    const list = await handleActivateRiApi(request(base, user.token), env);
+    await expect(list.json()).resolves.toMatchObject({ media: [expect.objectContaining({ id: result.media.id, parkReference: null })] });
+  });
+
+  it("stores an optional park tag with the original upload", async () => {
+    const user = await owner();
+    const response = await handleActivateRiApi(upload(user.token, { "x-media-park-reference": "US-2868" }), env);
+    expect(response.status).toBe(201);
+    privateHeaders(response);
+    const result = await response.json() as { media: ActivatorMedia };
+    expect(result.media.parkReference).toBe("US-2868");
+    await expect(env.DB.prepare("SELECT park_reference FROM activate_ri_media WHERE id = ?").bind(result.media.id).first())
+      .resolves.toEqual({ park_reference: "US-2868" });
+    const list = await handleActivateRiApi(request(base, user.token), env);
+    await expect(list.json()).resolves.toMatchObject({ media: [expect.objectContaining({ id: result.media.id, parkReference: "US-2868" })] });
+  });
+
+  it.each(["US-0001", "US-999999", "us-2868"])("rejects an unsupported upload park %s before reserving storage", async (reference) => {
+    const user = await owner();
+    const response = await handleActivateRiApi(upload(user.token, { "x-media-park-reference": reference }), env);
+    expect(response.status).toBe(400);
+    privateHeaders(response);
+    expect(store).not.toHaveBeenCalled();
+    await expect(rowCount()).resolves.toBe(0);
+  });
+
+  it("lets an owner add, change, and clear a tag without rewriting the file or upload time", async () => {
+    const user = await owner();
+    const media = await uploadPhoto(user.token);
+    const before = await env.DB.prepare("SELECT object_key, size, created_at FROM activate_ri_media WHERE id = ?").bind(media.id).first();
+    for (const parkReference of ["US-2868", "US-0514", null]) {
+      const response = await handleActivateRiApi(parkPatch(media.id, user.token, { parkReference }), env);
+      expect(response.status).toBe(200);
+      privateHeaders(response);
+      await expect(response.json()).resolves.toMatchObject({ ok: true, media: { id: media.id, parkReference, createdAt: media.createdAt } });
+      const list = await handleActivateRiApi(request(base, user.token), env);
+      await expect(list.json()).resolves.toMatchObject({ media: [expect.objectContaining({ id: media.id, parkReference })] });
+    }
+    await expect(env.DB.prepare("SELECT object_key, size, created_at FROM activate_ri_media WHERE id = ?").bind(media.id).first()).resolves.toEqual(before);
+    expect(store).toHaveBeenCalledTimes(1);
+    expect(remove).not.toHaveBeenCalled();
+    expect(get).not.toHaveBeenCalled();
+    expect(head).not.toHaveBeenCalled();
+    const file = await handleActivateRiApi(request(media.url, user.token), env);
+    expect(new Uint8Array(await file.arrayBuffer())).toEqual(photo);
+  });
+
+  it("allows an authenticated organizer to correct a tag", async () => {
+    const user = await owner();
+    const media = await uploadPhoto(user.token);
+    const adminHeaders = { "cf-access-authenticated-user-email": "organizer@example.invalid" };
+    const response = await handleActivateRiApi(parkPatch(media.id, undefined, { parkReference: "US-0514" }, adminBase, adminHeaders), env);
+    expect(response.status).toBe(200);
+    privateHeaders(response);
+    await expect(response.json()).resolves.toMatchObject({ media: { id: media.id, parkReference: "US-0514", url: `${adminBase}/${media.id}/file` } });
+    for (const audience of [base, adminBase]) {
+      const list = await handleActivateRiApi(request(audience, user.token, { headers: adminHeaders }), env);
+      await expect(list.json()).resolves.toMatchObject({ media: [expect.objectContaining({ id: media.id, parkReference: "US-0514" })] });
+    }
+    expect(store).toHaveBeenCalledTimes(1);
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it("isolates tag edits from other activators and unauthenticated organizers", async () => {
+    const [first, second] = await Promise.all([owner(), owner("other")]);
+    const media = await uploadPhoto(first.token);
+    for (const [token, routeBase, status] of [
+      [second.token, base, 404], [undefined, base, 401], [undefined, adminBase, 401], [first.token, adminBase, 401],
+    ] as const) {
+      const response = await handleActivateRiApi(parkPatch(media.id, token, { parkReference: "US-2868" }, routeBase), env);
+      expect(response.status).toBe(status);
+      privateHeaders(response);
+    }
+    await expect(env.DB.prepare("SELECT park_reference FROM activate_ri_media WHERE id = ?").bind(media.id).first())
+      .resolves.toEqual({ park_reference: null });
+  });
+
+  it("rejects tag edits with a missing or wrong Origin and in read-only mode", async () => {
+    const user = await owner();
+    const media = await uploadPhoto(user.token);
+    for (const suppliedOrigin of [null, "https://untrusted.example"]) {
+      const mutation = parkPatch(media.id, user.token, { parkReference: "US-2868" });
+      if (suppliedOrigin) mutation.headers.set("origin", suppliedOrigin);
+      else mutation.headers.delete("origin");
+      expect((await handleActivateRiApi(mutation, env)).status).toBe(403);
+    }
+    env.REMOTE_DATA_READ_ONLY = "true";
+    expect((await handleActivateRiApi(parkPatch(media.id, user.token, { parkReference: "US-2868" }), env)).status).toBe(403);
+    await expect(env.DB.prepare("SELECT park_reference FROM activate_ri_media WHERE id = ?").bind(media.id).first())
+      .resolves.toEqual({ park_reference: null });
+  });
+
+  it.each([{}, null, [], { parkReference: "" }, { parkReference: "US-0001" }, { parkReference: 2868 }, { parkReference: false }])(
+    "rejects an invalid tag edit %j without changing metadata", async (body) => {
+      const user = await owner();
+      const media = await uploadPhoto(user.token);
+      const response = await handleActivateRiApi(parkPatch(media.id, user.token, body), env);
+      expect(response.status).toBe(400);
+      privateHeaders(response);
+      await expect(env.DB.prepare("SELECT park_reference FROM activate_ri_media WHERE id = ?").bind(media.id).first())
+        .resolves.toEqual({ park_reference: null });
+    },
+  );
+
+  it("bounds and validates JSON before applying a tag edit", async () => {
+    const user = await owner();
+    const media = await uploadPhoto(user.token);
+    for (const [body, contentType, status] of [
+      ["{broken", "application/json", 400],
+      ['{"parkReference":"US-2868"}', "text/plain", 415],
+      [JSON.stringify({ parkReference: "US-2868", extra: "x".repeat(65_536) }), "application/json", 413],
+      [JSON.stringify({ parkReference: "US-2868", extra: "é".repeat(600) }), "application/json", 413],
+    ] as const) {
+      const response = await handleActivateRiApi(request(`${base}/${media.id}`, user.token, {
+        method: "PATCH", headers: { origin, "content-type": contentType }, body,
+      }), env);
+      expect(response.status).toBe(status);
+      privateHeaders(response);
+    }
+    const declaredOversize = parkPatch(media.id, user.token, { parkReference: "US-2868" }, base, { "content-length": "1025" });
+    expect((await handleActivateRiApi(declaredOversize, env)).status).toBe(413);
+    await expect(env.DB.prepare("SELECT park_reference FROM activate_ri_media WHERE id = ?").bind(media.id).first())
+      .resolves.toEqual({ park_reference: null });
+  });
+
+  it.each(["uploading", "deleting"] as const)("does not edit %s uploads", async (state) => {
+    const user = await owner();
+    const id = await seedMedia(user.activatorId, { state });
+    const response = await handleActivateRiApi(parkPatch(id, user.token, { parkReference: "US-2868" }), env);
+    expect([404, 409]).toContain(response.status);
+    await expect(env.DB.prepare("SELECT state, park_reference FROM activate_ri_media WHERE id = ?").bind(id).first())
+      .resolves.toEqual({ state, park_reference: null });
+    expect(store).not.toHaveBeenCalled();
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it("migrates existing upload metadata to general uploads without altering the original", async () => {
+    database.close();
+    database = createMigratedSqliteD1({ through: "0031_activator_media.sql" });
+    env.DB = database.DB;
+    const user = await owner();
+    const id = await seedMedia(user.activatorId);
+    const before = await env.DB.prepare("SELECT * FROM activate_ri_media WHERE id = ?").bind(id).first<Record<string, unknown>>();
+    database.applyMigrationFile("0032_media_park_reference.sql");
+    await expect(env.DB.prepare("SELECT * FROM activate_ri_media WHERE id = ?").bind(id).first())
+      .resolves.toEqual({ ...before, park_reference: null });
+    const list = await handleActivateRiApi(request(base, user.token), env);
+    await expect(list.json()).resolves.toMatchObject({ media: [expect.objectContaining({ id, parkReference: null })] });
+    const content = await handleActivateRiApi(request(`${base}/${id}/file`, user.token), env);
+    expect(content.status).toBe(200);
+    expect(new Uint8Array(await content.arrayBuffer())).toEqual(photo);
   });
 });
 

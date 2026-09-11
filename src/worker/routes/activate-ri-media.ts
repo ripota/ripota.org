@@ -1,4 +1,5 @@
 import { mediaContentType, mediaLimits, validateMediaFile } from "../../lib/activate-ri/media";
+import { validateMediaParkReference } from "../../lib/activate-ri/media-parks";
 import { requireActivator, requireAdmin, type ActivatorIdentity } from "../auth/authorization";
 import type { Env } from "../env";
 import { json } from "../http";
@@ -65,6 +66,7 @@ async function handleMedia(request: Request, env: Env): Promise<Response> {
     .bind(env.ACTIVATE_RI_EVENT_ID, id, owner?.activatorId ?? null, owner?.activatorId ?? null).first<MediaRow>();
   if (!row || row.state === "uploading") return failure("Photo or video not found.", 404);
   if (file && ["GET", "HEAD"].includes(request.method) && row.state === "ready") return serveMedia(request, env.ACTIVATOR_MEDIA, row);
+  if (!file && request.method === "PATCH" && row.state === "ready") return updateMediaPark(request, env, row, audience);
   if (!file && request.method === "DELETE") {
     await env.DB.prepare("UPDATE activate_ri_media SET state = 'deleting', updated_at = ? WHERE event_id = ? AND id = ?")
       .bind(new Date().toISOString(), env.ACTIVATE_RI_EVENT_ID, row.id).run();
@@ -91,6 +93,8 @@ async function uploadMedia(request: Request, env: Env, owner: ActivatorIdentity)
   const validation = validateMediaFile({ name: filename, type: contentType, size });
   if (validation) return failure(validation, size > (contentType.startsWith("image/") ? mediaLimits.photoBytes : mediaLimits.videoBytes) ? 413 : 400);
   if (!request.body) return failure("Choose a file that is not empty.", 400);
+  const parkReference = request.headers.get("x-media-park-reference") || null;
+  if (!validateMediaParkReference(parkReference)) return failure("Choose a Rhode Island park from the list, or General — no park.", 400);
 
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
@@ -101,15 +105,16 @@ async function uploadMedia(request: Request, env: Env, owner: ActivatorIdentity)
     object_key: `activator-media/${env.ACTIVATE_RI_EVENT_ID}/${id}`,
     filename, content_type: contentType, kind: contentType.startsWith("image/") ? "photo" : "video",
     size, state: "uploading", created_at: now, updated_at: now, primary_callsign: owner.callsign,
+    park_reference: parkReference,
   };
   // A single SQL statement reserves both limits, including in-flight uploads,
   // so parallel requests cannot each pass an outdated quota check.
   const reserved = await env.DB.prepare(`INSERT INTO activate_ri_media
-    (id, event_id, activator_id, object_key, filename, content_type, kind, size, state, created_at, updated_at)
-    SELECT ?, ?, ?, ?, ?, ?, ?, ?, 'uploading', ?, ?
+    (id, event_id, activator_id, object_key, filename, content_type, kind, size, state, created_at, updated_at, park_reference)
+    SELECT ?, ?, ?, ?, ?, ?, ?, ?, 'uploading', ?, ?, ?
     WHERE (SELECT COUNT(*) FROM activate_ri_media WHERE event_id = ? AND activator_id = ?) < ?
       AND (SELECT COALESCE(SUM(size), 0) FROM activate_ri_media WHERE event_id = ? AND activator_id = ?) + ? <= ?`)
-    .bind(id, row.event_id, row.activator_id, row.object_key, filename, contentType, row.kind, size, now, now,
+    .bind(id, row.event_id, row.activator_id, row.object_key, filename, contentType, row.kind, size, now, now, parkReference,
       row.event_id, row.activator_id, mediaLimits.files, row.event_id, row.activator_id, size, mediaLimits.totalBytes).run();
   if (reserved.meta.changes !== 1) return failure("Your gallery is full (50 files or 500 MB). Remove an upload before adding another.", 409);
   try {
@@ -130,6 +135,51 @@ async function uploadMedia(request: Request, env: Env, owner: ActivatorIdentity)
     if (error instanceof MediaUploadError) return failure(error.message, 400);
     throw error;
   }
+}
+
+async function updateMediaPark(
+  request: Request,
+  env: Env,
+  row: MediaRow,
+  audience: "activator" | "admin",
+): Promise<Response> {
+  if (request.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json") {
+    return failure("Expected application/json.", 415);
+  }
+  if (!request.body) return failure("Enter a park reference or null for a general photo or video.", 400);
+  const maximumBytes = 1024;
+  if (Number(request.headers.get("content-length")) > maximumBytes) return failure("Park details are too large.", 413);
+  const reader = request.body.getReader();
+  const bytes = new Uint8Array(maximumBytes);
+  let size = 0;
+  let payload: unknown;
+  try {
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      if (size + chunk.value.byteLength > maximumBytes) {
+        await reader.cancel();
+        return failure("Park details are too large.", 413);
+      }
+      bytes.set(chunk.value, size);
+      size += chunk.value.byteLength;
+    }
+    payload = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(0, size)));
+  } catch {
+    return failure("Expected valid JSON.", 400);
+  } finally {
+    reader.releaseLock();
+  }
+  if (!payload || typeof payload !== "object" || Array.isArray(payload) || !("parkReference" in payload) ||
+    !validateMediaParkReference(payload.parkReference)) {
+    return failure("Choose a Rhode Island park from the list, or General — no park.", 400);
+  }
+  const updatedAt = new Date().toISOString();
+  const updated = await env.DB.prepare(`UPDATE activate_ri_media SET park_reference = ?, updated_at = ?
+    WHERE event_id = ? AND id = ? AND activator_id = ? AND state = 'ready'`)
+    .bind(payload.parkReference, updatedAt, env.ACTIVATE_RI_EVENT_ID, row.id, row.activator_id).run();
+  if (updated.meta.changes !== 1) return failure("Photo or video not found.", 404);
+  return json({ ok: true, media: serializeMedia({ ...row, park_reference: payload.parkReference, updated_at: updatedAt }, audience) });
 }
 
 type ByteRange = { offset: number; length: number };

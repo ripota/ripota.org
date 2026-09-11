@@ -10,6 +10,18 @@ The private activator portal has a **Photos & videos** page at
 drop them into the selection, review their selection, and upload sequentially.
 Each file has progress, cancellation, and retry controls. The saved gallery
 supports photos, native video controls, original downloads, and confirmed deletion.
+Park tagging is optional. **General — no park** is the default; choosing a park
+sets the initial choice for newly selected files, and each queued file can be
+assigned a different park before uploading. The gallery shows the park name and
+reference or General, and both the uploader and organizers can correct or clear
+a saved file's park. Any park in the pinned Rhode Island reference index is
+available, including parks outside the activator's submitted plan.
+
+The displayed date is explicitly labeled **Uploaded**. The park is an explicit
+association supplied by the uploader or organizer; it is not inferred from
+upload time, a planned stop, GPS, or embedded camera metadata. Changing the park
+preserves the original upload timestamp and stored file.
+
 If the upload rate limit is reached, the batch pauses and preserves the remaining
 selection so the activator can resume after the displayed wait.
 The organizer dashboard has a **Photos & Videos** tab with all event uploads,
@@ -50,10 +62,14 @@ audio file types, and arbitrary attachments are not accepted.
 attach a public custom domain. There are no presigned public URLs. D1 migration
 `0031_activator_media.sql` stores metadata in `activate_ri_media`; object keys
 contain event and random IDs, never the filename or an activator's email.
+Migration `0032_media_park_reference.sql` adds a nullable `park_reference` column;
+existing uploads remain general until explicitly associated with a park.
 
 `POST /api/activate-ri-2026/activator/media` accepts a raw file body, its
 `Content-Type`, a required `Content-Length`, and an URI-encoded
 `X-Media-Filename`. The browser supplies the length when XHR sends a File.
+The optional `X-Media-Park-Reference` header associates a known Rhode Island park;
+an absent or empty header keeps the upload general.
 Authentication and the trusted Origin are checked before writes. A single SQL
 statement reserves both count and byte quotas, including concurrent uploads.
 The Worker inspects at most 4 KiB of header data and pipes bytes through a
@@ -66,6 +82,13 @@ opaque `nextCursor` for the next page. `GET` and `HEAD` on either audience's
 uses single byte ranges with `206`/`416` responses; `If-Range` falls back to the
 complete representation. `?download=1` sets attachment disposition. All file,
 metadata, and error responses have private/no-store and nosniff headers.
+
+`PATCH /api/activate-ri-2026/{activator|admin}/media/{id}` accepts JSON
+`{ "parkReference": "US-2868" }`, or `{ "parkReference": null }` to clear the park.
+Ownership/organizer authorization and trusted Origin checks apply. Requests are
+limited to 1 KiB, and only ready records can change. This updates D1 metadata
+without rewriting the R2 object. Responses and gallery records include
+`parkReference`.
 
 `DELETE /media/{id}` checks the trusted Origin and ownership or organizer role.
 It first hides the row, then deletes the object, then removes metadata. A failed
@@ -110,6 +133,7 @@ that have since been deleted; verify media access after restoration.
 ## Verification and references
 
 - `src/lib/activate-ri/media.test.ts`: shared input validation and limits.
+- `src/lib/activate-ri/media-parks.test.ts`: optional park references and labels.
 - `src/worker/media.test.ts`: signatures, streaming, cancellation, exact lengths.
 - `src/worker/media.acceptance.test.ts`: SQLite migrations, authorization,
   quotas, ownership, failure recovery, and range responses.
