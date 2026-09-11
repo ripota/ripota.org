@@ -37,7 +37,7 @@ const {
   resultsMode = false,
 } = Astro.props;
 const eventParks = parks as PublicParkSummary[];
-const isEventMap = variant === "coverage" || variant === "volunteer";
+const isEventMap = variant === "coverage" || variant === "volunteer" || variant === "on-air";
 const mapItems = buildReferenceMapItems({
   references,
   displayReferences,
@@ -56,7 +56,7 @@ const potaLegendItems = [
   { label: "Still needed", color: "#707b78", statuses: ["needed"] },
 ];
 const legendItems: readonly { label: string; color: string; statuses: readonly string[]; symbol?: string }[] =
-  isEventMap ? (resultsMode ? potaLegendItems : referenceMapLegendItems) : [];
+  isEventMap ? (resultsMode || variant === "on-air" ? potaLegendItems : referenceMapLegendItems) : [];
 const showLegend = legendPlacement !== "none" && legendItems.length > 0;
 const showCaption = caption.trim().length > 0;
 const dataId = `${id}-data`;
@@ -74,8 +74,8 @@ const payload = JSON.stringify({
   parks: isEventMap ? eventParks : [],
   coverageStatusLabels,
   referenceMapStatusColors,
-  resultsMode,
-  coverageState: isEventMap && !resultsMode ? "loading" : undefined,
+  resultsMode: variant === "on-air" ? false : resultsMode,
+  coverageState: isEventMap && variant !== "on-air" && !resultsMode ? "loading" : undefined,
   potaStatusColors: {
     confirmed: "#2d7a4b",
     observed: "#2d7a4b",
@@ -114,7 +114,7 @@ const payload = JSON.stringify({
       </div>
     )
   }
-  <div id={id} class="ri-reference-map" data-reference-map data-map-data-id={dataId}></div>
+  <div id={id} class="ri-reference-map" data-reference-map data-map-data-id={dataId} data-map-mode={variant === "on-air" ? "live" : undefined}></div>
   {
     variant === "directory" && (
       <>
@@ -210,8 +210,11 @@ const payload = JSON.stringify({
       </div>
     )
   }
-  {isEventMap && !resultsMode && (
+  {isEventMap && variant !== "on-air" && !resultsMode && (
     <p class="map-preview__caption" data-map-coverage-status role="status">Loading the event schedule…</p>
+  )}
+  {variant === "on-air" && (
+    <p class="map-preview__caption" data-map-live-status role="status">Loading parks on air…</p>
   )}
   {showCaption && <figcaption class="map-preview__caption">{caption}</figcaption>}
 </figure>
@@ -221,9 +224,11 @@ const payload = JSON.stringify({
   import L from "leaflet";
   import { parkGuidePath } from "../lib/parks/directory";
   import { fetchPublicActivationStops } from "../lib/activate-ri/public-stops-client";
-  import { livePotaSpotsStore } from "../lib/pota/live-spots-store";
+  import { livePotaSpotsStore, type LivePotaSpotsState } from "../lib/pota/live-spots-store";
   import { shouldWarnAboutStaleSnapshot } from "../lib/pota/live-spots-client";
   import { potaParkStatusStore } from "../lib/activate-ri/pota-status-store";
+  import { subscribeEventPhase } from "../lib/activate-ri/event-phase";
+  import { onAirViewForPhase } from "../lib/pota/on-air-view";
   import type { PublicParkPotaStatus } from "../lib/activate-ri/pota-status-client";
   import { potaSpotReferenceEvidence, type LivePotaSpot } from "../lib/pota/spots";
   import { formatRadioDetails } from "../lib/pota/radio-details";
@@ -279,7 +284,7 @@ const payload = JSON.stringify({
   };
 
   type MapPayload = {
-    variant: "home" | "directory" | "coverage" | "volunteer";
+    variant: "home" | "directory" | "coverage" | "volunteer" | "on-air";
     attribution: string;
     sourceBaseUrl: string;
     canonicalGeometryUrl?: string;
@@ -290,6 +295,7 @@ const payload = JSON.stringify({
     referenceMapStatusColors: Record<string, string>;
     resultsMode: boolean;
     coverageState?: "loading" | "ready" | "unavailable";
+    eventStatusState?: "loading" | "ready" | "unavailable";
     potaStatusColors: Record<string, string>;
   };
 
@@ -338,19 +344,45 @@ const payload = JSON.stringify({
     map.setView([41.58, -71.48], 9);
 
     for (const item of payload.items) {
-      const layers = renderMapItem(map, bounds, payload, item);
-      layersByReference.set(item.reference, layers);
+      if (payload.variant === "on-air") {
+        // Keep the Rhode Island view useful even when there are zero or one spots.
+        if (item.marker) bounds.extend([item.marker.latitude, item.marker.longitude]);
+      } else {
+        const layers = renderMapItem(map, bounds, payload, item);
+        layersByReference.set(item.reference, layers);
+      }
     }
 
     fitReferenceBounds(map, bounds, payload);
     // Phase views can become visible long after this static page initialized.
-    if (mapElement.closest("[data-event-view]")) {
-      new ResizeObserver(() => {
-        if (mapElement.clientWidth > 0 && mapElement.clientHeight > 0) {
+    if (payload.variant === "on-air" || mapElement.closest("[data-event-view]")) {
+      let hasMapInteraction = false;
+      let previousWidth = 0;
+      let previousHeight = 0;
+      let previousAttributionHeight = 0;
+      const attributionElement = payload.variant === "on-air" ? map.attributionControl.getContainer() : undefined;
+      if (payload.variant === "on-air") {
+        const rememberInteraction = () => { hasMapInteraction = true; };
+        mapElement.addEventListener("pointerdown", rememberInteraction, { once: true });
+        mapElement.addEventListener("keydown", rememberInteraction, { once: true });
+      }
+      const resizeObserver = new ResizeObserver(() => {
+        const width = mapElement.clientWidth;
+        const height = mapElement.clientHeight;
+        const attributionHeight = attributionElement?.clientHeight ?? 0;
+        if (width > 0 && height > 0 &&
+          (width !== previousWidth || height !== previousHeight || attributionHeight !== previousAttributionHeight)) {
+          previousWidth = width;
+          previousHeight = height;
+          previousAttributionHeight = attributionHeight;
           map.invalidateSize();
-          fitReferenceBounds(map, bounds, payload);
+          // Let async progress and responsive layout settle around the full RI
+          // extent, then retain the visitor's chosen view after interaction.
+          if (payload.variant !== "on-air" || !hasMapInteraction) fitReferenceBounds(map, bounds, payload);
         }
-      }).observe(mapElement);
+      });
+      resizeObserver.observe(mapElement);
+      if (attributionElement) resizeObserver.observe(attributionElement);
     }
     setupPopupActions(mapElement);
     updateMapLegend(mapElement, payload);
@@ -370,7 +402,9 @@ const payload = JSON.stringify({
       });
     }
 
-    if (payload.variant === "home" || payload.resultsMode) {
+    if (payload.variant === "on-air") {
+      setupOnAirMap(mapElement, map, bounds, payload, layersByReference);
+    } else if (payload.variant === "home" || payload.resultsMode) {
       livePotaSpotsStore.subscribe((state) => {
         if (state.status !== "loading") {
           updateLiveSpots(
@@ -383,7 +417,7 @@ const payload = JSON.stringify({
       });
       livePotaSpotsStore.start();
     }
-    if (payload.resultsMode) {
+    if (payload.resultsMode && payload.variant !== "on-air") {
       potaParkStatusStore.subscribe((state) => {
         if (state.status === "ready") {
           updatePotaStatuses(mapElement, payload, layersByReference, state.snapshot.parks);
@@ -392,6 +426,98 @@ const payload = JSON.stringify({
       potaParkStatusStore.start();
     } else if (payload.variant === "coverage" || payload.variant === "volunteer") {
       refreshLiveCoverage(mapElement, payload, layersByReference);
+    }
+  }
+
+  function setupOnAirMap(
+    mapElement: HTMLElement,
+    map: L.Map,
+    bounds: L.LatLngBounds,
+    payload: MapPayload,
+    layersByReference: Map<string, MapItemLayers>,
+  ): void {
+    let liveState: LivePotaSpotsState = { status: "loading" };
+    let mode: "event" | "live" | undefined;
+    let unsubscribeEventStatus: (() => void) | undefined;
+    const statusElement = mapElement.closest(".map-preview")?.querySelector<HTMLElement>("[data-map-live-status]");
+
+    const updateStatus = () => {
+      if (!statusElement) return;
+      const unavailable = liveState.status === "unavailable" ||
+        (liveState.status === "ready" && shouldWarnAboutStaleSnapshot(liveState.snapshot));
+      const hasLiveParks = payload.items.some((item) => (item.liveSpots?.length ?? 0) > 0);
+      const eventMessage = payload.eventStatusState === "loading"
+        ? "Loading event progress…"
+        : payload.eventStatusState === "unavailable"
+          ? "Event progress is unavailable. Park locations are still shown."
+          : "";
+      const liveMessage = liveState.status === "loading"
+        ? "Loading parks on air…"
+        : unavailable
+          ? "Live spots are unavailable. Try refreshing this page."
+          : hasLiveParks ? "" : "No Rhode Island parks are on air right now.";
+      statusElement.textContent = [eventMessage, liveMessage].filter(Boolean).join(" ");
+      statusElement.hidden = !statusElement.textContent;
+    };
+    const reconcileLayers = () => {
+      for (const item of payload.items) {
+        const layers = layersByReference.get(item.reference);
+        const visible = mode === "event" || (item.liveSpots?.length ?? 0) > 0;
+        if (!visible && layers) {
+          removeMapItemLayers(map, layers);
+          layersByReference.delete(item.reference);
+        } else if (visible && !layers) {
+          layersByReference.set(item.reference, renderMapItem(map, bounds, payload, item));
+        }
+        if (visible) updateMapItemLayers(payload, item, layersByReference.get(item.reference));
+      }
+      updateMapLegend(mapElement, payload);
+      updateStatus();
+    };
+
+    subscribeEventPhase((phase) => {
+      const nextMode = onAirViewForPhase(phase).mapMode;
+      if (mode === nextMode) return;
+      mode = nextMode;
+      payload.resultsMode = mode === "event";
+      mapElement.dataset.mapMode = mode;
+      map.closePopup();
+      layersByReference.forEach((layers) => removeMapItemLayers(map, layers));
+      layersByReference.clear();
+      unsubscribeEventStatus?.();
+      unsubscribeEventStatus = undefined;
+      if (mode === "event") {
+        unsubscribeEventStatus = potaParkStatusStore.subscribe((state) => {
+          payload.eventStatusState = state.status;
+          updatePotaStatuses(mapElement, payload, layersByReference,
+            state.status === "ready" ? state.snapshot.parks : []);
+          updateStatus();
+        });
+        potaParkStatusStore.start();
+      } else {
+        payload.eventStatusState = undefined;
+        for (const item of payload.items) item.potaStatus = undefined;
+      }
+      reconcileLayers();
+      map.invalidateSize();
+    });
+
+    livePotaSpotsStore.subscribe((state) => {
+      liveState = state;
+      updateLiveSpots(
+        payload,
+        layersByReference,
+        state.status === "ready" && !shouldWarnAboutStaleSnapshot(state.snapshot)
+          ? state.snapshot.spots : [],
+      );
+      reconcileLayers();
+    });
+    livePotaSpotsStore.start();
+  }
+
+  function removeMapItemLayers(map: L.Map, layers: MapItemLayers): void {
+    for (const layer of [...layers.boundaries, ...layers.markers, ...layers.symbols, ...layers.liveIndicators]) {
+      map.removeLayer(layer);
     }
   }
 
@@ -443,7 +569,7 @@ const payload = JSON.stringify({
         .addTo(map)
         .bindPopup(() => popupHtml(payload, item));
       markers.push(marker);
-      if (payload.variant === "home" || payload.resultsMode) {
+      if (payload.variant === "home" || payload.variant === "on-air" || payload.resultsMode) {
         const indicator = L.marker([item.marker.latitude, item.marker.longitude], {
           icon: L.divIcon({
             className: "reference-map-live-indicator",
@@ -459,7 +585,7 @@ const payload = JSON.stringify({
       }
       if (payload.resultsMode) {
         const symbol = L.marker([item.marker.latitude, item.marker.longitude], {
-          icon: resultStatusIcon(item.potaStatus?.status),
+          icon: resultStatusIcon(item.potaStatus?.status, payload.variant === "on-air"),
           interactive: false,
           keyboard: false,
         }).addTo(map);
@@ -473,12 +599,14 @@ const payload = JSON.stringify({
 
   function itemStyle(payload: MapPayload, item: MapItem) {
     const isDiscoveryMap = payload.variant === "home" || payload.variant === "directory";
-    const isLive = payload.resultsMode
+    const isLive = payload.variant === "on-air"
+      ? (item.liveSpots?.length ?? 0) > 0
+      : payload.resultsMode
       ? item.potaStatus?.live === true
       : payload.variant === "home" && (item.liveSpots?.length ?? 0) > 0;
     const resultColor = item.potaStatus
       ? payload.potaStatusColors[item.potaStatus.status]
-      : undefined;
+      : payload.variant === "on-air" && payload.resultsMode ? "#9aa6a1" : undefined;
     const color = isLive && !payload.resultsMode
       ? "#6f4300"
       : resultColor ?? item.coverage?.color ?? "#172026";
@@ -545,16 +673,17 @@ const payload = JSON.stringify({
       }
     });
     layers.symbols.forEach((symbol) => {
-      symbol.setIcon(resultStatusIcon(item.potaStatus?.status));
+      symbol.setIcon(resultStatusIcon(item.potaStatus?.status, payload.variant === "on-air"));
     });
     layers.liveIndicators.forEach((indicator) => {
       indicator.getElement()?.classList.toggle("reference-map-live-indicator--active", style.isLive);
     });
   }
 
-  function resultStatusIcon(status: PublicParkPotaStatus["status"] | undefined): L.DivIcon {
-    const activityStatus = status === "confirmed" || status === "observed" ? "activated" : status ?? "needed";
-    const symbol = { activated: "✓", scheduled: "", needed: "—" }[activityStatus];
+  function resultStatusIcon(status: PublicParkPotaStatus["status"] | undefined, showUnknown = false): L.DivIcon {
+    const activityStatus = status === "confirmed" || status === "observed"
+      ? "activated" : status ?? (showUnknown ? "unknown" : "needed");
+    const symbol = { activated: "✓", scheduled: "", needed: "—", unknown: "" }[activityStatus];
     return L.divIcon({
       className: `reference-map-status-symbol reference-map-status-symbol--${activityStatus}`,
       html: `<span aria-hidden="true">${symbol}</span>`,
@@ -570,7 +699,7 @@ const payload = JSON.stringify({
   ): void {
     const spotsByReference = new Map<string, LivePotaSpot[]>();
     for (const spot of spots) {
-      const spotReferences = payload.resultsMode
+      const spotReferences = payload.resultsMode || payload.variant === "on-air"
         ? potaSpotReferenceEvidence(spot).map((evidence) => evidence.parkReference)
         : [spot.parkReference];
       for (const reference of spotReferences) {
@@ -606,6 +735,17 @@ const payload = JSON.stringify({
     payload: MapPayload,
   ): void {
     if (bounds.isValid()) {
+      if (payload.variant === "on-air") {
+        // Attribution wraps on narrow maps: keep southern parks above it and
+        // leave room for their full markers, including after fonts settle.
+        const attributionHeight = map.attributionControl.getContainer()?.clientHeight ?? 0;
+        map.fitBounds(bounds, {
+          maxZoom: referenceMapFitBoundsOptions.maxZoom,
+          paddingTopLeft: [16, 16],
+          paddingBottomRight: [16, Math.max(48, attributionHeight) + 16],
+        });
+        return;
+      }
       const wideDirectoryMap =
         payload.variant === "directory" &&
         window.matchMedia("(min-width: 981px)").matches;
@@ -689,8 +829,10 @@ const payload = JSON.stringify({
       return;
     }
 
-    const visibleStatuses = new Set(payload.resultsMode
-      ? payload.items.flatMap((item) => [item.potaStatus?.status, item.potaStatus?.live ? "live" : undefined]).filter(Boolean)
+    const visibleStatuses = new Set(payload.variant === "on-air" && !payload.resultsMode
+      ? payload.items.some((item) => (item.liveSpots?.length ?? 0) > 0) ? ["live"] : []
+      : payload.resultsMode
+      ? payload.items.flatMap((item) => [item.potaStatus?.status, itemStyle(payload, item).isLive ? "live" : undefined]).filter(Boolean)
       : payload.items.map((item) => item.coverage?.status).filter(Boolean));
 
     mapPreview.querySelectorAll<HTMLElement>("[data-map-legend-item]").forEach((item) => {
@@ -750,6 +892,15 @@ const payload = JSON.stringify({
   }
 
   function popupHtml(payload: MapPayload, item: MapItem): string {
+    if (payload.variant === "on-air" && !payload.resultsMode) {
+      return `
+        <strong>${escapeHtml(item.reference)}</strong>
+        <span>${escapeHtml(item.name)}</span>
+        <em>${escapeHtml(detailLine(item))}</em>
+        ${liveSpotsHtml(item)}
+        <span class="map-popup__links">${localFieldGuideLink(item)}</span>
+      `;
+    }
     if (payload.variant === "home" || payload.variant === "directory") {
       return `
         <strong>${escapeHtml(item.reference)}</strong>
@@ -765,12 +916,17 @@ const payload = JSON.stringify({
 
     if (payload.resultsMode) {
       const status = item.potaStatus;
+      const unknownEventStatus = payload.variant === "on-air" && !status;
+      const statusLabel = unknownEventStatus
+        ? payload.eventStatusState === "loading" ? "Loading event progress…" : "Event progress unavailable"
+        : potaStatusLabel(status?.status);
       return `
         <strong>${escapeHtml(item.reference)}</strong>
         <span>${escapeHtml(item.name)}</span>
         <em>${escapeHtml(detailLine(item))}</em>
-        <span><b>${escapeHtml(potaStatusLabel(status?.status))}</b>${status?.live ? " · On air now" : ""}</span>
-        ${potaEvidenceHtml(status)}
+        <span><b>${escapeHtml(statusLabel)}</b>${itemStyle(payload, item).isLive ? " · On air now" : ""}</span>
+        ${payload.variant === "on-air" ? liveSpotsHtml(item) : ""}
+        ${unknownEventStatus ? "" : potaEvidenceHtml(status)}
         ${status?.scheduled ? "<span>Event coverage is also scheduled.</span>" : ""}
         <span class="map-popup__links">
           <a href="/activate-ri-2026/parks/">Open full evidence list</a>

@@ -31,13 +31,17 @@ describe("OnAirNow", () => {
     expect(homepageSource).not.toContain("PreviewGate");
     expect(onAirNowSource).not.toContain("isPreviewFeatureEnabled");
     expect(referenceMapSource).not.toContain("isPreviewFeatureEnabled");
-    expect(referenceMapSource).toContain('if (payload.variant === "home" || payload.resultsMode)');
+    expect(referenceMapSource).toContain('payload.variant === "home"');
   });
 
-  it("offers a dedicated activity dashboard without a reference map", () => {
+  it("keeps live spots before the map in document order and offers event progress", () => {
     expect(onAirPageSource).toContain('canonicalPath="/on-air/"');
     expect(onAirPageSource).toContain('<OnAirNow variant="full" />');
-    expect(onAirPageSource).not.toContain("ReferenceMap");
+    expect(onAirPageSource).toContain("<OnAirEventProgress />");
+    expect(onAirPageSource).toContain('variant="on-air"');
+    expect(onAirPageSource.indexOf('<OnAirNow variant="full" />')).toBeLessThan(
+      onAirPageSource.indexOf('<ReferenceMap\n'),
+    );
     expect(onAirPageSource).not.toContain("On-air actions");
     expect(onAirPageSource).not.toContain("What this page shows");
     expect(onAirPageSource).toContain("official POTA app");

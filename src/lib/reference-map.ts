@@ -6,7 +6,7 @@ import type {
   PublicParkSummary,
 } from "./activate-ri/types";
 
-export type ReferenceMapVariant = "home" | "directory" | "coverage" | "volunteer";
+export type ReferenceMapVariant = "home" | "directory" | "coverage" | "volunteer" | "on-air";
 
 export type ReferenceMapReference = {
   reference: string;

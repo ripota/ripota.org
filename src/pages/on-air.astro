@@ -2,6 +2,8 @@
 import Footer from "../components/Footer.astro";
 import Notice from "../components/Notice.astro";
 import OnAirNow from "../components/OnAirNow.astro";
+import OnAirEventProgress from "../components/OnAirEventProgress.astro";
+import ReferenceMap from "../components/ReferenceMap.astro";
 import SiteHeader from "../components/SiteHeader.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
 ---
@@ -22,6 +24,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
             Live spots from the <a href="https://pota.app/">official POTA app</a>.
           </p>
         </div>
+        <OnAirEventProgress />
         <div
           class="on-air-hero__spots"
           id="current-spots"
@@ -30,6 +33,16 @@ import BaseLayout from "../layouts/BaseLayout.astro";
           hidden
         >
           <OnAirNow variant="full" />
+        </div>
+        <div class="on-air-hero__map">
+          <ReferenceMap
+            id="on-air-map"
+            variant="on-air"
+            title="Rhode Island park activity map"
+            caption=""
+            legendPlacement="overlay"
+            showBoundaries={false}
+          />
         </div>
       </div>
     </section>

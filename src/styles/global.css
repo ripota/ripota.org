@@ -539,11 +539,19 @@ p {
 
 .on-air-hero__inner {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas: "heading map" "spots spots";
   gap: clamp(1.5rem, 3vw, 2.5rem);
 }
 
+.on-air-hero__inner:has([data-on-air-event-progress]:not([hidden])) {
+  grid-template-areas: "heading map" "progress map" "spots spots";
+}
+
 .on-air-hero__heading {
+  grid-area: heading;
   display: grid;
+  align-content: center;
   gap: 0.8rem;
   min-width: 0;
 }
@@ -554,7 +562,7 @@ p {
 
 .on-air-hero h1 {
   max-width: none;
-  font-size: clamp(3.2rem, 6vw, 5.4rem);
+  font-size: clamp(2.6rem, 4.8vw, 4.6rem);
 }
 
 .on-air-hero__copy {
@@ -568,11 +576,103 @@ p {
 }
 
 .on-air-hero__spots {
+  grid-area: spots;
   min-width: 0;
 }
 
 .on-air-hero__spots .on-air-now {
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.22);
+}
+
+.on-air-hero__map {
+  grid-area: map;
+  min-width: 0;
+}
+
+.on-air-hero__map .map-preview {
+  grid-template-rows: minmax(0, 1fr) auto;
+  margin: 0;
+  height: 100%;
+  min-height: 360px;
+}
+
+.on-air-hero__map .ri-reference-map {
+  height: 100%;
+  min-height: 320px;
+}
+
+.on-air-event-progress {
+  grid-area: progress;
+  display: grid;
+  align-self: end;
+  gap: 0.5rem;
+  padding: 1rem 1.2rem;
+  border: 1px solid color-mix(in srgb, var(--text-on-hero) 22%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-brand) 78%, transparent);
+}
+
+.on-air-event-progress__heading {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.25rem 1rem;
+  font-size: 0.95rem;
+}
+
+.on-air-event-progress__heading a {
+  color: var(--text-on-hero);
+  font-weight: 850;
+}
+
+.on-air-event-progress progress {
+  width: 100%;
+  height: 1.1rem;
+  accent-color: #65b87e;
+}
+
+.on-air-event-progress__status {
+  color: color-mix(in srgb, var(--text-on-hero) 86%, transparent);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 1000px) {
+  .on-air-hero {
+    padding-block: 1.5rem;
+  }
+
+  .on-air-hero__inner,
+  .on-air-hero__inner:has([data-on-air-event-progress]:not([hidden])) {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "heading" "progress" "spots" "map";
+    gap: 1rem;
+  }
+
+  .on-air-hero__inner:not(:has([data-on-air-event-progress]:not([hidden]))) {
+    grid-template-areas: "heading" "spots" "map";
+  }
+
+  .on-air-hero__heading {
+    gap: 0.5rem;
+  }
+
+  .on-air-hero h1 {
+    font-size: clamp(2rem, 6vw, 3rem);
+  }
+
+  .on-air-hero__copy {
+    font-size: 1rem;
+  }
+
+  .on-air-event-progress {
+    padding: 0.8rem 1rem;
+  }
+
+  .on-air-hero__map .map-preview {
+    height: 400px;
+    min-height: 0;
+  }
 }
 
 .resource-copy {

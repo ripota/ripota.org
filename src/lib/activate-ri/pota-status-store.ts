@@ -24,7 +24,8 @@ export function createPotaParkStatusStore(
   let state: PotaParkStatusState = { status: "loading" };
   let lastSnapshot: PublicPotaParkStatusSnapshot | undefined;
   let refreshInProgress: Promise<void> | undefined;
-  let started = false;
+  let pollingRuntime: PotaParkStatusPollingRuntime | undefined;
+  let refreshOnStart = true;
 
   const publish = (next: PotaParkStatusState) => {
     state = next;
@@ -47,23 +48,29 @@ export function createPotaParkStatusStore(
       });
     return refreshInProgress;
   };
+  const refreshWhileObserved = () => {
+    if (listeners.size > 0 && pollingRuntime?.isVisible()) {
+      refreshOnStart = false;
+      void refresh();
+    }
+  };
 
   return {
     subscribe(listener: Listener): () => void {
       listeners.add(listener);
       listener(state);
-      return () => listeners.delete(listener);
+      return () => {
+        listeners.delete(listener);
+        if (listeners.size === 0) refreshOnStart = true;
+      };
     },
     start(runtime: PotaParkStatusPollingRuntime = browserRuntime()): void {
-      if (started) return;
-      started = true;
-      if (runtime.isVisible()) void refresh();
-      runtime.setInterval(() => {
-        if (runtime.isVisible()) void refresh();
-      }, refreshIntervalMilliseconds);
-      runtime.onVisibilityChange(() => {
-        if (runtime.isVisible()) void refresh();
-      });
+      if (!pollingRuntime) {
+        pollingRuntime = runtime;
+        runtime.setInterval(refreshWhileObserved, refreshIntervalMilliseconds);
+        runtime.onVisibilityChange(refreshWhileObserved);
+      }
+      if (refreshOnStart) refreshWhileObserved();
     },
     refresh,
   };

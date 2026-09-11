@@ -24,6 +24,7 @@ const test = base.extend<{ feed: Feed }, { onAirOrigin: string }>({
       json: { ok: true, spots: feed.spots, generatedAt: checkedAt, stale: false },
     }));
     await context.route("**/api/auth/session", route => route.fulfill({ json: { ok: true, signedIn: false } }));
+    await context.route("**/api/activate-ri-2026/public/park-status", route => route.fulfill({ status: 503 }));
     await context.route("**/api/analytics/events", route => route.fulfill({ status: 202, json: { ok: true } }));
     await use(feed);
   },

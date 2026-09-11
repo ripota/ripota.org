@@ -1,0 +1,62 @@
+---
+import { activateRi2026Event } from "../data/activate-ri-2026/event";
+---
+
+<section class="on-air-event-progress" aria-label="Activate All RI progress" data-on-air-event-progress hidden>
+  <div class="on-air-event-progress__heading">
+    <a href="/activate-ri-2026/">Activate All RI</a>
+    <strong data-on-air-event-count>Loading…</strong>
+  </div>
+  <progress aria-label="Parks activated" max={activateRi2026Event.goalParkCount} data-on-air-event-bar>
+    Loading event progress
+  </progress>
+  <p class="on-air-event-progress__status" data-on-air-event-status aria-live="polite">Loading event progress…</p>
+</section>
+
+<script>
+  import { subscribeEventPhase } from "../lib/activate-ri/event-phase";
+  import { potaParkStatusStore } from "../lib/activate-ri/pota-status-store";
+  import { onAirViewForPhase } from "../lib/pota/on-air-view";
+
+  document.querySelectorAll<HTMLElement>("[data-on-air-event-progress]").forEach((root) => {
+    const count = root.querySelector<HTMLElement>("[data-on-air-event-count]");
+    const progress = root.querySelector("[data-on-air-event-bar]") as HTMLProgressElement | null;
+    const status = root.querySelector<HTMLElement>("[data-on-air-event-status]");
+    let unsubscribe: (() => void) | undefined;
+
+    subscribeEventPhase((phase) => {
+      const { showEventProgress } = onAirViewForPhase(phase);
+      root.hidden = !showEventProgress;
+      if (!showEventProgress) {
+        unsubscribe?.();
+        unsubscribe = undefined;
+        return;
+      }
+      if (unsubscribe) return;
+      unsubscribe = potaParkStatusStore.subscribe((state) => {
+        if (state.status === "ready") {
+          const { snapshot, refreshFailed } = state;
+          // Match the overview: logged activations and observed activity count.
+          const activated = snapshot.summary.confirmed + snapshot.summary.observedNotConfirmed;
+          if (count) count.textContent = `${activated} / ${snapshot.summary.total} parks activated`;
+          if (progress) {
+            progress.max = snapshot.summary.total;
+            progress.value = activated;
+            progress.textContent = `${activated} of ${snapshot.summary.total}`;
+          }
+          const asOf = new Intl.DateTimeFormat("en-US", {
+            hour: "numeric", minute: "2-digit", timeZone: "UTC", timeZoneName: "short",
+          }).format(new Date(snapshot.generatedAt));
+          if (status) status.textContent = snapshot.warning ?? (refreshFailed || snapshot.stale
+            ? `Showing the last successful update from ${asOf}.`
+            : `Updated ${asOf}.`);
+        } else if (state.status === "unavailable") {
+          if (count) count.textContent = "Progress unavailable";
+          progress?.removeAttribute("value");
+          if (status) status.textContent = "Event progress is temporarily unavailable. Live spots are shown below.";
+        }
+      });
+      potaParkStatusStore.start();
+    });
+  });
+</script>
