@@ -84,6 +84,9 @@ async function handleMedia(request: Request, env: Env): Promise<Response> {
     return failure("Photo or video not found.", 404);
   }
   if (file && ["GET", "HEAD"].includes(request.method) && row.state === "ready") return serveMedia(request, env.ACTIVATOR_MEDIA, row);
+  if (!file && request.method === "GET" && row.state === "ready") {
+    return json({ ok: true, media: serializeMedia(row, audience, viewerActivatorId) });
+  }
   if (!file && request.method === "PATCH" && row.state === "ready") return updateMediaDetails(request, env, row, audience, viewerActivatorId);
   if (!file && request.method === "DELETE") {
     await env.DB.prepare("UPDATE activate_ri_media SET state = 'deleting', updated_at = ? WHERE event_id = ? AND id = ?")
@@ -126,7 +129,15 @@ async function handlePublicMedia(request: Request, env: Env, url: URL, id?: stri
       nextCursor: result.results.length > 50 && last ? `${last.created_at}|${last.id}` : null,
     });
   }
-  if (resource !== "file" && resource !== "thumbnail") return failure("Not found", 404);
+  if (!resource) {
+    const row = await env.DB.prepare(`${mediaSelect}
+      WHERE m.event_id = ? AND m.id = ? AND m.state = 'ready'`)
+      .bind(env.ACTIVATE_RI_EVENT_ID, id).first<MediaRow & MediaAuthor>();
+    if (!row) return failure("Photo or video not found.", 404);
+    const [admin, activator] = await Promise.all([requireAdmin(request, env), requireActivator(request, env)]);
+    return json({ ok: true, media: serializeMedia(row, "public",
+      activator instanceof Response ? null : activator.activatorId, !(admin instanceof Response)) });
+  }
   const row = await env.DB.prepare(`SELECT * FROM activate_ri_media
     WHERE event_id = ? AND id = ? AND state = 'ready'`)
     .bind(env.ACTIVATE_RI_EVENT_ID, id).first<MediaRow>();

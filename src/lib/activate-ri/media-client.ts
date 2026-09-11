@@ -73,6 +73,12 @@ export function setupMediaWorkspace(root: HTMLElement): void {
   const detailsPreview = root.querySelector<HTMLElement>("[data-media-details-preview]")!;
   const detailDelete = root.querySelector<HTMLButtonElement>("[data-media-detail-delete]")!;
   const detailDownload = root.querySelector<HTMLAnchorElement>("[data-media-download]")!;
+  const copyUrl = root.querySelector<HTMLButtonElement>("[data-media-copy-url]")!;
+  const share = root.querySelector<HTMLButtonElement>("[data-media-share]")!;
+  const shareStatus = root.querySelector<HTMLElement>("[data-media-share-status]")!;
+  const permalinkField = root.querySelector<HTMLElement>("[data-media-permalink-field]")!;
+  const permalink = root.querySelector<HTMLInputElement>("[data-media-permalink]")!;
+  const linkStatus = root.querySelector<HTMLElement>("[data-media-link-status]")!;
   const modals = setupMediaDialogs([detailsDialog, deleteDialog, ...(uploadDialog ? [uploadDialog] : [])]);
   let files: ActivatorMedia[] = [];
   let queue: QueuedFile[] = [];
@@ -93,6 +99,9 @@ export function setupMediaWorkspace(root: HTMLElement): void {
   let listGeneration = 0;
   let listRequest: AbortController | null = null;
   let deferredRefresh = false;
+  let detailRequest: AbortController | null = null;
+  let deferredDetailNavigation = false;
+  let closingDetails = false;
 
   if (publicGallery) {
     filters = readFilters();
@@ -102,13 +111,19 @@ export function setupMediaWorkspace(root: HTMLElement): void {
       navigateFilters({ ...filters, kind: kind === "photo" || kind === "video" ? kind : "" });
     });
     clearFilters?.addEventListener("click", () => navigateFilters({ park: "", kind: "" }));
-    window.addEventListener("popstate", () => changeFilters(readFilters()));
   } else if (personal && new URL(location.href).searchParams.has("mediaScope")) {
     const url = new URL(location.href);
     url.searchParams.delete("mediaScope");
     history.replaceState(null, "", url);
   }
   updateControls();
+  window.addEventListener("popstate", () => {
+    closingDetails = false;
+    if (publicGallery) changeFilters(readFilters());
+    void restoreLinkedMedia();
+  });
+  copyUrl.addEventListener("click", () => void copyPermalink());
+  share.addEventListener("click", () => void sharePermalink());
 
   refresh.addEventListener("click", () => void loadFiles(false, true));
   openUpload?.addEventListener("click", () => {
@@ -149,7 +164,7 @@ export function setupMediaWorkspace(root: HTMLElement): void {
   });
   deleteConfirm.addEventListener("click", () => void deleteFile());
   detailDelete.addEventListener("click", () => {
-    const file = files.find((item) => item.id === detailsTargetId);
+    const file = files.find((item) => item.id === detailsTargetId) ?? detailsOriginal;
     if (!file?.canEdit || !file.editUrl || signedOut) return;
     deleteTarget = file;
     deleteStatus.textContent = "";
@@ -167,9 +182,10 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     event.preventDefault();
     void saveDetails();
   });
-  detailsCancel.addEventListener("click", () => { if (!savingDetails && !deleting) detailsDialog.close(); });
+  detailsCancel.addEventListener("click", () => { if (!savingDetails && !deleting) closeDetails(); });
   detailsDialog.addEventListener("cancel", (event) => {
-    if (savingDetails || deleting) event.preventDefault();
+    event.preventDefault();
+    if (!savingDetails && !deleting) closeDetails();
   });
   detailsDialog.addEventListener("close", () => {
     if (detailsDialog.open) return;
@@ -182,6 +198,7 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     if (uploading) event.preventDefault();
   });
   window.addEventListener("activate-ri:logout", () => {
+    detailRequest?.abort();
     if (publicGallery) {
       browsingNotice = "You have signed out. You can keep browsing the gallery.";
       losePublicEditingAccess();
@@ -198,12 +215,105 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     queueList?.replaceChildren();
     loaded = false;
     deleteDialog.close();
-    detailsDialog.close();
+    closeDetails();
     uploadDialog?.close();
     galleryStatus.textContent = "You have signed out.";
     updateControls();
   });
   void loadFiles();
+  void restoreLinkedMedia();
+
+  function closeDetails(): void {
+    if (closingDetails) return;
+    const url = new URL(location.href);
+    if (detailsTargetId && url.searchParams.get("mediaId") === detailsTargetId) {
+      url.searchParams.delete("mediaId");
+      if (history.state?.mediaDetailsFrom === url.href) {
+        // Keep the dialog open until popstate completes the traversal, so the
+        // next gallery action cannot race with an outstanding history.back().
+        closingDetails = true;
+        history.back();
+        return;
+      }
+      history.replaceState(null, "", url);
+    }
+    detailsDialog.close();
+  }
+
+  async function restoreLinkedMedia(): Promise<void> {
+    detailRequest?.abort();
+    linkStatus.textContent = "";
+    const id = new URL(location.href).searchParams.get("mediaId");
+    if (id === detailsTargetId && detailsDialog.open) return;
+    if (savingDetails || deleting) {
+      deferredDetailNavigation = true;
+      return;
+    }
+    // The URL already describes the destination. A queued close event must
+    // not navigate away from it while its media request is in flight.
+    detailsTargetId = null;
+    deleteDialog.close();
+    detailsDialog.close();
+    if (!id || signedOut) return;
+    if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(id)) {
+      linkStatus.textContent = "This media link is invalid. You can still browse the gallery.";
+      return;
+    }
+    const controller = new AbortController();
+    detailRequest = controller;
+    linkStatus.textContent = "Opening shared media…";
+    try {
+      // Resolve directly: the image may be beyond the current page or filters.
+      const response = await fetch(`${endpoint}/${id}`, {
+        headers: { accept: "application/json" }, cache: "no-store",
+        credentials: anonymousOnly ? "omit" : "same-origin", signal: controller.signal,
+      });
+      const body: unknown = await response.json().catch(() => null);
+      if (controller.signal.aborted || signedOut) return;
+      if (!response.ok || !isRecord(body) || body.ok !== true || !isMedia(body.media) || body.media.id !== id) {
+        throw new Error(response.status === 404 ? "This photo or video is no longer available. You can still browse the gallery."
+          : "Unable to open this media link. Reload the page to try again.");
+      }
+      linkStatus.textContent = "";
+      openDetails(body.media, null, false);
+    } catch (error) {
+      if (!controller.signal.aborted) linkStatus.textContent = errorMessage(error, "Unable to open this media link. Reload the page to try again.");
+    }
+  }
+
+  async function copyPermalink(): Promise<void> {
+    const id = detailsTargetId;
+    if (!id) return;
+    try {
+      await navigator.clipboard.writeText(permalink.value);
+      if (detailsTargetId === id) shareStatus.textContent = "URL copied. Anyone with the link can view this media.";
+    } catch {
+      if (detailsTargetId !== id) return;
+      permalinkField.hidden = false;
+      permalink.focus();
+      permalink.select();
+      shareStatus.textContent = "Copy the selected URL to share this media.";
+    }
+  }
+
+  async function sharePermalink(): Promise<void> {
+    const id = detailsTargetId;
+    if (!id) return;
+    if (!navigator.share) { await copyPermalink(); return; }
+    share.disabled = true;
+    shareStatus.textContent = "";
+    try {
+      await navigator.share({ title: root.querySelector<HTMLElement>("[data-media-details-heading]")!.textContent || "RI POTA media", url: permalink.value });
+    } catch (error) {
+      if (detailsTargetId !== id || (error instanceof DOMException && error.name === "AbortError")) return;
+      permalinkField.hidden = false;
+      permalink.focus();
+      permalink.select();
+      shareStatus.textContent = "Sharing is unavailable. Copy this URL to share it instead.";
+    } finally {
+      share.disabled = false;
+    }
+  }
 
   function readFilters(): MediaFilters {
     const url = new URL(location.href);
@@ -225,12 +335,14 @@ export function setupMediaWorkspace(root: HTMLElement): void {
   function navigateFilters(next: MediaFilters): void {
     if (next.park === filters.park && next.kind === filters.kind) return;
     const url = new URL(location.href);
+    url.searchParams.delete("mediaId");
     for (const [key, value] of [["mediaPark", next.park], ["mediaKind", next.kind]]) {
       if (value) url.searchParams.set(key, value);
       else url.searchParams.delete(key);
     }
     history.pushState(null, "", url);
     changeFilters(next);
+    void restoreLinkedMedia();
   }
 
   function changeFilters(next: MediaFilters): void {
@@ -260,7 +372,7 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     detailsForm.hidden = true;
     detailDelete.hidden = true;
     deleteDialog.close();
-    detailsDialog.close();
+    closeDetails();
     renderGallery();
     updateControls();
   }
@@ -629,8 +741,21 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     container.appendChild(fallback);
   }
 
-  function openDetails(file: ActivatorMedia, trigger: HTMLButtonElement): void {
+  function openDetails(file: ActivatorMedia, trigger: HTMLButtonElement | null, navigate = true): void {
+    detailRequest?.abort();
+    linkStatus.textContent = "";
+    if (navigate) {
+      const url = new URL(location.href);
+      const from = url.href;
+      url.searchParams.set("mediaId", file.id);
+      if (url.href !== from) history.pushState({ mediaDetailsFrom: from }, "", url);
+    }
     detailsTargetId = file.id;
+    const publicUrl = new URL("/activate-ri-2026/media/", location.origin);
+    publicUrl.searchParams.set("mediaId", file.id);
+    permalink.value = publicUrl.href;
+    permalinkField.hidden = true;
+    shareStatus.textContent = "";
     const editable = file.canEdit && !!file.editUrl;
     detailsOriginal = editable ? { ...file } : null;
     detailsDialog.dataset.mediaId = file.id;
@@ -678,7 +803,7 @@ export function setupMediaWorkspace(root: HTMLElement): void {
       files = files.filter((file) => file.id !== target.id);
       renderGallery();
       deleteDialog.close();
-      detailsDialog.close();
+      closeDetails();
       refresh.focus({ preventScroll: true });
       galleryStatus.textContent = "Media deleted.";
     } catch (error) {
@@ -688,6 +813,7 @@ export function setupMediaWorkspace(root: HTMLElement): void {
       deleteConfirm.disabled = false;
       deleteCancel.disabled = false;
       updateControls();
+      if (deferredDetailNavigation) { deferredDetailNavigation = false; void restoreLinkedMedia(); }
       if (deferredRefresh) { deferredRefresh = false; void loadFiles(); }
     }
   }
@@ -695,7 +821,7 @@ export function setupMediaWorkspace(root: HTMLElement): void {
   async function saveDetails(): Promise<void> {
     if (!detailsTargetId || !detailsOriginal || savingDetails || loading || signedOut) return;
     const targetId = detailsTargetId;
-    const target = files.find((file) => file.id === targetId);
+    const target = files.find((file) => file.id === targetId) ?? detailsOriginal;
     if (!target?.canEdit || !target.editUrl) return;
     const original = detailsOriginal;
     const parkReference = editPark.value || null;
@@ -715,7 +841,7 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     if (title !== original.title) changes.title = title;
     if (description !== original.description) changes.description = description;
     if (Object.keys(changes).length === 0) {
-      detailsDialog.close();
+      closeDetails();
       galleryStatus.textContent = "No changes to this media.";
       return;
     }
@@ -747,7 +873,7 @@ export function setupMediaWorkspace(root: HTMLElement): void {
         renderQueueItem(item);
       }
       renderGallery();
-      detailsDialog.close();
+      closeDetails();
       galleryStatus.textContent = "Details saved.";
       if (publicGallery) deferredRefresh = true;
     } catch (error) {
@@ -760,6 +886,7 @@ export function setupMediaWorkspace(root: HTMLElement): void {
       editTitle.disabled = false;
       editDescription.disabled = false;
       updateControls();
+      if (deferredDetailNavigation) { deferredDetailNavigation = false; void restoreLinkedMedia(); }
       if (deferredRefresh) { deferredRefresh = false; void loadFiles(); }
     }
   }

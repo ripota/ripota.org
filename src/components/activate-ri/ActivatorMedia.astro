@@ -46,6 +46,7 @@ const Heading = organizer ? "h2" : "h1";
       <button class="button" data-variant="light" type="button" data-media-refresh>Refresh files</button>
     </div>
     <p class="form-status" data-media-status role="status" aria-live="polite">Loading photos and videos…</p>
+    <p class="form-status" data-media-link-status role="status" aria-live="polite"></p>
     <div class="media-empty" data-media-empty hidden>
       <p data-media-empty-title>No shared uploads yet</p>
       <span data-media-empty-help>Share a photo or video from your activation.</span>
@@ -103,6 +104,17 @@ const Heading = organizer ? "h2" : "h1";
           <p class="media-detail__park" data-media-details-park></p>
           <p class="media-detail__meta" data-media-details-meta></p>
           <div data-media-details-readonly><p class="media-detail__description" data-media-details-description></p></div>
+          <div class="media-detail__actions">
+            <button class="button" data-variant="light" type="button" data-media-copy-url>Copy URL</button>
+            <button class="button" data-variant="light" type="button" data-media-share>Share</button>
+            <a data-media-download>Download original</a>
+            <button class="button" data-variant="light" type="button" data-media-detail-delete hidden>Delete media</button>
+          </div>
+          <div class="media-park-field" data-media-permalink-field hidden>
+            <label for={`${prefix}-media-permalink`}>Link to this media</label>
+            <input id={`${prefix}-media-permalink`} class="media-details-input" type="url" readonly data-media-permalink />
+          </div>
+          <p class="form-status" data-media-share-status role="status" aria-live="polite"></p>
           <form class="media-detail__form" data-media-details-form hidden>
             <div class="media-park-field">
               <label for={`${prefix}-media-edit-title`}>Title (optional)</label>
@@ -122,10 +134,6 @@ const Heading = organizer ? "h2" : "h1";
             <p class="form-status" data-media-details-status role="status" aria-live="polite"></p>
             <button class="button" data-variant="primary" type="submit" data-media-details-save>Save details</button>
           </form>
-          <div class="media-detail__actions">
-            <a data-media-download>Download original</a>
-            <button class="button" data-variant="light" type="button" data-media-detail-delete hidden>Delete media</button>
-          </div>
         </div>
       </div>
     </div>

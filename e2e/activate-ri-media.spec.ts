@@ -751,6 +751,131 @@ test("public pagination uses thumbnails while large private selections and dupli
   }
 });
 
+test("media permalinks open anonymously, survive history, and support copy and sharing", async ({ page, browser }) => {
+  const server = await startActivateRiServer({ legacyLinkIssuanceEnabled: true, adminHeaderAuthOnly: true });
+  const anonymousContext = await browser.newContext();
+  try {
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, "clipboard", { configurable: true, value: {
+        writeText: async (url: string) => { document.documentElement.dataset.copiedUrl = url; },
+      } });
+      Object.defineProperty(navigator, "share", { configurable: true, value: async (data: ShareData) => {
+        document.documentElement.dataset.sharedUrl = data.url;
+      } });
+    });
+    await signInActivator(page, server, "N1LNK");
+    const photo = await makePhoto(page, "permalink.png");
+    const ids: string[] = [];
+    for (const file of [photo, video]) {
+      const response = await page.request.post(`${server.origin}${apiPath}`, {
+        headers: { origin: server.origin, "content-type": file.mimeType, "x-media-filename": encodeURIComponent(file.name) },
+        data: file.buffer,
+      });
+      expect(response.status(), await response.text()).toBe(201);
+      ids.push((await response.json() as { media: ActivatorMedia }).media.id);
+    }
+    const [photoId, videoId] = ids;
+    const photoUrl = `${server.origin}${publicPagePath}?mediaId=${photoId}`;
+    const videoUrl = `${server.origin}${publicPagePath}?mediaId=${videoId}`;
+    await page.goto(`${server.origin}${pagePath}`);
+    const dialog = await openDetails(page, photoId);
+    await expect(page).toHaveURL(`${server.origin}${pagePath}?mediaId=${photoId}`);
+    await dialog.getByRole("button", { name: "Copy URL", exact: true }).click();
+    await expect(page.locator("html")).toHaveAttribute("data-copied-url", photoUrl);
+    await expect(dialog.locator("[data-media-share-status]")).toContainText("URL copied");
+    await dialog.getByRole("button", { name: "Share", exact: true }).click();
+    await expect(page.locator("html")).toHaveAttribute("data-shared-url", photoUrl);
+    await page.reload();
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toHaveAttribute("data-media-id", photoId);
+    await expect(dialog.getByRole("button", { name: "Save details", exact: true })).toBeVisible();
+
+    const anonymous = await anonymousContext.newPage();
+    // A direct lookup must work even when the gallery page does not contain
+    // this image (because of pagination or a conflicting filter).
+    await anonymous.route(new RegExp(`${publicApiPath}(?:\\?.*)?$`), (route) => route.fulfill({ json: { ok: true, media: [], nextCursor: null } }));
+    await anonymous.goto(`${photoUrl}&mediaKind=video&source=friend#photos`);
+    const readonly = anonymous.locator("[data-media-details-dialog]");
+    await expect(readonly).toBeVisible();
+    await expect(readonly).toHaveAttribute("data-media-id", photoId);
+    await expect(readonly.locator("[data-media-details-preview] img")).toHaveAttribute("src", `${publicApiPath}/${photoId}/file`);
+    await expect(readonly.getByRole("button", { name: "Save details", exact: true })).toBeHidden();
+    await expect(anonymous.locator("[data-media-gallery] article")).toHaveCount(0);
+    await anonymousContext.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await readonly.getByRole("button", { name: "Copy URL", exact: true }).click();
+    expect(await anonymous.evaluate(() => navigator.clipboard.readText())).toBe(photoUrl);
+    await anonymous.reload();
+    await expect(readonly).toBeVisible();
+    await closeDetails(anonymous);
+    await expect(anonymous).toHaveURL(`${server.origin}${publicPagePath}?mediaKind=video&source=friend#photos`);
+    await expect(anonymous.locator('[data-media-kind="video"]')).toHaveAttribute("aria-pressed", "true");
+    await anonymous.goto(videoUrl);
+    await expect(readonly).toBeVisible();
+    await expect(readonly.locator("video")).toHaveAttribute("src", `${publicApiPath}/${videoId}/file`);
+    await anonymous.goto(`${server.origin}${publicPagePath}?mediaId=invalid`);
+    await expect(anonymous.locator("[data-media-link-status]")).toContainText("invalid");
+    await expect(readonly).toBeHidden();
+    await anonymous.goto(`${server.origin}${publicPagePath}?mediaId=00000000-0000-4000-8000-000000000000`);
+    await expect(anonymous.locator("[data-media-link-status]")).toContainText("no longer available");
+
+    let releaseLookup!: () => void;
+    const delayedLookup = new Promise<void>((resolve) => { releaseLookup = resolve; });
+    const metadata = await (await anonymous.request.get(`${server.origin}${publicApiPath}/${photoId}`)).json();
+    const lookupPath = `**${publicApiPath}/${photoId}`;
+    await anonymous.route(lookupPath, async (route) => {
+      await delayedLookup;
+      await route.fulfill({ json: metadata });
+    });
+    try {
+      await anonymous.goto(photoUrl);
+      await expect(anonymous.locator("[data-media-link-status]")).toContainText("Opening shared media");
+      await anonymous.locator('[data-media-kind="video"]').click();
+      await expect(anonymous).toHaveURL(`${server.origin}${publicPagePath}?mediaKind=video`);
+    } finally {
+      releaseLookup();
+      await anonymous.unrouteAll({ behavior: "wait" });
+    }
+    await renderFrame(anonymous);
+    await expect(readonly).toBeHidden();
+    await expect(anonymous.locator("[data-media-link-status]")).toBeEmpty();
+
+    await page.goto(`${server.origin}${publicPagePath}?source=field-notes#photos`);
+    await openDetails(page, photoId);
+    await page.goBack();
+    await expect(dialog).toBeHidden();
+    await expect(page).toHaveURL(`${server.origin}${publicPagePath}?source=field-notes#photos`);
+    await page.goForward();
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toHaveAttribute("data-media-id", photoId);
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expect(page).toHaveURL(`${server.origin}${publicPagePath}?source=field-notes#photos`);
+    await openDetails(page, videoId);
+    await dialog.getByRole("button", { name: "Copy URL", exact: true }).click();
+    await expect(page.locator("html")).toHaveAttribute("data-copied-url", videoUrl);
+
+    // Unsupported sharing copies the link; denied clipboard access leaves a
+    // selected, readable URL. Canceling native sharing remains silent.
+    await page.evaluate(() => Object.defineProperty(navigator, "share", { configurable: true, value: undefined }));
+    await dialog.getByRole("button", { name: "Share", exact: true }).click();
+    await expect(dialog.locator("[data-media-share-status]")).toContainText("URL copied");
+    await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined }));
+    await dialog.getByRole("button", { name: "Copy URL", exact: true }).click();
+    await expect(dialog.getByLabel("Link to this media", { exact: true })).toHaveValue(videoUrl);
+    await expect(dialog.getByLabel("Link to this media", { exact: true })).toBeFocused();
+    await page.evaluate(() => Object.defineProperty(navigator, "share", { configurable: true, value: async () => { throw new DOMException("Canceled", "AbortError"); } }));
+    await dialog.getByRole("button", { name: "Share", exact: true }).click();
+    await expect(dialog.locator("[data-media-share-status]")).toBeEmpty();
+    await page.evaluate(() => Object.defineProperty(navigator, "share", { configurable: true, value: async () => { throw new DOMException("Denied", "NotAllowedError"); } }));
+    await dialog.getByRole("button", { name: "Share", exact: true }).click();
+    await expect(dialog.locator("[data-media-share-status]")).toContainText("Sharing is unavailable");
+    await captureMediaScreenshots(page, "media-permalink", "[data-media-details-dialog]");
+  } finally {
+    await anonymousContext.close();
+    await server.stop();
+  }
+});
+
 async function captureMediaScreenshots(page: Page, name: string, selector: string): Promise<void> {
   const directory = resolve("tmp/media-screenshots");
   mkdirSync(directory, { recursive: true });

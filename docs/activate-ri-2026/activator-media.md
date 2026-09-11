@@ -39,6 +39,14 @@ see **Yours** on their public tiles. Owners and authenticated organizers can
 edit or delete in the same viewer; everyone else sees read-only details.
 Signing out or losing editing access leaves public browsing available.
 Dialogs lock background scrolling and restore focus on close.
+Opening media adds `mediaId` to the current URL; reload and Back/Forward restore
+the viewer while preserving gallery filters and unrelated URL state. **Copy URL**
+and **Share** always use `/activate-ri-2026/media/?mediaId={id}`, including when
+sharing from My media or the organizer dashboard. These public permalinks open
+the requested photo or video without signing in, independently of pagination
+and active filters. Share uses the browser's share sheet when available and
+otherwise copies the URL. If copying is blocked, a selected URL is shown for
+manual copying. Invalid or deleted links leave the gallery usable with a message.
 Filenames remain available for original downloads but are not gallery titles.
 Park tagging is optional. **General — no park** is the default; choosing a park
 sets the initial choice for newly selected files, and each queued file can be
@@ -167,6 +175,12 @@ can still browse. Personalized lists use private/no-store headers and vary on
 credentials. Public file reads support GET/HEAD and video byte ranges through
 `/public/media/{id}/file`. Public routes never accept file or metadata mutations.
 They omit the private API's noindex directive. The R2 bucket stays private.
+
+`GET /api/activate-ri-2026/public/media/{id}` resolves one ready upload with the
+same public metadata, optional editing rights, and private/no-store headers as
+the listing. It does not read R2 or expose original filenames or storage keys.
+Authenticated `/activator/media/{id}` and `/admin/media/{id}` metadata reads
+support restoring their viewers with owner/organizer authorization.
 
 Photo tiles request `/public/media/{id}/thumbnail`. After checking the live
 ready record, the route reads `{original-object-key}/thumbnail-v1.webp` from R2.

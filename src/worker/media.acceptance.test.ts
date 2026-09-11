@@ -440,6 +440,30 @@ describe("public media gallery", () => {
     expect(response.headers.get("x-robots-tag")).toBeNull();
   }
 
+  it("resolves individual permalinks with public metadata and viewer-specific editing rights", async () => {
+    const first = await owner();
+    const id = await seedMedia(first.activatorId, { parkReference: "US-2868" });
+    for (const token of [undefined, first.token]) {
+      const response = await handleActivateRiApi(request(`${publicBase}/${id}`, token), env);
+      expect(response.status).toBe(200);
+      publicHeaders(response);
+      const body = await response.json() as { media: ActivatorMedia };
+      expect(body.media).toMatchObject({ id, parkReference: "US-2868", canEdit: !!token,
+        isOwn: !!token, editUrl: token ? `${base}/${id}` : null, url: `${publicBase}/${id}/file` });
+      expect(body.media).not.toHaveProperty("filename");
+      expect(JSON.stringify(body)).not.toMatch(/object_key|activator_id|@example|chat_display_name|activator_name/);
+    }
+    expect((await handleActivateRiApi(request(`${base}/${id}`, first.token), env)).status).toBe(200);
+    const other = await owner("other");
+    expect((await handleActivateRiApi(request(`${base}/${id}`, other.token), env)).status).toBe(404);
+    for (const state of ["uploading", "deleting"] as const) {
+      const hiddenId = await seedMedia(first.activatorId, { state });
+      expect((await handleActivateRiApi(request(`${publicBase}/${hiddenId}`), env)).status).toBe(404);
+    }
+    expect((await handleActivateRiApi(request(`${publicBase}/${crypto.randomUUID()}`), env)).status).toBe(404);
+    expect(get).not.toHaveBeenCalled();
+  });
+
   it("lists all existing ready uploads anonymously without private metadata or edit authority", async () => {
     const [first, second] = await Promise.all([owner(), owner("other")]);
     const photoId = await seedMedia(first.activatorId, { parkReference: "US-2868" });
