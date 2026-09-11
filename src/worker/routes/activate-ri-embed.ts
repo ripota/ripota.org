@@ -1,5 +1,6 @@
 import { activateRi2026Event } from "../../data/activate-ri-2026/event";
 import { siteIdentity } from "../../data/site";
+import { eventPhaseAt } from "../../lib/activate-ri/event-phase";
 import { eventRoute } from "../../lib/activate-ri/paths";
 import type { EventPhase } from "../../lib/activate-ri/types";
 import { parkGuidePath } from "../../lib/parks/directory";
@@ -56,10 +57,10 @@ export async function handleActivateRiEmbed(
   }
 
   const url = new URL(request.url);
-  const phase = options.eventPhase ?? activateRi2026Event.phase;
+  const now = options.now ?? (() => new Date());
+  const phase = options.eventPhase ?? eventPhaseAt(now());
   const forceLive = url.searchParams.get("preview") === "live";
   const live = forceLive || phase === "event-live";
-  const now = options.now ?? (() => new Date());
   let view: ActivateRiEmbedView;
 
   if (live) {

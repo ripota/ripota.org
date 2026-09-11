@@ -30,6 +30,7 @@ function localRequest(path: string, init?: RequestInit): Request {
 describe("worker routing", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.useRealTimers();
   });
 
   it("exchanges a legacy edit link for a private activator session", async () => {
@@ -245,6 +246,8 @@ describe("worker routing", () => {
   });
 
   it("routes the Activate All RI embed through the Worker without site chrome", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-09T12:00:00Z"));
     const testEnv = env();
 
     const response = await worker.fetch(
@@ -259,6 +262,28 @@ describe("worker routing", () => {
     expect(response.headers.get("cache-control")).toBe("no-store");
     await expect(response.text()).resolves.toContain("Activate All RI 2026");
     expect(testEnv.ASSETS.fetch).not.toHaveBeenCalled();
+  });
+
+  it("automatically serves live spots in the embedded widget during the event", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-11T12:00:00Z"));
+    const testEnv = env();
+    const database = createMigratedSqliteD1();
+    testEnv.DB = database.DB;
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json([])));
+
+    try {
+      const response = await worker.fetch(request("/embed/activate-ri-2026/"), testEnv);
+      const html = await response.text();
+
+      expect(response.status).toBe(200);
+      expect(html).toContain('data-embed-state="live"');
+      expect(html).toContain("No current Rhode Island spots");
+      expect(html).toContain('http-equiv="refresh" content="60"');
+      expect(testEnv.ASSETS.fetch).not.toHaveBeenCalled();
+    } finally {
+      database.close();
+    }
   });
 
   it("requires Access identity before serving the Activate RI admin page", async () => {

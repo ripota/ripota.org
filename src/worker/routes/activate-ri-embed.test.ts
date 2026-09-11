@@ -167,6 +167,25 @@ describe("Activate All RI embed renderer", () => {
 });
 
 describe("Activate All RI embed route", () => {
+  it.each([
+    ["2026-09-09T23:59:59.999Z", "pre-event"],
+    ["2026-09-10T00:00:00.000Z", "live"],
+    ["2026-09-11T00:00:00.000Z", "live"],
+    ["2026-09-13T23:59:59.999Z", "live"],
+    ["2026-09-14T00:00:00.000Z", "post-event"],
+  ])("automatically serves the %s event phase as %s", async (time, state) => {
+    const getSnapshot = vi.fn(async () => availableResult([]));
+    const response = await handleActivateRiEmbed(
+      new Request("https://ripota.org/embed/activate-ri-2026/"),
+      env,
+      { getSnapshot, now: () => new Date(time) },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.text()).resolves.toContain(`data-embed-state="${state}"`);
+    expect(getSnapshot).toHaveBeenCalledTimes(state === "live" ? 1 : 0);
+  });
+
   it("uses normal phase behavior for unknown previews without fetching spots", async () => {
     const getSnapshot = vi.fn();
     const response = await handleActivateRiEmbed(
