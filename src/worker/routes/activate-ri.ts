@@ -107,7 +107,7 @@ export async function handleActivateRiApi(
     ));
   }
 
-  if (/^\/api\/activate-ri-2026\/(?:activator|admin)\/media(?:\/|$)/.test(url.pathname)) {
+  if (/^\/api\/activate-ri-2026\/(?:activator|admin|public)\/media(?:\/|$)/.test(url.pathname)) {
     return handleActivateRiMediaApi(request, env);
   }
 

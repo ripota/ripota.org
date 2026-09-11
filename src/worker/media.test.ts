@@ -157,9 +157,19 @@ it("serializes only display metadata and an authenticated content URL", () => {
     expect(serialized.authorLabel).toBe("N1RI - Rob");
     expect(JSON.stringify(serialized)).not.toContain("Jackson");
     expect(serialized.canEdit).toBe(audience === "admin");
+    expect(serialized.filename).toBe("photo.jpg");
+    expect(serialized.isOwn).toBe(false);
+    expect(serialized.editUrl).toBe(audience === "admin" ? "/api/activate-ri-2026/admin/media/media-id" : null);
+    expect(serialized.thumbnailUrl).toBe("/api/activate-ri-2026/public/media/media-id/thumbnail");
   }
   expect(serializeMedia(row, "activator", row.activator_id).canEdit).toBe(true);
   expect(serializeMedia(row, "activator", "another-activator").canEdit).toBe(false);
   expect(serializeMedia({ ...row, chat_display_name: "Rob J." }, "activator").authorLabel).toBe("N1RI - Rob J.");
   expect(serializeMedia({ ...row, chat_display_name: "" }, "activator").authorLabel).toBe("N1RI");
+  const publicMedia = serializeMedia(row, "public");
+  expect(publicMedia).not.toHaveProperty("filename");
+  expect(publicMedia).toMatchObject({ canEdit: false, isOwn: false, editUrl: null, url: "/api/activate-ri-2026/public/media/media-id/file" });
+  expect(serializeMedia(row, "public", row.activator_id)).toMatchObject({ canEdit: true, isOwn: true, editUrl: "/api/activate-ri-2026/activator/media/media-id" });
+  expect(serializeMedia(row, "public", row.activator_id, true)).toMatchObject({ canEdit: true, isOwn: true, editUrl: "/api/activate-ri-2026/admin/media/media-id" });
+  expect(serializeMedia({ ...row, kind: "video" }, "public").thumbnailUrl).toBeNull();
 });

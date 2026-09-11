@@ -5,8 +5,11 @@ workflow, not a production deployment verification.
 
 ## Experience and access
 
-The signed-in activator portal has a **Photos & videos** page at
-`/activate-ri-2026/activator/media/`. The page opens on the tiled gallery, with
+The public **Photos & videos** gallery at `/activate-ri-2026/media/` is linked
+from event navigation and the Hunter page. Everyone can browse existing and
+new uploads. The activator portal's **My media** page at
+`/activate-ri-2026/activator/media/` shows only the caller's own uploads, with
+a link to the public gallery and
 a prominent **Upload photos & videos** button. The upload dialog accepts
 multiple files or dropped files, lets the activator review the selection, and
 uploads sequentially. Each file has progress, cancellation, and retry controls.
@@ -21,17 +24,21 @@ New uploads record notice version `ri-pota-media-v1` with the file's existing
 uploader identity and upload timestamp. The wording clarifies the same sharing
 and publicity scope; existing uploads do not need a new permission action.
 
-The gallery opens on **All media**, showing shared uploads from all activators
+The public gallery shows shared uploads from all activators
 with the same uploader byline as chat. The shared author utility combines the
 callsign with the first name or the customized Ops Room display name; an
-explicitly blank display name stays hidden. **My media** narrows it to the current activator's own
-files. That scope is URL-driven (`mediaScope=mine`); default All media is omitted
-from the URL. Reload, Back/Forward, and background refresh preserve the choice.
-Both views paginate. Compact tiles show the image, uploader byline, optional
+explicitly blank display name stays hidden. Public filters select a park
+(including General) and All/Photos/Videos through `mediaPark` and `mediaKind`
+URL parameters. Defaults are omitted. Reload, Back/Forward, clearing filters,
+and background refresh preserve the choice. My media always requests the
+caller's files; the old `mediaScope` parameter is removed from that page.
+All galleries paginate newest uploads first. Compact tiles show a thumbnail, uploader byline, optional
 title, and an overlaid park reference. Opening a tile shows a larger photo or
-playable video, its details, and an original download. The uploader and organizers
-can edit or delete from that dialog; other activators see the details without
-editing controls. Dialogs lock background scrolling and restore focus on close.
+playable original video, its details, and an original download. Signed-in owners
+see **Yours** on their public tiles. Owners and authenticated organizers can
+edit or delete in the same viewer; everyone else sees read-only details.
+Signing out or losing editing access leaves public browsing available.
+Dialogs lock background scrolling and restore focus on close.
 Filenames remain available for original downloads but are not gallery titles.
 Park tagging is optional. **General — no park** is the default; choosing a park
 sets the initial choice for newly selected files, and each queued file can be
@@ -54,20 +61,18 @@ selection so the activator can resume after the displayed wait.
 The organizer dashboard has a **Photos & Videos** tab with all event uploads,
 uploader callsigns, pagination, downloads, and deletion.
 
-All uploaded files are visible to signed-in activators and authenticated
-organizers. Activators can edit metadata and delete only their own files;
+All ready uploads are publicly visible, including originals with any embedded
+GPS and capture-time metadata. Activators can edit and delete only their own files;
 organizers can edit metadata and delete any event upload. These permissions
 are enforced by the API, not just hidden controls.
 
-Anonymous gallery browsing is not implemented yet. The upload copy allows RI POTA
-to share media on the website and through editorial/publicity channels without
-promising that viewing will always require sign-in. Publishing a public gallery,
-article, or social post is a separate action. Existing unified and legacy activator authentication
+The upload copy describes website and editorial/publicity use. There is no
+separate publishing queue or consent checkbox. Existing unified and legacy activator authentication
 modes apply; an account without an event
 registration has no upload access. Pending, approved, and withdrawn activators
 can upload. Rejected activators can read and delete their own existing files,
-but cannot add more. Session revocation applies to every file request as well
-as the page and metadata requests.
+but cannot add more. Session revocation removes upload/editing access while
+public browsing remains available.
 
 Supported photos: JPEG, PNG, GIF, WebP, HEIC, HEIF, and AVIF. Supported videos:
 MP4, MOV (QuickTime), and WebM. There is no per-activator total file count or
@@ -80,8 +85,9 @@ storage cap. Individual upload limits remain:
 | Upload attempts | 10 per minute |
 
 The interface uses MB labels for binary megabytes. Originals are retained,
-including embedded location and camera metadata. There is no transcoding,
-thumbnail generation, or metadata stripping.
+including embedded location and camera metadata. Originals are never rewritten
+or transcoded. Separate small thumbnails are used for photo tiles; original
+bytes are requested only when the viewer opens or a file is downloaded.
 HEIC/HEIF and unsupported video codecs have an original-download fallback;
 playback depends on the browser. Files are checked by extension, MIME type,
 bounded container signatures, and actual byte length. Container checks are not
@@ -149,6 +155,44 @@ If the response to an upload is lost, refresh the saved gallery before retrying:
 the upload may have completed. The browser does not persist selected file
 contents or private upload metadata across page reloads.
 
+## Public reads and thumbnails
+
+`GET /api/activate-ri-2026/public/media` lists ready event uploads with cursor
+pagination. Optional `park` (a known reference or `general`) and `kind` (`photo`
+or `video`) filter before pagination. The public response includes display
+metadata and content URLs, without internal owner IDs, storage keys, original
+filenames, usage totals, or limits. Optional existing authentication adds
+server-computed `isOwn`, `canEdit`, and `editUrl`; anonymous and expired sessions
+can still browse. Personalized lists use private/no-store headers and vary on
+credentials. Public file reads support GET/HEAD and video byte ranges through
+`/public/media/{id}/file`. Public routes never accept file or metadata mutations.
+They omit the private API's noindex directive. The R2 bucket stays private.
+
+Photo tiles request `/public/media/{id}/thumbnail`. After checking the live
+ready record, the route reads `{original-object-key}/thumbnail-v1.webp` from R2.
+On a cache miss, the `IMAGES` binding receives the original R2 stream and makes
+a still WebP fitting within 640×640 pixels at quality 75. Output is bounded to
+2 MiB and stored once for reuse. Existing uploads get thumbnails on their first
+request without changing their original or migrating metadata.
+
+Unsupported inputs and transient decoder failures show a small tile fallback;
+the grid never substitutes the original. Failures back off for 15 minutes,
+using a conditional marker that cannot replace a concurrent successful result.
+Explicit Refresh retries failed previews. Video tiles use a lightweight Video
+placeholder and request video bytes only when the viewer opens.
+
+R2 stores reusable derivatives; HTTP responses use no-store so each request
+checks visibility. Deletion and cleanup remove both objects. Generation checks
+the row before and after storage to remove derivatives created during deletion.
+The production-data local environment reads existing thumbnails but cannot
+generate them or write anything to the bucket.
+
+Cloudflare's decoder supports fewer inputs than original uploads: AVIF input
+requires Enterprise, and input dimensions/size limits can reject an otherwise
+valid upload. These affect previews only. Originals and their metadata remain
+available. No new subscription was enabled; the existing account's remote
+Images binding was verified with a public sample.
+
 ## Future AI descriptions
 
 The optional title and description fields are implemented; automatic image
@@ -172,8 +216,9 @@ npx wrangler r2 bucket create ripota-org-activator-media
 ```
 
 Then use `mise run deploy`, which applies D1 migrations before deploying the
-Worker. The bucket binding and `MEDIA_UPLOAD_RATE_LIMIT` are configured in
-all environments. Keep bucket access private. D1 backup/Time Travel covers
+Worker. The bucket binding, `IMAGES`, and `MEDIA_UPLOAD_RATE_LIMIT` are configured
+in all environments. Local tests use the local Images implementation.
+Keep bucket access private. D1 backup/Time Travel covers
 metadata only; it cannot restore deleted R2 originals. Any independent original
 backup must retain the same restricted access.
 
@@ -189,10 +234,15 @@ that have since been deleted; verify media access after restoration.
 - `src/lib/activate-ri/media.test.ts`: shared input validation and limits.
 - `src/lib/activate-ri/media-parks.test.ts`: optional park references and labels.
 - `src/worker/media.test.ts`: signatures, streaming, cancellation, exact lengths.
+- `src/worker/media-thumbnails.test.ts`: reuse, original preservation, bounded
+  output, read-only mode, failure backoff, and deletion races.
 - `src/worker/media.acceptance.test.ts`: SQLite migrations, authorization,
   upload counts and sizes above the former caps, duplicate filenames, customized
-  bylines, ownership, failure recovery, and range responses.
-- `e2e/activate-ri-media.spec.ts`: browser workflows against local Wrangler/R2.
+  bylines, public visibility, ownership, filters, failure recovery, and ranges.
+- `e2e/activate-ri-media.spec.ts`: public/personal browser workflows against
+  local Wrangler/R2, thumbnail-only tile requests, ownership, and URL filters.
 
 Implementation references: [R2 Workers API](https://developers.cloudflare.com/r2/api/workers/workers-api-reference/)
 and [Workers streams](https://developers.cloudflare.com/workers/runtime-apis/streams/transformstream/).
+Thumbnail references: [Images binding](https://developers.cloudflare.com/images/optimization/binding/)
+and [supported formats and limits](https://developers.cloudflare.com/images/get-started/limits/).

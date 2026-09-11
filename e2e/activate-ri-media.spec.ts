@@ -2,12 +2,14 @@ import { mkdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
 import { mediaUsageNoticeText, type ActivatorMedia } from "../src/lib/activate-ri/media";
-import { startActivateRiServer } from "./helpers/activate-ri-server";
+import { startActivateRiServer, type ActivateRiServer } from "./helpers/activate-ri-server";
 
 test.setTimeout(90_000);
 
 const apiPath = "/api/activate-ri-2026/activator/media";
 const pagePath = "/activate-ri-2026/activator/media/";
+const publicApiPath = "/api/activate-ri-2026/public/media";
+const publicPagePath = "/activate-ri-2026/media/";
 const adminHeaders = { "Cf-Access-Authenticated-User-Email": "local-admin@ripota.org" };
 
 // A one-second, silent, 24×24 navy video synthesized with FFmpeg's color source.
@@ -19,14 +21,14 @@ const video = {
 };
 
 test("the gallery opens original media in owner-aware dialogs and preserves metadata", async ({ page, browser, request }) => {
-  const server = await startActivateRiServer({ legacyLinkIssuanceEnabled: true, seedAccountOnly: true });
+  const server = await startActivateRiServer({ legacyLinkIssuanceEnabled: true, seedAccountOnly: true, adminHeaderAuthOnly: true });
   const otherContext = await browser.newContext();
   const adminContext = await browser.newContext({ extraHTTPHeaders: adminHeaders });
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   try {
     const photo = coastalPhoto("Coastal activation – café.jpg");
-    await signInActivator(page, server.origin, "N1PIC");
+    await signInActivator(page, server, "N1PIC");
     const pending = await (await page.request.get(`${server.origin}/api/activate-ri-2026/admin/plans`, { headers: adminHeaders })).json() as { plans: Array<{ id: string; submitter_callsign: string }> };
     const activator = pending.plans.find((plan) => plan.submitter_callsign === "N1PIC")!;
     expect((await page.request.post(`${server.origin}/api/activate-ri-2026/admin/plans/${activator.id}/approve`, { headers: adminHeaders })).ok()).toBe(true);
@@ -34,7 +36,7 @@ test("the gallery opens original media in owner-aware dialogs and preserves meta
     expect(profile.status(), await profile.text()).toBe(200);
     const authorLabel = (await profile.json() as { authorLabel: string }).authorLabel;
     expect(authorLabel).toBe("N1PIC - Coastal Operator");
-    await page.getByRole("link", { name: "Photos & Videos", exact: true }).click();
+    await page.getByRole("link", { name: "My media", exact: true }).click();
     await expect(page).toHaveURL(`${server.origin}${pagePath}`);
     await expect(page.locator("[data-media-input]")).toBeHidden();
     await expect(page.locator("[data-media-details-dialog]")).toBeHidden();
@@ -50,7 +52,7 @@ test("the gallery opens original media in owner-aware dialogs and preserves meta
     await expect(upload).toContainText(mediaUsageNoticeText);
     await expect(upload.getByRole("checkbox")).toHaveCount(0);
     await expect(upload).not.toContainText(/500 MB|50 files/);
-    await captureMediaScreenshots(page, "gallery-upload", "[data-media-upload-dialog]");
+    await captureMediaScreenshots(page, "public-my-upload", "[data-media-upload-dialog]");
     const uploads: Array<Promise<{ status: number; size: string | undefined; park: string | undefined }>> = [];
     page.on("response", (response) => {
       if (response.url() === `${server.origin}${apiPath}` && response.request().method() === "POST") {
@@ -82,6 +84,17 @@ test("the gallery opens original media in owner-aware dialogs and preserves meta
     await expect(photoTile).not.toContainText(photo.name);
     await expect(videoTile).not.toContainText(video.name);
     await expect(photoTile.locator("[data-media-park-badge]")).toHaveText("US-2868");
+    const thumbnailImage = photoTile.locator("img");
+    await expect(thumbnailImage).toHaveAttribute("src", savedPhoto.thumbnailUrl!);
+    await expect.poll(() => thumbnailImage.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0 && image.naturalWidth <= 640 && image.naturalHeight <= 640)).toBe(true);
+    const thumbnail = await request.get(`${server.origin}${savedPhoto.thumbnailUrl}`);
+    expect(thumbnail.status(), await thumbnail.text()).toBe(200);
+    expect(thumbnail.headers()["content-type"]).toBe("image/webp");
+    expect((await thumbnail.body()).length).toBeLessThan(photo.buffer.length);
+    const cachedThumbnail = await request.get(`${server.origin}${savedPhoto.thumbnailUrl}`);
+    expect(cachedThumbnail.headers().etag).toBe(thumbnail.headers().etag);
+    expect(await cachedThumbnail.body()).toEqual(await thumbnail.body());
+    await captureMediaScreenshots(page, "public-my-gallery", "[data-media-workspace]");
     const tooltip = photoTile.locator("[data-media-park-tooltip]");
     await photoTile.locator("[data-media-open-detail]").focus();
     await expect(tooltip).toBeVisible();
@@ -130,7 +143,7 @@ test("the gallery opens original media in owner-aware dialogs and preserves meta
     await expect(photoTile.locator("[data-media-title]")).toHaveText(title);
     await openDetails(page, savedPhoto.id);
     await expect(details.getByLabel("Description (optional)", { exact: true })).toHaveValue(description);
-    await captureMediaScreenshots(page, "gallery-details", "[data-media-details-dialog]");
+    await captureMediaScreenshots(page, "public-my-details", "[data-media-details-dialog]");
     await closeDetails(page);
     const unsafeTitle = "Coastal station <N1PIC>";
     const unsafeDescription = 'Notes <img src=x onerror="window.mediaInjected=true"> & <script>window.mediaInjected=true</script>';
@@ -183,15 +196,16 @@ test("the gallery opens original media in owner-aware dialogs and preserves meta
     expect((await request.get(`${server.origin}${apiPath}`, { headers: { cookie: `__Host-ripota-session=${server.accountOnlySessionToken}` } })).status()).toBe(401);
 
     const otherPage = await otherContext.newPage();
-    await signInActivator(otherPage, server.origin, "N1OTH");
-    const shared = await (await otherPage.request.get(`${server.origin}${apiPath}`)).json() as { media: ActivatorMedia[]; usage: { files: number; bytes: number } };
+    await signInActivator(otherPage, server, "N1OTH");
+    const shared = await (await otherPage.request.get(`${server.origin}${publicApiPath}`)).json() as { media: ActivatorMedia[]; usage: { files: number; bytes: number } };
     expect(shared.media).toHaveLength(2);
     expect(shared.media.every((file) => file.canEdit === false)).toBe(true);
-    expect(shared.usage).toEqual({ files: 0, bytes: 0 });
+    expect(shared.media.every((file) => !file.isOwn && file.editUrl === null && file.filename === undefined)).toBe(true);
+    expect((await (await otherPage.request.get(`${server.origin}${apiPath}?scope=mine`)).json()).media).toHaveLength(0);
     expect(await (await otherPage.request.get(`${server.origin}${savedPhoto.url}`)).body()).toEqual(photo.buffer);
     expect((await otherPage.request.delete(`${server.origin}${apiPath}/${savedVideo.id}`, { headers: { origin: server.origin } })).status()).toBe(404);
     expect((await otherPage.request.patch(`${server.origin}${apiPath}/${savedPhoto.id}`, { headers: { origin: server.origin }, data: { parkReference: "US-2869" } })).status()).toBe(404);
-    await otherPage.goto(`${server.origin}${pagePath}`);
+    await otherPage.goto(`${server.origin}${publicPagePath}`);
     const readOnly = await openDetails(otherPage, savedPhoto.id);
     await expect(readOnly).toContainText(description);
     await expect(readOnly.getByRole("button", { name: "Save details", exact: true })).toBeHidden();
@@ -210,6 +224,8 @@ test("the gallery opens original media in owner-aware dialogs and preserves meta
     await expect(photoTile.locator("[data-media-park-badge]")).toHaveText("US-2869");
     await editDetails(page, savedPhoto.id, { parkReference: "" });
     await expect(photoTile.locator("[data-media-park-badge]")).toBeHidden();
+    await adminPage.goto(`${server.origin}${publicPagePath}`);
+    await expect(adminPage.locator("[data-media-gallery] article")).toHaveCount(2);
     await editDetails(adminPage, savedVideo.id, { parkReference: "US-2868", title: "Portable station setup", description: "A short look at the activator's station." });
     await page.reload();
     await expect(videoTile.locator("[data-media-title]")).toHaveText("Portable station setup");
@@ -236,6 +252,8 @@ test("the gallery opens original media in owner-aware dialogs and preserves meta
     await expect(details).toBeHidden();
     await expect(gallery.locator("article")).toHaveCount(1);
     expect((await page.request.get(`${server.origin}${savedPhoto.url}`)).status()).toBe(404);
+    expect((await request.get(`${server.origin}${savedPhoto.thumbnailUrl}`)).status()).toBe(404);
+    expect((await request.get(`${server.origin}${publicApiPath}/${savedPhoto.id}/file`)).status()).toBe(404);
     const adminDetails = await openDetails(adminPage, savedVideo.id);
     await adminDetails.getByRole("button", { name: "Delete media", exact: true }).click();
     await adminPage.getByRole("dialog", { name: "Delete this media?" }).getByRole("button", { name: "Delete file", exact: true }).click();
@@ -258,7 +276,7 @@ test("selection rejects unsupported files and preserves uploads for retry and ca
   const cancelRequestStarted = new Promise<void>((resolve) => { cancelStarted = resolve; });
   try {
     const photo = await makePhoto(page, "retry.png");
-    await signInActivator(page, server.origin, "N1RTY");
+    await signInActivator(page, server, "N1RTY");
     await page.goto(`${server.origin}${pagePath}`);
     await expect(page.getByRole("button", { name: "Refresh files", exact: true })).toBeEnabled();
     const upload = await openUpload(page);
@@ -343,7 +361,7 @@ test("a throttled batch preserves unattempted files and resumes through explicit
     const attempted: string[] = [];
     let galleryReads = 0;
     const waitMessage = "Please wait a minute before uploading more files.";
-    await signInActivator(page, server.origin, "N1BAT");
+    await signInActivator(page, server, "N1BAT");
     await page.route(new RegExp(`${apiPath}(?:\\?.*)?$`), async (route) => {
       if (route.request().method() === "GET") {
         galleryReads++;
@@ -365,7 +383,8 @@ test("a throttled batch preserves unattempted files and resumes through explicit
       const id = `00000000-0000-4000-8000-${String(saved.length + 1).padStart(12, "0")}`;
       const media: ActivatorMedia = {
         id, filename, contentType: "image/png", kind: "photo", size: photo.buffer.length, parkReference: null,
-        title: null, description: null, canEdit: true, authorLabel: "N1BAT - Synthetic",
+        title: null, description: null, canEdit: true, isOwn: true, editUrl: `${apiPath}/${id}`,
+        thumbnailUrl: `${publicApiPath}/${id}/thumbnail`, authorLabel: "N1BAT - Synthetic",
         createdAt: "2026-09-11T12:00:00.000Z", callsign: "N1BAT", url: `${apiPath}/${id}/file`,
       };
       saved.push(media);
@@ -374,26 +393,15 @@ test("a throttled batch preserves unattempted files and resumes through explicit
     await page.route(`**${apiPath}/*/file`, (route) => route.fulfill({ contentType: "image/png", body: photo.buffer }));
     await page.goto(`${server.origin}${pagePath}`);
     await expect(page.getByRole("button", { name: "Refresh files", exact: true })).toBeEnabled();
-    const all = page.locator('[data-media-view="all"]');
-    const mine = page.locator('[data-media-view="mine"]');
-    await mine.click();
-    await expect.poll(() => galleryReads).toBe(2);
-    await page.getByRole("button", { name: "Refresh files", exact: true }).waitFor({ state: "visible" });
-    await expect(page.getByRole("button", { name: "Refresh files", exact: true })).toBeEnabled();
-    await all.click();
-    await expect.poll(() => galleryReads).toBe(3);
-    await expect(page.getByRole("button", { name: "Refresh files", exact: true })).toBeEnabled();
+    await expect(page.getByRole("group", { name: "Media shown", exact: true })).toHaveCount(0);
+    await expect.poll(() => galleryReads).toBe(1);
     const upload = await openUpload(page);
     await page.getByLabel("Choose photos and videos", { exact: true }).setInputFiles(selection);
     await page.getByRole("button", { name: "Upload 12 files", exact: true }).click();
     await firstUploadStarted;
-    await expect(all).toBeDisabled();
-    await expect(mine).toBeDisabled();
-    await page.goBack();
-    await expect(page).toHaveURL(`${server.origin}${pagePath}?mediaScope=mine`);
-    await expect(mine).toHaveAttribute("aria-pressed", "true");
-    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-    expect(galleryReads).toBe(3);
+    await expect(page.locator("[data-media-refresh]")).toBeDisabled();
+    await renderFrame(page);
+    expect(galleryReads).toBe(1);
     releaseFirst();
     const queue = page.locator("[data-media-queue]");
     const throttled = queue.locator("li").filter({ hasText: "activation-11.png" });
@@ -425,9 +433,11 @@ test("a throttled batch preserves unattempted files and resumes through explicit
   }
 });
 
-test("shared gallery scopes survive links and history and discard superseded results", async ({ page, browser }) => {
-  const server = await startActivateRiServer({ legacyLinkIssuanceEnabled: true });
+test("public filters survive links and history, keep ownership private, and discard stale results", async ({ page, browser }) => {
+  const server = await startActivateRiServer({ legacyLinkIssuanceEnabled: true, adminHeaderAuthOnly: true });
   const friendContext = await browser.newContext();
+  const anonymousContext = await browser.newContext();
+  const anonymous = await anonymousContext.newPage();
   let releaseStale!: () => void;
   const staleRequest = new Promise<void>((resolve) => { releaseStale = resolve; });
   let staleStarted!: () => void;
@@ -436,120 +446,189 @@ test("shared gallery scopes survive links and history and discard superseded res
   const staleRequestFinished = new Promise<void>((resolve) => { staleFinished = resolve; });
   try {
     const photo = await makePhoto(page, "My morning activation.png");
-    await signInActivator(page, server.origin, "N1SCP");
+    await signInActivator(page, server, "N1SCP");
     const ownUpload = await page.request.post(`${server.origin}${apiPath}`, {
-      headers: { origin: server.origin, "content-type": photo.mimeType, "x-media-filename": encodeURIComponent(photo.name) },
+      headers: { origin: server.origin, "content-type": photo.mimeType, "x-media-filename": encodeURIComponent(photo.name), "x-media-park-reference": "US-2868" },
       data: photo.buffer,
     });
     expect(ownUpload.status(), await ownUpload.text()).toBe(201);
     const ownId = (await ownUpload.json() as { media: ActivatorMedia }).media.id;
     const friendPage = await friendContext.newPage();
-    await signInActivator(friendPage, server.origin, "N1PAL");
+    await signInActivator(friendPage, server, "N1PAL");
     const friendUpload = await friendPage.request.post(`${server.origin}${apiPath}`, {
       headers: { origin: server.origin, "content-type": photo.mimeType, "x-media-filename": "Another%20activator.png" },
       data: photo.buffer,
     });
     expect(friendUpload.status(), await friendUpload.text()).toBe(201);
     const friendId = (await friendUpload.json() as { media: ActivatorMedia }).media.id;
-    const allUrl = `${server.origin}${pagePath}?source=field-notes#photos`;
-    const mineUrl = `${server.origin}${pagePath}?source=field-notes&mediaScope=mine#photos`;
-    await page.goto(allUrl);
-    const scope = page.getByRole("group", { name: "Media shown", exact: true });
-    const all = scope.getByRole("button", { name: "All media", exact: true });
-    const mine = scope.getByRole("button", { name: "My media", exact: true });
-    const gallery = page.locator("[data-media-gallery]");
-    await expect(all).toHaveAttribute("aria-pressed", "true");
-    await expect(gallery.locator("article")).toHaveCount(2);
-    await expect(gallery.locator(`[data-media-id="${ownId}"]`)).toContainText("N1SCP");
-    await expect(gallery.locator(`[data-media-id="${friendId}"]`)).toContainText("N1PAL");
-    const ownDetails = await openDetails(page, ownId);
-    await expect(ownDetails.getByRole("button", { name: "Save details", exact: true })).toBeVisible();
-    await closeDetails(page);
+    const videoUpload = await friendPage.request.post(`${server.origin}${apiPath}`, {
+      headers: { origin: server.origin, "content-type": video.mimeType, "x-media-filename": encodeURIComponent(video.name), "x-media-park-reference": "US-2869" },
+      data: video.buffer,
+    });
+    expect(videoUpload.status(), await videoUpload.text()).toBe(201);
+    const videoId = (await videoUpload.json() as { media: ActivatorMedia }).media.id;
+
+    await page.goto(`${server.origin}${pagePath}`);
+    await expect(page.getByRole("group", { name: "Media shown", exact: true })).toHaveCount(0);
+    await expect(page.locator("[data-media-gallery] article")).toHaveCount(1);
+    await page.getByRole("link", { name: "View public gallery", exact: true }).click();
+    await expect(page).toHaveURL(`${server.origin}${publicPagePath}`);
+    await expect(page.locator("[data-media-gallery] article")).toHaveCount(3);
+    await expect(page.locator(`[data-media-id="${ownId}"] [data-media-own]`)).toHaveText("Yours");
+    await expect(page.locator(`[data-media-id="${friendId}"] [data-media-own]`)).toBeHidden();
+    await editDetails(page, ownId, { title: "Our morning at Beavertail" });
+    await page.reload();
+    await expect(page.locator(`[data-media-id="${ownId}"] [data-media-title]`)).toHaveText("Our morning at Beavertail");
     const otherDetails = await openDetails(page, friendId);
+    await expect(otherDetails.getByRole("button", { name: "Save details", exact: true })).toBeHidden();
     await expect(otherDetails.getByRole("button", { name: "Delete media", exact: true })).toBeHidden();
     await closeDetails(page);
-    expect((await (await page.request.get(`${server.origin}${apiPath}`)).json()).usage.files).toBe(1);
-    await gallery.locator("img").first().scrollIntoViewIfNeeded();
-    await expect.poll(() => gallery.locator("img").evaluateAll((images) => images.every((image) => (image as HTMLImageElement).naturalWidth === 32))).toBe(true);
 
-    await mine.click();
-    await expect(page).toHaveURL(mineUrl);
-    await expect(mine).toHaveAttribute("aria-pressed", "true");
+    await page.route(`**${apiPath}/${ownId}`, (route) => route.fulfill({ status: 401, json: { ok: false, error: "Sign in again." } }));
+    const expiredDetails = await openDetails(page, ownId);
+    await expiredDetails.getByLabel("Title (optional)", { exact: true }).fill("An edit after the session expired");
+    await expiredDetails.getByRole("button", { name: "Save details", exact: true }).click();
+    await expect(expiredDetails).toBeHidden();
+    await expect(page.locator("[data-media-status]")).toContainText("You can keep browsing the gallery.");
+    await expect(page.locator("[data-media-gallery] article")).toHaveCount(3);
+    await expect(page.locator("[data-media-own]:visible")).toHaveCount(0);
+    const afterExpiry = await openDetails(page, ownId);
+    await expect(afterExpiry.getByRole("button", { name: "Save details", exact: true })).toBeHidden();
+    await expect(afterExpiry.getByRole("button", { name: "Delete media", exact: true })).toBeHidden();
+    await closeDetails(page);
+    await page.unroute(`**${apiPath}/${ownId}`);
+
+    const originalRequests: string[] = [];
+    anonymous.on("request", (request) => {
+      if (new URL(request.url()).pathname.match(/\/media\/[^/]+\/file$/)) originalRequests.push(request.url());
+    });
+    const allUrl = `${server.origin}${publicPagePath}?source=field-notes#photos`;
+    const generalUrl = `${server.origin}${publicPagePath}?source=field-notes&mediaPark=general#photos`;
+    const generalPhotosUrl = `${server.origin}${publicPagePath}?source=field-notes&mediaPark=general&mediaKind=photo#photos`;
+    await anonymous.goto(allUrl);
+    const gallery = anonymous.locator("[data-media-gallery]");
+    const park = anonymous.getByLabel("Park", { exact: true });
+    const kinds = anonymous.getByRole("group", { name: "Media type", exact: true });
+    const all = kinds.getByRole("button", { name: "All", exact: true });
+    const photos = kinds.getByRole("button", { name: "Photos", exact: true });
+    const videos = kinds.getByRole("button", { name: "Videos", exact: true });
+    const clear = anonymous.locator("[data-media-filter-clear]");
+    await expect(gallery.locator("article")).toHaveCount(3);
+    await expect(anonymous.locator("[data-media-open-upload]")).toHaveCount(0);
+    await expect(anonymous.locator("[data-media-own]:visible")).toHaveCount(0);
+    await expect(anonymous.getByRole("link", { name: "Upload & manage my media", exact: true })).toHaveAttribute("href", pagePath);
+    await expect(gallery.locator("video")).toHaveCount(0);
+    await expect(gallery.locator("img")).toHaveCount(2);
+    expect(await gallery.locator("img").evaluateAll((images) => images.every((image) => (image as HTMLImageElement).src.endsWith("/thumbnail")))).toBe(true);
+    await renderFrame(anonymous);
+    expect(originalRequests).toEqual([]);
+    const publicBody = await (await anonymous.request.get(`${server.origin}${publicApiPath}`)).json() as { media: ActivatorMedia[] };
+    expect(publicBody.media).toHaveLength(3);
+    expect(publicBody.media.every((file) => file.filename === undefined && !file.isOwn && !file.canEdit && file.editUrl === null)).toBe(true);
+    const readonly = await openDetails(anonymous, ownId);
+    await expect.poll(() => readonly.locator("[data-media-details-preview] img").evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth === 32)).toBe(true);
+    expect(originalRequests.every((url) => url.endsWith(`/${ownId}/file`))).toBe(true);
+    expect(originalRequests.length).toBeGreaterThan(0);
+    await expect(readonly.getByRole("button", { name: "Save details", exact: true })).toBeHidden();
+    await expect(readonly.getByRole("button", { name: "Delete media", exact: true })).toBeHidden();
+    expect(await (await anonymous.request.get(`${server.origin}${publicApiPath}/${ownId}/file`)).body()).toEqual(photo.buffer);
+    await closeDetails(anonymous);
+
+    await park.selectOption("general");
+    await expect(anonymous).toHaveURL(generalUrl);
     await expect(gallery.locator("article")).toHaveCount(1);
-    await expect(gallery.locator(`[data-media-id="${ownId}"]`)).toBeVisible();
-    await page.reload();
-    await expect(mine).toHaveAttribute("aria-pressed", "true");
+    await expect(gallery.locator(`[data-media-id="${friendId}"]`)).toBeVisible();
+    await photos.click();
+    await expect(anonymous).toHaveURL(generalPhotosUrl);
+    await expect(photos).toHaveAttribute("aria-pressed", "true");
     await expect(gallery.locator("article")).toHaveCount(1);
-    await page.getByRole("button", { name: "Refresh files", exact: true }).click();
-    await expect(page).toHaveURL(mineUrl);
-    await expect(mine).toHaveAttribute("aria-pressed", "true");
+    await anonymous.reload();
+    await expect(park).toHaveValue("general");
+    await expect(photos).toHaveAttribute("aria-pressed", "true");
     await expect(gallery.locator("article")).toHaveCount(1);
-    const freshContext = await browser.newContext({ storageState: await page.context().storageState() });
+    await anonymous.getByRole("button", { name: "Refresh files", exact: true }).click();
+    await expect(anonymous).toHaveURL(generalPhotosUrl);
+    await expect(gallery.locator("article")).toHaveCount(1);
+    const freshContext = await browser.newContext();
     try {
       const freshPage = await freshContext.newPage();
-      await freshPage.goto(mineUrl);
-      await expect(freshPage.getByRole("group", { name: "Media shown", exact: true }).getByRole("button", { name: "My media", exact: true })).toHaveAttribute("aria-pressed", "true");
+      await freshPage.goto(generalPhotosUrl);
+      await expect(freshPage.getByLabel("Park", { exact: true })).toHaveValue("general");
+      await expect(freshPage.locator('[data-media-kind="photo"]')).toHaveAttribute("aria-pressed", "true");
       await expect(freshPage.locator("[data-media-gallery] article")).toHaveCount(1);
-      await expect(freshPage.locator(`[data-media-id="${ownId}"]`)).toBeVisible();
+      await expect(freshPage.locator(`[data-media-id="${friendId}"]`)).toBeVisible();
     } finally {
       await freshContext.close();
     }
-    await page.goBack();
-    await expect(page).toHaveURL(allUrl);
+    await anonymous.goBack();
+    await expect(anonymous).toHaveURL(generalUrl);
     await expect(all).toHaveAttribute("aria-pressed", "true");
-    await expect(gallery.locator("article")).toHaveCount(2);
-    await page.goForward();
-    await expect(page).toHaveURL(mineUrl);
-    await expect(mine).toHaveAttribute("aria-pressed", "true");
     await expect(gallery.locator("article")).toHaveCount(1);
-    await all.click();
-    await expect(page).toHaveURL(allUrl);
-    await expect(gallery.locator("article")).toHaveCount(2);
-    for (const invalid of ["unknown", "all"]) {
-      await page.goto(`${server.origin}${pagePath}?source=field-notes&mediaScope=${invalid}#photos`);
-      await expect(page).toHaveURL(allUrl);
-      await expect(all).toHaveAttribute("aria-pressed", "true");
-      await expect(gallery.locator("article")).toHaveCount(2);
-    }
+    await anonymous.goBack();
+    await expect(anonymous).toHaveURL(allUrl);
+    await expect(park).toHaveValue("");
+    await expect(gallery.locator("article")).toHaveCount(3);
+    await anonymous.goForward();
+    await expect(anonymous).toHaveURL(generalUrl);
+    await expect(gallery.locator("article")).toHaveCount(1);
+    await videos.click();
+    await expect(gallery.locator("article")).toHaveCount(0);
+    await anonymous.getByRole("button", { name: "Refresh files", exact: true }).click();
+    await expect(park).toHaveValue("general");
+    await expect(videos).toHaveAttribute("aria-pressed", "true");
+    await expect(anonymous).toHaveURL(`${server.origin}${publicPagePath}?source=field-notes&mediaPark=general&mediaKind=video#photos`);
+    await clear.click();
+    await expect(anonymous).toHaveURL(allUrl);
+    await expect(park).toHaveValue("");
+    await expect(all).toHaveAttribute("aria-pressed", "true");
+    await expect(gallery.locator("article")).toHaveCount(3);
+    await park.selectOption("US-2868");
+    await expect(gallery.locator("article")).toHaveCount(1);
+    await expect(gallery.locator(`[data-media-id="${ownId}"]`)).toBeVisible();
+    await anonymous.goto(`${server.origin}${publicPagePath}?source=field-notes&mediaPark=US-INVALID&mediaKind=all#photos`);
+    await expect(anonymous).toHaveURL(allUrl);
+    await expect(all).toHaveAttribute("aria-pressed", "true");
+    await expect(park).toHaveValue("");
+    await expect(gallery.locator("article")).toHaveCount(3);
 
-    const mineBody = await (await page.request.get(`${server.origin}${apiPath}?scope=mine`)).json();
+    const photoBody = await (await anonymous.request.get(`${server.origin}${publicApiPath}?kind=photo`)).json();
     let delayed = false;
-    await page.route(new RegExp(`${apiPath}(?:\\?.*)?$`), async (route) => {
+    await anonymous.route(new RegExp(`${publicApiPath}(?:\\?.*)?$`), async (route) => {
       const url = new URL(route.request().url());
-      if (route.request().method() === "GET" && url.searchParams.get("scope") === "mine" && !delayed) {
+      if (route.request().method() === "GET" && url.searchParams.get("kind") === "photo" && !delayed) {
         delayed = true;
         staleStarted();
         await staleRequest;
-        try {
-          await route.fulfill({ json: mineBody });
-        } finally {
-          staleFinished();
-        }
+        try { await route.fulfill({ json: photoBody }); } finally { staleFinished(); }
         return;
       }
       await route.continue();
     });
-    await mine.click();
+    await photos.click();
     await staleRequestStarted;
-    await expect(all).toBeEnabled();
-    await all.click();
-    await expect(all).toHaveAttribute("aria-pressed", "true");
-    await expect(gallery.locator("article")).toHaveCount(2);
+    await expect(videos).toBeEnabled();
+    await videos.click();
+    await expect(videos).toHaveAttribute("aria-pressed", "true");
+    await expect(gallery.locator("article")).toHaveCount(1);
+    await expect(gallery.locator(`[data-media-id="${videoId}"]`)).toBeVisible();
     releaseStale();
     await staleRequestFinished;
-    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-    await expect(page).toHaveURL(allUrl);
-    await expect(all).toHaveAttribute("aria-pressed", "true");
-    await expect(gallery.locator("article")).toHaveCount(2);
+    await renderFrame(anonymous);
+    await expect(anonymous).toHaveURL(`${server.origin}${publicPagePath}?source=field-notes&mediaKind=video#photos`);
+    await expect(videos).toHaveAttribute("aria-pressed", "true");
+    await expect(gallery.locator("article")).toHaveCount(1);
+    const videoDetails = await openDetails(anonymous, videoId);
+    await expect(videoDetails.locator("video")).toHaveAttribute("src", `${publicApiPath}/${videoId}/file`);
   } finally {
     releaseStale();
-    await page.unrouteAll({ behavior: "wait" });
+    await anonymous.unrouteAll({ behavior: "wait" });
+    await anonymousContext.close();
     await friendContext.close();
     await server.stop();
   }
 });
 
-test("pagination and uploads remain usable beyond fifty files and duplicate filenames stay distinct", async ({ page }) => {
+test("public pagination uses thumbnails while large private selections and duplicate filenames stay distinct", async ({ page }) => {
   const server = await startActivateRiServer({ legacyLinkIssuanceEnabled: true });
   try {
     const scene = coastalPhoto("IMG_0001.jpg");
@@ -562,14 +641,15 @@ test("pagination and uploads remain usable beyond fifty files and duplicate file
       parkReference: index % 3 ? "US-2868" : null,
       title: ["A morning on the coast", "The view from our station", "Rhode Island from the field"][index % 3],
       description: "Shared from a Rhode Island activation. The original photo is available in the media viewer.",
-      canEdit: index % 2 === 0,
-      url: `${apiPath}/00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}/file`,
+      canEdit: index % 2 === 0, isOwn: index % 2 === 0,
+      editUrl: index % 2 === 0 ? `${apiPath}/00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}` : null,
+      thumbnailUrl: `${publicApiPath}/00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}/thumbnail`,
+      url: `${publicApiPath}/00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}/file`,
     }));
     const cursor = `${records[49].createdAt}|${records[49].id}`;
     const uploaded: ActivatorMedia[] = [];
     const receivedBodies: Buffer[] = [];
-    await signInActivator(page, server.origin, "N1CAP");
-    await page.route(new RegExp(`${apiPath}(?:\\?.*)?$`), async (route) => {
+    await page.route(new RegExp(`(?:${apiPath}|${publicApiPath})(?:\\?.*)?$`), async (route) => {
       if (route.request().method() === "POST") {
         receivedBodies.push(route.request().postDataBuffer()!);
         const response = await route.fetch();
@@ -580,41 +660,68 @@ test("pagination and uploads remain usable beyond fifty files and duplicate file
       }
       const nextPage = new URL(route.request().url()).searchParams.get("cursor");
       if (nextPage) expect(nextPage).toBe(cursor);
-      const allRecords = [...uploaded, ...records];
+      const allRecords = [...uploaded, ...records].map((file) =>
+        new URL(route.request().url()).pathname === publicApiPath
+          ? { ...file, filename: undefined, isOwn: false, canEdit: false, editUrl: null }
+          : { ...file, url: `${apiPath}/${file.id}/file` });
       await route.fulfill({ json: {
         ok: true, media: nextPage ? allRecords.slice(50) : allRecords.slice(0, 50),
         nextCursor: nextPage ? null : cursor,
         usage: { files: 75 + uploaded.length, bytes: 600 * 1024 * 1024 + uploaded.reduce((sum, file) => sum + file.size, 0) },
       } });
     });
-    await page.route(`**${apiPath}/*/file`, (route) => {
+    const originals: string[] = [];
+    let failedThumbnails = 0;
+    page.on("request", (request) => {
+      if (new URL(request.url()).pathname.match(/\/media\/[^/]+\/file$/)) originals.push(request.url());
+    });
+    await page.route(`**${publicApiPath}/*/thumbnail`, (route) => {
+      const id = new URL(route.request().url()).pathname.split("/").at(-2);
+      if (id === records[0].id && ++failedThumbnails === 1) return route.fulfill({ status: 503 });
+      // The synthetic pagination rows have no R2 objects; the first test exercises real Images/R2 thumbnails.
+      return route.fulfill({ contentType: scene.mimeType, body: scene.buffer });
+    });
+    await page.route(`**${publicApiPath}/*/file`, (route) => {
       const id = new URL(route.request().url()).pathname.split("/").at(-2);
       return records.some((file) => file.id === id)
         ? route.fulfill({ contentType: scene.mimeType, body: scene.buffer }) : route.continue();
     });
-    await page.goto(`${server.origin}${pagePath}`);
+    await page.goto(`${server.origin}${publicPagePath}`);
     const gallery = page.locator("[data-media-gallery]");
     await expect(gallery.locator("article")).toHaveCount(50);
     await expect(gallery).not.toContainText(scene.name);
     await expect(gallery.locator("[data-media-author]").first()).toHaveText("N1CAP - Casey");
+    await expect(gallery.locator("[data-media-tile-preview]").first()).toHaveAttribute("data-failed", "true");
+    await expect.poll(() => gallery.locator("img").nth(1).evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true);
+    await gallery.locator("img").nth(1).evaluate((image) => { (image as HTMLElement).dataset.testPreserved = "true"; });
+    expect(originals).toEqual([]);
+    await page.getByRole("button", { name: "Refresh files", exact: true }).click();
+    await expect.poll(() => failedThumbnails).toBe(2);
+    await expect.poll(() => gallery.locator("img").first().evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true);
+    await expect(gallery.locator("img").nth(1)).toHaveAttribute("data-test-preserved", "true");
+    expect(originals).toEqual([]);
     for (const [layout, width, height] of [["desktop", 1280, 1000], ["mobile", 390, 844]] as const) {
       await page.setViewportSize({ width, height });
       await page.evaluate(() => scrollTo(0, 0));
       await expect.poll(() => gallery.locator("img").first().evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       mkdirSync(resolve("tmp/media-screenshots"), { recursive: true });
-      await page.screenshot({ path: resolve(`tmp/media-screenshots/gallery-context-${layout}.png`), animations: "disabled" });
+      await page.screenshot({ path: resolve(`tmp/media-screenshots/public-gallery-${layout}.png`), animations: "disabled" });
       await page.locator(".media-workspace__header").evaluate((header) => header.scrollIntoView({ block: "start", behavior: "instant" }));
-      await page.screenshot({ path: resolve(`tmp/media-screenshots/gallery-${layout}.png`), animations: "disabled" });
+      await page.screenshot({ path: resolve(`tmp/media-screenshots/public-gallery-tiles-${layout}.png`), animations: "disabled" });
     }
+    expect(originals).toEqual([]);
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.getByRole("button", { name: "Load more files", exact: true }).click();
     await expect(gallery.locator("article")).toHaveCount(55);
     expect(new Set(await gallery.locator("article").evaluateAll((tiles) => tiles.map((tile) => (tile as HTMLElement).dataset.mediaId))).size).toBe(55);
     await expect(page.getByRole("button", { name: "Load more files", exact: true })).toBeHidden();
+    expect(originals).toEqual([]);
     await openDetails(page, records[1].id);
-    await captureMediaScreenshots(page, "gallery-read-only", "[data-media-details-dialog]");
+    await captureMediaScreenshots(page, "public-gallery-details", "[data-media-details-dialog]");
     await closeDetails(page);
+    await signInActivator(page, server, "N1CAP");
+    await page.goto(`${server.origin}${pagePath}`);
     const upload = await openUpload(page);
     await page.getByLabel("Choose photos and videos", { exact: true }).setInputFiles(Array.from({ length: 55 }, (_, index) => ({ ...png, name: `selection-${index}.png` })));
     await expect(page.locator('[data-media-queue] [data-state="ready"]')).toHaveCount(55);
@@ -695,7 +802,9 @@ function coastalPhoto(name: string) {
   return { name, mimeType: "image/jpeg", buffer: readFileSync(resolve("public/assets/rhode-island-coast-hero.jpg")) };
 }
 
-async function signInActivator(page: Page, origin: string, callsign: string): Promise<void> {
+async function signInActivator(page: Page, server: ActivateRiServer, callsign: string): Promise<void> {
+  const { origin } = server;
+  const outputOffset = server.output().length;
   const response = await page.request.post(`${origin}/api/activate-ri-2026/plans`, {
     headers: { origin },
     data: {
@@ -704,8 +813,16 @@ async function signInActivator(page: Page, origin: string, callsign: string): Pr
     },
   });
   expect(response.status(), await response.text()).toBe(202);
-  const submitted = await response.json() as { editUrl: string };
-  await page.goto(submitted.editUrl);
+  const submitted = await response.json() as { editUrl?: string };
+  let editUrl = submitted.editUrl;
+  if (!editUrl) {
+    const emailPattern = /Subject: Your Activate All RI 2026 edit link\s+Text: ([^\r\n]+)/;
+    await expect.poll(() => emailPattern.test(server.output().slice(outputOffset))).toBe(true);
+    const emailPath = server.output().slice(outputOffset).match(emailPattern)![1].trim();
+    editUrl = readFileSync(emailPath, "utf8").match(/https?:\/\/[^\s]+\/activate-ri-2026\/access\/#[^\s]+/)?.[0];
+  }
+  expect(editUrl).toBeTruthy();
+  await page.goto(editUrl!);
   await expect(page.locator('[name="submitterCallsign"]')).toHaveValue(callsign);
 }
 

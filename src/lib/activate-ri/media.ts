@@ -29,7 +29,7 @@ export const mediaAccept = [
 
 export type ActivatorMedia = {
   id: string;
-  filename: string;
+  filename?: string;
   contentType: string;
   kind: "photo" | "video";
   size: number;
@@ -40,6 +40,9 @@ export type ActivatorMedia = {
   title: string | null;
   description: string | null;
   canEdit: boolean;
+  isOwn: boolean;
+  editUrl: string | null;
+  thumbnailUrl: string | null;
   url: string;
 };
 

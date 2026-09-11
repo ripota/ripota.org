@@ -1,0 +1,26 @@
+---
+import ActivatorMedia from "../../components/activate-ri/ActivatorMedia.astro";
+import EventNav from "../../components/activate-ri/EventNav.astro";
+import Footer from "../../components/Footer.astro";
+import Notice from "../../components/Notice.astro";
+import SiteHeader from "../../components/SiteHeader.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="Activate All RI 2026 Photos & Videos" description="Explore photos and videos from Rhode Island park activations, shared by the activators who were there." canonicalPath="/activate-ri-2026/media/">
+  <SiteHeader variant="solid" showEventLink />
+  <main id="main">
+    <section class="section event-page media-page" aria-labelledby="public-media-title">
+      <div class="container stack">
+        <EventNav />
+        <ActivatorMedia publicGallery />
+      </div>
+    </section>
+    <Notice />
+  </main>
+  <Footer />
+</BaseLayout>
+
+<style>
+  .media-page { padding-block: clamp(1rem, 3vw, 2rem) 3rem; }
+</style>

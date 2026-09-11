@@ -8,6 +8,8 @@ import {
 import { mediaParkName, mediaParks, validateMediaParkReference } from "./media-parks";
 import { setupMediaDialogs } from "./media-dialogs";
 
+type MediaFilters = { park: string; kind: "" | "photo" | "video" };
+
 type QueueState = "ready" | "uploading" | "saved" | "error" | "cancelled" | "invalid";
 type QueuedFile = {
   file: File;
@@ -34,7 +36,9 @@ class MediaRequestError extends Error {
 /** Uploads use XHR so the browser can report progress without buffering a second copy of a video. */
 export function setupMediaWorkspace(root: HTMLElement): void {
   const organizer = root.dataset.mediaScope === "admin";
-  const endpoint = `/api/activate-ri-2026/${organizer ? "admin" : "activator"}/media`;
+  const publicGallery = root.dataset.mediaScope === "public";
+  const personal = !organizer && !publicGallery;
+  const endpoint = `/api/activate-ri-2026/${organizer ? "admin" : publicGallery ? "public" : "activator"}/media`;
   const gallery = root.querySelector<HTMLElement>("[data-media-gallery]")!;
   const galleryStatus = root.querySelector<HTMLElement>("[data-media-status]")!;
   const empty = root.querySelector<HTMLElement>("[data-media-empty]")!;
@@ -51,7 +55,9 @@ export function setupMediaWorkspace(root: HTMLElement): void {
   const uploadButton = root.querySelector<HTMLButtonElement>("[data-media-upload]");
   const clearButton = root.querySelector<HTMLButtonElement>("[data-media-clear]");
   const uploadStatus = root.querySelector<HTMLElement>("[data-media-upload-status]");
-  const scopeButtons = [...root.querySelectorAll<HTMLButtonElement>("[data-media-view]")];
+  const filterPark = root.querySelector("[data-media-filter-park]") as HTMLSelectElement | null;
+  const kindButtons = [...root.querySelectorAll<HTMLButtonElement>("[data-media-kind]")];
+  const clearFilters = root.querySelector<HTMLButtonElement>("[data-media-filter-clear]");
   const deleteDialog = root.querySelector<HTMLDialogElement>("[data-media-delete-dialog]")!;
   const deleteConfirm = root.querySelector<HTMLButtonElement>("[data-media-delete-confirm]")!;
   const deleteCancel = root.querySelector<HTMLButtonElement>("[data-media-delete-cancel]")!;
@@ -81,27 +87,30 @@ export function setupMediaWorkspace(root: HTMLElement): void {
   let deleteTarget: ActivatorMedia | null = null;
   let detailsTargetId: string | null = null;
   let detailsOriginal: ActivatorMedia | null = null;
-  let mediaView: "all" | "mine" = "all";
+  let filters: MediaFilters = { park: "", kind: "" };
+  let anonymousOnly = false;
+  let browsingNotice = "";
   let listGeneration = 0;
   let listRequest: AbortController | null = null;
   let deferredRefresh = false;
 
-  if (!organizer) {
-    mediaView = readMediaView();
-    for (const button of scopeButtons) button.addEventListener("click", () => {
-      const next = button.dataset.mediaView === "mine" ? "mine" : "all";
-      if (next === mediaView) return;
-      const url = new URL(location.href);
-      if (next === "mine") url.searchParams.set("mediaScope", "mine");
-      else url.searchParams.delete("mediaScope");
-      history.pushState(null, "", url);
-      changeMediaView(next);
+  if (publicGallery) {
+    filters = readFilters();
+    filterPark?.addEventListener("change", () => navigateFilters({ ...filters, park: filterPark.value }));
+    for (const button of kindButtons) button.addEventListener("click", () => {
+      const kind = button.dataset.mediaKind;
+      navigateFilters({ ...filters, kind: kind === "photo" || kind === "video" ? kind : "" });
     });
-    window.addEventListener("popstate", () => changeMediaView(readMediaView()));
+    clearFilters?.addEventListener("click", () => navigateFilters({ park: "", kind: "" }));
+    window.addEventListener("popstate", () => changeFilters(readFilters()));
+  } else if (personal && new URL(location.href).searchParams.has("mediaScope")) {
+    const url = new URL(location.href);
+    url.searchParams.delete("mediaScope");
+    history.replaceState(null, "", url);
   }
   updateControls();
 
-  refresh.addEventListener("click", () => void loadFiles());
+  refresh.addEventListener("click", () => void loadFiles(false, true));
   openUpload?.addEventListener("click", () => {
     if (uploadDialog && !signedOut) modals.open(uploadDialog, openUpload, uploadClose);
   });
@@ -141,7 +150,7 @@ export function setupMediaWorkspace(root: HTMLElement): void {
   deleteConfirm.addEventListener("click", () => void deleteFile());
   detailDelete.addEventListener("click", () => {
     const file = files.find((item) => item.id === detailsTargetId);
-    if (!file?.canEdit || signedOut) return;
+    if (!file?.canEdit || !file.editUrl || signedOut) return;
     deleteTarget = file;
     deleteStatus.textContent = "";
     root.querySelector<HTMLElement>("[data-media-delete-description]")!.textContent = mediaLabel(file);
@@ -173,6 +182,12 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     if (uploading) event.preventDefault();
   });
   window.addEventListener("activate-ri:logout", () => {
+    if (publicGallery) {
+      browsingNotice = "You have signed out. You can keep browsing the gallery.";
+      losePublicEditingAccess();
+      void loadFiles();
+      return;
+    }
     signedOut = true;
     listGeneration++;
     listRequest?.abort();
@@ -190,21 +205,39 @@ export function setupMediaWorkspace(root: HTMLElement): void {
   });
   void loadFiles();
 
-  function readMediaView(): "all" | "mine" {
+  function readFilters(): MediaFilters {
     const url = new URL(location.href);
-    if (url.searchParams.get("mediaScope") === "mine") return "mine";
-    if (url.searchParams.has("mediaScope")) {
-      url.searchParams.delete("mediaScope");
-      history.replaceState(null, "", url);
+    const original = url.href;
+    const park = url.searchParams.get("mediaPark") ?? "";
+    const kind = url.searchParams.get("mediaKind") ?? "";
+    const valid: MediaFilters = {
+      park: park === "general" || (park !== "" && validateMediaParkReference(park)) ? park : "",
+      kind: kind === "photo" || kind === "video" ? kind : "",
+    };
+    for (const [key, value] of [["mediaPark", valid.park], ["mediaKind", valid.kind]]) {
+      if (value) url.searchParams.set(key, value);
+      else url.searchParams.delete(key);
     }
-    return "all";
+    if (url.href !== original) history.replaceState(null, "", url);
+    return valid;
   }
 
-  function changeMediaView(next: "all" | "mine"): void {
-    if (next === mediaView) return;
-    if (!savingDetails) detailsDialog.close();
+  function navigateFilters(next: MediaFilters): void {
+    if (next.park === filters.park && next.kind === filters.kind) return;
+    const url = new URL(location.href);
+    for (const [key, value] of [["mediaPark", next.park], ["mediaKind", next.kind]]) {
+      if (value) url.searchParams.set(key, value);
+      else url.searchParams.delete(key);
+    }
+    history.pushState(null, "", url);
+    changeFilters(next);
+  }
+
+  function changeFilters(next: MediaFilters): void {
+    if (next.park === filters.park && next.kind === filters.kind) return;
     if (!deleting) deleteDialog.close();
-    mediaView = next;
+    if (!savingDetails && !deleting) detailsDialog.close();
+    filters = next;
     listGeneration++;
     listRequest?.abort();
     loading = false;
@@ -217,7 +250,34 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     void loadFiles();
   }
 
-  async function loadFiles(append = false): Promise<void> {
+  function losePublicEditingAccess(): void {
+    anonymousOnly = true;
+    listGeneration++;
+    listRequest?.abort();
+    loading = false;
+    files = files.map((file) => ({ ...file, isOwn: false, canEdit: false, editUrl: null }));
+    detailsOriginal = null;
+    detailsForm.hidden = true;
+    detailDelete.hidden = true;
+    deleteDialog.close();
+    detailsDialog.close();
+    renderGallery();
+    updateControls();
+  }
+
+  async function handleExpiredPublicAccess(response: Response): Promise<boolean> {
+    if (!publicGallery || (response.status !== 401 && response.status !== 403)) return false;
+    const body: unknown = await response.json().catch(() => null);
+    const reason = response.status === 401 ? "Your editing access has expired. Sign in through My media to edit again."
+      : isRecord(body) && typeof body.error === "string" ? body.error : "Editing is unavailable.";
+    browsingNotice = `${reason} You can keep browsing the gallery.`;
+    losePublicEditingAccess();
+    galleryStatus.textContent = browsingNotice;
+    deferredRefresh = true;
+    return true;
+  }
+
+  async function loadFiles(append = false, retryPreviews = false): Promise<void> {
     if (signedOut || (append && (loading || !nextCursor))) return;
     if (savingDetails || deleting || uploading) {
       deferredRefresh = true;
@@ -226,7 +286,7 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     }
     deferredRefresh = false;
     const generation = ++listGeneration;
-    const requestView = mediaView;
+    const requestFilters = { ...filters };
     listRequest?.abort();
     const controller = new AbortController();
     listRequest = controller;
@@ -235,22 +295,26 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     galleryStatus.textContent = "Loading photos and videos…";
     try {
       const params = new URLSearchParams();
-      if (!organizer && requestView === "mine") params.set("scope", "mine");
+      if (personal) params.set("scope", "mine");
+      if (publicGallery && requestFilters.park) params.set("park", requestFilters.park);
+      if (publicGallery && requestFilters.kind) params.set("kind", requestFilters.kind);
       if (append) params.set("cursor", nextCursor!);
       const url = `${endpoint}${params.size ? `?${params}` : ""}`;
-      const response = await fetch(url, { headers: { accept: "application/json" }, cache: "no-store", signal: controller.signal });
+      const response = await fetch(url, { headers: { accept: "application/json" }, cache: "no-store", credentials: anonymousOnly ? "omit" : "same-origin", signal: controller.signal });
       const body: unknown = await response.json().catch(() => null);
       if (generation !== listGeneration || signedOut) return;
       if (!response.ok || !isRecord(body) || body.ok !== true || !Array.isArray(body.media) || !body.media.every(isMedia)) {
         throw new Error(responseError(body, response.status, "Unable to load files. Try Refresh files again."));
       }
       if (signedOut) return;
-      const incoming = body.media as ActivatorMedia[];
+      const incoming = anonymousOnly
+        ? (body.media as ActivatorMedia[]).map((file) => ({ ...file, isOwn: false, canEdit: false, editUrl: null }))
+        : body.media as ActivatorMedia[];
       files = append ? [...files, ...incoming.filter((item) => !files.some((saved) => saved.id === item.id))] : incoming;
       nextCursor = typeof body.nextCursor === "string" ? body.nextCursor : null;
       loaded = true;
-      renderGallery();
-      galleryStatus.textContent = "";
+      renderGallery(retryPreviews);
+      galleryStatus.textContent = browsingNotice;
     } catch (error) {
       if (generation === listGeneration && !signedOut) galleryStatus.textContent = errorMessage(error, "Unable to load files. Check your connection and try Refresh files again.");
     } finally {
@@ -449,7 +513,7 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     });
   }
 
-  function renderGallery(): void {
+  function renderGallery(retryPreviews = false): void {
     const savedIds = new Set(files.map((file) => file.id));
     for (const tile of gallery.querySelectorAll<HTMLElement>("[data-media-id]")) {
       if (!savedIds.has(tile.dataset.mediaId!)) tile.remove();
@@ -460,11 +524,16 @@ export function setupMediaWorkspace(root: HTMLElement): void {
         : [...gallery.querySelectorAll<HTMLElement>("[data-media-id]")].find((node) => node.dataset.mediaId === file.id) ?? mediaTile(file);
       if (tile !== current) gallery.insertBefore(tile, current ?? null);
       const button = tile.querySelector<HTMLButtonElement>("[data-media-open-detail]")!;
-      button.setAttribute("aria-label", `View ${mediaLabel(file)}`);
+      button.setAttribute("aria-label", `View ${mediaLabel(file)}${file.isOwn ? ", your upload" : ""}`);
       const title = tile.querySelector<HTMLElement>("[data-media-title]")!;
       title.textContent = file.title ?? "";
       title.hidden = !file.title;
       tile.querySelector<HTMLElement>("[data-media-author]")!.textContent = file.authorLabel;
+      tile.querySelector<HTMLElement>("[data-media-own]")!.hidden = !file.isOwn;
+      const preview = tile.querySelector<HTMLElement>("[data-media-tile-preview]")!;
+      if (preview.dataset.source !== (file.thumbnailUrl ?? "") || (retryPreviews && preview.dataset.failed === "true")) {
+        renderPreview(file, preview, false);
+      }
       const badge = tile.querySelector<HTMLElement>("[data-media-park-badge]")!;
       const tooltip = tile.querySelector<HTMLElement>("[data-media-park-tooltip]")!;
       badge.textContent = file.parkReference ?? "";
@@ -475,9 +544,11 @@ export function setupMediaWorkspace(root: HTMLElement): void {
       else button.removeAttribute("aria-describedby");
     });
     empty.hidden = !loaded || files.length > 0;
-    root.querySelector<HTMLElement>("[data-media-empty-title]")!.textContent = mediaView === "mine" ? "Your activation belongs here" : "No shared uploads yet";
+    root.querySelector<HTMLElement>("[data-media-empty-title]")!.textContent = personal ? "Your activation belongs here"
+      : publicGallery && (filters.park || filters.kind) ? "No media matches these filters" : "No shared uploads yet";
     root.querySelector<HTMLElement>("[data-media-empty-help]")!.textContent = organizer
       ? "Photos and videos will appear as activators upload them."
+      : publicGallery ? (filters.park || filters.kind ? "Try another park or media type, or clear the filters." : "Photos and videos will appear as activators share their moments from the field.")
       : "Use Upload photos & videos to share a moment from your activation.";
   }
 
@@ -487,15 +558,17 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     const button = element("button", "media-tile__button");
     button.type = "button";
     button.dataset.mediaOpenDetail = "";
-    button.setAttribute("aria-label", `View ${mediaLabel(file)}`);
-    renderPreview(file, button, false);
-    if (file.kind === "video") button.appendChild(element("span", "media-tile__type", "▶ Video"));
+    button.setAttribute("aria-label", `View ${mediaLabel(file)}${file.isOwn ? ", your upload" : ""}`);
+    const preview = element("div", "media-tile__preview");
+    preview.dataset.mediaTilePreview = "";
+    renderPreview(file, preview, false);
+    button.appendChild(preview);
     const badge = element("span", "media-tile__park", file.parkReference ?? "");
     badge.dataset.mediaParkBadge = "";
     badge.hidden = !file.parkReference;
     const tooltip = element("span", "media-tile__tooltip", parkLabel(file.parkReference));
     tooltip.dataset.mediaParkTooltip = "";
-    tooltip.id = `media-park-${organizer ? "admin" : "activator"}-${file.id}`;
+    tooltip.id = `media-park-${organizer ? "admin" : publicGallery ? "public" : "activator"}-${file.id}`;
     tooltip.setAttribute("role", "tooltip");
     tooltip.hidden = !file.parkReference;
     button.appendChild(badge);
@@ -512,6 +585,10 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     author.dataset.mediaAuthor = "";
     caption.appendChild(title);
     caption.appendChild(author);
+    const own = element("span", "media-tile__own", "Yours");
+    own.dataset.mediaOwn = "";
+    own.hidden = !file.isOwn;
+    caption.appendChild(own);
     tile.appendChild(button);
     tile.appendChild(caption);
     return tile;
@@ -519,29 +596,33 @@ export function setupMediaWorkspace(root: HTMLElement): void {
 
   function renderPreview(file: ActivatorMedia, container: HTMLElement, detail: boolean): void {
     container.replaceChildren();
+    delete container.dataset.failed;
     const fallback = element("span", detail ? "media-detail__fallback" : "media-tile__fallback", detail
       ? "This device cannot preview this original. Download it to view in another app."
-      : `${file.kind === "photo" ? "Photo" : "Video"} · Open to view`);
+      : file.kind === "video" ? "▶ Video" : "Photo · Open to view");
+    const source = detail ? file.url : file.thumbnailUrl;
+    container.dataset.source = file.thumbnailUrl ?? "";
+    // Gallery tiles never request originals. Videos use a quiet placeholder until opened.
+    if (!detail && (file.kind === "video" || !source)) {
+      container.appendChild(fallback);
+      return;
+    }
     fallback.hidden = true;
-    const source = `${endpoint}/${encodeURIComponent(file.id)}/file`;
     if (file.kind === "photo") {
-      // Let browsers with native HEIC/HEIF support preview originals too.
       const image = element("img");
       image.alt = detail ? mediaLabel(file) : "";
       image.loading = detail ? "eager" : "lazy";
       image.decoding = "async";
-      image.src = source;
-      image.addEventListener("error", () => { image.hidden = true; fallback.hidden = false; });
+      image.src = source!;
+      image.addEventListener("error", () => { image.hidden = true; fallback.hidden = false; container.dataset.failed = "true"; });
       container.appendChild(image);
     } else {
       const video = element("video");
-      video.controls = detail;
+      video.controls = true;
       video.preload = "metadata";
       video.playsInline = true;
-      video.muted = !detail;
-      if (detail) video.setAttribute("aria-label", mediaLabel(file));
-      else { video.tabIndex = -1; video.setAttribute("aria-hidden", "true"); }
-      video.src = source;
+      video.setAttribute("aria-label", mediaLabel(file));
+      video.src = source!;
       video.addEventListener("error", () => { video.hidden = true; fallback.hidden = false; });
       container.appendChild(video);
     }
@@ -550,7 +631,8 @@ export function setupMediaWorkspace(root: HTMLElement): void {
 
   function openDetails(file: ActivatorMedia, trigger: HTMLButtonElement): void {
     detailsTargetId = file.id;
-    detailsOriginal = file.canEdit ? { ...file } : null;
+    const editable = file.canEdit && !!file.editUrl;
+    detailsOriginal = editable ? { ...file } : null;
     detailsDialog.dataset.mediaId = file.id;
     detailsStatus.textContent = "";
     root.querySelector<HTMLElement>("[data-media-details-author]")!.textContent = file.authorLabel;
@@ -559,20 +641,23 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     const uploaded = new Date(file.createdAt);
     root.querySelector<HTMLElement>("[data-media-details-meta]")!.textContent = `${file.kind === "photo" ? "Photo" : "Video"} · ${formatMediaBytes(file.size)} · Uploaded ${Number.isFinite(uploaded.valueOf()) ? uploaded.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "date unavailable"}`;
     root.querySelector<HTMLElement>("[data-media-details-description]")!.textContent = file.description ?? "";
-    root.querySelector<HTMLElement>("[data-media-details-readonly]")!.hidden = file.canEdit || !file.description;
-    detailsForm.hidden = !file.canEdit;
-    detailDelete.hidden = !file.canEdit;
+    root.querySelector<HTMLElement>("[data-media-details-readonly]")!.hidden = editable || !file.description;
+    detailsForm.hidden = !editable;
+    detailDelete.hidden = !editable;
     editPark.value = file.parkReference ?? "";
     editTitle.value = file.title ?? "";
     editDescription.value = file.description ?? "";
-    detailDownload.href = `${endpoint}/${encodeURIComponent(file.id)}/file?download=1`;
-    detailDownload.download = file.filename;
+    const downloadUrl = new URL(file.url, location.origin);
+    downloadUrl.searchParams.set("download", "1");
+    detailDownload.href = downloadUrl.href;
+    if (file.filename) detailDownload.download = file.filename;
+    else detailDownload.removeAttribute("download");
     renderPreview(file, detailsPreview, true);
     modals.open(detailsDialog, trigger, detailsCancel);
   }
 
   async function deleteFile(): Promise<void> {
-    if (!deleteTarget?.canEdit || deleting || signedOut) return;
+    if (!deleteTarget?.canEdit || !deleteTarget.editUrl || deleting || signedOut) return;
     const target = deleteTarget;
     deleting = true;
     listGeneration++;
@@ -583,12 +668,13 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     deleteCancel.disabled = true;
     deleteStatus.textContent = "Deleting file…";
     try {
-      const response = await fetch(`${endpoint}/${encodeURIComponent(target.id)}`, { method: "DELETE", headers: { accept: "application/json" } });
+      const response = await fetch(target.editUrl!, { method: "DELETE", headers: { accept: "application/json" } });
+      if (await handleExpiredPublicAccess(response)) return;
       if (!response.ok) {
         const body: unknown = await response.json().catch(() => null);
         throw new Error(responseError(body, response.status, "Unable to delete this file. Please try again."));
       }
-      if (signedOut) return;
+      if (signedOut || (publicGallery && anonymousOnly)) return;
       files = files.filter((file) => file.id !== target.id);
       renderGallery();
       deleteDialog.close();
@@ -610,7 +696,7 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     if (!detailsTargetId || !detailsOriginal || savingDetails || loading || signedOut) return;
     const targetId = detailsTargetId;
     const target = files.find((file) => file.id === targetId);
-    if (!target?.canEdit) return;
+    if (!target?.canEdit || !target.editUrl) return;
     const original = detailsOriginal;
     const parkReference = editPark.value || null;
     if (!validateMediaParkReference(parkReference)) {
@@ -642,16 +728,17 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     editDescription.disabled = true;
     detailsStatus.textContent = "Saving details…";
     try {
-      const response = await fetch(`${endpoint}/${encodeURIComponent(targetId)}`, {
+      const response = await fetch(target.editUrl, {
         method: "PATCH",
         headers: { accept: "application/json", "content-type": "application/json" },
         body: JSON.stringify(changes),
       });
+      if (await handleExpiredPublicAccess(response)) return;
       const body: unknown = await response.json().catch(() => null);
       if (!response.ok || !isRecord(body) || body.ok !== true || !isMedia(body.media)) {
         throw new Error(responseError(body, response.status, "Unable to save these details. Please try again."));
       }
-      if (signedOut) return;
+      if (signedOut || (publicGallery && anonymousOnly)) return;
       const saved = body.media;
       files = files.map((file) => file.id === targetId ? saved : file);
       for (const item of queue) {
@@ -662,6 +749,7 @@ export function setupMediaWorkspace(root: HTMLElement): void {
       renderGallery();
       detailsDialog.close();
       galleryStatus.textContent = "Details saved.";
+      if (publicGallery) deferredRefresh = true;
     } catch (error) {
       if (!signedOut) detailsStatus.textContent = errorMessage(error, "Unable to save these details. Check your connection and try again.");
     } finally {
@@ -684,9 +772,17 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     detailsSave.disabled = loading || savingDetails || deleting || signedOut;
     detailDelete.disabled = savingDetails || deleting || signedOut;
     detailsCancel.disabled = savingDetails || deleting;
-    for (const button of scopeButtons) {
-      button.setAttribute("aria-pressed", String(button.dataset.mediaView === mediaView));
-      button.disabled = uploading || savingDetails || deleting || signedOut;
+    if (filterPark) {
+      filterPark.value = filters.park;
+      filterPark.disabled = savingDetails || deleting;
+    }
+    for (const button of kindButtons) {
+      button.setAttribute("aria-pressed", String(button.dataset.mediaKind === filters.kind));
+      button.disabled = savingDetails || deleting;
+    }
+    if (clearFilters) {
+      clearFilters.hidden = !filters.park && !filters.kind;
+      clearFilters.disabled = savingDetails || deleting;
     }
     if (queueSection) queueSection.hidden = queue.length === 0;
     const ready = queue.filter((item) => item.state === "ready").length;
@@ -737,14 +833,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isMedia(value: unknown): value is ActivatorMedia {
-  return isRecord(value) && typeof value.id === "string" && typeof value.filename === "string"
+  return isRecord(value) && typeof value.id === "string" && (value.filename === undefined || typeof value.filename === "string")
     && typeof value.contentType === "string" && (value.kind === "photo" || value.kind === "video")
     && typeof value.size === "number" && Number.isFinite(value.size) && value.size >= 0
     && typeof value.createdAt === "string" && typeof value.callsign === "string" && typeof value.authorLabel === "string" && typeof value.url === "string"
     && (value.parkReference === null || typeof value.parkReference === "string")
     && (value.title === null || typeof value.title === "string")
     && (value.description === null || typeof value.description === "string")
-    && typeof value.canEdit === "boolean";
+    && typeof value.canEdit === "boolean" && typeof value.isOwn === "boolean"
+    && (value.editUrl === null || typeof value.editUrl === "string")
+    && (value.thumbnailUrl === null || typeof value.thumbnailUrl === "string");
 }
 
 function responseError(body: unknown, status: number, fallback: string): string {

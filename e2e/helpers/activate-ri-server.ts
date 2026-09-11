@@ -20,7 +20,7 @@ export type ActivateRiServer = {
 };
 
 export async function startActivateRiServer(
-  options: { legacyLinkIssuanceEnabled?: boolean; seedAccountOnly?: boolean; https?: boolean } = {},
+  options: { legacyLinkIssuanceEnabled?: boolean; seedAccountOnly?: boolean; https?: boolean; adminHeaderAuthOnly?: boolean } = {},
 ): Promise<ActivateRiServer> {
   const port = await freePort();
   const inspectorPort = await freePort(port);
@@ -45,6 +45,12 @@ export async function startActivateRiServer(
   ];
   if (options.legacyLinkIssuanceEnabled) {
     wranglerArgs.push("--var", "AUTH_LEGACY_LINK_ISSUANCE_ENABLED:true");
+  }
+  if (options.adminHeaderAuthOnly) {
+    // Public-gallery tests must distinguish anonymous visitors from organizers.
+    // Other local tests keep the existing convenient administrator bypass.
+    wranglerArgs.push("--var", "ALLOW_LOCAL_ADMIN_AUTH:false", "--var", "ALLOW_ADMIN_HEADER_AUTH:true",
+      "--var", `SITE_ORIGIN:${options.https ? "https" : "http"}://localhost:${port}`);
   }
   const child = spawn(
     "./node_modules/.bin/wrangler",

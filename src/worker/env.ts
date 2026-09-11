@@ -20,6 +20,7 @@ type OptionalBindings = Partial<Pick<
 >>;
 
 export type Env = RequiredBindings & OptionalBindings & {
+  IMAGES?: ImagesBinding;
   ANALYTICS_HASH_KEY?: string;
   TURNSTILE_REQUIRED?: "true" | "false";
   TURNSTILE_SECRET_KEY?: string;

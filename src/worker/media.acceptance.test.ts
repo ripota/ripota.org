@@ -1,16 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import { mediaLimits, type ActivatorMedia } from "../lib/activate-ri/media";
-import { createUserWithVerifiedEmail, linkActivatorMembership } from "./auth/db";
+import { createUserWithVerifiedEmail, grantAdminRole, linkActivatorMembership } from "./auth/db";
 import { createAuthSession } from "./auth/session";
 import { insertPendingPlan } from "./db";
 import type { Env } from "./env";
 import * as mediaStorage from "./media";
+import * as mediaThumbnails from "./media-thumbnails";
 import { handleActivateRiApi } from "./routes/activate-ri";
 import { createMigratedSqliteD1 } from "./test-utils/sqlite-d1";
 
 const origin = "https://ripota.org";
 const base = "/api/activate-ri-2026/activator/media";
 const adminBase = "/api/activate-ri-2026/admin/media";
+const publicBase = "/api/activate-ri-2026/public/media";
 const usageNoticeVersion = "ri-pota-media-v1";
 const photo = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, ...new Uint8Array(28)]);
 let database: ReturnType<typeof createMigratedSqliteD1>;
@@ -38,7 +40,9 @@ beforeEach(() => {
     const body = objects.get(key);
     return body ? { key, size: body.length, httpEtag: '"test-etag"' } as R2Object : null;
   });
-  remove = vi.fn(async (key: string) => { objects.delete(key); });
+  remove = vi.fn(async (keys: string | string[]) => {
+    for (const key of typeof keys === "string" ? [keys] : keys) objects.delete(key);
+  });
   env = {
     ACTIVATE_RI_EVENT_ID: "activate-ri-2026",
     SITE_ORIGIN: origin,
@@ -142,15 +146,19 @@ async function seedMedia(activatorId: string, options: {
   size?: number;
   createdAt?: string;
   eventId?: string;
+  parkReference?: string | null;
+  kind?: "photo" | "video";
 } = {}): Promise<string> {
   const id = crypto.randomUUID();
   const createdAt = options.createdAt ?? new Date().toISOString();
   const key = `test/${id}`;
+  const kind = options.kind ?? "photo";
   await env.DB.prepare(`INSERT INTO activate_ri_media
-    (id, event_id, activator_id, object_key, filename, content_type, kind, size, state, created_at, updated_at, usage_notice_version)
-    VALUES (?, ?, ?, ?, 'photo.jpg', 'image/jpeg', 'photo', ?, ?, ?, ?, ?)`)
+    (id, event_id, activator_id, object_key, filename, content_type, kind, size, state, created_at, updated_at, usage_notice_version, park_reference)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .bind(id, options.eventId ?? env.ACTIVATE_RI_EVENT_ID, activatorId, key,
-      options.size ?? photo.length, options.state ?? "ready", createdAt, createdAt, usageNoticeVersion).run();
+      kind === "photo" ? "photo.jpg" : "video.mp4", kind === "photo" ? "image/jpeg" : "video/mp4", kind,
+      options.size ?? photo.length, options.state ?? "ready", createdAt, createdAt, usageNoticeVersion, options.parkReference ?? null).run();
   objects.set(key, photo);
   return id;
 }
@@ -401,7 +409,7 @@ describe("shared activator gallery", () => {
     expect([...firstPage.media, ...secondPage.media].map((item) => item.id)).toEqual(ids.sort().reverse());
   });
 
-  it.each(["?scope=someone-else", "?scope=private", "?cursor=invalid"])("rejects invalid gallery filter state %s", async (query) => {
+  it.each(["?scope=someone-else", "?scope=private", "?cursor=invalid", "?cursor="])("rejects invalid gallery filter state %s", async (query) => {
     const user = await owner();
     const response = await handleActivateRiApi(request(`${base}${query}`, user.token), env);
     expect(response.status).toBe(400);
@@ -419,6 +427,260 @@ describe("shared activator gallery", () => {
     const response = await handleActivateRiApi(request(base, second.token), env);
     await expect(response.json()).resolves.toMatchObject({ media: [] });
     expect(get).not.toHaveBeenCalled();
+  });
+});
+
+describe("public media gallery", () => {
+  function publicHeaders(response: Response): void {
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(response.headers.get("vary")?.toLowerCase().split(/,\s*/)).toEqual(expect.arrayContaining([
+      "cookie", "cf-access-jwt-assertion", "cf-access-authenticated-user-email",
+    ]));
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(response.headers.get("x-robots-tag")).toBeNull();
+  }
+
+  it("lists all existing ready uploads anonymously without private metadata or edit authority", async () => {
+    const [first, second] = await Promise.all([owner(), owner("other")]);
+    const photoId = await seedMedia(first.activatorId, { parkReference: "US-2868" });
+    const videoId = await seedMedia(second.activatorId, { kind: "video" });
+    await env.DB.prepare("UPDATE activate_ri_media SET usage_notice_version = NULL WHERE id = ?").bind(photoId).run();
+    await setChatDisplayName(first.activatorId, "Rob J.");
+    const response = await handleActivateRiApi(request(publicBase), env);
+    expect(response.status).toBe(200);
+    publicHeaders(response);
+    const body = await response.json() as { media: ActivatorMedia[]; nextCursor: null };
+    expect(body.media.map((media) => media.id).sort()).toEqual([photoId, videoId].sort());
+    expect(body.nextCursor).toBeNull();
+    expect(body).not.toHaveProperty("usage");
+    expect(body).not.toHaveProperty("limits");
+    for (const media of body.media) {
+      expect(media).toMatchObject({ canEdit: false, isOwn: false, editUrl: null, url: `${publicBase}/${media.id}/file` });
+      expect(media).not.toHaveProperty("filename");
+      expect(media).not.toHaveProperty("object_key");
+      expect(media).not.toHaveProperty("activator_id");
+      expect(media.thumbnailUrl).toBe(media.kind === "photo" ? `${publicBase}/${media.id}/thumbnail` : null);
+    }
+    expect(body.media.find((media) => media.id === photoId)?.authorLabel).toBe("N1OWN - Rob J.");
+    expect(JSON.stringify(body)).not.toMatch(/@example|chat_display_name|activator_name|usage_notice_version/);
+    expect(get).not.toHaveBeenCalled();
+    expect(head).not.toHaveBeenCalled();
+  });
+
+  it("personalizes only ownership and authenticated edit links without changing the public collection", async () => {
+    const [first, second] = await Promise.all([owner(), owner("other")]);
+    const firstId = await seedMedia(first.activatorId);
+    const secondId = await seedMedia(second.activatorId);
+    const response = await handleActivateRiApi(request(publicBase, first.token), env);
+    publicHeaders(response);
+    const body = await response.json() as { media: ActivatorMedia[] };
+    expect(body.media).toHaveLength(2);
+    expect(body.media.find((media) => media.id === firstId)).toMatchObject({
+      isOwn: true, canEdit: true, editUrl: `${base}/${firstId}`, url: `${publicBase}/${firstId}/file`,
+    });
+    expect(body.media.find((media) => media.id === secondId)).toMatchObject({ isOwn: false, canEdit: false, editUrl: null });
+    expect((await handleActivateRiApi(parkPatch(firstId, second.token, { title: "Spoofed ownership" }), env)).status).toBe(404);
+    expect((await handleActivateRiApi(parkPatch(firstId, undefined, { title: "Anonymous edit" }), env)).status).toBe(401);
+
+    const headers = { "cf-access-authenticated-user-email": "organizer@example.invalid" };
+    const adminResponse = await handleActivateRiApi(request(publicBase, first.token, { headers }), env);
+    publicHeaders(adminResponse);
+    const adminBody = await adminResponse.json() as { media: ActivatorMedia[] };
+    for (const media of adminBody.media) {
+      expect(media).toMatchObject({ canEdit: true, editUrl: `${adminBase}/${media.id}`, isOwn: media.id === firstId });
+    }
+    const adminEdit = await handleActivateRiApi(parkPatch(secondId, first.token, { title: "Organizer edit" }, adminBase, headers), env);
+    expect(adminEdit.status).toBe(200);
+    await expect(adminEdit.json()).resolves.toMatchObject({ media: { canEdit: true, isOwn: false, editUrl: `${adminBase}/${secondId}` } });
+  });
+
+  it("requires fresh organizer authentication for public admin edit links while retaining owner access", async () => {
+    env.AUTH_ADMIN_MODE = "passkey";
+    const [first, second] = await Promise.all([owner(), owner("other")]);
+    await grantAdminRole(env, first.userId, null);
+    const ownId = await seedMedia(first.activatorId);
+    const otherId = await seedMedia(second.activatorId);
+    const fresh = await handleActivateRiApi(request(publicBase, first.token), env);
+    const freshBody = await fresh.json() as { media: ActivatorMedia[] };
+    expect(freshBody.media).toHaveLength(2);
+    expect(freshBody.media.every((media) => media.canEdit && media.editUrl === `${adminBase}/${media.id}`)).toBe(true);
+    await env.DB.prepare("UPDATE auth_sessions SET passkey_verified_at = ? WHERE id = ?")
+      .bind("2020-01-01T00:00:00.000Z", first.sessionId).run();
+    const stale = await handleActivateRiApi(request(publicBase, first.token), env);
+    expect(stale.status).toBe(200);
+    publicHeaders(stale);
+    const staleBody = await stale.json() as { media: ActivatorMedia[] };
+    expect(staleBody.media.find((media) => media.id === ownId)).toMatchObject({ canEdit: true, isOwn: true, editUrl: `${base}/${ownId}` });
+    expect(staleBody.media.find((media) => media.id === otherId)).toMatchObject({ canEdit: false, isOwn: false, editUrl: null });
+    expect((await handleActivateRiApi(parkPatch(otherId, first.token, { title: "Stale admin" }, adminBase), env)).status).toBe(401);
+  });
+
+  it.each(["anonymous", "account-only", "expired", "revoked", "unknown-token"] as const)(
+    "keeps public viewing available with %s credentials while omitting edit links", async (credentials) => {
+      const first = await owner();
+      const id = await seedMedia(first.activatorId);
+      let token: string | undefined = first.token;
+      if (credentials === "anonymous") token = undefined;
+      else if (credentials === "unknown-token") token = "expired-or-invalid-session";
+      else if (credentials === "account-only") {
+        const account = await createUserWithVerifiedEmail(env, "hunter@example.invalid", "Hunter", new Date().toISOString());
+        token = (await createAuthSession(env, { userId: account.id, authenticationMethod: "passkey", passkeyVerified: true })).token;
+      } else {
+        const column = credentials === "expired" ? "expires_at" : "revoked_at";
+        await env.DB.prepare(`UPDATE auth_sessions SET ${column} = ? WHERE id = ?`)
+          .bind("2020-01-01T00:00:00.000Z", first.sessionId).run();
+      }
+      const response = await handleActivateRiApi(request(publicBase, token), env);
+      expect(response.status).toBe(200);
+      publicHeaders(response);
+      await expect(response.json()).resolves.toMatchObject({ media: [{ id, canEdit: false, isOwn: false, editUrl: null }] });
+      const original = await handleActivateRiApi(request(`${publicBase}/${id}/file`, token), env);
+      expect(original.status).toBe(200);
+      expect(new Uint8Array(await original.arrayBuffer())).toEqual(photo);
+    },
+  );
+
+  it("applies combined park and kind filters before pagination and preserves identical-timestamp ordering", async () => {
+    const first = await owner();
+    const matchIds: string[] = [];
+    const timestamp = "2026-09-12T12:00:00.000Z";
+    for (let index = 0; index < 51; index++) {
+      matchIds.push(await seedMedia(first.activatorId, { parkReference: "US-2868", kind: "photo", createdAt: timestamp }));
+      await seedMedia(first.activatorId, { parkReference: "US-2868", kind: "video", createdAt: "2026-09-13T12:00:00.000Z" });
+    }
+    const general = await seedMedia(first.activatorId);
+    await seedMedia(first.activatorId, { parkReference: "US-0514" });
+    const filtered = `${publicBase}?park=US-2868&kind=photo`;
+    const firstResponse = await handleActivateRiApi(request(filtered), env);
+    const firstPage = await firstResponse.json() as { media: ActivatorMedia[]; nextCursor: string };
+    expect(firstPage.media).toHaveLength(50);
+    expect(firstPage.media.every((media) => media.parkReference === "US-2868" && media.kind === "photo")).toBe(true);
+    const secondResponse = await handleActivateRiApi(request(`${filtered}&cursor=${encodeURIComponent(firstPage.nextCursor)}`), env);
+    const secondPage = await secondResponse.json() as { media: ActivatorMedia[]; nextCursor: null };
+    expect(secondPage.media).toHaveLength(1);
+    expect(secondPage.nextCursor).toBeNull();
+    expect([...firstPage.media, ...secondPage.media].map((media) => media.id)).toEqual(matchIds.sort().reverse());
+    const generalResponse = await handleActivateRiApi(request(`${publicBase}?park=general&kind=photo`), env);
+    await expect(generalResponse.json()).resolves.toMatchObject({ media: [{ id: general, parkReference: null }], nextCursor: null });
+    const videoResponse = await handleActivateRiApi(request(`${publicBase}?park=US-2868&kind=video`), env);
+    const videos = await videoResponse.json() as { media: ActivatorMedia[]; nextCursor: string };
+    expect(videos.media).toHaveLength(50);
+    expect(videos.media.every((media) => media.kind === "video")).toBe(true);
+  });
+
+  it.each(["?park=US-0001", "?park=us-2868", "?park=", "?kind=audio", "?kind=", "?cursor=invalid", "?cursor="])(
+    "rejects invalid public filters %s", async (query) => {
+      const response = await handleActivateRiApi(request(`${publicBase}${query}`), env);
+      expect(response.status).toBe(400);
+      publicHeaders(response);
+      expect(get).not.toHaveBeenCalled();
+    },
+  );
+
+  it("serves unchanged anonymous originals, downloads, HEAD, and byte ranges", async () => {
+    const first = await owner();
+    const saved = await uploadPhoto(first.token);
+    const url = `${publicBase}/${saved.id}/file`;
+    const original = await handleActivateRiApi(request(`${url}?download=1`), env);
+    expect(original.status).toBe(200);
+    publicHeaders(original);
+    expect(original.headers.get("content-disposition")).toContain("attachment;");
+    expect(new Uint8Array(await original.arrayBuffer())).toEqual(photo);
+    const metadata = await handleActivateRiApi(request(url, undefined, { method: "HEAD" }), env);
+    expect(metadata.status).toBe(200);
+    expect(metadata.headers.get("content-length")).toBe(String(photo.length));
+    expect(await metadata.text()).toBe("");
+    const partial = await handleActivateRiApi(request(url, undefined, { headers: { range: "bytes=4-15" } }), env);
+    expect(partial.status).toBe(206);
+    expect(partial.headers.get("content-range")).toBe(`bytes 4-15/${photo.length}`);
+    expect(new Uint8Array(await partial.arrayBuffer())).toEqual(photo.slice(4, 16));
+    const changed = await handleActivateRiApi(parkPatch(saved.id, first.token, { title: "Changed title", parkReference: "US-2868" }), env);
+    expect(changed.status).toBe(200);
+    const unchanged = await handleActivateRiApi(request(url), env);
+    expect(new Uint8Array(await unchanged.arrayBuffer())).toEqual(photo);
+  });
+
+  it("excludes unfinished and foreign-event originals and thumbnails before any storage access", async () => {
+    const first = await owner();
+    const thumbnail = vi.spyOn(mediaThumbnails, "servePublicMediaThumbnail");
+    const ids = [
+      await seedMedia(first.activatorId, { state: "uploading" }),
+      await seedMedia(first.activatorId, { state: "deleting" }),
+      await seedMedia(first.activatorId, { eventId: "another-event" }),
+      crypto.randomUUID(),
+    ];
+    for (const id of ids) {
+      for (const resource of ["file", "thumbnail"]) {
+        for (const method of ["GET", "HEAD"]) {
+          const response = await handleActivateRiApi(request(`${publicBase}/${id}/${resource}`, undefined, { method }), env);
+          expect(response.status).toBe(404);
+          publicHeaders(response);
+        }
+      }
+    }
+    const list = await handleActivateRiApi(request(publicBase), env);
+    await expect(list.json()).resolves.toMatchObject({ media: [] });
+    expect(thumbnail).not.toHaveBeenCalled();
+    expect(get).not.toHaveBeenCalled();
+    expect(head).not.toHaveBeenCalled();
+  });
+
+  it("delegates photo thumbnails only after checking ready event metadata", async () => {
+    const first = await owner();
+    const photoId = await seedMedia(first.activatorId);
+    const videoId = await seedMedia(first.activatorId, { kind: "video" });
+    const thumbnail = vi.spyOn(mediaThumbnails, "servePublicMediaThumbnail").mockImplementation(async (request) =>
+      new Response(request.method === "HEAD" ? null : "thumbnail", { headers: { "content-type": "image/webp" } }));
+    for (const method of ["GET", "HEAD"]) {
+      const response = await handleActivateRiApi(request(`${publicBase}/${photoId}/thumbnail`, undefined, { method }), env);
+      expect(response.status).toBe(200);
+      publicHeaders(response);
+      expect(await response.text()).toBe(method === "HEAD" ? "" : "thumbnail");
+    }
+    expect(thumbnail).toHaveBeenCalledTimes(2);
+    expect(thumbnail).toHaveBeenLastCalledWith(expect.any(Request), env, expect.objectContaining({ id: photoId, state: "ready", kind: "photo" }));
+    expect((await handleActivateRiApi(request(`${publicBase}/${videoId}/thumbnail`), env)).status).toBe(404);
+    expect(thumbnail).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps public routes read-only for every viewer and allows original reads in production-data mode", async () => {
+    const first = await owner();
+    const id = await seedMedia(first.activatorId);
+    const thumbnail = vi.spyOn(mediaThumbnails, "servePublicMediaThumbnail");
+    for (const token of [undefined, first.token]) {
+      for (const method of ["POST", "PATCH", "DELETE"]) {
+        for (const path of [publicBase, `${publicBase}/${id}`, `${publicBase}/${id}/file`, `${publicBase}/${id}/thumbnail`]) {
+          const response = await handleActivateRiApi(request(path, token, { method, headers: { origin } }), env);
+          expect(response.status).toBe(405);
+          publicHeaders(response);
+        }
+      }
+    }
+    expect(thumbnail).not.toHaveBeenCalled();
+    expect(store).not.toHaveBeenCalled();
+    expect(remove).not.toHaveBeenCalled();
+    env.REMOTE_DATA_READ_ONLY = "true";
+    expect((await handleActivateRiApi(request(publicBase), env)).status).toBe(200);
+    const original = await handleActivateRiApi(request(`${publicBase}/${id}/file`), env);
+    expect(new Uint8Array(await original.arrayBuffer())).toEqual(photo);
+    expect((await handleActivateRiApi(parkPatch(id, first.token, { title: "Blocked edit" }), env)).status).toBe(403);
+  });
+
+  it("removes both the original and cached thumbnail and immediately hides deleted media publicly", async () => {
+    const first = await owner();
+    const id = await seedMedia(first.activatorId);
+    const objectKey = `test/${id}`;
+    const thumbnailKey = mediaThumbnails.mediaThumbnailKey(objectKey);
+    objects.set(thumbnailKey, new Uint8Array([1, 2, 3]));
+    const response = await handleActivateRiApi(request(`${base}/${id}`, first.token, { method: "DELETE", headers: { origin } }), env);
+    expect(response.status).toBe(200);
+    expect(remove).toHaveBeenCalledWith([objectKey, thumbnailKey]);
+    expect(objects.size).toBe(0);
+    for (const resource of ["file", "thumbnail"]) {
+      expect((await handleActivateRiApi(request(`${publicBase}/${id}/${resource}`), env)).status).toBe(404);
+    }
+    const list = await handleActivateRiApi(request(publicBase), env);
+    await expect(list.json()).resolves.toMatchObject({ media: [], nextCursor: null });
   });
 });
 

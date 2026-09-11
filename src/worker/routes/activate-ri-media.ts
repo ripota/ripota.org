@@ -6,21 +6,25 @@ import type { Env } from "../env";
 import { json } from "../http";
 import { logWorkerError } from "../logging";
 import { MediaUploadError, removeMediaObject, serializeMedia, storeMediaStream, type MediaAuthor, type MediaRow } from "../media";
+import { servePublicMediaThumbnail } from "../media-thumbnails";
 import { hasTrustedOrigin } from "../origin";
 import { withPrivateHeaders } from "../private-response";
 
-const routePattern = /^\/api\/activate-ri-2026\/(activator|admin)\/media(?:\/([a-f0-9-]{36})(\/file)?)?$/;
+const routePattern = /^\/api\/activate-ri-2026\/(activator|admin|public)\/media(?:\/([a-f0-9-]{36})(?:\/(file|thumbnail))?)?$/;
+const cursorPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\|[a-f0-9-]{36}$/;
 const mediaSelect = `SELECT m.*, a.primary_callsign, a.name AS activator_name, membership.chat_display_name
   FROM activate_ri_media m
   INNER JOIN activate_ri_activators a ON a.id = m.activator_id AND a.event_id = m.event_id
   LEFT JOIN activate_ri_ops_memberships membership ON membership.activator_id = a.id AND membership.event_id = a.event_id`;
 
 export async function handleActivateRiMediaApi(request: Request, env: Env): Promise<Response> {
+  const withHeaders = new URL(request.url).pathname.startsWith("/api/activate-ri-2026/public/media")
+    ? withPublicMediaHeaders : withPrivateHeaders;
   try {
-    return withPrivateHeaders(await handleMedia(request, env));
+    return withHeaders(await handleMedia(request, env));
   } catch (error) {
     logWorkerError("activator-media-request-failed", error);
-    return withPrivateHeaders(json({ ok: false, error: "Unable to access photos and videos. Please try again." }, { status: 503 }));
+    return withHeaders(json({ ok: false, error: "Unable to access photos and videos. Please try again." }, { status: 503 }));
   }
 }
 
@@ -28,10 +32,13 @@ async function handleMedia(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const match = url.pathname.match(routePattern);
   if (!match) return failure("Not found", 404);
+  if (match[1] === "public") return handlePublicMedia(request, env, url, match[2], match[3]);
   const audience = match[1] as "activator" | "admin";
   const identity = audience === "admin" ? await requireAdmin(request, env) : await requireActivator(request, env);
   if (identity instanceof Response) return identity;
   const owner = "activatorId" in identity ? identity : null;
+  const viewerActivator = owner ?? await requireActivator(request, env);
+  const viewerActivatorId = viewerActivator instanceof Response ? null : viewerActivator.activatorId;
   if (!["GET", "HEAD"].includes(request.method)) {
     if (env.REMOTE_DATA_READ_ONLY === "true") return failure("Remote production data is read-only in local development.", 403);
     if (!hasTrustedOrigin(request, env)) return failure("Forbidden", 403);
@@ -39,12 +46,13 @@ async function handleMedia(request: Request, env: Env): Promise<Response> {
   if (!env.ACTIVATOR_MEDIA) return failure("Photo and video storage is not available yet. Please try again later.", 503);
 
   const id = match[2];
-  const file = Boolean(match[3]);
+  if (match[3] === "thumbnail") return failure("Not found", 404);
+  const file = match[3] === "file";
   if (!id && request.method === "GET") {
     const scope = url.searchParams.get("scope") ?? "all";
     if (!["all", "mine"].includes(scope) || (scope === "mine" && !owner)) return failure("Choose All media or My media.", 400);
     const cursor = url.searchParams.get("cursor");
-    if (cursor && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\|[a-f0-9-]{36}$/.test(cursor)) return failure("Invalid gallery cursor.", 400);
+    if (cursor !== null && !cursorPattern.test(cursor)) return failure("Invalid gallery cursor.", 400);
     const [createdAt, cursorId] = cursor?.split("|") ?? [null, null];
     const result = await env.DB.prepare(`${mediaSelect}
       WHERE m.event_id = ? AND m.state = 'ready'
@@ -59,7 +67,7 @@ async function handleMedia(request: Request, env: Env): Promise<Response> {
     const usage = owner ? await env.DB.prepare(`SELECT COUNT(*) AS files, COALESCE(SUM(size), 0) AS bytes
       FROM activate_ri_media WHERE event_id = ? AND activator_id = ?`)
       .bind(env.ACTIVATE_RI_EVENT_ID, owner.activatorId).first<{ files: number; bytes: number }>() : undefined;
-    return json({ ok: true, media: rows.map((row) => serializeMedia(row, audience, owner?.activatorId)),
+    return json({ ok: true, media: rows.map((row) => serializeMedia(row, audience, viewerActivatorId)),
       nextCursor: result.results.length > 50 && last ? `${last.created_at}|${last.id}` : null,
       ...(owner ? { usage, limits: mediaLimits } : {}) });
   }
@@ -76,7 +84,7 @@ async function handleMedia(request: Request, env: Env): Promise<Response> {
     return failure("Photo or video not found.", 404);
   }
   if (file && ["GET", "HEAD"].includes(request.method) && row.state === "ready") return serveMedia(request, env.ACTIVATOR_MEDIA, row);
-  if (!file && request.method === "PATCH" && row.state === "ready") return updateMediaDetails(request, env, row, audience, owner?.activatorId ?? null);
+  if (!file && request.method === "PATCH" && row.state === "ready") return updateMediaDetails(request, env, row, audience, viewerActivatorId);
   if (!file && request.method === "DELETE") {
     await env.DB.prepare("UPDATE activate_ri_media SET state = 'deleting', updated_at = ? WHERE event_id = ? AND id = ?")
       .bind(new Date().toISOString(), env.ACTIVATE_RI_EVENT_ID, row.id).run();
@@ -84,6 +92,61 @@ async function handleMedia(request: Request, env: Env): Promise<Response> {
     return json({ ok: true });
   }
   return failure(row.state === "deleting" ? "Photo or video not found." : "Method not allowed", row.state === "deleting" ? 404 : 405);
+}
+
+async function handlePublicMedia(request: Request, env: Env, url: URL, id?: string, resource?: string): Promise<Response> {
+  if (!["GET", "HEAD"].includes(request.method)) return failure("Method not allowed", 405);
+  if (!env.ACTIVATOR_MEDIA) return failure("Photo and video storage is not available yet. Please try again later.", 503);
+  if (!id) {
+    if (request.method !== "GET") return failure("Method not allowed", 405);
+    const park = url.searchParams.get("park");
+    if (park !== null && park !== "general" && !validateMediaParkReference(park)) {
+      return failure("Choose a Rhode Island park from the list, or General — no park.", 400);
+    }
+    const kind = url.searchParams.get("kind");
+    if (kind !== null && kind !== "photo" && kind !== "video") return failure("Choose photos or videos.", 400);
+    const cursor = url.searchParams.get("cursor");
+    if (cursor !== null && !cursorPattern.test(cursor)) return failure("Invalid gallery cursor.", 400);
+    const [createdAt, cursorId] = cursor?.split("|") ?? [null, null];
+    const [admin, activator] = await Promise.all([requireAdmin(request, env), requireActivator(request, env)]);
+    const viewerIsAdmin = !(admin instanceof Response);
+    const viewerActivatorId = activator instanceof Response ? null : activator.activatorId;
+    const result = await env.DB.prepare(`${mediaSelect}
+      WHERE m.event_id = ? AND m.state = 'ready'
+        AND (? IS NULL OR (? = 'general' AND m.park_reference IS NULL) OR m.park_reference = ?)
+        AND (? IS NULL OR m.kind = ?)
+        AND (? IS NULL OR m.created_at < ? OR (m.created_at = ? AND m.id < ?))
+      ORDER BY m.created_at DESC, m.id DESC LIMIT 51`)
+      .bind(env.ACTIVATE_RI_EVENT_ID, park, park, park, kind, kind,
+        createdAt, createdAt, createdAt, cursorId).all<MediaRow & MediaAuthor>();
+    const rows = result.results.slice(0, 50);
+    const last = rows.at(-1);
+    return json({ ok: true,
+      media: rows.map((row) => serializeMedia(row, "public", viewerActivatorId, viewerIsAdmin)),
+      nextCursor: result.results.length > 50 && last ? `${last.created_at}|${last.id}` : null,
+    });
+  }
+  if (resource !== "file" && resource !== "thumbnail") return failure("Not found", 404);
+  const row = await env.DB.prepare(`SELECT * FROM activate_ri_media
+    WHERE event_id = ? AND id = ? AND state = 'ready'`)
+    .bind(env.ACTIVATE_RI_EVENT_ID, id).first<MediaRow>();
+  if (!row) return failure("Photo or video not found.", 404);
+  if (resource === "thumbnail") {
+    return row.kind === "photo" ? servePublicMediaThumbnail(request, env, row) : failure("Photo not found.", 404);
+  }
+  return serveMedia(request, env.ACTIVATOR_MEDIA, row);
+}
+
+function withPublicMediaHeaders(response: Response): Response {
+  const headers = new Headers(response.headers);
+  // Viewer-specific edit links must never be shared through a cache. Keeping
+  // file responses uncached also makes deletion effective on the next request.
+  headers.set("cache-control", "private, no-store");
+  headers.append("vary", "Cookie, Cf-Access-Jwt-Assertion, Cf-Access-Authenticated-User-Email");
+  headers.set("x-content-type-options", "nosniff");
+  headers.set("referrer-policy", "no-referrer");
+  headers.set("cross-origin-resource-policy", "same-origin");
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
 async function uploadMedia(request: Request, env: Env, owner: ActivatorIdentity): Promise<Response> {
@@ -109,7 +172,8 @@ async function uploadMedia(request: Request, env: Env, owner: ActivatorIdentity)
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   // Keys deliberately contain neither the activator ID (which may contain an
-  // email address) nor the original filename. All access goes through auth.
+  // email address) nor the original filename. File access goes through Worker
+  // visibility checks, while mutations always require authentication.
   const row: MediaRow = {
     id, event_id: env.ACTIVATE_RI_EVENT_ID, activator_id: owner.activatorId,
     object_key: `activator-media/${env.ACTIVATE_RI_EVENT_ID}/${id}`,

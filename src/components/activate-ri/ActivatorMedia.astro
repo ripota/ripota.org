@@ -2,28 +2,45 @@
 import { formatMediaBytes, mediaAccept, mediaLimits, mediaMetadataLimits, mediaUsageNoticeText } from "../../lib/activate-ri/media";
 import { mediaParks } from "../../lib/activate-ri/media-parks";
 
-interface Props { organizer?: boolean }
-const { organizer = false } = Astro.props;
-const prefix = organizer ? "organizer" : "activator";
+interface Props { organizer?: boolean; publicGallery?: boolean }
+const { organizer = false, publicGallery = false } = Astro.props;
+const personal = !organizer && !publicGallery;
+const prefix = organizer ? "organizer" : publicGallery ? "public" : "activator";
 const Heading = organizer ? "h2" : "h1";
 ---
 
-<div class="media-workspace" data-media-workspace data-media-scope={organizer ? "admin" : "activator"}>
+<div class="media-workspace" data-media-workspace data-media-scope={organizer ? "admin" : publicGallery ? "public" : "activator"}>
   <header class="media-workspace__header">
     <div>
       <p class="eyebrow">From the field</p>
-      <Heading id={`${prefix}-media-title`}>Photos & videos</Heading>
-      <p class="lead">The places, people, and moments behind our activations.</p>
+      <Heading id={`${prefix}-media-title`}>{personal ? "My media" : "Photos & videos"}</Heading>
+      <p class="lead">{personal ? "Share your activation and manage your photos and videos." : "The places, people, and moments behind our activations."}</p>
     </div>
-    {!organizer && <button class="button" data-variant="primary" type="button" data-media-open-upload>Upload photos & videos</button>}
+    <div class="media-workspace__actions">
+      {personal && <a href="/activate-ri-2026/media/">View public gallery</a>}
+      {personal && <button class="button" data-variant="primary" type="button" data-media-open-upload>Upload photos & videos</button>}
+      {publicGallery && <a class="button" data-variant="primary" href="/activate-ri-2026/activator/media/">Upload & manage my media</a>}
+    </div>
   </header>
 
   <section class="media-library" aria-label="Media gallery">
     <div class="media-library__toolbar">
-      {!organizer && (
-        <div class="media-scope" role="group" aria-label="Media shown">
-          <button type="button" data-media-view="all" aria-pressed="true">All media</button>
-          <button type="button" data-media-view="mine" aria-pressed="false">My media</button>
+      {publicGallery && (
+        <div class="media-filters">
+          <div class="media-park-field media-filter-park">
+            <label for="public-media-park">Park</label>
+            <select id="public-media-park" class="media-park-select" data-media-filter-park>
+              <option value="">All parks</option>
+              <option value="general">General — no park</option>
+              {mediaParks.map((park) => <option value={park.reference}>{park.reference} — {park.name}</option>)}
+            </select>
+          </div>
+          <div class="media-scope" role="group" aria-label="Media type">
+            <button type="button" data-media-kind="" aria-pressed="true">All</button>
+            <button type="button" data-media-kind="photo" aria-pressed="false">Photos</button>
+            <button type="button" data-media-kind="video" aria-pressed="false">Videos</button>
+          </div>
+          <button class="button" data-variant="light" type="button" data-media-filter-clear hidden>Clear filters</button>
         </div>
       )}
       <button class="button" data-variant="light" type="button" data-media-refresh>Refresh files</button>
@@ -37,7 +54,7 @@ const Heading = organizer ? "h2" : "h1";
     <button class="button" data-variant="light" type="button" data-media-more hidden>Load more files</button>
   </section>
 
-  {!organizer && (
+  {personal && (
     <dialog class="media-modal media-upload-modal" data-media-upload-dialog aria-label="Upload photos & videos">
       <div class="media-upload">
         <header class="media-modal__header">
@@ -139,6 +156,10 @@ const Heading = organizer ? "h2" : "h1";
   .media-workspace { display: grid; gap: 1.4rem; min-width: 0; }
   .media-workspace__header, .media-library__toolbar, .media-modal__header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
   .media-workspace__header { flex-wrap: wrap; }
+  .media-workspace__actions { display: flex; align-items: center; flex-wrap: wrap; gap: 1rem; }
+  .media-workspace__actions > a:not(.button) { color: var(--link); font-size: .9rem; }
+  .media-filters { display: flex; align-items: end; flex-wrap: wrap; gap: .75rem; min-width: 0; }
+  .media-filter-park { width: min(24rem, 100%); }
   .media-workspace .media-workspace__header h1, .media-workspace .media-workspace__header h2 { margin: 0; max-width: none; font-size: clamp(2rem, 4vw, 2.75rem); }
   .media-workspace__header .lead { margin: .6rem 0 0; max-width: 54ch; font-size: 1rem; }
   .media-workspace .eyebrow { margin: 0 0 .3rem; }
@@ -153,15 +174,14 @@ const Heading = organizer ? "h2" : "h1";
   .media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr)); gap: 1rem; }
   .media-tile { min-width: 0; }
   .media-tile__button { display: block; position: relative; width: 100%; aspect-ratio: 4 / 3; overflow: hidden; padding: 0; border: 0; border-radius: 9px; background: color-mix(in srgb, var(--surface-ink) 8%, var(--surface-page)); color: var(--text-primary); cursor: pointer; }
-  .media-tile__button > img, .media-tile__button > video { width: 100%; height: 100%; object-fit: cover; }
-  .media-tile__button > video { pointer-events: none; }
+  .media-tile__preview, .media-tile__preview > img { width: 100%; height: 100%; object-fit: cover; }
   .media-tile__fallback { display: grid; position: absolute; inset: 0; align-content: center; gap: .35rem; padding: .7rem; font: inherit; font-size: .85rem; text-align: center; }
-  .media-tile__type { position: absolute; left: .55rem; bottom: .55rem; border-radius: 4px; padding: .2rem .4rem; background: #142b27d9; color: #fff; font-size: .75rem; font-weight: 700; }
   .media-tile__park { position: absolute; top: .55rem; right: .55rem; border: 1px solid #ffffff45; border-radius: 999px; padding: .25rem .5rem; background: #142b27e6; color: #fff; font-size: .72rem; font-weight: 800; }
   .media-tile__tooltip { position: absolute; top: 2.8rem; right: .5rem; left: .5rem; width: fit-content; margin-left: auto; max-width: calc(100% - 1rem); border-radius: 5px; padding: .4rem .6rem; background: var(--surface-raised); color: var(--text-primary); font-size: .8rem; text-align: left; opacity: 0; pointer-events: none; }
   .media-tile__button:hover .media-tile__tooltip, .media-tile__button:focus-visible .media-tile__tooltip { opacity: 1; }
   .media-tile__caption { display: grid; gap: .15rem; padding: .5rem .1rem .15rem; }
   .media-tile__caption h3 { margin: 0; font: inherit; font-size: .9rem; font-weight: 700; overflow-wrap: anywhere; }
+  .media-tile__own { width: fit-content; margin-top: .15rem; padding: .12rem .4rem; border-radius: 4px; background: color-mix(in srgb, var(--accent) 12%, var(--surface-page)); color: var(--accent-strong); font-size: .7rem; font-weight: 800; }
   .media-tile__author { margin: 0; color: var(--text-muted); font-size: .8rem; overflow-wrap: anywhere; }
   .media-empty { border: 1px dashed var(--border-subtle); border-radius: 10px; text-align: center; padding: 3rem 1rem; }
   .media-empty p { margin: 0 0 .4rem; font-size: 1.15rem; font-weight: 800; }
@@ -217,6 +237,12 @@ const Heading = organizer ? "h2" : "h1";
     .media-detail__information { padding: 1rem; }
   }
   @media (max-width: 520px) {
+    .media-workspace[data-media-scope="public"] .media-library__toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: .75rem .5rem; }
+    .media-filters { display: contents; }
+    .media-filter-park { width: 100%; grid-column: 1 / -1; }
+    .media-filters > .media-scope { width: fit-content; }
+    .media-filters > [data-media-filter-clear] { grid-column: 1 / -1; grid-row: 3; justify-self: start; }
+    .media-workspace[data-media-scope="public"] [data-media-refresh] { grid-column: 2; grid-row: 2; }
     .media-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem .6rem; }
     .media-queue__item { grid-template-columns: minmax(0, 1fr); }
     .media-queue__actions { justify-self: start; }

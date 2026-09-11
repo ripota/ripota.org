@@ -1,6 +1,7 @@
 import type { ActivatorMedia } from "../lib/activate-ri/media";
 import { opsActivatorAuthorLabel } from "../lib/activate-ri/ops-author";
 import type { Env } from "./env";
+import { mediaThumbnailKey } from "./media-thumbnails";
 
 export type MediaRow = {
   id: string;
@@ -26,10 +27,18 @@ export type MediaAuthor = {
   chat_display_name: string | null;
 };
 
-export function serializeMedia(row: MediaRow & MediaAuthor, audience: "activator" | "admin", viewerActivatorId: string | null = null): ActivatorMedia {
+export function serializeMedia(
+  row: MediaRow & MediaAuthor,
+  audience: "activator" | "admin" | "public",
+  viewerActivatorId: string | null = null,
+  viewerIsAdmin = false,
+): ActivatorMedia {
+  const isOwn = row.activator_id === viewerActivatorId;
+  const isAdmin = audience === "admin" || viewerIsAdmin;
+  const canEdit = isAdmin || isOwn;
   return {
     id: row.id,
-    filename: row.filename,
+    ...(audience === "public" ? {} : { filename: row.filename }),
     contentType: row.content_type,
     kind: row.kind,
     size: row.size,
@@ -39,7 +48,10 @@ export function serializeMedia(row: MediaRow & MediaAuthor, audience: "activator
     parkReference: row.park_reference,
     title: row.title,
     description: row.description,
-    canEdit: audience === "admin" || row.activator_id === viewerActivatorId,
+    canEdit,
+    isOwn,
+    editUrl: canEdit ? `/api/activate-ri-2026/${isAdmin ? "admin" : "activator"}/media/${row.id}` : null,
+    thumbnailUrl: row.kind === "photo" ? `/api/activate-ri-2026/public/media/${row.id}/thumbnail` : null,
     url: `/api/activate-ri-2026/${audience}/media/${row.id}/file`,
   };
 }
@@ -124,7 +136,7 @@ export async function storeMediaStream(
 
 export async function removeMediaObject(env: Env, row: Pick<MediaRow, "id" | "object_key">): Promise<void> {
   if (!env.ACTIVATOR_MEDIA) throw new Error("Media storage unavailable");
-  await env.ACTIVATOR_MEDIA.delete(row.object_key);
+  await env.ACTIVATOR_MEDIA.delete([row.object_key, mediaThumbnailKey(row.object_key)]);
   await env.DB.prepare("DELETE FROM activate_ri_media WHERE event_id = ? AND id = ? AND state != 'ready'")
     .bind(env.ACTIVATE_RI_EVENT_ID, row.id).run();
 }
