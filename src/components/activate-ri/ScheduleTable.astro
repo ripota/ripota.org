@@ -99,6 +99,12 @@ const countyOptions = uniqueSortedValues(
       <option value="all">Any band</option>
     </select>
   </label>
+  <div class="schedule-my-schedule" data-my-schedule-wrap hidden>
+    <label class="event-coverage-toggle">
+      <input type="checkbox" data-my-schedule disabled />
+      <span>My schedule</span>
+    </label>
+  </div>
   <details class="schedule-secondary-filters" data-schedule-more-filters open>
     <summary data-schedule-more-summary>More filters</summary>
     <div class="schedule-secondary-controls">
@@ -215,6 +221,11 @@ const countyOptions = uniqueSortedValues(
     const search = filters.querySelector<HTMLInputElement>("[data-schedule-search]");
     const moreFilters = filters.querySelector<HTMLDetailsElement>("[data-schedule-more-filters]");
     const moreSummary = filters.querySelector<HTMLElement>("[data-schedule-more-summary]");
+    const mySchedule = filters.querySelector<HTMLInputElement>("[data-my-schedule]");
+    const myScheduleWrap = filters.querySelector<HTMLElement>("[data-my-schedule-wrap]");
+    const activator = controls.find((control) => control.dataset.filter === "activator") ?? null;
+    let signedInCallsign = "";
+    let activatorOptions: string[] = [];
     const secondaryControls = Array.from(moreFilters?.querySelectorAll("select") ?? []) as unknown as HTMLSelectElement[];
     const mobileFilters = window.matchMedia("(max-width: 700px)");
     const printButton = document.querySelector<HTMLButtonElement>("[data-print-schedule]");
@@ -289,6 +300,7 @@ const countyOptions = uniqueSortedValues(
     mobileFilters.addEventListener("change", showSecondaryFiltersForViewport);
 
     const applyFilters = () => {
+      if (mySchedule) mySchedule.checked = !!signedInCallsign && activator?.value === signedInCallsign;
       const values = Object.fromEntries(
         controls.map((control) => [control.dataset.filter ?? "", control.value]),
       );
@@ -417,6 +429,11 @@ const countyOptions = uniqueSortedValues(
     controls.forEach((control) => control.addEventListener("change", () => {
       syncUrl();
     }));
+    mySchedule?.addEventListener("change", () => {
+      if (!signedInCallsign || !activator) return;
+      activator.value = mySchedule.checked ? signedInCallsign : "all";
+      activator.dispatchEvent(new Event("change"));
+    });
     hunterScope?.addEventListener("change", () => {
       searchEditing = false;
       applyFilters();
@@ -490,6 +507,28 @@ const countyOptions = uniqueSortedValues(
     applySelectedTime(table, timezone?.value);
     applyFilters();
     syncUrl("replace");
+    void loadPersonalSchedule();
+
+    async function loadPersonalSchedule(): Promise<void> {
+      try {
+        const response = await fetch("/api/auth/session", {
+          headers: { accept: "application/json" }, cache: "no-store",
+        });
+        if (!response.ok) return;
+        const session = await response.json() as { signedIn?: boolean; activator?: { callsign?: unknown } | null } | null;
+        const callsign = session?.signedIn === true && typeof session.activator?.callsign === "string"
+          ? session.activator.callsign.trim().toUpperCase() : "";
+        if (!/^[A-Z0-9/]{1,32}$/.test(callsign)) return;
+        signedInCallsign = callsign;
+        updateSelectOptions(filters, "activator", activatorOptions, signedInCallsign);
+        if (myScheduleWrap) myScheduleWrap.hidden = false;
+        if (mySchedule) mySchedule.disabled = false;
+        // Account lookup personalizes the controls without replacing a chosen filter.
+        applyFilters();
+      } catch {
+        // The public schedule remains available without account personalization.
+      }
+    }
 
     return (nextStops, available) => {
       stops = nextStops;
@@ -497,7 +536,8 @@ const countyOptions = uniqueSortedValues(
       rows = Array.from(table.querySelectorAll<HTMLElement>("[data-filter-row]"));
       empty = table.querySelector<HTMLElement>("[data-filter-empty]");
       const visibleStops = requestedAgendaStops([...new Set(stops.map((stop) => stop.parkReference))], stops);
-      updateSelectOptions(filters, "activator", uniqueSortedValues(visibleStops.map((stop) => [stop.activatorCallsign])));
+      activatorOptions = uniqueSortedValues(visibleStops.map((stop) => [stop.activatorCallsign]));
+      updateSelectOptions(filters, "activator", activatorOptions, signedInCallsign);
       updateSelectOptions(filters, "mode", uniqueSortedValues(visibleStops.map((stop) => stop.modes)));
       updateSelectOptions(filters, "band", uniqueSortedValues(visibleStops.map((stop) => stop.bands)));
       applySelectedTime(table, timezone?.value);
@@ -559,6 +599,7 @@ const countyOptions = uniqueSortedValues(
     filters: HTMLFormElement,
     filterName: "activator" | "mode" | "band",
     values: string[],
+    preferredValue = "",
   ): void {
     const control = filters.querySelector(`[data-filter="${filterName}"]`) as HTMLSelectElement | null;
     if (!control) {
@@ -572,10 +613,13 @@ const countyOptions = uniqueSortedValues(
       band: "Any band",
     };
     control.replaceChildren(new Option(defaultLabels[filterName], "all"));
-    for (const value of values) {
+    const orderedValues = preferredValue
+      ? [preferredValue, ...values.filter((value) => value !== preferredValue)]
+      : values;
+    for (const value of orderedValues) {
       control.appendChild(new Option(value, value));
     }
-    if (current !== "all" && !values.includes(current)) {
+    if (current !== "all" && !orderedValues.includes(current)) {
       control.appendChild(new Option(`${current} (not in the current schedule)`, current));
     }
     control.value = current;
@@ -1319,6 +1363,7 @@ const countyOptions = uniqueSortedValues(
     align-content: end;
   }
 
+  .schedule-my-schedule,
   .schedule-secondary-filters {
     grid-column: 1 / -1;
   }
