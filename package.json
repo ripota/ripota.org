@@ -15,7 +15,7 @@
     "e2e:activate-ri": "playwright test e2e/activate-ri-*.spec.ts",
     "preview": "astro preview",
     "check": "astro check",
-    "test": "npm run test:unit -- --run && npm run e2e:activate-ri",
+    "test": "npm run test:unit -- --run && playwright test e2e/activate-ri-*.spec.ts e2e/on-air-sorting.spec.ts",
     "test:unit": "vitest"
   },
   "devDependencies": {

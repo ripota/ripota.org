@@ -44,21 +44,21 @@ describe("OnAirNow", () => {
     expect(onAirPageSource).toContain("<Notice />");
   });
 
-  it("reuses the spot list as table-like rows on the full page and tiles on mobile", () => {
+  it("renders a sortable table with separate frequency and mode columns and mobile cards", () => {
     expect(onAirNowSource).toContain("data-on-air-table-header");
-    expect(onAirNowSource).toContain("Frequency / mode");
-    expect(onAirNowSource).toContain("spots.map(renderSpot)");
-    expect(globalStyles).toContain(".on-air-now--full .on-air-now__list li");
-    expect(globalStyles).toContain(
-      "grid-template-columns: minmax(280px, 2fr) 100px 150px 150px minmax(120px, 0.7fr)",
-    );
+    expect(onAirNowSource).not.toContain("Frequency / mode");
+    expect(onAirNowSource).toContain('label: "Frequency"');
+    expect(onAirNowSource).toContain('label: "Mode"');
+    expect(onAirNowSource).toContain('scope="col"');
+    expect(onAirNowSource).toContain("data-on-air-sort-select");
+    expect(globalStyles).toContain(".on-air-now--full .on-air-now__list tr");
   });
 
   it("shares one one-minute poller and gives each surface an appropriate unavailable state", () => {
     expect(liveSpotsStoreSource).toContain("refreshIntervalMilliseconds = 30_000");
     expect(onAirNowSource).toContain("livePotaSpotsStore.subscribe");
     expect(referenceMapSource).toContain("livePotaSpotsStore.subscribe");
-    expect(onAirNowSource).toContain("list?.replaceChildren(...spots.map(renderSpot))");
+    expect(onAirNowSource).toContain("renderSpot(spot, Boolean(sort))");
     expect(onAirNowSource).toContain("renderUnavailable(root)");
     expect(onAirNowSource).toContain("panel.hidden = !visible");
     expect(onAirNowSource).toContain("Live spots are temporarily unavailable.");

@@ -4,6 +4,14 @@ type Props = {
 };
 
 const { variant = "compact" } = Astro.props;
+const columns = [
+  { key: "park", label: "Park", ascending: "A–Z", descending: "Z–A" },
+  { key: "activator", label: "Activator", ascending: "A–Z", descending: "Z–A" },
+  { key: "frequency", label: "Frequency", ascending: "low to high", descending: "high to low" },
+  { key: "mode", label: "Mode", ascending: "A–Z", descending: "Z–A" },
+  { key: "spotted", label: "Spotted", ascending: "oldest first", descending: "newest first" },
+  { key: "source", label: "Source", ascending: "A–Z", descending: "Z–A" },
+];
 ---
 
 <div
@@ -24,22 +32,42 @@ const { variant = "compact" } = Astro.props;
     Checking current spots...
   </p>
   {
-    variant === "full" && (
-      <div
-        class="on-air-now__table-header"
-        data-on-air-table-header
-        aria-hidden="true"
-        hidden
-      >
-        <span>Park</span>
-        <span>Activator</span>
-        <span>Frequency / mode</span>
-        <span>Spotted</span>
-        <span>Source</span>
-      </div>
+    variant === "full" ? (
+      <>
+        <div class="on-air-now__sort-controls">
+          <label class="on-air-now__sort-select">
+            Sort live spots
+            <select data-on-air-sort-select>
+              {columns.map(({ key, label, ascending, descending }) => (
+                <>
+                  <option value={`${key}:asc`}>{label}: {ascending}</option>
+                  <option value={`${key}:desc`} selected={key === "spotted"}>{label}: {descending}</option>
+                </>
+              ))}
+            </select>
+          </label>
+          <p class="on-air-now__sort-hint">Select a column to sort; select again to reverse.</p>
+          <button type="button" class="on-air-now__sort-reset" data-on-air-sort-reset>Reset sort</button>
+        </div>
+        <table class="on-air-now__table" aria-labelledby="on-air-now-title" data-on-air-table hidden>
+          <thead class="on-air-now__table-header" data-on-air-table-header>
+            <tr>
+              {columns.map(({ key, label }) => (
+                <th scope="col" data-on-air-sort-column={key} aria-sort={key === "spotted" ? "descending" : undefined}>
+                  <button type="button" data-on-air-sort={key} aria-label={`Sort by ${label}`}>
+                    {label}<span data-on-air-sort-indicator aria-hidden="true">{key === "spotted" ? "↓" : "↕"}</span>
+                  </button>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody class="on-air-now__list" data-on-air-list />
+        </table>
+      </>
+    ) : (
+      <ul class="on-air-now__list" data-on-air-list hidden />
     )
   }
-  <ul class="on-air-now__list" data-on-air-list hidden></ul>
   <p class="on-air-now__empty" data-on-air-empty hidden>
     No Rhode Island parks have a current active spot.
   </p>
@@ -71,19 +99,91 @@ const { variant = "compact" } = Astro.props;
   import type { LivePotaSpot } from "../lib/pota/spots";
   import { parkGuidePath } from "../lib/parks/directory";
   import { formatRadioDetails } from "../lib/pota/radio-details";
+  import {
+    defaultLiveSpotsSort,
+    formatSpotSource,
+    readLiveSpotsSort,
+    sortLiveSpots,
+    writeLiveSpotsSort,
+    type LiveSpotsSort,
+    type LiveSpotsSortColumn,
+  } from "../lib/pota/live-spots-view";
 
   document.querySelectorAll<HTMLElement>("[data-on-air-now]").forEach((root) => {
     setupOnAirNow(root);
   });
 
   function setupOnAirNow(root: HTMLElement): void {
-    livePotaSpotsStore.subscribe((state) => renderState(root, state));
+    const full = root.classList.contains("on-air-now--full");
+    let sort = full ? readLiveSpotsSort(new URLSearchParams(window.location.search)) : defaultLiveSpotsSort;
+    let state: LivePotaSpotsState = { status: "loading" };
+    const select = root.querySelector("[data-on-air-sort-select]") as HTMLSelectElement | null;
+
+    if (full) {
+      updateUrl("replace");
+      updateControls();
+      root.querySelectorAll<HTMLButtonElement>("[data-on-air-sort]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const column = button.dataset.onAirSort as LiveSpotsSortColumn;
+          setSort({
+            column,
+            direction: column === sort.column
+              ? (sort.direction === "asc" ? "desc" : "asc")
+              : (column === "spotted" ? "desc" : "asc"),
+          });
+        });
+      });
+      select?.addEventListener("change", () => {
+        const [column, direction] = select.value.split(":");
+        setSort(readLiveSpotsSort(new URLSearchParams({ sort: column, direction })));
+      });
+      root.querySelector("[data-on-air-sort-reset]")?.addEventListener("click", () => setSort(defaultLiveSpotsSort));
+      window.addEventListener("popstate", () => {
+        sort = readLiveSpotsSort(new URLSearchParams(window.location.search));
+        updateUrl("replace");
+        render();
+      });
+    }
+
+    livePotaSpotsStore.subscribe((nextState) => {
+      state = nextState;
+      render();
+    });
     livePotaSpotsStore.start();
+
+    function setSort(nextSort: LiveSpotsSort): void {
+      sort = nextSort;
+      updateUrl("push");
+      render();
+    }
+
+    function updateUrl(mode: "push" | "replace"): void {
+      const url = writeLiveSpotsSort(new URL(window.location.href), sort);
+      if (url.href === window.location.href) return;
+      if (mode === "push") window.history.pushState(window.history.state, "", url);
+      else window.history.replaceState(window.history.state, "", url);
+    }
+
+    function updateControls(): void {
+      if (select) select.value = `${sort.column}:${sort.direction}`;
+      root.querySelectorAll<HTMLElement>("[data-on-air-sort-column]").forEach((header) => {
+        const active = header.dataset.onAirSortColumn === sort.column;
+        if (active) header.setAttribute("aria-sort", sort.direction === "asc" ? "ascending" : "descending");
+        else header.removeAttribute("aria-sort");
+        const indicator = header.querySelector("[data-on-air-sort-indicator]");
+        if (indicator) indicator.textContent = active ? (sort.direction === "asc" ? "↑" : "↓") : "↕";
+      });
+    }
+
+    function render(): void {
+      if (full) updateControls();
+      renderState(root, state, full ? sort : undefined);
+    }
   }
 
-  function renderState(root: HTMLElement, state: LivePotaSpotsState): void {
+  function renderState(root: HTMLElement, state: LivePotaSpotsState, sort?: LiveSpotsSort): void {
     if (state.status === "ready") {
-      renderSpots(root, state.snapshot);
+      renderSpots(root, state.snapshot, sort);
     } else if (state.status === "unavailable") {
       renderUnavailable(root);
     }
@@ -92,21 +192,22 @@ const { variant = "compact" } = Astro.props;
   function renderSpots(
     root: HTMLElement,
     snapshot: LivePotaSpotsSnapshot,
+    sort?: LiveSpotsSort,
   ): void {
-    const spots = snapshot.spots;
+    const spots = sort ? sortLiveSpots(snapshot.spots, sort) : snapshot.spots;
     const status = root.querySelector<HTMLElement>("[data-on-air-status]");
-    const tableHeader = root.querySelector<HTMLElement>("[data-on-air-table-header]");
-    const list = root.querySelector<HTMLUListElement>("[data-on-air-list]");
+    const table = root.querySelector<HTMLElement>("[data-on-air-table]");
+    const list = root.querySelector<HTMLElement>("[data-on-air-list]");
     const empty = root.querySelector<HTMLElement>("[data-on-air-empty]");
     const updated = root.querySelector<HTMLElement>("[data-on-air-updated]");
     const activeParkCount = new Set(spots.map((spot) => spot.parkReference)).size;
 
-    list?.replaceChildren(...spots.map(renderSpot));
+    list?.replaceChildren(...spots.map((spot) => renderSpot(spot, Boolean(sort))));
     if (list) {
       list.hidden = spots.length === 0;
     }
-    if (tableHeader) {
-      tableHeader.hidden = spots.length === 0;
+    if (table) {
+      table.hidden = spots.length === 0;
     }
     if (empty) {
       empty.hidden = spots.length > 0;
@@ -130,14 +231,14 @@ const { variant = "compact" } = Astro.props;
     if (status) {
       status.textContent = "Live spots are temporarily unavailable.";
     }
-    const list = root.querySelector<HTMLUListElement>("[data-on-air-list]");
+    const list = root.querySelector<HTMLElement>("[data-on-air-list]");
     list?.replaceChildren();
     if (list) {
       list.hidden = true;
     }
-    const tableHeader = root.querySelector<HTMLElement>("[data-on-air-table-header]");
-    if (tableHeader) {
-      tableHeader.hidden = true;
+    const table = root.querySelector<HTMLElement>("[data-on-air-table]");
+    if (table) {
+      table.hidden = true;
     }
     const empty = root.querySelector<HTMLElement>("[data-on-air-empty]");
     if (empty) {
@@ -155,8 +256,8 @@ const { variant = "compact" } = Astro.props;
     panel.hidden = !visible;
   }
 
-  function renderSpot(spot: LivePotaSpot): HTMLLIElement {
-    const item = document.createElement("li");
+  function renderSpot(spot: LivePotaSpot, full: boolean): HTMLLIElement | HTMLTableRowElement {
+    const item = document.createElement(full ? "tr" : "li");
     const park = document.createElement("a");
     const activator = document.createElement("a");
     const radio = document.createElement("span");
@@ -178,13 +279,31 @@ const { variant = "compact" } = Astro.props;
 
     time.className = "on-air-now__time";
     time.dateTime = normalizedSpotTimestamp(spot.spotTime);
-    time.textContent = `Spotted ${formatSpotTime(spot.spotTime)}`;
+    time.textContent = full ? formatSpotTime(spot.spotTime) : `Spotted ${formatSpotTime(spot.spotTime)}`;
 
     source.className = "on-air-now__spotter";
-    source.textContent = [
-      spot.spotterCallsign ? `by ${spot.spotterCallsign}` : "",
-      spot.sourceLabel ? `via ${spot.sourceLabel}` : "",
-    ].filter(Boolean).join(" ");
+    source.textContent = formatSpotSource(spot);
+
+    if (full) {
+      const frequency = document.createElement("span");
+      frequency.className = "on-air-now__frequency";
+      frequency.textContent = formatRadioDetails(spot.frequency, "");
+      const mode = document.createElement("span");
+      mode.className = "on-air-now__mode";
+      mode.textContent = spot.mode || "Not provided";
+      source.textContent ||= "Not provided";
+      const cells = [
+        ["Park", park], ["Activator", activator], ["Frequency", frequency],
+        ["Mode", mode], ["Spotted", time], ["Source", source],
+      ] as const;
+      for (const [label, content] of cells) {
+        const cell = document.createElement("td");
+        cell.dataset.label = label;
+        cell.appendChild(content);
+        item.appendChild(cell);
+      }
+      return item;
+    }
 
     item.appendChild(park);
     item.appendChild(activator);
