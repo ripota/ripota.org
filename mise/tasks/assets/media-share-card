@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; -*-
+#MISE description="Regenerate the public media gallery social share card"
+#MISE sources=["scripts/activate-ri-2026/render-media-share-card.mjs", "public/assets/rhode-island-coast-hero.jpg", "public/assets/logos/ri-pota-coastal-signal.svg"]
+#MISE outputs=["public/assets/activate-ri-2026-media-share-card.png", "public/assets/activate-ri-2026-media-share-card.meta.json"]
+
+set -euo pipefail
+
+node scripts/activate-ri-2026/render-media-share-card.mjs

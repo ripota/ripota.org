@@ -5,9 +5,18 @@ import Footer from "../../components/Footer.astro";
 import Notice from "../../components/Notice.astro";
 import SiteHeader from "../../components/SiteHeader.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
+import shareCardMetadata from "../../../public/assets/activate-ri-2026-media-share-card.meta.json";
+
+const galleryShareImage = {
+  src: `/assets/activate-ri-2026-media-share-card.png?v=${shareCardMetadata.fingerprint.slice(0, 16)}`,
+  alt: "Photos & videos from Activate All RI 2026, with a framed Rhode Island shoreline photo and RI POTA branding.",
+  width: shareCardMetadata.width,
+  height: shareCardMetadata.height,
+  type: "image/png",
+};
 ---
 
-<BaseLayout title="Activate All RI 2026 Photos & Videos" description="Explore photos and videos from Rhode Island park activations, shared by the activators who were there." canonicalPath="/activate-ri-2026/media/">
+<BaseLayout title="Photos & Videos — Activate All RI 2026" description="See the places, people, and moments behind Activate All RI 2026, captured by Rhode Island park activators." canonicalPath="/activate-ri-2026/media/" image={galleryShareImage}>
   <SiteHeader variant="solid" showEventLink />
   <main id="main">
     <section class="section event-page media-page" aria-labelledby="public-media-title">

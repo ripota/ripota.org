@@ -203,6 +203,12 @@ available independently of its editorial title and description.
 
 ## Local development and deployment
 
+The public gallery has a dedicated 1200×630 social preview, built from the
+repository-owned coastal photo and community branding. Run
+`mise run assets:media-share-card` to regenerate it. The image URL includes a
+content fingerprint so a new design gets a new social-image URL. It does not
+copy live uploads into the repository or retain photos removed from the gallery.
+
 The local Wrangler environment simulates the bucket and D1. Apply migrations
 with `mise run activate-ri-2026:d1-apply-local`, then use
 `npx wrangler dev --env local` for the Worker-backed application. The
