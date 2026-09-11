@@ -80,6 +80,8 @@ view, `ACTIVATE_RI_SHARE_CARD_STOPS_URL` to an API with the same response shape.
   `/activate-ri-2026/admin*`, `/activate-ri-2026/edit/*`, access, and activator
   portal routes
 - D1 binding: `DB`, database `ripota-org`
+- Private photo/video R2 binding: `ACTIVATOR_MEDIA`, bucket
+  `ripota-org-activator-media`; see [first-deployment setup and retention](activate-ri-2026/activator-media.md)
 - Analytics Engine binding: `ANALYTICS`, dataset `ripota_usage`
 - Email binding: `EMAIL`
 - Durable Object binding: `ACTIVATE_RI_OPS_ROOM`, class `ActivateRiOpsRoom`,

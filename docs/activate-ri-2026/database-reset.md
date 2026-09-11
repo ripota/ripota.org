@@ -46,6 +46,13 @@ their old passkeys; plan an administrator bootstrap/recovery setup from
 
 ## Before resetting production
 
+Remove photo/video uploads through the organizer gallery and allow pending
+cleanup to finish before resetting registrations. The production task refuses
+to reset while `activate_ri_media` contains rows, preserving owner access and
+R2 object references. The same requirement applies to the local SQL below.
+See [media storage and cleanup](activator-media.md). D1 backups do not include
+R2 originals, and deleting metadata directly would orphan those objects.
+
 Confirm Wrangler is authenticated:
 
 ```bash

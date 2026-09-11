@@ -6,6 +6,8 @@ type RequiredBindings = Pick<
 type OptionalBindings = Partial<Pick<
   Cloudflare.Env,
   | "ACTIVATE_RI_OPS_ROOM"
+  | "ACTIVATOR_MEDIA"
+  | "MEDIA_UPLOAD_RATE_LIMIT"
   | "ANALYTICS"
   | "ANALYTICS_RATE_LIMIT"
   | "AUTH_EMAIL_RATE_LIMIT"

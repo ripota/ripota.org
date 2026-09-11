@@ -7,6 +7,7 @@ import {
 import { trustedSiteUrl } from "./origin";
 import { withPrivateHeaders } from "./private-response";
 import { json } from "./http";
+import { cleanupMediaUploads } from "./media";
 import { handleActivateRiApi } from "./routes/activate-ri";
 import {
   handleActivateRiEmbed,
@@ -37,7 +38,7 @@ const activateRiAdminPathPattern = /^\/activate-ri-2026\/admin\/?$/;
 const activateRiAdminRecoveryPathPattern = /^\/activate-ri-2026\/admin\/recovery\/?$/;
 const activateRiEditPathPattern = /^\/activate-ri-2026\/edit\/([^/]+)\/?$/;
 const activateRiAccessPathPattern = /^\/activate-ri-2026\/access\/?$/;
-const activateRiPortalPathPattern = /^\/activate-ri-2026\/activator(?:\/(?:plan|account))?\/?$/;
+const activateRiPortalPathPattern = /^\/activate-ri-2026\/activator(?:\/(?:plan|account|media))?\/?$/;
 const accountPathPattern = /^\/account\/(?:sign-in|access|security)\/?$/;
 const potaSpotCleanupCron = "17 5 * * *";
 
@@ -215,6 +216,9 @@ const worker = {
       return;
     }
     if (controller.cron === potaSpotCleanupCron) {
+      ctx.waitUntil(cleanupMediaUploads(env, new Date(controller.scheduledTime)).catch((error: unknown) => {
+        logWorkerError("activator-media-cleanup-failed", error);
+      }));
       ctx.waitUntil(observeWorkerTask(env, "scheduled_spot_cleanup", runPotaSpotCleanupSchedule(controller, env)));
       return;
     }

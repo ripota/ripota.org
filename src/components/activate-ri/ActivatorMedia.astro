@@ -1,0 +1,151 @@
+---
+import { formatMediaBytes, mediaAccept, mediaLimits } from "../../lib/activate-ri/media";
+
+interface Props { organizer?: boolean }
+const { organizer = false } = Astro.props;
+const prefix = organizer ? "organizer" : "activator";
+const Heading = organizer ? "h2" : "h1";
+---
+
+<div class="media-workspace" data-media-workspace data-media-scope={organizer ? "admin" : "activator"}>
+  <header class="media-workspace__header">
+    <div>
+      <p class="eyebrow">{organizer ? "From the field" : "Your activation, captured"}</p>
+      <Heading id={`${prefix}-media-title`}>{organizer ? "Activator photos & videos" : "My photos & videos"}</Heading>
+      <p class="lead">{organizer
+        ? "Review the photos and videos shared by activators."
+        : "Share the moments, setups, and scenery from your Rhode Island activations."}</p>
+    </div>
+    <span class="media-workspace__privacy">{organizer ? "Private originals" : "Private · You & organizers"}</span>
+  </header>
+
+  <p class="media-workspace__notice">
+    {organizer
+      ? "Each upload is visible only to its activator and event organizers. These files are not published in a public gallery."
+      : "Only you and event organizers can see your uploads. These files are not published in a public gallery."}{" "}
+    Originals are retained, including any embedded photo location and camera metadata.
+  </p>
+
+  {!organizer && (
+    <section class="media-upload" aria-labelledby="media-upload-title">
+      <div>
+        <h2 id="media-upload-title">Add photos or videos</h2>
+        <p class="form-help" id="media-upload-limits">
+          Photos up to {formatMediaBytes(mediaLimits.photoBytes)} each · Videos up to {formatMediaBytes(mediaLimits.videoBytes)} each.{" "}
+          Up to {mediaLimits.files} files and {formatMediaBytes(mediaLimits.totalBytes)} total.
+        </p>
+      </div>
+      <div class="media-dropzone" data-media-dropzone>
+        <label for="activator-media-files">Choose photos and videos</label>
+        <input id="activator-media-files" type="file" multiple accept={mediaAccept} data-media-input
+          aria-describedby="media-upload-limits media-upload-formats" />
+        <p class="form-help">You can also drag files here. Review your selection before uploading.</p>
+      </div>
+      <p class="form-help" id="media-upload-formats">
+        JPEG, PNG, GIF, WebP, HEIC, HEIF, or AVIF photos; MP4, MOV, or WebM videos.{" "}
+        Some originals need to be downloaded to view on your device.
+      </p>
+      <div data-media-queue-section hidden>
+        <h3>Selected files</h3>
+        <ul class="media-queue" data-media-queue aria-label="Selected files"></ul>
+        <div class="button-row media-upload__actions">
+          <button class="button" data-variant="primary" type="button" data-media-upload disabled>Upload selected files</button>
+          <button class="button" data-variant="light" type="button" data-media-clear>Clear finished files</button>
+        </div>
+        <p class="form-help">Files upload one at a time. Keep this page open until they finish.</p>
+      </div>
+      <p class="form-status" data-media-upload-status role="status" aria-live="polite"></p>
+    </section>
+  )}
+
+  <section class="media-library" aria-labelledby={`${prefix}-media-library-title`}>
+    <div class="media-library__header">
+      <div>
+        <h2 id={`${prefix}-media-library-title`}>{organizer ? "Shared originals" : "Saved uploads"}</h2>
+        {!organizer && <p class="form-help" data-media-usage>Loading storage usage…</p>}
+      </div>
+      <button class="button" data-variant="light" type="button" data-media-refresh>Refresh files</button>
+    </div>
+    <p class="form-status" data-media-status role="status" aria-live="polite">Loading photos and videos…</p>
+    <div class="media-empty" data-media-empty hidden>
+      <p>{organizer ? "No uploads yet" : "Your first photo or video goes here"}</p>
+      <span>{organizer ? "Activator uploads will appear here as they arrive." : "Choose files above to start sharing with event organizers."}</span>
+    </div>
+    <div class="media-grid" data-media-gallery></div>
+    {organizer && <button class="button" data-variant="light" type="button" data-media-more hidden>Load more files</button>}
+  </section>
+
+  <dialog class="form-confirmation" data-media-delete-dialog aria-labelledby={`${prefix}-media-delete-title`}>
+    <form method="dialog" class="form-confirmation__body">
+      <p class="eyebrow">Remove an upload</p>
+      <h2 id={`${prefix}-media-delete-title`}>Delete this file?</h2>
+      <p data-media-delete-description></p>
+      <p>{organizer
+        ? "This removes the saved original. The activator can upload it again if they still have a copy."
+        : "This removes the saved original. You can upload it again if you still have a copy."}</p>
+      <p class="form-status" data-media-delete-status role="status" aria-live="polite"></p>
+      <div class="form-actions">
+        <button class="button" data-variant="light" value="cancel" data-media-delete-cancel>Keep file</button>
+        <button class="button" data-variant="danger" type="button" data-media-delete-confirm>Delete file</button>
+      </div>
+    </form>
+  </dialog>
+  <noscript><p class="form-status">Enable JavaScript to upload and view your private photos and videos.</p></noscript>
+</div>
+
+<script>
+  import { setupMediaWorkspace } from "../../lib/activate-ri/media-client";
+  document.querySelectorAll<HTMLElement>("[data-media-workspace]").forEach(setupMediaWorkspace);
+</script>
+
+<style is:global>
+  .media-workspace { display: grid; gap: 1.5rem; min-width: 0; }
+  .media-workspace__header { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+  .media-workspace .media-workspace__header h1, .media-workspace .media-workspace__header h2 { max-width: none; font-size: clamp(2rem, 5vw, 3rem); }
+  .media-workspace__header .lead { margin-top: .75rem; max-width: 52ch; }
+  .media-workspace__privacy { border: 1px solid var(--border-subtle); border-radius: 999px; padding: .45rem .75rem; color: var(--text-muted); font-size: .8rem; font-weight: 700; white-space: nowrap; }
+  .media-workspace__notice { margin: 0; border-left: 3px solid var(--accent); padding: .5rem 1rem; color: var(--text-muted); max-width: 85ch; }
+  .media-upload { display: grid; gap: 1rem; padding: clamp(1rem, 3vw, 1.75rem); border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--surface-raised); }
+  .media-workspace .media-upload h2, .media-workspace .media-library h2 { margin: 0; max-width: none; font-size: 1.4rem; }
+  .media-workspace .form-help { margin: .4rem 0 0; }
+  .media-dropzone { display: grid; gap: .8rem; border: 2px dashed var(--border-subtle); border-radius: 8px; background: var(--surface-page); padding: clamp(1rem, 3vw, 1.5rem); }
+  .media-dropzone[data-dragging="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface-page)); }
+  .media-dropzone label { font-weight: 800; }
+  .media-dropzone input { max-width: 100%; min-width: 0; color: var(--text-muted); }
+  .media-dropzone input::file-selector-button { margin-right: .7rem; border: 1px solid var(--border-subtle); border-radius: 6px; background: var(--surface-raised); color: var(--text-primary); padding: .65rem .8rem; cursor: pointer; font: inherit; font-weight: 700; }
+  .media-queue { display: grid; gap: .6rem; margin: .8rem 0 1rem; padding: 0; list-style: none; }
+  .media-queue__item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .35rem 1rem; align-items: center; border: 1px solid var(--border-subtle); border-radius: 8px; padding: .8rem; }
+  .media-queue__name { display: block; overflow-wrap: anywhere; }
+  .media-queue__detail, .media-queue__status { margin: .15rem 0 0; color: var(--text-muted); font-size: .85rem; }
+  .media-queue__status[data-error="true"] { color: light-dark(#a52218, #ffb4ab); }
+  .media-queue__progress { grid-column: 1 / -1; width: 100%; height: .5rem; accent-color: var(--accent); }
+  .media-queue__actions { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .media-queue__actions .button { min-height: 44px; padding: .5rem .65rem; font-size: .85rem; }
+  .media-upload__actions { flex-wrap: wrap; }
+  .media-library { display: grid; gap: 1rem; min-width: 0; }
+  .media-library__header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+  .media-workspace .form-status { margin: 0; }
+  .media-empty { border: 1px dashed var(--border-subtle); border-radius: 10px; text-align: center; padding: 2.5rem 1rem; }
+  .media-empty p { margin: 0 0 .4rem; font-size: 1.15rem; font-weight: 800; }
+  .media-empty span { color: var(--text-muted); }
+  .media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 1rem; }
+  .media-card { min-width: 0; overflow: hidden; border: 1px solid var(--border-subtle); border-radius: 10px; background: var(--surface-raised); }
+  .media-card__preview { position: relative; display: grid; align-items: center; aspect-ratio: 4 / 3; background: color-mix(in srgb, var(--surface-ink) 7%, var(--surface-page)); overflow: hidden; }
+  .media-card__preview img, .media-card__preview video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+  .media-card__fallback { margin: 0; padding: 1rem; text-align: center; color: var(--text-muted); font-size: .9rem; }
+  .media-card__body { display: grid; gap: .65rem; padding: 1rem; }
+  .media-card__body h3 { margin: 0; font-size: 1rem; overflow-wrap: anywhere; }
+  .media-card__meta { margin: 0; color: var(--text-muted); font-size: .85rem; }
+  .media-card__byline { margin: 0; font-weight: 800; color: var(--accent-strong); }
+  .media-card__actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: .75rem; }
+  .media-card__actions a { color: var(--link); font-size: .9rem; }
+  .media-card__actions .button { min-height: 44px; padding: .45rem .7rem; font-size: .85rem; }
+  .media-card__playback-help { margin: 0; color: var(--text-muted); font-size: .8rem; }
+  .media-workspace [data-media-delete-description] { overflow-wrap: anywhere; font-weight: 800; }
+  @media (max-width: 520px) {
+    .media-queue__item { grid-template-columns: minmax(0, 1fr); }
+    .media-queue__actions { justify-self: start; }
+    .media-workspace__privacy { font-size: .75rem; }
+    .media-upload__actions > .button { width: 100%; }
+  }
+</style>

@@ -34,7 +34,8 @@
     }
   ],
   "r2_buckets": [
-    { "binding": "EVENT_ARCHIVES", "bucket_name": "ripota-org-event-archives" }
+    { "binding": "EVENT_ARCHIVES", "bucket_name": "ripota-org-event-archives" },
+    { "binding": "ACTIVATOR_MEDIA", "bucket_name": "ripota-org-activator-media" }
   ],
   "durable_objects": {
     "bindings": [
@@ -80,6 +81,11 @@
       "name": "ANALYTICS_RATE_LIMIT",
       "namespace_id": "1006",
       "simple": { "limit": 600, "period": 60 }
+    },
+    {
+      "name": "MEDIA_UPLOAD_RATE_LIMIT",
+      "namespace_id": "1007",
+      "simple": { "limit": 10, "period": 60 }
     }
   ],
   "send_email": [
@@ -121,6 +127,9 @@
           "dataset": "ripota_usage_local"
         }
       ],
+      "r2_buckets": [
+        { "binding": "ACTIVATOR_MEDIA", "bucket_name": "ripota-org-activator-media" }
+      ],
       "durable_objects": {
         "bindings": [
           {
@@ -159,6 +168,11 @@
           "name": "ANALYTICS_RATE_LIMIT",
           "namespace_id": "1006",
           "simple": { "limit": 600, "period": 60 }
+        },
+        {
+          "name": "MEDIA_UPLOAD_RATE_LIMIT",
+          "namespace_id": "1007",
+          "simple": { "limit": 10, "period": 60 }
         }
       ],
       "vars": {
@@ -198,6 +212,9 @@
           "dataset": "ripota_usage_production_data"
         }
       ],
+      "r2_buckets": [
+        { "binding": "ACTIVATOR_MEDIA", "bucket_name": "ripota-org-activator-media", "remote": true }
+      ],
       "durable_objects": {
         "bindings": [
           {
@@ -236,6 +253,11 @@
           "name": "ANALYTICS_RATE_LIMIT",
           "namespace_id": "1006",
           "simple": { "limit": 600, "period": 60 }
+        },
+        {
+          "name": "MEDIA_UPLOAD_RATE_LIMIT",
+          "namespace_id": "1007",
+          "simple": { "limit": 10, "period": 60 }
         }
       ],
       "vars": {

@@ -13,6 +13,7 @@ do not establish the state of a later production deployment.
 - [Cloudflare Access recovery configuration](cloudflare-access.md)
 - [Authentication, account security, and recovery](activate-ri-2026/authentication.md)
 - [Event data flow and public/private boundaries](activate-ri-2026/data-flow.md)
+- [Activator photos and videos](activate-ri-2026/activator-media.md)
 - [Email flow and setup](activate-ri-2026/email-flow-and-setup.md)
 - [Database reset and restoration](activate-ri-2026/database-reset.md)
 - [Ops Room launch and incident response](activate-ri-2026/ops-room-launch-and-incident-response.md)

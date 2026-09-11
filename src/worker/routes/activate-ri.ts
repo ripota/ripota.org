@@ -61,6 +61,7 @@ import { hasTrustedOrigin, trustedSiteUrl } from "../origin";
 import { withPrivateHeaders } from "../private-response";
 import { verifyTurnstile } from "../turnstile";
 import { handleActivateRiAdminOpsApi } from "./activate-ri-admin-ops";
+import { handleActivateRiMediaApi } from "./activate-ri-media";
 import { handleActivateRiOpsApi } from "./activate-ri-ops";
 import { handleActivateRiOpsSocket } from "./activate-ri-ops-socket";
 import { handleAuthAdminApi } from "./auth-admin";
@@ -97,13 +98,17 @@ export async function handleActivateRiApi(
     request.method !== "GET" &&
     request.method !== "HEAD"
   ) {
-    return json(
+    return withPrivateHeaders(json(
       {
         ok: false,
         error: "Remote production data is read-only in local development.",
       },
       { status: 403 },
-    );
+    ));
+  }
+
+  if (/^\/api\/activate-ri-2026\/(?:activator|admin)\/media(?:\/|$)/.test(url.pathname)) {
+    return handleActivateRiMediaApi(request, env);
   }
 
   if (url.pathname.startsWith("/api/activate-ri-2026/admin/ops") ||

@@ -92,6 +92,16 @@ fi
 echo "Checking Cloudflare Wrangler authentication."
 "${wrangler[@]}" whoami
 
+echo "Checking for photo and video uploads before removing their owners."
+media_count="$("${wrangler[@]}" d1 execute "${database_name}" --remote "${base_env[@]}" \
+  --command="SELECT COUNT(*) AS count FROM activate_ri_media" --json | \
+  node -e 'let input = ""; for await (const chunk of process.stdin) input += chunk; const count = JSON.parse(input)[0]?.results?.[0]?.count; if (!Number.isSafeInteger(count) || count < 0) throw new Error("Unable to check media uploads"); process.stdout.write(String(count));')"
+if [[ "${media_count}" != "0" ]]; then
+  echo "Reset stopped: remove photo/video uploads through the organizer gallery first."
+  echo "Pending cleanup rows must also be cleared; see docs/activate-ri-2026/activator-media.md."
+  exit 1
+fi
+
 mise run backup-production
 
 echo "Resetting production Activate RI operational rows in ${database_name}."

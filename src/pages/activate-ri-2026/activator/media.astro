@@ -1,0 +1,24 @@
+---
+import ActivatorMedia from "../../../components/activate-ri/ActivatorMedia.astro";
+import ActivatorPortalNav from "../../../components/activate-ri/ActivatorPortalNav.astro";
+import EventNav from "../../../components/activate-ri/EventNav.astro";
+import Footer from "../../../components/Footer.astro";
+import Notice from "../../../components/Notice.astro";
+import SiteHeader from "../../../components/SiteHeader.astro";
+import BaseLayout from "../../../layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="Activate All RI 2026 Photos & Videos" description="Share private activation photos and videos with event organizers." privatePage>
+  <SiteHeader variant="solid" showEventLink />
+  <main id="main">
+    <section class="section event-page" aria-labelledby="activator-media-title">
+      <div class="container stack">
+        <EventNav />
+        <ActivatorPortalNav />
+        <ActivatorMedia />
+      </div>
+    </section>
+    <Notice />
+  </main>
+  <Footer />
+</BaseLayout>
