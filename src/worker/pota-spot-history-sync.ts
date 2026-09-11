@@ -95,29 +95,43 @@ export async function syncPotaSpotHistories(
 
   try {
     if (env.ACTIVATE_RI_EVENT_ID && isHistoryReconciliationTime(new Date(startedAt))) {
-      // At most two new pairs per minute, and only after a published stop has
-      // ended or official evidence exists. This can recover missed live spots.
+      // Recover at most two pairs per run after a published stop has ended or
+      // official evidence exists. Plans are approximate: an empty early fetch
+      // must not finish recovery before an operator actually gets on air.
+      // Revisit through the last planned/evidenced UTC day, plus one final
+      // check after that day closes. Later visits can reopen an old pair.
       await env.DB.prepare(
-        `INSERT OR IGNORE INTO pota_spot_history_sync (
+        `INSERT INTO pota_spot_history_sync (
           activator_callsign, park_reference, first_seen_at, last_seen_at, active
-        ) SELECT activator_callsign, park_reference, ?, ?, 0 FROM (
-          SELECT activator_callsign, park_reference
+        ) SELECT candidates.activator_callsign, candidates.park_reference, ?, ?, 0 FROM (
+          SELECT activator_callsign, park_reference,
+            unixepoch(substr(qso_date, 1, 4) || '-' || substr(qso_date, 5, 2) || '-' ||
+              substr(qso_date, 7, 2), '+1 day', '+5 minutes') * 1000 AS recovery_until
           FROM activate_ri_pota_activation_evidence WHERE event_id = ?
           UNION
-          SELECT a.primary_callsign AS activator_callsign, s.park_reference
+          SELECT a.primary_callsign AS activator_callsign, s.park_reference,
+            unixepoch(s.end_at, '-1 second', 'start of day', '+1 day', '+5 minutes') * 1000 AS recovery_until
           FROM activate_ri_stops s JOIN activate_ri_activators a ON a.id = s.activator_id
           WHERE s.event_id = ? AND a.event_id = ? AND a.status = 'approved'
             AND s.status IN ('scheduled', 'delayed', 'completed')
             AND s.end_at <= ? AND s.start_at >= '2026-09-10T00:00:00.000Z'
             AND s.start_at < '2026-09-14T00:00:00.000Z'
-        ) candidates
-        WHERE activator_callsign <> '' AND NOT EXISTS (
-          SELECT 1 FROM pota_spot_history_sync existing
-          WHERE existing.activator_callsign = candidates.activator_callsign
-            AND existing.park_reference = candidates.park_reference
-        ) ORDER BY park_reference, activator_callsign LIMIT 2`,
+        ) candidates LEFT JOIN pota_spot_history_sync existing
+          ON existing.activator_callsign = candidates.activator_callsign
+          AND existing.park_reference = candidates.park_reference
+        WHERE candidates.activator_callsign <> ''
+          AND (existing.activator_callsign IS NULL OR
+            (existing.active = 0 AND existing.post_close_sync_at IS NOT NULL
+              AND existing.retry_after <= ?))
+        GROUP BY candidates.activator_callsign, candidates.park_reference
+        HAVING existing.activator_callsign IS NULL OR
+          existing.last_history_sync_at < MIN(?, MAX(candidates.recovery_until))
+        ORDER BY COALESCE(existing.last_history_sync_at, 0), candidates.park_reference, candidates.activator_callsign
+        LIMIT 2
+        ON CONFLICT(activator_callsign, park_reference) DO UPDATE SET post_close_sync_at = NULL`,
       ).bind(startedAt, startedAt, env.ACTIVATE_RI_EVENT_ID, env.ACTIVATE_RI_EVENT_ID,
-        env.ACTIVATE_RI_EVENT_ID, new Date(startedAt - postCloseSyncDelayMilliseconds).toISOString()).run();
+        env.ACTIVATE_RI_EVENT_ID, new Date(startedAt - postCloseSyncDelayMilliseconds).toISOString(),
+        startedAt, startedAt - safetySyncIntervalMilliseconds).run();
     }
     const existingResult = await env.DB.prepare(
       `SELECT activator_callsign, park_reference, first_seen_at, last_seen_at,

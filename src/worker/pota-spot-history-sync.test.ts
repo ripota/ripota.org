@@ -5,6 +5,7 @@ import { potaApiUserAgent } from "./pota-api";
 import { persistPotaSpotHistory } from "./pota-spot-history";
 import { createMigratedSqliteD1 } from "./test-utils/sqlite-d1";
 import { syncPotaSpotHistories } from "./pota-spot-history-sync";
+import { enrichStopActivity } from "./stop-activity";
 
 let cleanup: (() => void) | undefined;
 
@@ -15,6 +16,65 @@ afterEach(() => {
 });
 
 describe("POTA spot history synchronization", () => {
+  it("recovers a late scheduled activation after an empty backfill, then finishes after its UTC day", async () => {
+    const database = createMigratedSqliteD1();
+    cleanup = database.close;
+    const env = { ...database, ACTIVATE_RI_EVENT_ID: "activate-ri-2026" as const };
+    await seedScheduledStop(env.DB);
+    let time = new Date("2026-09-11T13:06:03Z");
+    const fetcher = vi.fn(async () => Response.json(time < new Date("2026-09-11T13:31:07Z") ? [] : [{
+      spotId: 56532169, spotTime: "2026-09-11T13:31:07Z", spotter: "N1RWJ",
+      frequency: "7045", mode: "CW", source: "Ham2K Logger", comments: "",
+    }]));
+    const sync = () => syncPotaSpotHistories(env, [], { fetcher, now: () => time });
+    await expect(sync()).resolves.toMatchObject({ attempted: 1, observations: 0 });
+    time = new Date("2026-09-11T13:07:03Z");
+    await expect(sync()).resolves.toMatchObject({ attempted: 0 });
+    time = new Date("2026-09-11T13:36:03Z");
+    await expect(sync()).resolves.toMatchObject({ attempted: 1, observations: 1 });
+    await expect(enrichStopActivity(env, [{
+      id: "scheduled-stop", parkReference: "US-4582", activatorCallsign: "N1RWJ",
+      plannedDate: "2026-09-11", startTime: "10:00", endTime: "13:00", status: "scheduled",
+    }])).resolves.toMatchObject([{ activity: "spotted", status: "scheduled" }]);
+
+    // Continue collecting later reports even after the first evidence arrives.
+    time = new Date("2026-09-11T14:00:00Z");
+    await expect(sync()).resolves.toMatchObject({ attempted: 1 });
+    time = new Date("2026-09-12T00:06:00Z");
+    await expect(sync()).resolves.toMatchObject({ attempted: 1 });
+    time = new Date("2026-09-12T01:00:00Z");
+    await expect(sync()).resolves.toMatchObject({ attempted: 0 });
+    time = new Date("2026-09-15T01:00:00Z");
+    await expect(sync()).resolves.toMatchObject({ attempted: 0 });
+
+    // A later visit at the same park reopens the pair without changing the plan.
+    await env.DB.prepare("UPDATE activate_ri_stops SET start_at = '2026-09-13T10:00:00.000Z', end_at = '2026-09-13T13:00:00.000Z'").run();
+    await expect(sync()).resolves.toMatchObject({ attempted: 1 });
+    time = new Date("2026-09-15T02:00:00Z");
+    await expect(sync()).resolves.toMatchObject({ attempted: 0 });
+  });
+
+  it("respects failure backoff while reopening a scheduled pair", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const database = createMigratedSqliteD1();
+    cleanup = database.close;
+    const env = { ...database, ACTIVATE_RI_EVENT_ID: "activate-ri-2026" as const };
+    await seedScheduledStop(env.DB);
+    let time = new Date("2026-09-11T13:06:00Z");
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(Response.json([]))
+      .mockResolvedValueOnce(new Response("unavailable", { status: 503 }))
+      .mockResolvedValueOnce(Response.json([]));
+    const sync = () => syncPotaSpotHistories(env, [], { fetcher, now: () => time });
+    await sync();
+    time = new Date("2026-09-11T13:17:00Z");
+    await expect(sync()).resolves.toMatchObject({ attempted: 1, failed: 1 });
+    time = new Date("2026-09-11T13:17:30Z");
+    await expect(sync()).resolves.toMatchObject({ attempted: 0 });
+    time = new Date("2026-09-11T13:18:00Z");
+    await expect(sync()).resolves.toMatchObject({ attempted: 1, succeeded: 1 });
+  });
+
   it("hydrates new, changed, periodic, and ended activations without polling every minute", async () => {
     const database = createMigratedSqliteD1();
     cleanup = database.close;
@@ -268,6 +328,22 @@ function liveSpot(overrides: Partial<LivePotaSpot> = {}): LivePotaSpot {
     spotsUrl: "https://pota.app/",
     ...overrides,
   };
+}
+
+async function seedScheduledStop(db: D1Database): Promise<void> {
+  await db.prepare(
+    `INSERT INTO activate_ri_activators (
+      id, event_id, email_normalized, name, primary_callsign, status, created_at, updated_at
+    ) VALUES ('test-activator', 'activate-ri-2026', 'test@example.com', 'Test', 'N1RWJ',
+      'approved', '', '')`,
+  ).run();
+  await db.prepare(
+    `INSERT INTO activate_ri_stops (
+      id, activator_id, event_id, park_reference, start_at, end_at,
+      bands_json, modes_json, status, created_at, updated_at
+    ) VALUES ('scheduled-stop', 'test-activator', 'activate-ri-2026', 'US-4582',
+      '2026-09-11T10:00:00.000Z', '2026-09-11T13:00:00.000Z', '[]', '[]', 'scheduled', '', '')`,
+  ).run();
 }
 
 function historySpot(): Record<string, unknown> {
