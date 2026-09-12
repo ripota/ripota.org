@@ -1,6 +1,7 @@
 ---
 import Footer from "../../components/Footer.astro";
 import Notice from "../../components/Notice.astro";
+import ParkCoordinates from "../../components/parks/ParkCoordinates.astro";
 import ParkDetailMap from "../../components/parks/ParkDetailMap.astro";
 import ParkVisitInfo from "../../components/parks/ParkVisitInfo.astro";
 import { getPark } from "@ripota/parks";
@@ -62,6 +63,7 @@ const officialMultipleReferencesUrl =
           <p class="park-identity__meta">
             {park.counties.join(" · ")} <span aria-hidden="true">•</span> Grid {park.grid}
           </p>
+          <ParkCoordinates park={park} />
           <a
             class="button park-identity__official-link"
             data-variant="secondary"

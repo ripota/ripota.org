@@ -1,0 +1,67 @@
+---
+import type { CatalogRecord } from "@ripota/parks/types";
+
+interface Props {
+  park: Pick<CatalogRecord, "reference" | "name" | "latitude" | "longitude">;
+}
+
+const { park } = Astro.props;
+const hasCoordinates = Number.isFinite(park.latitude) && Number.isFinite(park.longitude);
+const coordinates = `${park.latitude}, ${park.longitude}`;
+const mapQuery = encodeURIComponent(`${park.latitude},${park.longitude}`);
+const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${mapQuery}`;
+// This Apple Maps URL also works on versions before the newer /place URLs.
+const appleMapsUrl = `https://maps.apple.com/?ll=${mapQuery}&q=${encodeURIComponent(`${park.reference} · ${park.name}`)}`;
+---
+
+{hasCoordinates && (
+  <p class="park-coordinates">
+    <span>POTA GPS coordinates</span>
+    <a
+      href={googleMapsUrl}
+      data-park-coordinates
+      data-apple-maps-url={appleMapsUrl}
+      aria-label={`Open POTA GPS coordinates ${coordinates} in maps`}
+      title="Open in maps"
+      rel="noreferrer"
+    >{coordinates} <span aria-hidden="true">↗</span></a>
+  </p>
+)}
+
+<script>
+  // There is no cross-platform default-maps URL. Keep a working HTTPS fallback
+  // without JavaScript, and use Apple Maps links on iPhone, iPad, and Mac.
+  if (/iPhone|iPad|iPod|Macintosh|Mac OS X/i.test(navigator.userAgent)) {
+    document.querySelectorAll<HTMLAnchorElement>("[data-park-coordinates]").forEach((link) => {
+      if (link.dataset.appleMapsUrl) link.href = link.dataset.appleMapsUrl;
+    });
+  }
+</script>
+
+<style>
+  .park-coordinates {
+    display: grid;
+    gap: 0.2rem;
+    margin-top: 1rem;
+    font-size: 0.83rem;
+  }
+
+  .park-coordinates > span {
+    color: color-mix(in srgb, var(--text-on-hero) 72%, transparent);
+    font-size: 0.7rem;
+    font-weight: 800;
+  }
+
+  .park-coordinates a {
+    width: fit-content;
+    color: var(--text-on-hero);
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    text-underline-offset: 0.2em;
+  }
+
+  .park-coordinates a:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 4px;
+  }
+</style>
