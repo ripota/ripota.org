@@ -2,6 +2,7 @@
 import type { Park } from "@ripota/parks";
 import { accessLabels, amenityLabels, orangeLabel, parkTypeLabels } from "../../lib/parks/metadata";
 import OrangeSeason from "./OrangeSeason.astro";
+import ParkCoordinates from "./ParkCoordinates.astro";
 
 interface Props { park: Park }
 const { park } = Astro.props;
@@ -20,6 +21,8 @@ const accessNotes = Object.entries(accessLabels).flatMap(([key, label]) => {
       </div>
       <a href={park.websiteUrl} target="_blank" rel="noreferrer">Park website ↗</a>
     </header>
+
+    <ParkCoordinates park={park} />
 
     {park.amenities.length > 0 && (
       <ul class="park-visit__amenities" aria-label="Listed amenities">

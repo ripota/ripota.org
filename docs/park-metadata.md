@@ -25,6 +25,13 @@ The directory filters by name/manager, county, type, and a documented amenity.
 Filters apply to the list and are preserved in its URL. The map continues to
 show all references. Each guide presents the full notes in “Plan your visit.”
 
+Each guide shows the official POTA GPS coordinates in its header and near the
+top of “Plan your visit.” Google Maps and Apple Maps icons link directly to
+those coordinates, with no platform detection or JavaScript required. These
+coordinates come from the POTA identity record, not the local map's display
+point or boundary center. Icon sources are recorded in
+[`public/assets/icons/README.md`](../public/assets/icons/README.md).
+
 Orange badges describe seasonal guidance, not whether orange is required at
 this instant. The state rule covers the second Saturday in September through
 February and the third Saturday in April through May, with a larger amount
