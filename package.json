@@ -37,6 +37,7 @@
     "@simplewebauthn/browser": "13.3.0",
     "@simplewebauthn/server": "13.3.3",
     "@turf/point-to-polygon-distance": "^7.4.0",
-    "jose": "^6.2.11"
+    "jose": "^6.2.11",
+    "markdown-it": "^15.0.2"
   }
 }
