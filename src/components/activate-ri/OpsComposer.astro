@@ -1,3 +1,7 @@
+---
+import OpsMarkdownToolbar from "./OpsMarkdownToolbar.astro";
+---
+
 <section class="ops-composer-card" aria-labelledby="ops-composer-title">
   <div class="ops-composer-card__heading">
     <div>
@@ -12,6 +16,7 @@
       <textarea id="ops-message-body" name="body" rows="1" maxlength="1000" required data-ops-body placeholder="Message the room…"></textarea>
       <button class="button" data-variant="primary" type="submit" data-ops-send>Send</button>
     </div>
+    <OpsMarkdownToolbar target="ops-message-body" />
     <details class="ops-compose-options" data-ops-options>
       <summary data-ops-options-summary>Add park or update type</summary>
       <div class="ops-compose-options__fields">
@@ -38,7 +43,7 @@
     </details>
     <div class="ops-composer__footer">
       <span class="ops-send-state" data-ops-send-state aria-live="polite"></span>
-      <span>Plain text · 1,000 characters</span>
+      <span>Markdown · 1,000 characters</span>
     </div>
   </form>
   <div class="ops-unsent" data-ops-unsent hidden>

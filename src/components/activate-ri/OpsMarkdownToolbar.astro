@@ -1,0 +1,153 @@
+---
+interface Props {
+  target: string;
+}
+
+const { target } = Astro.props;
+const helpId = `${target}-formatting-help`;
+---
+
+<ops-markdown-toolbar class="ops-markdown-toolbar" data-target={target}>
+  <div class="ops-markdown-toolbar__buttons" role="group" aria-label="Message formatting">
+    <button type="button" data-format="bold" aria-label="Bold" aria-keyshortcuts="Control+B Meta+B" title="Bold (Ctrl/Cmd+B)"><strong aria-hidden="true">B</strong></button>
+    <button type="button" data-format="italic" aria-label="Italic" aria-keyshortcuts="Control+I Meta+I" title="Italic (Ctrl/Cmd+I)"><em aria-hidden="true">I</em></button>
+    <button type="button" data-format="code" aria-label="Code" title="Code"><span aria-hidden="true">&lt;/&gt;</span></button>
+    <button type="button" data-format="link" aria-label="Insert link" aria-keyshortcuts="Control+K Meta+K" title="Insert link (Ctrl/Cmd+K)">
+      <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m10 13 4-4m-6 6-2 2a4 4 0 0 1-6-6l4-4a4 4 0 0 1 6 0m2 4 2-2a4 4 0 0 1 6 6l-4 4a4 4 0 0 1-6 0" transform="translate(2 -1)" /></svg>
+    </button>
+    <button type="button" data-format="list" aria-label="Bulleted list" title="Bulleted list"><span aria-hidden="true">• ≡</span></button>
+    <button type="button" data-format="quote" aria-label="Quote" title="Quote"><span aria-hidden="true">❝</span></button>
+    <button type="button" class="ops-markdown-toolbar__help-toggle" data-format-help aria-label="Markdown formatting help" aria-controls={helpId} aria-expanded="false" title="Markdown formatting help"><span aria-hidden="true">?</span></button>
+  </div>
+  <p id={helpId} class="ops-markdown-toolbar__help" hidden>
+    Select text, then choose a format. You can also type Markdown:
+    <code>**bold**</code>, <code>*italic*</code>, <code>`code`</code>,
+    <code>[link text](https://example.com)</code>, <code>- list item</code>, or <code>&gt; quote</code>.
+    Plain web addresses become links. Ctrl/Cmd+B, I, and K format bold, italic, and links.
+  </p>
+  <span class="sr-only" data-format-status aria-live="polite"></span>
+</ops-markdown-toolbar>
+
+<script>
+  import { formatOpsText, type OpsTextFormat } from "../../lib/activate-ri/ops-formatting";
+
+  class OpsMarkdownToolbar extends HTMLElement {
+    private cleanup?: () => void;
+
+    connectedCallback(): void {
+      this.cleanup?.();
+      const textarea = document.getElementById(this.dataset.target ?? "");
+      if (!(textarea instanceof HTMLTextAreaElement)) return;
+      const buttons = [...this.querySelectorAll<HTMLButtonElement>("[data-format]")];
+      const status = this.querySelector<HTMLElement>("[data-format-status]");
+      const syncDisabled = () => {
+        for (const button of buttons) button.disabled = textarea.disabled || textarea.readOnly;
+      };
+      const apply = (format: OpsTextFormat) => {
+        if (textarea.disabled || textarea.readOnly) return;
+        const formatted = formatOpsText(textarea.value, textarea.selectionStart, textarea.selectionEnd, format, textarea.maxLength);
+        if (!formatted) {
+          if (status) status.textContent = `Formatting would exceed the ${textarea.maxLength.toLocaleString()} character limit.`;
+          textarea.focus({ preventScroll: true });
+          return;
+        }
+        textarea.setRangeText(formatted.value, 0, textarea.value.length, "preserve");
+        textarea.focus({ preventScroll: true });
+        textarea.setSelectionRange(formatted.selectionStart, formatted.selectionEnd);
+        textarea.dispatchEvent(new Event("input", { bubbles: true }));
+        if (status) status.textContent = "";
+      };
+      const click = (event: MouseEvent) => {
+        if (!(event.target instanceof Element)) return;
+        const button = event.target.closest<HTMLButtonElement>("button");
+        if (!button || !this.contains(button)) return;
+        if (button.dataset.format) apply(button.dataset.format as OpsTextFormat);
+        if (button.hasAttribute("data-format-help")) {
+          const help = document.getElementById(button.getAttribute("aria-controls") ?? "");
+          if (!help) return;
+          help.hidden = !help.hidden;
+          button.setAttribute("aria-expanded", String(!help.hidden));
+        }
+      };
+      const keydown = (event: KeyboardEvent) => {
+        if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.isComposing) return;
+        const formats: Record<string, OpsTextFormat> = { b: "bold", i: "italic", k: "link" };
+        const format = formats[event.key.toLowerCase()];
+        if (!format || textarea.disabled || textarea.readOnly) return;
+        event.preventDefault();
+        apply(format);
+      };
+      this.addEventListener("click", click);
+      textarea.addEventListener("keydown", keydown);
+      const observer = new MutationObserver(syncDisabled);
+      observer.observe(textarea, { attributes: true, attributeFilter: ["disabled", "readonly"] });
+      syncDisabled();
+      this.cleanup = () => {
+        this.removeEventListener("click", click);
+        textarea.removeEventListener("keydown", keydown);
+        observer.disconnect();
+      };
+    }
+
+    disconnectedCallback(): void {
+      this.cleanup?.();
+    }
+  }
+
+  if (!customElements.get("ops-markdown-toolbar")) customElements.define("ops-markdown-toolbar", OpsMarkdownToolbar);
+</script>
+
+<style>
+  .ops-markdown-toolbar {
+    display: block;
+    min-width: 0;
+  }
+
+  .ops-markdown-toolbar__buttons {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.15rem;
+  }
+
+  .ops-markdown-toolbar button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0.2rem;
+    border: 1px solid transparent;
+    border-radius: 0.3rem;
+    color: var(--text-muted);
+    background: transparent;
+    font: inherit;
+    font-size: 0.84rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .ops-markdown-toolbar button:hover:not(:disabled),
+  .ops-markdown-toolbar button[aria-expanded="true"] {
+    border-color: var(--border-subtle);
+    color: var(--text-primary);
+    background: var(--surface-raised);
+  }
+
+  .ops-markdown-toolbar button:disabled {
+    cursor: default;
+    opacity: 0.45;
+  }
+
+  .ops-markdown-toolbar__help {
+    margin-top: 0.35rem;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+
+  .ops-markdown-toolbar__help code {
+    font-size: inherit;
+  }
+</style>
