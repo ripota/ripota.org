@@ -1,3 +1,7 @@
+---
+import OpsMarkdownToolbar from "./OpsMarkdownToolbar.astro";
+---
+
 <section class="admin-activity admin-announcement" aria-labelledby="admin-ops-announcement-title">
   <div>
     <p class="eyebrow">Reach everyone</p>
@@ -5,7 +9,7 @@
     <p class="lead">Room posts are immediate. Email copies are optional and require confirmation.</p>
     <div class="admin-current-announcement" data-admin-current-announcement hidden>
       <p class="eyebrow">Pinned now</p>
-      <p data-admin-current-announcement-body></p>
+      <div data-admin-current-announcement-body></div>
       <button class="button" data-variant="light" type="button" data-admin-clear-announcement>
         Clear pinned announcement
       </button>
@@ -14,8 +18,9 @@
   <form class="event-form admin-ops-form" data-admin-ops-announcement>
     <label>
       <span class="sr-only">Announcement text</span>
-      <textarea name="body" rows="3" maxlength="1000" required placeholder="What does the room need to know?"></textarea>
+      <textarea id="admin-announcement-body" name="body" rows="3" maxlength="1000" required placeholder="What does the room need to know?"></textarea>
     </label>
+    <OpsMarkdownToolbar target="admin-announcement-body" />
     <label class="admin-ops-check"><input type="checkbox" name="pin" /> Pin this announcement</label>
     <label class="admin-ops-check"><input type="checkbox" name="email" /> Also email this announcement to activators</label>
     <p class="ops-meta" data-admin-ops-recipient-preview></p>

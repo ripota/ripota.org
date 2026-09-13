@@ -4142,7 +4142,7 @@ p {
   background: color-mix(in srgb, var(--accent) 10%, var(--surface-raised));
 }
 
-.admin-live-message > div {
+.admin-live-message > div:not(.ops-markdown) {
   display: flex;
   justify-content: space-between;
   gap: 0.6rem;
@@ -4198,6 +4198,10 @@ p {
 }
 
 .admin-live-composer details {
+  grid-column: 1 / -1;
+}
+
+.admin-live-composer > ops-markdown-toolbar {
   grid-column: 1 / -1;
 }
 
@@ -4265,7 +4269,8 @@ p {
   gap: 0.55rem 0.8rem;
 }
 
-.admin-announcement .admin-ops-form > label:first-child {
+.admin-announcement .admin-ops-form > label:first-child,
+.admin-announcement .admin-ops-form > ops-markdown-toolbar {
   grid-column: 1 / -1;
 }
 
@@ -4291,9 +4296,9 @@ p {
   font-size: 0.7rem;
 }
 
-.admin-announcement .button {
+.admin-announcement .admin-ops-form > .button {
   grid-column: 3;
-  grid-row: 2 / span 2;
+  grid-row: 3 / span 2;
   align-self: stretch;
 }
 
@@ -4526,7 +4531,7 @@ p {
 
   .admin-announcement .admin-ops-form > *,
   .admin-announcement .ops-meta,
-  .admin-announcement .button {
+  .admin-announcement .admin-ops-form > .button {
     grid-column: 1;
     grid-row: auto;
   }
@@ -4965,8 +4970,8 @@ p {
   background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
-.ops-message[data-own="true"] .ops-message__header:not(.sr-only),
-.ops-message[data-own="true"][data-continuation="true"] .ops-message__content {
+.ops-message .ops-message__header:not(.sr-only),
+.ops-message[data-continuation="true"] .ops-message__content {
   margin-right: 2rem;
 }
 
@@ -5020,6 +5025,62 @@ p {
 
 .ops-message__body {
   line-height: 1.35;
+}
+
+.ops-markdown {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.ops-markdown p,
+.ops-markdown ul,
+.ops-markdown ol,
+.ops-markdown blockquote,
+.ops-markdown pre {
+  margin: 0;
+}
+
+.ops-markdown > * + *,
+.ops-markdown li > * + *,
+.ops-markdown blockquote > * + * {
+  margin-top: 0.55em;
+}
+
+.ops-markdown ul,
+.ops-markdown ol {
+  padding-left: 1.5em;
+}
+
+.ops-markdown blockquote {
+  border-left: 3px solid var(--border-subtle);
+  padding-left: 0.75em;
+  color: var(--text-muted);
+}
+
+.ops-markdown code {
+  border-radius: 3px;
+  padding: 0.08em 0.25em;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  font-size: 0.88em;
+}
+
+.ops-markdown pre {
+  max-width: 100%;
+  border-radius: 5px;
+  padding: 0.6em;
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  white-space: pre-wrap;
+}
+
+.ops-markdown pre code {
+  padding: 0;
+  background: transparent;
+}
+
+.ops-markdown a {
+  text-decoration: underline;
+  text-underline-offset: 0.12em;
 }
 
 .ops-message__content {
@@ -5077,6 +5138,21 @@ p {
 .ops-message__actions[open] summary {
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   color: var(--text-primary);
+}
+
+.ops-message:target {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: 4px;
+}
+
+.ops-link-status:empty {
+  display: none;
+}
+
+.ops-message-link input {
+  width: 100%;
+  margin-block: 0.5rem 1rem;
 }
 
 .ops-message__action-menu {
@@ -5399,7 +5475,8 @@ p {
   font-weight: 800;
 }
 
-.ops-message-editor textarea {
+.ops-message-editor textarea,
+.ops-message-link input {
   width: 100%;
   min-width: 0;
   border: 1px solid var(--border-subtle);

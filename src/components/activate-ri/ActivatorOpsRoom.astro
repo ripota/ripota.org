@@ -5,6 +5,7 @@ import OpsFeed from "./OpsFeed.astro";
 import OpsPinnedAnnouncement from "./OpsPinnedAnnouncement.astro";
 import OpsUpcomingStops from "./OpsUpcomingStops.astro";
 import OpsRoomSettings from "./OpsRoomSettings.astro";
+import OpsMarkdownToolbar from "./OpsMarkdownToolbar.astro";
 
 const parkNames = Object.fromEntries(
   references.map((reference) => [reference.reference, reference.name]),
@@ -33,7 +34,8 @@ const parkNames = Object.fromEntries(
       <h2 id="ops-edit-title">Edit message</h2>
       <p id="ops-edit-help">You can edit this message for 20 minutes after posting.</p>
       <label for="ops-edit-body">Message</label>
-      <textarea id="ops-edit-body" data-ops-edit-body rows="5" required aria-describedby="ops-edit-help ops-edit-status"></textarea>
+      <textarea id="ops-edit-body" data-ops-edit-body rows="5" maxlength="1000" required aria-describedby="ops-edit-help ops-edit-status"></textarea>
+      <OpsMarkdownToolbar target="ops-edit-body" />
       <p id="ops-edit-status" class="form-status" data-ops-edit-status role="status"></p>
       <div class="form-actions">
         <button class="button" data-variant="primary" type="submit" data-ops-edit-save>Save changes</button>
@@ -42,12 +44,23 @@ const parkNames = Object.fromEntries(
     </form>
   </dialog>
   <p class="sr-only" data-ops-edit-saved role="status"></p>
+  <p class="ops-link-status" data-ops-link-status role="status"></p>
+  <dialog class="ops-rules ops-message-editor ops-message-link" data-ops-link-dialog aria-labelledby="ops-link-title">
+    <form method="dialog">
+      <h2 id="ops-link-title">Link to message</h2>
+      <p>Copy this link to share the message with someone who has room access.</p>
+      <label for="ops-message-link">Message link</label>
+      <input id="ops-message-link" type="url" readonly />
+      <button class="button" data-variant="light">Close</button>
+    </form>
+  </dialog>
 </div>
 
 <script>
   import { continuesOpsMessageGroup, opsMessageTimeLabel } from "../../lib/activate-ri/ops-presentation";
   import { isOpsMessageWithinEditWindow, OPS_MESSAGE_EDIT_WINDOW_MS } from "../../lib/activate-ri/ops-editing";
   import { startOpsEngagement } from "../../lib/activate-ri/ops-engagement";
+  import { renderOpsMarkdown } from "../../lib/activate-ri/ops-markdown";
 
   type RoomMode = "full" | "announcements" | "off";
   type MembershipStatus = "active" | "muted" | "banned";
@@ -88,6 +101,7 @@ const parkNames = Object.fromEntries(
     cursor: number;
   };
   type Draft = { clientNonce: string; kind: string; context: string; body: string };
+  type MessageUpdate = Extract<RoomEvent, { messageId: string }>;
 
   const room = document.querySelector<HTMLElement>("[data-ops-room]");
   const connection = room?.querySelector<HTMLElement>("[data-ops-connection]");
@@ -109,6 +123,8 @@ const parkNames = Object.fromEntries(
   const pinMeta = room?.querySelector<HTMLElement>("[data-ops-pin-meta]");
   const rulesDialog = room?.querySelector<HTMLDialogElement>("[data-ops-settings]");
   const editDialog = room?.querySelector<HTMLDialogElement>("[data-ops-edit-dialog]");
+  const linkDialog = room?.querySelector<HTMLDialogElement>("[data-ops-link-dialog]");
+  let copyingMessageId: string | null = null;
   const editForm = editDialog?.querySelector<HTMLFormElement>("[data-ops-edit-form]");
   const editBody = editDialog?.querySelector<HTMLTextAreaElement>("[data-ops-edit-body]");
   const editStatus = editDialog?.querySelector<HTMLElement>("[data-ops-edit-status]");
@@ -116,6 +132,7 @@ const parkNames = Object.fromEntries(
   const editCancel = editDialog?.querySelector<HTMLButtonElement>("[data-ops-edit-cancel]");
   const parkNames = JSON.parse(room?.dataset.parkNames ?? "{}") as Record<string, string>;
   const messages = new Map<string, Message>();
+  const pendingMessageUpdates = new Map<string, Map<string, MessageUpdate>>();
   const socketEvents: RoomEvent[] = [];
   const retryDelays = [1_000, 2_000, 5_000, 10_000, 30_000, 60_000];
   const cursorKey = "activate-ri-ops-cursor";
@@ -151,10 +168,11 @@ const parkNames = Object.fromEntries(
   let editingMessageId: string | null = null;
   let savingEdit = false;
   let editExpiryTimer: number | undefined;
-  let linkedMessage = location.hash.startsWith("#ops-message-") ? location.hash.slice(1) : null;
+  let lastLinkedHash = "";
+  let linkRequest = 0;
   const stopEngagement = room ? startOpsEngagement(
     room, () => roomLoaded && roomMode !== "off" && membershipStatus !== "banned",
-    linkedMessage ? "message_link" : "direct",
+    location.hash.startsWith("#ops-message-") ? "message_link" : "direct",
   ) : undefined;
 
   if (room) {
@@ -179,7 +197,8 @@ const parkNames = Object.fromEntries(
         fetch("/api/activate-ri-2026/ops/bootstrap", { headers: { accept: "application/json" } }),
       ]);
       if (sessionResponse.status === 401) {
-        window.location.replace("/activate-ri-2026/access/");
+        const returnTo = `${location.pathname}${location.search}${location.hash}`;
+        window.location.replace(`/account/sign-in/?${new URLSearchParams({ returnTo })}`);
         return;
       }
       if (!sessionResponse.ok || bootstrapResponse.status >= 500) throw new Error("Room temporarily unavailable");
@@ -206,27 +225,10 @@ const parkNames = Object.fromEntries(
       pinnedMessage = data.pinnedMessage;
       messages.clear();
       data.messages.forEach((message) => messages.set(message.id, message));
-      if (linkedMessage) {
-        const messageId = linkedMessage.slice("ops-message-".length);
-        if (/^[a-f0-9-]{36}$/i.test(messageId) && !messages.has(messageId)) {
-          try {
-            const linked = await fetch(`/api/activate-ri-2026/ops/messages/${encodeURIComponent(messageId)}`);
-            if (linked.ok) {
-              const result = await linked.json() as { message: Message };
-              messages.set(result.message.id, result.message);
-            }
-          } catch { /* The recent feed remains available if an older link cannot load. */ }
-        }
-      }
       cursor = data.cursor;
       localStorage.setItem(cursorKey, String(cursor));
       renderAll();
-      if (linkedMessage) {
-        const target = document.getElementById(linkedMessage);
-        target?.scrollIntoView({ block: "nearest" });
-        target?.focus({ preventScroll: true });
-        linkedMessage = null;
-      }
+      await revealLinkedMessage(true);
       if (data.membership.acceptedRulesVersion !== data.rulesVersion) {
         window.dispatchEvent(new Event("activate-ri:ops-setup"));
       }
@@ -362,32 +364,15 @@ const parkNames = Object.fromEntries(
     }
     if (event.type === "message-created") {
       messages.set(event.message.id, event.message);
-    } else if (event.type === "message-edited") {
+    } else if ("messageId" in event) {
+      // Keep only the latest edit, removal, and resolution while an older
+      // message is loading. Live updates must also apply to that snapshot.
+      const updateKind = event.type === "message-edited" || event.type === "message-removed"
+        ? event.type : "resolution";
+      pendingMessageUpdates.get(event.messageId)?.set(updateKind, event);
+      if (event.type === "message-removed" && pinnedMessage?.id === event.messageId) pinnedMessage = null;
       const message = messages.get(event.messageId);
-      if (message && !message.removed) {
-        messages.set(event.messageId, { ...message, body: event.body, editedAt: event.editedAt });
-      }
-    } else if (event.type === "message-removed") {
-      if (pinnedMessage?.id === event.messageId) pinnedMessage = null;
-      const message = messages.get(event.messageId);
-      if (message) {
-        messages.set(event.messageId, {
-          ...message,
-          body: "",
-          removed: true,
-          removedAt: event.removedAt,
-          removedBy: event.removedBy,
-        });
-      }
-    } else if (event.type === "message-resolved" || event.type === "message-reopened") {
-      const message = messages.get(event.messageId);
-      if (message) {
-        messages.set(event.messageId, {
-          ...message,
-          resolved: event.type === "message-resolved",
-          resolvedAt: event.resolvedAt,
-        });
-      }
+      if (message) messages.set(event.messageId, applyMessageUpdate(message, event));
     } else if (event.type === "pin-changed") {
       pinnedMessage = event.pinnedMessage;
     } else if (event.type === "room-mode-changed") {
@@ -397,6 +382,16 @@ const parkNames = Object.fromEntries(
     localStorage.setItem(cursorKey, String(cursor));
     renderFeed();
     renderPin();
+  }
+
+  function applyMessageUpdate(message: Message, event: MessageUpdate): Message {
+    if (event.type === "message-edited") {
+      return message.removed ? message : { ...message, body: event.body, editedAt: event.editedAt };
+    }
+    if (event.type === "message-removed") {
+      return { ...message, body: "", removed: true, removedAt: event.removedAt, removedBy: event.removedBy };
+    }
+    return { ...message, resolved: event.type === "message-resolved", resolvedAt: event.resolvedAt };
   }
 
   function renderAll(): void {
@@ -537,9 +532,9 @@ const parkNames = Object.fromEntries(
 
   function scheduleSeenMessages(): void {
     window.clearTimeout(seenTimer);
-    if (document.hidden || rulesDialog?.open || editDialog?.open) return;
+    if (document.hidden || room?.querySelector("dialog[open]")) return;
     seenTimer = window.setTimeout(() => {
-      if (document.hidden || rulesDialog?.open || editDialog?.open) return;
+      if (document.hidden || room?.querySelector("dialog[open]")) return;
       const remembered = seenMessages;
       restoreSeenMessages();
       remembered.forEach((id) => seenMessages.add(id));
@@ -571,6 +566,7 @@ const parkNames = Object.fromEntries(
   }
 
   room?.querySelector("[data-ops-unread]")?.addEventListener("click", () => {
+    cancelLinkedReveal();
     setFilter("all");
     updateFilterUrl();
     renderFeed();
@@ -579,6 +575,7 @@ const parkNames = Object.fromEntries(
     target?.focus({ preventScroll: true });
   });
   room?.querySelector("[data-ops-latest]")?.addEventListener("click", () => {
+    cancelLinkedReveal();
     if (feed) feed.scrollTop = 0;
   });
 
@@ -635,9 +632,9 @@ const parkNames = Object.fromEntries(
       unread.textContent = "New";
       header.appendChild(unread);
     }
-    const body = document.createElement("p");
+    const body = document.createElement("div");
     body.className = "ops-message__body";
-    body.textContent = message.body;
+    renderOpsMarkdown(body, message.body);
     const content = document.createElement("div");
     content.className = "ops-message__content";
     item.appendChild(header);
@@ -662,7 +659,7 @@ const parkNames = Object.fromEntries(
       content.appendChild(context);
     }
     item.appendChild(content);
-    if (own) {
+    {
       const actions = document.createElement("details");
       actions.className = "ops-message__actions";
       const toggle = document.createElement("summary");
@@ -672,6 +669,31 @@ const parkNames = Object.fromEntries(
       actions.appendChild(toggle);
       const buttons = document.createElement("div");
       buttons.className = "ops-message__action-menu";
+      const copyLink = document.createElement("button");
+      copyLink.type = "button";
+      copyLink.className = "button";
+      copyLink.dataset.variant = "light";
+      copyLink.dataset.action = "copy-link";
+      copyLink.textContent = "Copy link";
+      copyLink.addEventListener("click", async () => {
+        const url = new URL("/activate-ri-2026/activator/", location.origin);
+        url.hash = `ops-message-${message.id}`;
+        try {
+          await navigator.clipboard.writeText(url.href);
+          setLinkStatus("Message link copied.");
+        } catch {
+          const input = linkDialog?.querySelector<HTMLInputElement>("input");
+          if (linkDialog && input) {
+            copyingMessageId = message.id;
+            input.value = url.href;
+            linkDialog.showModal();
+            input.select();
+          }
+        }
+        actions.open = false;
+        if (!linkDialog?.open) toggle.focus();
+      });
+      buttons.appendChild(copyLink);
       if (canEditMessage(message)) {
         const edit = document.createElement("button");
         edit.type = "button";
@@ -685,10 +707,10 @@ const parkNames = Object.fromEntries(
         });
         buttons.appendChild(edit);
       }
-      if (message.kind === "need-backup" || message.kind === "access-note") {
+      if (own && (message.kind === "need-backup" || message.kind === "access-note")) {
         buttons.appendChild(messageAction(message, message.resolved ? "Reopen" : "Resolve", message.resolved ? "reopen" : "resolve"));
       }
-      buttons.appendChild(messageAction(message, "Remove", "remove"));
+      if (own) buttons.appendChild(messageAction(message, "Remove", "remove"));
       actions.appendChild(buttons);
       item.appendChild(actions);
     }
@@ -704,7 +726,7 @@ const parkNames = Object.fromEntries(
     }
     pin.hidden = false;
     pin.dataset.opsExposureMessageId = pinnedMessage.id;
-    pinBody.textContent = pinnedMessage.body;
+    renderOpsMarkdown(pinBody, pinnedMessage.body);
     pinMeta.textContent = `Organizer · ${formatTimestamp(pinnedMessage.createdAt)}${
       pinnedMessage.parkReference ? ` · ${pinnedMessage.parkReference} — ${parkNames[pinnedMessage.parkReference] ?? "RI park"}` : ""
     }`;
@@ -798,6 +820,12 @@ const parkNames = Object.fromEntries(
   });
 
   rulesDialog?.addEventListener("close", scheduleSeenMessages);
+  linkDialog?.addEventListener("close", () => {
+    const item = copyingMessageId ? feed?.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(copyingMessageId)}"]`) : null;
+    copyingMessageId = null;
+    (item?.querySelector<HTMLElement>("summary") ?? item ?? feed)?.focus({ preventScroll: true });
+    scheduleSeenMessages();
+  });
   editDialog?.addEventListener("close", () => {
     const id = editingMessageId;
     editingMessageId = null;
@@ -864,13 +892,86 @@ const parkNames = Object.fromEntries(
   });
 
   filters?.addEventListener("change", () => {
+    cancelLinkedReveal();
     updateFilterUrl();
     renderFeed();
   });
   window.addEventListener("popstate", () => {
+    cancelLinkedReveal();
     restoreFilter();
     renderFeed();
+    void revealLinkedMessage();
   });
+  window.addEventListener("hashchange", () => void revealLinkedMessage());
+  room?.addEventListener("click", (event) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const anchor = event.target instanceof Element ? event.target.closest("a") : null;
+    if (!anchor || anchor.target || anchor.hasAttribute("download")) return;
+    const url = new URL(anchor.href);
+    if (url.origin !== location.origin || url.pathname !== location.pathname || !url.hash.startsWith("#ops-message-")) return;
+    event.preventDefault();
+    if (url.href !== location.href) history.pushState(history.state, "", url);
+    restoreFilter();
+    void revealLinkedMessage(true);
+  });
+
+  function setLinkStatus(text: string): void {
+    room?.querySelector("[data-ops-link-status]")?.replaceChildren(text);
+  }
+
+  function cancelLinkedReveal(): void {
+    linkRequest += 1;
+    setLinkStatus("");
+  }
+
+  async function revealLinkedMessage(force = false): Promise<void> {
+    if (!roomLoaded || (!force && location.hash === lastLinkedHash)) return;
+    const hash = location.hash;
+    lastLinkedHash = hash;
+    const request = ++linkRequest;
+    setLinkStatus("");
+    if (!hash.startsWith("#ops-message-")) return;
+    const id = hash.slice("#ops-message-".length);
+    if (!messages.has(id) && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(id)) {
+      const updates = new Map<string, MessageUpdate>();
+      pendingMessageUpdates.set(id, updates);
+      try {
+        const response = await fetch(`/api/activate-ri-2026/ops/messages/${encodeURIComponent(id)}`);
+        if (request !== linkRequest) return;
+        if (response.ok) {
+          const result = await response.json() as { message: Message };
+          if (request !== linkRequest) return;
+          if (result.message.id === id && !messages.has(id)) {
+            let message = result.message;
+            for (const update of updates.values()) message = applyMessageUpdate(message, update);
+            messages.set(id, message);
+          }
+        } else if (response.status >= 500) {
+          throw new Error("Message lookup unavailable");
+        }
+      } catch {
+        if (request === linkRequest) setLinkStatus("Unable to open this message. Try the link again.");
+        return;
+      } finally {
+        if (pendingMessageUpdates.get(id) === updates) pendingMessageUpdates.delete(id);
+      }
+    }
+    if (request !== linkRequest) return;
+    const message = messages.get(id);
+    if (!message || message.removed) {
+      setLinkStatus("Message is no longer available.");
+      return;
+    }
+    renderFeed();
+    if (!document.getElementById(`ops-message-${id}`)) {
+      setFilter("all");
+      updateFilterUrl("replace");
+      renderFeed();
+    }
+    const target = document.getElementById(`ops-message-${id}`);
+    target?.scrollIntoView({ block: "center" });
+    target?.focus({ preventScroll: true });
+  }
 
   bodyInput?.addEventListener("input", () => void saveComposerDraft());
   kindSelect?.addEventListener("change", () => {

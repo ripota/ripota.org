@@ -19,8 +19,8 @@ describe("Activator Ops Room client", () => {
     expect(roomSource).not.toContain("sync.register");
   });
 
-  it("renders message content as text and preserves the unofficial-site notice", () => {
-    expect(roomSource).toContain("body.textContent");
+  it("uses the safe Markdown renderer and preserves the unofficial-site notice", () => {
+    expect(roomSource).toContain("renderOpsMarkdown(body, message.body)");
     expect(roomSource).not.toContain("innerHTML");
     expect(portalSource).toContain("<Notice />");
   });

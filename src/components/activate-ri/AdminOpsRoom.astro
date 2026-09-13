@@ -53,6 +53,7 @@ import OpsEmailPreferences from "./OpsEmailPreferences.astro";
 
 <script>
   import { setupAdminTabs } from "../../lib/activate-ri/admin-tabs";
+  import { renderOpsMarkdown } from "../../lib/activate-ri/ops-markdown";
 
   type Member = {
     activator_id: string;
@@ -203,7 +204,7 @@ import OpsEmailPreferences from "./OpsEmailPreferences.astro";
       if (currentAnnouncement) currentAnnouncement.hidden = true;
       return;
     }
-    currentAnnouncementBody.textContent = pinned.body;
+    renderOpsMarkdown(currentAnnouncementBody, pinned.body);
     currentAnnouncement.hidden = false;
   }
 
@@ -278,7 +279,9 @@ import OpsEmailPreferences from "./OpsEmailPreferences.astro";
     }
     state.messages.forEach((message) => {
       const card = adminCard(`${message.authorLabel} — ${message.kind}`);
-      addText(card.body, message.removed ? "Message removed." : message.body);
+      const body = document.createElement("div");
+      renderOpsMarkdown(body, message.removed ? "Message removed." : message.body);
+      card.body.appendChild(body);
       addText(card.body, `${formatTime(message.createdAt)}${message.parkReference ? ` · ${message.parkReference}` : ""}${message.editedAt && !message.removed ? " · edited" : ""}`);
       if (!message.removed) {
         card.actions.appendChild(actionButton("Remove", () => moderateMessage(message, "remove")));

@@ -1,5 +1,6 @@
 ---
 import { parks as references } from "@ripota/parks";
+import OpsMarkdownToolbar from "./OpsMarkdownToolbar.astro";
 ---
 
 <section class="admin-live-room" aria-labelledby="admin-live-room-title" data-admin-live-room>
@@ -19,6 +20,7 @@ import { parks as references } from "@ripota/parks";
     <label class="sr-only" for="admin-live-message">Message the room as an organizer</label>
     <textarea id="admin-live-message" name="body" rows="2" maxlength="1000" required disabled placeholder="Message the room as an organizer…"></textarea>
     <button class="button" data-variant="primary" type="submit" disabled>Send</button>
+    <OpsMarkdownToolbar target="admin-live-message" />
     <details>
       <summary>Message options</summary>
       <div class="admin-live-options">
@@ -46,6 +48,8 @@ import { parks as references } from "@ripota/parks";
 </section>
 
 <script>
+  import { renderOpsMarkdown } from "../../lib/activate-ri/ops-markdown";
+
   type RoomMode = "full" | "announcements" | "off";
   type Message = {
     id: string;
@@ -216,8 +220,8 @@ import { parks as references } from "@ripota/parks";
     meta.textContent = `${message.kind.replaceAll("-", " ")}${message.parkReference ? ` · ${message.parkReference}` : ""} · ${formatLiveTime(message.createdAt)}${message.editedAt && !message.removed ? " · edited" : ""}`;
     header.appendChild(author);
     header.appendChild(meta);
-    const body = document.createElement("p");
-    body.textContent = message.removed ? "Message removed." : message.body;
+    const body = document.createElement("div");
+    renderOpsMarkdown(body, message.removed ? "Message removed." : message.body);
     if (message.resolved) item.dataset.resolved = "true";
     item.appendChild(header);
     item.appendChild(body);
