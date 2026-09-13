@@ -145,6 +145,7 @@ it("serializes only display metadata and an authenticated content URL", () => {
     updated_at: "2026-09-12T12:01:00.000Z", primary_callsign: "N1RI", park_reference: null,
     activator_name: "Rob Jackson", chat_display_name: null,
     title: null, description: null, usage_notice_version: "ri-pota-media-v1",
+    featured_on_recap: 0,
   };
   for (const audience of ["activator", "admin"] as const) {
     const serialized = serializeMedia(row, audience);
@@ -167,6 +168,8 @@ it("serializes only display metadata and an authenticated content URL", () => {
   expect(serializeMedia({ ...row, chat_display_name: "Rob J." }, "activator").authorLabel).toBe("N1RI - Rob J.");
   expect(serializeMedia({ ...row, chat_display_name: "" }, "activator").authorLabel).toBe("N1RI");
   const publicMedia = serializeMedia(row, "public");
+  expect(publicMedia.featuredOnRecap).toBe(false);
+  expect(serializeMedia({ ...row, featured_on_recap: 1 }, "public").featuredOnRecap).toBe(true);
   expect(publicMedia).not.toHaveProperty("filename");
   expect(publicMedia).toMatchObject({ canEdit: false, isOwn: false, editUrl: null, url: "/api/activate-ri-2026/public/media/media-id/file" });
   expect(serializeMedia(row, "public", row.activator_id)).toMatchObject({ canEdit: true, isOwn: true, editUrl: "/api/activate-ri-2026/activator/media/media-id" });

@@ -7,6 +7,8 @@ import {
 import { activationTimeZoneOptions } from "../../lib/activate-ri/time";
 import type { PublicParkSummary } from "../../lib/activate-ri/types";
 import { siteIdentity } from "../../data/site";
+import { eventPhaseAt } from "../../lib/activate-ri/event-phase";
+const postEvent = eventPhaseAt() === "post-event";
 
 const publicParks = parks as PublicParkSummary[];
 const countyOptions = uniqueSortedValues(
@@ -20,20 +22,21 @@ const countyOptions = uniqueSortedValues(
   <p data-schedule-print-summary></p>
   <p data-schedule-print-generated></p>
   <p data-schedule-print-loaded></p>
-  <p>Activation windows are planned estimates, not guaranteed contacts. Confirm live activity with official POTA spots or HamAlert.</p>
+  <p data-schedule-live-only hidden={postEvent}>Activation windows are planned estimates, not guaranteed contacts. Confirm live activity with official POTA spots or HamAlert.</p>
+  <p data-schedule-archive-only hidden={!postEvent}>These are the plans shared for the 2026 event. Actual activity may have differed; recorded POTA activations are shown in the park results.</p>
   <p>Event-day filters use Rhode Island time. Dates and times below use the selected time zone.</p>
   <p>Activity matches each stop's activator and UTC date. Spotted means activity was seen; POTA confirmed means a qualifying activation was logged.</p>
   <p>{siteIdentity.disclaimer}</p>
 </header>
 
-<p class="event-coverage-shortcut" data-coverage-shortcut-wrap>
+<p class="event-coverage-shortcut" data-coverage-shortcut-wrap data-schedule-live-only hidden={postEvent}>
   <a href="/activate-ri-2026/parks/#park-planning" data-coverage-shortcut>
     Find parks with fewer activators<span aria-hidden="true"> →</span>
   </a>
 </p>
 
 <section class="personal-schedule-summary" data-personal-schedule-summary hidden>
-  <p class="eyebrow">Your all-time RI checklist</p>
+  <p class="eyebrow" data-schedule-live-only hidden={postEvent}>Your all-time RI checklist</p>
   <h2 data-personal-schedule-title>Schedule for your remaining parks</h2>
   <p data-personal-schedule-copy aria-live="polite"></p>
   <p data-personal-schedule-import hidden>
@@ -52,18 +55,22 @@ const countyOptions = uniqueSortedValues(
   <p data-requested-schedule-copy aria-live="polite"></p>
   <p data-requested-schedule-error role="alert" hidden></p>
   <p data-requested-schedule-references></p>
-  <p class="schedule-agenda-screen-only"><a href="/activate-ri-2026/hunter/#hunter-requested-parks">Choose parks for a new agenda</a></p>
+  <p class="schedule-agenda-screen-only" data-schedule-live-only hidden={postEvent}><a href="/activate-ri-2026/hunter/#hunter-requested-parks">Choose parks for a new agenda</a></p>
   <div data-requested-schedule-unmatched hidden>
     <h3>Not currently scheduled</h3>
     <ul data-requested-schedule-unmatched-list></ul>
   </div>
 </section>
 
-<p class="schedule-estimate-note">
+<p class="schedule-estimate-note" data-schedule-live-only hidden={postEvent}>
   Activation windows are planned estimates, not guaranteed contacts. Check{" "}
   <a href="https://pota.app/" target="_blank" rel="noopener noreferrer">official POTA spots</a>{" "}
   or <a href="https://hamalert.org/" target="_blank" rel="noopener noreferrer">HamAlert</a>{" "}
   for current activity. Shared agendas show the latest published plans when opened.
+</p>
+<p class="schedule-estimate-note" data-schedule-archive-only hidden={!postEvent}>
+  These are the plans shared for the 2026 event. Actual activity may have differed.
+  See the <a href="/activate-ri-2026/parks/">park results</a> for recorded POTA activations.
 </p>
 
 <p class="schedule-activity-note">Activity matches each stop's activator and UTC date. Spotted means activity was seen; POTA confirmed means a qualifying activation was logged.</p>
@@ -115,7 +122,7 @@ const countyOptions = uniqueSortedValues(
   <details class="schedule-secondary-filters" data-schedule-more-filters open>
     <summary data-schedule-more-summary>More filters</summary>
     <div class="schedule-secondary-controls">
-      <label class="event-filter">
+      <label class="event-filter" data-schedule-live-only hidden={postEvent}>
         Parks
         <select class="event-filter__control" name="schedule-scope" data-hunter-scope>
           <option value="all">All scheduled parks</option>
@@ -206,6 +213,7 @@ const countyOptions = uniqueSortedValues(
   import type { AnalyticsProperties } from "../../lib/analytics/events";
   import { parkGuidePath } from "../../lib/parks/directory";
   import { scheduleStopStatusLabel, stopActivityLabel } from "../../lib/activate-ri/stop-status";
+  import { eventPhaseAt, subscribeEventPhase } from "../../lib/activate-ri/event-phase";
 
   document.querySelectorAll<HTMLTableElement>("[data-live-schedule]").forEach(setupLiveSchedule);
 
@@ -269,6 +277,7 @@ const countyOptions = uniqueSortedValues(
     let invalidRequest = false;
     let requestedIds = new Set<string>();
     let searchEditing = false;
+    let postEvent = eventPhaseAt() === "post-event";
     const restoreViewFromUrl = () => {
       restoreFiltersFromUrl(controls, timezone, hunterScope);
       const params = new URL(window.location.href).searchParams;
@@ -304,7 +313,7 @@ const countyOptions = uniqueSortedValues(
       if (sharePanel) sharePanel.hidden = true;
       return changed;
     };
-    const secondaryFilterCount = () => secondaryControls.filter((control) => control.value !== "all").length;
+    const secondaryFilterCount = () => secondaryControls.filter((control) => control.value !== "all" && (!postEvent || control !== hunterScope)).length;
     const showSecondaryFiltersForViewport = () => {
       if (moreFilters) moreFilters.open = !mobileFilters.matches || secondaryFilterCount() > 0;
     };
@@ -312,6 +321,8 @@ const countyOptions = uniqueSortedValues(
     mobileFilters.addEventListener("change", showSecondaryFiltersForViewport);
 
     const applyFilters = () => {
+      document.querySelectorAll<HTMLElement>("[data-schedule-live-only]").forEach((element) => { element.hidden = postEvent; });
+      document.querySelectorAll<HTMLElement>("[data-schedule-archive-only]").forEach((element) => { element.hidden = !postEvent; });
       if (mySchedule) mySchedule.checked = !!signedInCallsign && activator?.value === signedInCallsign;
       const values = Object.fromEntries(
         controls.map((control) => [control.dataset.filter ?? "", control.value]),
@@ -358,6 +369,7 @@ const countyOptions = uniqueSortedValues(
         }
       }
       renderPersonalScheduleSummary({
+        postEvent,
         checklistAvailable,
         remainingParks,
         scheduleAvailable,
@@ -367,7 +379,7 @@ const countyOptions = uniqueSortedValues(
         visibleCount,
         visibleParkCount: visibleParkIds.size,
       });
-      renderRequestedScheduleSummary({ requested, parks, stops, scheduleAvailable, useRequested, visibleCount, visibleParkCount: visibleParkIds.size });
+      renderRequestedScheduleSummary({ postEvent, requested, parks, stops, scheduleAvailable, useRequested, visibleCount, visibleParkCount: visibleParkIds.size });
       updatePrintSummary({
         controls,
         hunterScope,
@@ -383,7 +395,7 @@ const countyOptions = uniqueSortedValues(
         printButton.disabled = missingChecklist || invalidAgenda || !scheduleAvailable;
       }
       if (clearButton) {
-        clearButton.disabled = !query && activity === "all" && !useRemaining && controls.every((control) => control.value === "all");
+        clearButton.disabled = !query && activity === "all" && !useRemaining && !(postEvent && useRequested) && controls.every((control) => control.value === "all");
       }
       if (shareButton) shareButton.disabled = missingChecklist || invalidAgenda || !scheduleAvailable;
       const sharedReferences = useRequested ? requested.references
@@ -418,7 +430,7 @@ const countyOptions = uniqueSortedValues(
       searchEditing = false;
       controls.forEach((control) => { control.value = "all"; });
       activityControls.forEach((control) => { control.checked = control.value === "all"; });
-      if (hunterScope && hunterScope.value !== "requested") hunterScope.value = "all";
+      if (hunterScope && (postEvent || hunterScope.value !== "requested")) hunterScope.value = "all";
       if (search) search.value = "";
       applyFilters();
       syncUrl();
@@ -552,6 +564,15 @@ const countyOptions = uniqueSortedValues(
       }
     }
 
+    subscribeEventPhase((phase) => {
+      const next = phase === "post-event";
+      if (next === postEvent) return;
+      const retireFocusedControl = next && document.activeElement?.closest("[data-schedule-live-only], [data-personal-schedule-import], [data-personal-schedule-unscheduled]");
+      postEvent = next;
+      applyFilters();
+      if (retireFocusedControl) search?.focus();
+    });
+
     return (nextStops, available) => {
       stops = nextStops;
       scheduleAvailable = available;
@@ -668,7 +689,9 @@ const countyOptions = uniqueSortedValues(
       const cell = document.createElement("td");
       cell.colSpan = 7;
       cell.dataset.label = "Schedule";
-      cell.textContent = "Approved activation windows will appear here after organizer review.";
+      const live = document.createElement("span");
+      live.textContent = "Approved activation windows will appear here after organizer review.";
+      appendScheduleFallback(cell, live, "No 2026 activation windows are listed here. You can still explore the");
       row.appendChild(cell);
       body.appendChild(row);
     } else {
@@ -696,14 +719,33 @@ const countyOptions = uniqueSortedValues(
     const cell = document.createElement("td");
     cell.colSpan = 7;
     cell.dataset.label = "Schedule";
-    cell.append("The schedule is temporarily unavailable. Reload to try again, or check ");
+    const live = document.createElement("span");
+    live.append("The schedule is temporarily unavailable. Reload to try again, or check ");
     const officialSpots = document.createElement("a");
     officialSpots.href = "https://pota.app/";
     officialSpots.textContent = "official POTA spots";
-    cell.appendChild(officialSpots);
-    cell.append(" for current activity.");
+    live.appendChild(officialSpots);
+    live.append(" for current activity.");
+    appendScheduleFallback(cell, live, "The archived schedule is temporarily unavailable. Reload to try again, or see the");
     row.appendChild(cell);
     body.replaceChildren(row);
+  }
+
+  function appendScheduleFallback(cell: HTMLTableCellElement, live: HTMLElement, archiveMessage: string): void {
+    const archived = eventPhaseAt() === "post-event";
+    live.dataset.scheduleLiveOnly = "";
+    live.hidden = archived;
+    const archive = document.createElement("span");
+    archive.dataset.scheduleArchiveOnly = "";
+    archive.hidden = !archived;
+    archive.textContent = `${archiveMessage} `;
+    const results = document.createElement("a");
+    results.href = "/activate-ri-2026/parks/";
+    results.textContent = "park results";
+    archive.appendChild(results);
+    archive.appendChild(document.createTextNode("."));
+    cell.appendChild(live);
+    cell.appendChild(archive);
   }
 
   function createScheduleRow(
@@ -1057,6 +1099,7 @@ const countyOptions = uniqueSortedValues(
   }
 
   type PersonalScheduleSummary = {
+    postEvent: boolean;
     checklistAvailable: boolean;
     remainingParks: PublicParkSummary[];
     scheduleAvailable: boolean;
@@ -1112,6 +1155,7 @@ const countyOptions = uniqueSortedValues(
   }
 
   function renderPersonalScheduleSummary({
+    postEvent,
     checklistAvailable,
     remainingParks,
     scheduleAvailable,
@@ -1132,6 +1176,18 @@ const countyOptions = uniqueSortedValues(
     const unscheduled = summary.querySelector<HTMLElement>("[data-personal-schedule-unscheduled]");
     const unscheduledTitle = summary.querySelector<HTMLElement>("[data-personal-schedule-unscheduled-title]");
     const unscheduledList = summary.querySelector<HTMLUListElement>("[data-personal-schedule-unscheduled-list]");
+
+    if (postEvent) {
+      if (title) title.textContent = "A saved park selection";
+      if (importPrompt) importPrompt.hidden = true;
+      if (unscheduled) unscheduled.hidden = true;
+      if (copy) copy.textContent = !checklistAvailable
+        ? "This older schedule link uses a park selection that isn’t available in this browser. Clear filters to see all published 2026 plans."
+        : !scheduleAvailable
+          ? "This older schedule link uses your saved park selection. The archived schedule is temporarily unavailable; try reloading it."
+          : `This older schedule link uses your saved park selection. ${visibleCount} planned activation window${visibleCount === 1 ? "" : "s"} at ${visibleParkCount} of those parks ${visibleCount === 1 ? "matches" : "match"} the current filters. Clear filters to see all published 2026 plans.`;
+      return;
+    }
 
     if (!checklistAvailable) {
       if (title) title.textContent = "Build your personal schedule";
@@ -1178,8 +1234,9 @@ const countyOptions = uniqueSortedValues(
   }
 
   function renderRequestedScheduleSummary({
-    requested, parks, stops, scheduleAvailable, useRequested, visibleCount, visibleParkCount,
+    postEvent, requested, parks, stops, scheduleAvailable, useRequested, visibleCount, visibleParkCount,
   }: {
+    postEvent: boolean;
     requested: ReturnType<typeof parseRequestedReferences>;
     parks: PublicParkSummary[];
     stops: PublicStop[];
@@ -1203,7 +1260,7 @@ const countyOptions = uniqueSortedValues(
     ].filter(Boolean);
     if (error) {
       error.hidden = problems.length === 0;
-      error.textContent = problems.length ? `${problems.join(" ")} Choose parks for a new agenda to correct this link.` : "";
+      error.textContent = problems.length ? `${problems.join(" ")} ${postEvent ? "Clear filters to see all published 2026 plans." : "Choose parks for a new agenda to correct this link."}` : "";
     }
     if (referenceList) referenceList.textContent = requested.references.length
       ? `Requested parks: ${requested.references.join(", ")}.` : "No parks requested.";
@@ -1213,12 +1270,16 @@ const countyOptions = uniqueSortedValues(
       return;
     }
     if (!scheduleAvailable) {
-      if (copy) copy.textContent = "The live schedule is temporarily unavailable. Your requested parks are still in this link. Reload to try again.";
+      if (copy) copy.textContent = postEvent
+        ? "The archived schedule is temporarily unavailable. Your requested parks are still in this link. Reload to try again."
+        : "The live schedule is temporarily unavailable. Your requested parks are still in this link. Reload to try again.";
       return;
     }
     if (copy) copy.textContent = requested.references.length
       ? `${visibleCount} planned activation window${visibleCount === 1 ? "" : "s"} at ${visibleParkCount} of ${requested.references.length} requested parks ${visibleCount === 1 ? "matches" : "match"} these filters. Delayed plans keep their status; cancelled windows are omitted.`
-      : "This agenda requests no parks, so it has no activation windows. Choose parks to build a new agenda.";
+      : postEvent
+        ? "This older link requests no parks. Clear filters to see all published 2026 plans."
+        : "This agenda requests no parks, so it has no activation windows. Choose parks to build a new agenda.";
     const scheduled = new Set(requestedAgendaStops(requested.references, stops).map((stop) => stop.parkReference));
     const cancelled = new Set(stops.filter((stop) => stop.status === "cancelled" && !stop.id.startsWith("sample-")).map((stop) => stop.parkReference));
     const unscheduled = requested.references.filter((reference) => !scheduled.has(reference));

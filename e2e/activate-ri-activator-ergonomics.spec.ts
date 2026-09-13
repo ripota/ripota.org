@@ -6,6 +6,7 @@ test.setTimeout(90_000);
 test("volunteer stop pickers keep keyboard focus and independent error descriptions", async ({ page }) => {
   const server = await startActivateRiServer();
   try {
+    await page.clock.install({ time: new Date("2026-09-13T12:00:00.000Z") });
     await page.goto(`${server.origin}/activate-ri-2026/volunteer/`);
     const park = page.getByRole("combobox", { name: "Park", exact: true });
     await park.fill("US-2868");

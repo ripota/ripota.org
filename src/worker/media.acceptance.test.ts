@@ -148,6 +148,7 @@ async function seedMedia(activatorId: string, options: {
   eventId?: string;
   parkReference?: string | null;
   kind?: "photo" | "video";
+  featuredOnRecap?: boolean;
 } = {}): Promise<string> {
   const id = crypto.randomUUID();
   const createdAt = options.createdAt ?? new Date().toISOString();
@@ -160,6 +161,7 @@ async function seedMedia(activatorId: string, options: {
       kind === "photo" ? "photo.jpg" : "video.mp4", kind === "photo" ? "image/jpeg" : "video/mp4", kind,
       options.size ?? photo.length, options.state ?? "ready", createdAt, createdAt, usageNoticeVersion, options.parkReference ?? null).run();
   objects.set(key, photo);
+  if (options.featuredOnRecap) await env.DB.prepare("UPDATE activate_ri_media SET featured_on_recap = 1 WHERE id = ?").bind(id).run();
   return id;
 }
 
@@ -489,6 +491,54 @@ describe("public media gallery", () => {
     expect(JSON.stringify(body)).not.toMatch(/@example|chat_display_name|activator_name|usage_notice_version/);
     expect(get).not.toHaveBeenCalled();
     expect(head).not.toHaveBeenCalled();
+  });
+
+  it("summarizes every public ready photo and video by park without gallery pagination or private metadata", async () => {
+    const user = await owner();
+    for (let index = 0; index < 52; index++) {
+      await seedMedia(user.activatorId, { parkReference: "US-2868" });
+    }
+    await seedMedia(user.activatorId, { parkReference: "US-2868", kind: "video" });
+    await seedMedia(user.activatorId, { parkReference: "US-2869", kind: "video" });
+    await seedMedia(user.activatorId); // General media has no per-park destination.
+    await seedMedia(user.activatorId, { parkReference: "US-2868", state: "uploading" });
+    await seedMedia(user.activatorId, { parkReference: "US-2868", state: "deleting" });
+    await seedMedia(user.activatorId, { parkReference: "US-2870", state: "uploading" });
+    await seedMedia(user.activatorId, { parkReference: "US-2868", eventId: "other-event" });
+    for (const token of [undefined, user.token]) {
+      const response = await handleActivateRiApi(request(`${publicBase}?summary=parks`, token), env);
+      expect(response.status).toBe(200);
+      publicHeaders(response);
+      await expect(response.json()).resolves.toEqual({ ok: true, parks: [
+        { reference: "US-2868", photos: 52, videos: 1 },
+        { reference: "US-2869", photos: 0, videos: 1 },
+      ] });
+    }
+    expect(get).not.toHaveBeenCalled();
+    expect(head).not.toHaveBeenCalled();
+  });
+
+  it("returns an empty park summary when only general or unfinished uploads exist", async () => {
+    const user = await owner();
+    await seedMedia(user.activatorId);
+    await seedMedia(user.activatorId, { kind: "video" });
+    await seedMedia(user.activatorId, { parkReference: "US-2868", state: "uploading" });
+    const response = await handleActivateRiApi(request(`${publicBase}?summary=parks`), env);
+    await expect(response.json()).resolves.toEqual({ ok: true, parks: [] });
+  });
+
+  it("keeps park summaries unfiltered and reports storage failures instead of empty availability", async () => {
+    for (const query of ["summary=unknown", "summary=parks&park=US-2868", "summary=parks&kind=photo", "summary=parks&cursor="]) {
+      const response = await handleActivateRiApi(request(`${publicBase}?${query}`), env);
+      expect(response.status).toBe(400);
+      publicHeaders(response);
+    }
+    const unavailable = await handleActivateRiApi(request(`${publicBase}?summary=parks`), { ...env, ACTIVATOR_MEDIA: undefined });
+    expect(unavailable.status).toBe(503);
+    const failedDatabase = { prepare: () => { throw new Error("Database unavailable"); } } as unknown as D1Database;
+    const failed = await handleActivateRiApi(request(`${publicBase}?summary=parks`), { ...env, DB: failedDatabase });
+    expect(failed.status).toBe(503);
+    await expect(failed.json()).resolves.toMatchObject({ ok: false });
   });
 
   it("personalizes only ownership and authenticated edit links without changing the public collection", async () => {
@@ -857,6 +907,126 @@ describe("editable media titles and descriptions", () => {
     const response = await handleActivateRiApi(parkPatch(media.id, user.token, { title: "t".repeat(120), description: "d".repeat(2000) }), env);
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ media: { title: "t".repeat(120), description: "d".repeat(2000) } });
+  });
+});
+
+describe("featured recap photos", () => {
+  const adminHeaders = { "cf-access-authenticated-user-email": "organizer@example.invalid" };
+
+  it("defaults new uploads off while keeping them visible in the full gallery", async () => {
+    const user = await owner();
+    const media = await uploadPhoto(user.token);
+    expect(media.featuredOnRecap).toBe(false);
+    await expect(env.DB.prepare("SELECT featured_on_recap FROM activate_ri_media WHERE id = ?").bind(media.id).first())
+      .resolves.toEqual({ featured_on_recap: 0 });
+    for (const routeBase of [publicBase, adminBase]) {
+      const all = await handleActivateRiApi(request(routeBase, undefined, { headers: adminHeaders }), env);
+      await expect(all.json()).resolves.toMatchObject({ media: [expect.objectContaining({ id: media.id, featuredOnRecap: false })] });
+      const featured = await handleActivateRiApi(request(`${routeBase}?featured=1`, undefined, { headers: adminHeaders }), env);
+      await expect(featured.json()).resolves.toMatchObject({ media: [], nextCursor: null });
+    }
+  });
+
+  it("lets organizers feature and unfeature photos, preserving selection across ordinary owner metadata edits", async () => {
+    const user = await owner();
+    const media = await uploadPhoto(user.token);
+    const selected = await handleActivateRiApi(parkPatch(media.id, undefined, { featuredOnRecap: true, title: "From the field" }, adminBase, adminHeaders), env);
+    expect(selected.status).toBe(200);
+    await expect(selected.json()).resolves.toMatchObject({ media: { id: media.id, title: "From the field", featuredOnRecap: true, createdAt: media.createdAt } });
+    const ownerEdit = await handleActivateRiApi(parkPatch(media.id, user.token, { title: "A better caption", parkReference: "US-2868" }), env);
+    expect(ownerEdit.status).toBe(200);
+    await expect(ownerEdit.json()).resolves.toMatchObject({ media: { featuredOnRecap: true, title: "A better caption" } });
+    const adminEdit = await handleActivateRiApi(parkPatch(media.id, undefined, { description: "Organizer detail" }, adminBase, adminHeaders), env);
+    await expect(adminEdit.json()).resolves.toMatchObject({ media: { featuredOnRecap: true } });
+    for (const routeBase of [publicBase, adminBase]) {
+      const featured = await handleActivateRiApi(request(`${routeBase}?featured=1`, undefined, { headers: adminHeaders }), env);
+      await expect(featured.json()).resolves.toMatchObject({ media: [expect.objectContaining({ id: media.id, featuredOnRecap: true })] });
+      const single = await handleActivateRiApi(request(`${routeBase}/${media.id}`, undefined, { headers: adminHeaders }), env);
+      await expect(single.json()).resolves.toMatchObject({ media: { featuredOnRecap: true } });
+    }
+    const unselected = await handleActivateRiApi(parkPatch(media.id, undefined, { featuredOnRecap: false }, adminBase, adminHeaders), env);
+    expect(unselected.status).toBe(200);
+    await expect(unselected.json()).resolves.toMatchObject({ media: { featuredOnRecap: false, title: "A better caption", description: "Organizer detail", parkReference: "US-2868", createdAt: media.createdAt } });
+    const featured = await handleActivateRiApi(request(`${publicBase}?featured=1`), env);
+    await expect(featured.json()).resolves.toMatchObject({ media: [] });
+    expect((await handleActivateRiApi(request(`${publicBase}/${media.id}/file`), env)).status).toBe(200);
+  });
+
+  it("rejects owner selection changes, including false, without applying accompanying metadata", async () => {
+    const user = await owner();
+    const id = await seedMedia(user.activatorId, { featuredOnRecap: true });
+    for (const featuredOnRecap of [true, false]) {
+      const own = await handleActivateRiApi(parkPatch(id, user.token, { featuredOnRecap, title: "Tampered" }), env);
+      expect(own.status).toBe(403);
+      await expect(own.json()).resolves.toMatchObject({ error: "Only organizers can change recap photo selections." });
+      expect((await handleActivateRiApi(parkPatch(id, user.token, { featuredOnRecap }, publicBase), env)).status).toBe(405);
+      expect((await handleActivateRiApi(parkPatch(id, user.token, { featuredOnRecap }, adminBase), env)).status).toBe(401);
+    }
+    await expect(env.DB.prepare("SELECT featured_on_recap, title FROM activate_ri_media WHERE id = ?").bind(id).first())
+      .resolves.toEqual({ featured_on_recap: 1, title: null });
+  });
+
+  it.each([0, 1, "true", "false", null, [], {}])("rejects a nonboolean selection %j even for organizers", async (featuredOnRecap) => {
+    const user = await owner();
+    const id = await seedMedia(user.activatorId);
+    const response = await handleActivateRiApi(parkPatch(id, undefined, { featuredOnRecap, title: "Invalid" }, adminBase, adminHeaders), env);
+    expect(response.status).toBe(400);
+    await expect(env.DB.prepare("SELECT featured_on_recap, title FROM activate_ri_media WHERE id = ?").bind(id).first())
+      .resolves.toEqual({ featured_on_recap: 0, title: null });
+  });
+
+  it("allows only photo selections at both the API and database boundaries", async () => {
+    const user = await owner();
+    const id = await seedMedia(user.activatorId, { kind: "video" });
+    for (const featuredOnRecap of [true, false]) {
+      const response = await handleActivateRiApi(parkPatch(id, undefined, { featuredOnRecap }, adminBase, adminHeaders), env);
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({ error: "Only photos can be selected for the recap." });
+    }
+    await expect(env.DB.prepare("UPDATE activate_ri_media SET featured_on_recap = 1 WHERE id = ?").bind(id).run()).rejects.toThrow();
+    const photoId = await seedMedia(user.activatorId);
+    await expect(env.DB.prepare("UPDATE activate_ri_media SET featured_on_recap = 2 WHERE id = ?").bind(photoId).run()).rejects.toThrow();
+  });
+
+  it("filters before pagination so older featured photos remain reachable in upload-date order", async () => {
+    const user = await owner();
+    for (let index = 0; index < 52; index++) await seedMedia(user.activatorId, { createdAt: "2026-09-13T12:00:00.000Z" });
+    const ids: string[] = [];
+    for (let index = 0; index < 51; index++) ids.push(await seedMedia(user.activatorId, {
+      featuredOnRecap: true, createdAt: new Date(Date.UTC(2026, 8, 10, 12, 0, index)).toISOString(), parkReference: "US-2868",
+    }));
+    await seedMedia(user.activatorId, { featuredOnRecap: true, state: "uploading" });
+    await seedMedia(user.activatorId, { featuredOnRecap: true, state: "deleting" });
+    await seedMedia(user.activatorId, { featuredOnRecap: true, eventId: "other-event" });
+    for (const routeBase of [publicBase, adminBase]) {
+      const first = await handleActivateRiApi(request(`${routeBase}?featured=1`, undefined, { headers: adminHeaders }), env);
+      expect(first.status).toBe(200);
+      const page = await first.json() as { media: ActivatorMedia[]; nextCursor: string };
+      expect(page.media.map(({ id }) => id)).toEqual(ids.toReversed().slice(0, 50));
+      expect(page.media.every(({ kind, featuredOnRecap }) => kind === "photo" && featuredOnRecap === true)).toBe(true);
+      expect(page.nextCursor).toBeTruthy();
+      const second = await handleActivateRiApi(request(`${routeBase}?featured=1&cursor=${encodeURIComponent(page.nextCursor)}`, undefined, { headers: adminHeaders }), env);
+      await expect(second.json()).resolves.toMatchObject({ media: [expect.objectContaining({ id: ids[0] })], nextCursor: null });
+    }
+    const combined = await handleActivateRiApi(request(`${publicBase}?featured=1&kind=photo&park=US-2868`), env);
+    await expect(combined.json()).resolves.toMatchObject({ media: expect.arrayContaining([expect.objectContaining({ id: ids[50] })]) });
+    const videos = await handleActivateRiApi(request(`${publicBase}?featured=1&kind=video`), env);
+    await expect(videos.json()).resolves.toMatchObject({ media: [] });
+  });
+
+  it("validates the filter and leaves all-media park summaries unchanged", async () => {
+    const user = await owner();
+    await seedMedia(user.activatorId, { featuredOnRecap: true, parkReference: "US-2868" });
+    await seedMedia(user.activatorId, { parkReference: "US-2868" });
+    await seedMedia(user.activatorId, { kind: "video", parkReference: "US-2868" });
+    for (const routeBase of [publicBase, adminBase]) {
+      for (const query of ["featured=", "featured=0", "featured=true", "featured=2", "featured=1&featured=0"]) {
+        expect((await handleActivateRiApi(request(`${routeBase}?${query}`, undefined, { headers: adminHeaders }), env)).status).toBe(400);
+      }
+    }
+    const summary = await handleActivateRiApi(request(`${publicBase}?summary=parks`), env);
+    await expect(summary.json()).resolves.toEqual({ ok: true, parks: [{ reference: "US-2868", photos: 2, videos: 1 }] });
+    expect((await handleActivateRiApi(request(`${publicBase}?summary=parks&featured=1`), env)).status).toBe(400);
   });
 });
 

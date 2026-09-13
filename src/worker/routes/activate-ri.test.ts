@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { handleActivateRiApi } from "./activate-ri";
 import type { Env } from "../env";
 
@@ -71,8 +71,8 @@ function validPayloadWithTurnstile(): unknown {
   };
 }
 
-function post(path: string, payload: unknown): Request {
-  return new Request(`https://ripota.org${path}`, {
+function post(path: string, payload: unknown, origin = "https://ripota.org"): Request {
+  return new Request(`${origin}${path}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(payload),
@@ -365,10 +365,113 @@ async function sha256Hex(value: string): Promise<string> {
 }
 
 describe("handleActivateRiApi", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-13T12:00:00.000Z"));
+  });
+
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    vi.useRealTimers();
   });
+
+  it("accepts a new plan immediately before the event ends", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-13T23:59:59.999Z"));
+    const testEnv = env();
+    const response = await handleActivateRiApi(post("/api/activate-ri-2026/plans", validPayload()), testEnv);
+    expect(response.status).toBe(202);
+    expect(testEnv.DB.batch).toHaveBeenCalledOnce();
+  });
+
+  it.each(["2026-09-14T00:00:00.000Z", "2027-09-13T12:00:00.000Z"])(
+    "closes new plan submission at %s before database, verification, or email work",
+    async (now) => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date(now));
+      const fetch = vi.fn();
+      vi.stubGlobal("fetch", fetch);
+      const testEnv: Env = { ...emailEnv(), TURNSTILE_REQUIRED: "true", TURNSTILE_SECRET_KEY: "test-secret" };
+      const response = await handleActivateRiApi(post("/api/activate-ri-2026/plans", validPayloadWithTurnstile()), testEnv);
+      expect(response.status).toBe(410);
+      expect(response.headers.get("content-type")).toContain("application/json");
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      await expect(response.json()).resolves.toEqual({
+        ok: false,
+        errors: ["Activate All RI 2026 has ended, and new activation plans are closed. Existing activators can still open My Plan and share photos."],
+      });
+      expect(testEnv.DB.prepare).not.toHaveBeenCalled();
+      expect(testEnv.DB.batch).not.toHaveBeenCalled();
+      expect(testEnv.EMAIL?.send).not.toHaveBeenCalled();
+      expect(fetch).not.toHaveBeenCalled();
+    },
+  );
+
+  it("retains existing plan corrections after new registration closes", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-14T00:00:00.000Z"));
+    const testEnv = env();
+    testEnv.DB = adminDb({
+      planRows: [{ ...pendingPlanRow, status: "approved" }],
+      stopRows: [{ ...pendingStopRow, status: "scheduled" }],
+    });
+    const payload = validPayload();
+    payload.stops = [{ ...(payload.stops as Record<string, unknown>[])[0], id: "stop-1" }];
+    const response = await handleActivateRiApi(
+      patch("/api/activate-ri-2026/edit/token/plans/plan-1", payload), testEnv,
+    );
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ ok: true });
+  });
+
+  it.each(["http://localhost:4321", "http://127.0.0.1:4321", "http://[::1]:4321"])(
+    "allows an explicit registration fixture clock only for local requests (%s)",
+    async (origin) => {
+      const actualNow = new Date("2027-09-13T12:00:00.000Z");
+      vi.setSystemTime(actualNow);
+      const testEnv: Env = {
+        ...env(), SITE_ORIGIN: origin,
+        ACTIVATE_RI_TEST_REGISTRATION_NOW: "2026-09-13T12:00:00.000Z",
+      };
+      const response = await handleActivateRiApi(post("/api/activate-ri-2026/plans", validPayload(), origin), testEnv);
+      expect(response.status).toBe(202);
+      expect(testEnv.DB.batch).toHaveBeenCalledOnce();
+      expect(Date.now()).toBe(actualNow.valueOf());
+    },
+  );
+
+  it.each([
+    ["https://ripota.org", "https://ripota.org"],
+    ["https://ripota.org", "http://localhost:4321"],
+    ["http://localhost:4321", "https://ripota.org"],
+    ["http://localhost:4321", undefined],
+    ["http://localhost:4321", "not-a-url"],
+    ["http://localhost:4321", "https://localhost.example.com"],
+    ["http://localhost:4321", "ftp://localhost"],
+  ])("ignores the registration fixture clock for request %s and site %s", async (origin, siteOrigin) => {
+    vi.setSystemTime(new Date("2027-09-13T12:00:00.000Z"));
+    const testEnv: Env = {
+      ...env(), SITE_ORIGIN: siteOrigin,
+      ACTIVATE_RI_TEST_REGISTRATION_NOW: "2026-09-13T12:00:00.000Z",
+    };
+    const response = await handleActivateRiApi(post("/api/activate-ri-2026/plans", validPayload(), origin), testEnv);
+    expect(response.status).toBe(410);
+    expect(testEnv.DB.prepare).not.toHaveBeenCalled();
+    expect(testEnv.DB.batch).not.toHaveBeenCalled();
+  });
+
+  it.each(["not-a-date", "2026-09-14T00:00:00.000Z"])(
+    "keeps registration closed with an invalid or post-event local fixture clock (%s)",
+    async (fixtureNow) => {
+      vi.setSystemTime(new Date("2027-09-13T12:00:00.000Z"));
+      const origin = "http://localhost:4321";
+      const testEnv: Env = { ...env(), SITE_ORIGIN: origin, ACTIVATE_RI_TEST_REGISTRATION_NOW: fixtureNow };
+      const response = await handleActivateRiApi(post("/api/activate-ri-2026/plans", validPayload(), origin), testEnv);
+      expect(response.status).toBe(410);
+      expect(testEnv.DB.prepare).not.toHaveBeenCalled();
+    },
+  );
 
   it("accepts valid plan submissions for organizer review", async () => {
     const testEnv = env();

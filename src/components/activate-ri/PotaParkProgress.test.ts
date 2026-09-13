@@ -45,8 +45,8 @@ describe("Activate RI POTA result surfaces", () => {
 
   it("uses result map colors, text popups, current-spot overlay, and reduced-motion-compatible live marker class", () => {
     expect(map).toContain('confirmed: "#2d7a4b"');
-    expect(map).toContain('observed: "#2d7a4b"');
-    expect(map).toContain('scheduled: "#3758c8"');
+    expect(map).toContain('observed: recapMode ? "#ad701e" : "#2d7a4b"');
+    expect(map).toContain('scheduled: recapMode ? "#707b78" : "#3758c8"');
     expect(map).toContain('needed: "#707b78"');
     expect(map).toContain("Activated");
     expect(map).toContain("On air now");

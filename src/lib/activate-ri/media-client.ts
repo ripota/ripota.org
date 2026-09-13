@@ -7,8 +7,7 @@ import {
 } from "./media";
 import { mediaParkName, mediaParks, validateMediaParkReference } from "./media-parks";
 import { setupMediaDialogs } from "./media-dialogs";
-
-type MediaFilters = { park: string; kind: "" | "photo" | "video" };
+import { readMediaFilters, writeMediaFilters, type MediaFilters, type MediaScope } from "./media-view";
 
 type QueueState = "ready" | "uploading" | "saved" | "error" | "cancelled" | "invalid";
 type QueuedFile = {
@@ -38,6 +37,7 @@ export function setupMediaWorkspace(root: HTMLElement): void {
   const organizer = root.dataset.mediaScope === "admin";
   const publicGallery = root.dataset.mediaScope === "public";
   const personal = !organizer && !publicGallery;
+  const scope: MediaScope = organizer ? "admin" : publicGallery ? "public" : "activator";
   const endpoint = `/api/activate-ri-2026/${organizer ? "admin" : publicGallery ? "public" : "activator"}/media`;
   const gallery = root.querySelector<HTMLElement>("[data-media-gallery]")!;
   const galleryStatus = root.querySelector<HTMLElement>("[data-media-status]")!;
@@ -56,6 +56,7 @@ export function setupMediaWorkspace(root: HTMLElement): void {
   const clearButton = root.querySelector<HTMLButtonElement>("[data-media-clear]");
   const uploadStatus = root.querySelector<HTMLElement>("[data-media-upload-status]");
   const filterPark = root.querySelector("[data-media-filter-park]") as HTMLSelectElement | null;
+  const filterFeatured = root.querySelector<HTMLInputElement>("[data-media-filter-featured]");
   const kindButtons = [...root.querySelectorAll<HTMLButtonElement>("[data-media-kind]")];
   const clearFilters = root.querySelector<HTMLButtonElement>("[data-media-filter-clear]");
   const deleteDialog = root.querySelector<HTMLDialogElement>("[data-media-delete-dialog]")!;
@@ -70,6 +71,8 @@ export function setupMediaWorkspace(root: HTMLElement): void {
   const detailsStatus = root.querySelector<HTMLElement>("[data-media-details-status]")!;
   const editTitle = root.querySelector<HTMLInputElement>("[data-media-edit-title]")!;
   const editDescription = root.querySelector<HTMLTextAreaElement>("[data-media-edit-description]")!;
+  const editFeatured = root.querySelector<HTMLInputElement>("[data-media-edit-featured]");
+  const featureControl = root.querySelector<HTMLElement>("[data-media-feature-control]");
   const detailsPreview = root.querySelector<HTMLElement>("[data-media-details-preview]")!;
   const detailDelete = root.querySelector<HTMLButtonElement>("[data-media-detail-delete]")!;
   const detailDownload = root.querySelector<HTMLAnchorElement>("[data-media-download]")!;
@@ -93,7 +96,7 @@ export function setupMediaWorkspace(root: HTMLElement): void {
   let deleteTarget: ActivatorMedia | null = null;
   let detailsTargetId: string | null = null;
   let detailsOriginal: ActivatorMedia | null = null;
-  let filters: MediaFilters = { park: "", kind: "" };
+  let filters: MediaFilters = { park: "", kind: "", featured: false };
   let anonymousOnly = false;
   let browsingNotice = "";
   let listGeneration = 0;
@@ -102,15 +105,20 @@ export function setupMediaWorkspace(root: HTMLElement): void {
   let detailRequest: AbortController | null = null;
   let deferredDetailNavigation = false;
   let closingDetails = false;
+  let focusAfterDetailsClose: HTMLElement | null = null;
 
-  if (publicGallery) {
+  if (publicGallery || organizer) {
     filters = readFilters();
     filterPark?.addEventListener("change", () => navigateFilters({ ...filters, park: filterPark.value }));
     for (const button of kindButtons) button.addEventListener("click", () => {
       const kind = button.dataset.mediaKind;
       navigateFilters({ ...filters, kind: kind === "photo" || kind === "video" ? kind : "" });
     });
-    clearFilters?.addEventListener("click", () => navigateFilters({ park: "", kind: "" }));
+    filterFeatured?.addEventListener("change", () => navigateFilters({ ...filters, featured: filterFeatured.checked }));
+    clearFilters?.addEventListener("click", () => {
+      navigateFilters({ park: "", kind: "", featured: false });
+      if (organizer) filterFeatured?.focus();
+    });
   } else if (personal && new URL(location.href).searchParams.has("mediaScope")) {
     const url = new URL(location.href);
     url.searchParams.delete("mediaScope");
@@ -119,7 +127,7 @@ export function setupMediaWorkspace(root: HTMLElement): void {
   updateControls();
   window.addEventListener("popstate", () => {
     closingDetails = false;
-    if (publicGallery) changeFilters(readFilters());
+    if (publicGallery || organizer) changeFilters(readFilters());
     void restoreLinkedMedia();
   });
   copyUrl.addEventListener("click", () => void copyPermalink());
@@ -193,6 +201,11 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     detailsOriginal = null;
     detailsPreview.querySelector<HTMLVideoElement>("video")?.pause();
     detailsPreview.replaceChildren();
+    if (focusAfterDetailsClose) {
+      const target = focusAfterDetailsClose.isConnected ? focusAfterDetailsClose : filterFeatured ?? refresh;
+      focusAfterDetailsClose = null;
+      target.focus({ preventScroll: true });
+    }
   });
   window.addEventListener("beforeunload", (event) => {
     if (uploading) event.preventDefault();
@@ -271,7 +284,7 @@ export function setupMediaWorkspace(root: HTMLElement): void {
       const body: unknown = await response.json().catch(() => null);
       if (controller.signal.aborted || signedOut) return;
       if (!response.ok || !isRecord(body) || body.ok !== true || !isMedia(body.media) || body.media.id !== id) {
-        throw new Error(response.status === 404 ? "This photo or video is no longer available. You can still browse the gallery."
+        throw new Error(response.status === 404 ? "This upload is no longer available. You can still browse the gallery."
           : "Unable to open this media link. Reload the page to try again.");
       }
       linkStatus.textContent = "";
@@ -317,36 +330,23 @@ export function setupMediaWorkspace(root: HTMLElement): void {
 
   function readFilters(): MediaFilters {
     const url = new URL(location.href);
-    const original = url.href;
-    const park = url.searchParams.get("mediaPark") ?? "";
-    const kind = url.searchParams.get("mediaKind") ?? "";
-    const valid: MediaFilters = {
-      park: park === "general" || (park !== "" && validateMediaParkReference(park)) ? park : "",
-      kind: kind === "photo" || kind === "video" ? kind : "",
-    };
-    for (const [key, value] of [["mediaPark", valid.park], ["mediaKind", valid.kind]]) {
-      if (value) url.searchParams.set(key, value);
-      else url.searchParams.delete(key);
-    }
-    if (url.href !== original) history.replaceState(null, "", url);
+    const valid = readMediaFilters(url, scope);
+    const normalized = writeMediaFilters(url, valid, scope);
+    if (normalized.href !== url.href) history.replaceState(history.state, "", normalized);
     return valid;
   }
 
   function navigateFilters(next: MediaFilters): void {
-    if (next.park === filters.park && next.kind === filters.kind) return;
-    const url = new URL(location.href);
+    if (next.park === filters.park && next.kind === filters.kind && next.featured === filters.featured) return;
+    const url = writeMediaFilters(new URL(location.href), next, scope);
     url.searchParams.delete("mediaId");
-    for (const [key, value] of [["mediaPark", next.park], ["mediaKind", next.kind]]) {
-      if (value) url.searchParams.set(key, value);
-      else url.searchParams.delete(key);
-    }
     history.pushState(null, "", url);
     changeFilters(next);
     void restoreLinkedMedia();
   }
 
   function changeFilters(next: MediaFilters): void {
-    if (next.park === filters.park && next.kind === filters.kind) return;
+    if (next.park === filters.park && next.kind === filters.kind && next.featured === filters.featured) return;
     if (!deleting) deleteDialog.close();
     if (!savingDetails && !deleting) detailsDialog.close();
     filters = next;
@@ -380,7 +380,7 @@ export function setupMediaWorkspace(root: HTMLElement): void {
   async function handleExpiredPublicAccess(response: Response): Promise<boolean> {
     if (!publicGallery || (response.status !== 401 && response.status !== 403)) return false;
     const body: unknown = await response.json().catch(() => null);
-    const reason = response.status === 401 ? "Your editing access has expired. Sign in through My media to edit again."
+    const reason = response.status === 401 ? "Your editing access has expired. Sign in through My photos to edit again."
       : isRecord(body) && typeof body.error === "string" ? body.error : "Editing is unavailable.";
     browsingNotice = `${reason} You can keep browsing the gallery.`;
     losePublicEditingAccess();
@@ -404,12 +404,13 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     listRequest = controller;
     loading = true;
     updateControls();
-    galleryStatus.textContent = "Loading photos and videos…";
+    galleryStatus.textContent = "Loading photos…";
     try {
       const params = new URLSearchParams();
       if (personal) params.set("scope", "mine");
       if (publicGallery && requestFilters.park) params.set("park", requestFilters.park);
       if (publicGallery && requestFilters.kind) params.set("kind", requestFilters.kind);
+      if (organizer && requestFilters.featured) params.set("featured", "1");
       if (append) params.set("cursor", nextCursor!);
       const url = `${endpoint}${params.size ? `?${params}` : ""}`;
       const response = await fetch(url, { headers: { accept: "application/json" }, cache: "no-store", credentials: anonymousOnly ? "omit" : "same-origin", signal: controller.signal });
@@ -479,7 +480,7 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     }
     if (uploadStatus) uploadStatus.textContent = added
       ? `${added} ${added === 1 ? "file added" : "files added"}. Review the selection, then upload when ready.`
-      : "Choose photos or videos to add to your selection.";
+      : "Choose photos to add to your selection.";
     updateControls();
   }
 
@@ -636,7 +637,9 @@ export function setupMediaWorkspace(root: HTMLElement): void {
         : [...gallery.querySelectorAll<HTMLElement>("[data-media-id]")].find((node) => node.dataset.mediaId === file.id) ?? mediaTile(file);
       if (tile !== current) gallery.insertBefore(tile, current ?? null);
       const button = tile.querySelector<HTMLButtonElement>("[data-media-open-detail]")!;
-      button.setAttribute("aria-label", `View ${mediaLabel(file)}${file.isOwn ? ", your upload" : ""}`);
+      button.setAttribute("aria-label", tileLabel(file));
+      const featuredBadge = tile.querySelector<HTMLElement>("[data-media-featured-badge]");
+      if (featuredBadge) featuredBadge.hidden = file.kind !== "photo" || file.featuredOnRecap !== true;
       const title = tile.querySelector<HTMLElement>("[data-media-title]")!;
       title.textContent = file.title ?? "";
       title.hidden = !file.title;
@@ -657,11 +660,13 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     });
     empty.hidden = !loaded || files.length > 0;
     root.querySelector<HTMLElement>("[data-media-empty-title]")!.textContent = personal ? "Your activation belongs here"
+      : organizer && filters.featured ? nextCursor ? "No featured photos on this page" : "No featured photos yet"
       : publicGallery && (filters.park || filters.kind) ? "No media matches these filters" : "No shared uploads yet";
     root.querySelector<HTMLElement>("[data-media-empty-help]")!.textContent = organizer
-      ? "Photos and videos will appear as activators upload them."
-      : publicGallery ? (filters.park || filters.kind ? "Try another park or media type, or clear the filters." : "Photos and videos will appear as activators share their moments from the field.")
-      : "Use Upload photos & videos to share a moment from your activation.";
+      ? filters.featured ? nextCursor ? "Load more files to see the rest of the featured selection."
+        : "Clear the filter, open a photo, and choose Feature on recap to add it here." : "Photos will appear as activators upload them."
+      : publicGallery ? (filters.park || filters.kind ? "Try another park or media type, or clear the filters." : "Photos will appear as activators share their moments from the field.")
+      : "Use Upload photos to share a moment from your activation.";
   }
 
   function mediaTile(file: ActivatorMedia): HTMLElement {
@@ -670,11 +675,17 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     const button = element("button", "media-tile__button");
     button.type = "button";
     button.dataset.mediaOpenDetail = "";
-    button.setAttribute("aria-label", `View ${mediaLabel(file)}${file.isOwn ? ", your upload" : ""}`);
+    button.setAttribute("aria-label", tileLabel(file));
     const preview = element("div", "media-tile__preview");
     preview.dataset.mediaTilePreview = "";
     renderPreview(file, preview, false);
     button.appendChild(preview);
+    if (organizer) {
+      const featuredBadge = element("span", "media-tile__featured", "Featured");
+      featuredBadge.dataset.mediaFeaturedBadge = "";
+      featuredBadge.hidden = file.kind !== "photo" || file.featuredOnRecap !== true;
+      button.appendChild(featuredBadge);
+    }
     const badge = element("span", "media-tile__park", file.parkReference ?? "");
     badge.dataset.mediaParkBadge = "";
     badge.hidden = !file.parkReference;
@@ -704,6 +715,10 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     tile.appendChild(button);
     tile.appendChild(caption);
     return tile;
+  }
+
+  function tileLabel(file: ActivatorMedia): string {
+    return `View ${mediaLabel(file)}${file.isOwn ? ", your upload" : ""}${organizer && file.kind === "photo" && file.featuredOnRecap === true ? ", featured on recap" : ""}`;
   }
 
   function renderPreview(file: ActivatorMedia, container: HTMLElement, detail: boolean): void {
@@ -743,6 +758,7 @@ export function setupMediaWorkspace(root: HTMLElement): void {
 
   function openDetails(file: ActivatorMedia, trigger: HTMLButtonElement | null, navigate = true): void {
     detailRequest?.abort();
+    focusAfterDetailsClose = null;
     linkStatus.textContent = "";
     if (navigate) {
       const url = new URL(location.href);
@@ -772,6 +788,11 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     editPark.value = file.parkReference ?? "";
     editTitle.value = file.title ?? "";
     editDescription.value = file.description ?? "";
+    if (featureControl) featureControl.hidden = !editable || file.kind !== "photo";
+    if (editFeatured) {
+      editFeatured.checked = file.featuredOnRecap === true;
+      editFeatured.disabled = !editable || file.kind !== "photo";
+    }
     const downloadUrl = new URL(file.url, location.origin);
     downloadUrl.searchParams.set("download", "1");
     detailDownload.href = downloadUrl.href;
@@ -836,10 +857,13 @@ export function setupMediaWorkspace(root: HTMLElement): void {
       detailsStatus.textContent = `Keep titles within ${mediaMetadataLimits.title} characters and descriptions within ${mediaMetadataLimits.description}.`;
       return;
     }
-    const changes: { parkReference?: string | null; title?: string | null; description?: string | null } = {};
+    const changes: { parkReference?: string | null; title?: string | null; description?: string | null; featuredOnRecap?: boolean } = {};
     if (parkReference !== original.parkReference) changes.parkReference = parkReference;
     if (title !== original.title) changes.title = title;
     if (description !== original.description) changes.description = description;
+    if (organizer && target.kind === "photo" && editFeatured && editFeatured.checked !== (original.featuredOnRecap === true)) {
+      changes.featuredOnRecap = editFeatured.checked;
+    }
     if (Object.keys(changes).length === 0) {
       closeDetails();
       galleryStatus.textContent = "No changes to this media.";
@@ -852,6 +876,7 @@ export function setupMediaWorkspace(root: HTMLElement): void {
     editPark.disabled = true;
     editTitle.disabled = true;
     editDescription.disabled = true;
+    if (editFeatured) editFeatured.disabled = true;
     detailsStatus.textContent = "Saving details…";
     try {
       const response = await fetch(target.editUrl, {
@@ -866,16 +891,23 @@ export function setupMediaWorkspace(root: HTMLElement): void {
       }
       if (signedOut || (publicGallery && anonymousOnly)) return;
       const saved = body.media;
+      const removedFromFeatured = organizer && filters.featured && saved.featuredOnRecap !== true;
+      const previousIndex = files.findIndex((file) => file.id === targetId);
       files = files.map((file) => file.id === targetId ? saved : file);
+      if (removedFromFeatured) files = files.filter((file) => file.id !== targetId);
       for (const item of queue) {
         if (item.savedId !== targetId) continue;
         item.parkReference = saved.parkReference;
         renderQueueItem(item);
       }
       renderGallery();
+      if (removedFromFeatured) {
+        const buttons = [...gallery.querySelectorAll<HTMLButtonElement>("[data-media-open-detail]")];
+        focusAfterDetailsClose = buttons[Math.min(Math.max(previousIndex, 0), buttons.length - 1)] ?? filterFeatured ?? refresh;
+      }
       closeDetails();
-      galleryStatus.textContent = "Details saved.";
-      if (publicGallery) deferredRefresh = true;
+      galleryStatus.textContent = removedFromFeatured ? "Details saved. Photo removed from the featured selection." : "Details saved.";
+      if (publicGallery || (removedFromFeatured && files.length === 0 && nextCursor)) deferredRefresh = true;
     } catch (error) {
       if (!signedOut) detailsStatus.textContent = errorMessage(error, "Unable to save these details. Check your connection and try again.");
     } finally {
@@ -885,6 +917,7 @@ export function setupMediaWorkspace(root: HTMLElement): void {
       editPark.disabled = false;
       editTitle.disabled = false;
       editDescription.disabled = false;
+      if (editFeatured) editFeatured.disabled = target.kind !== "photo";
       updateControls();
       if (deferredDetailNavigation) { deferredDetailNavigation = false; void restoreLinkedMedia(); }
       if (deferredRefresh) { deferredRefresh = false; void loadFiles(); }
@@ -903,12 +936,16 @@ export function setupMediaWorkspace(root: HTMLElement): void {
       filterPark.value = filters.park;
       filterPark.disabled = savingDetails || deleting;
     }
+    if (filterFeatured) {
+      filterFeatured.checked = filters.featured;
+      filterFeatured.disabled = savingDetails || deleting || signedOut;
+    }
     for (const button of kindButtons) {
       button.setAttribute("aria-pressed", String(button.dataset.mediaKind === filters.kind));
       button.disabled = savingDetails || deleting;
     }
     if (clearFilters) {
-      clearFilters.hidden = !filters.park && !filters.kind;
+      clearFilters.hidden = !filters.park && !filters.kind && !filters.featured;
       clearFilters.disabled = savingDetails || deleting;
     }
     if (queueSection) queueSection.hidden = queue.length === 0;
@@ -967,13 +1004,14 @@ function isMedia(value: unknown): value is ActivatorMedia {
     && (value.parkReference === null || typeof value.parkReference === "string")
     && (value.title === null || typeof value.title === "string")
     && (value.description === null || typeof value.description === "string")
+    && (value.featuredOnRecap === undefined || typeof value.featuredOnRecap === "boolean")
     && typeof value.canEdit === "boolean" && typeof value.isOwn === "boolean"
     && (value.editUrl === null || typeof value.editUrl === "string")
     && (value.thumbnailUrl === null || typeof value.thumbnailUrl === "string");
 }
 
 function responseError(body: unknown, status: number, fallback: string): string {
-  if (status === 401) return "Your access has expired. Sign in again, then return to your photos and videos.";
+  if (status === 401) return "Your access has expired. Sign in again, then return to your photos.";
   return isRecord(body) && typeof body.error === "string" ? body.error : fallback;
 }
 

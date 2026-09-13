@@ -28,6 +28,7 @@ export type Env = RequiredBindings & OptionalBindings & {
   ACTIVATE_RI_EMAIL_FROM_NAME?: string;
   ACTIVATE_RI_ADMIN_EMAILS?: string;
   SITE_ORIGIN?: string;
+  ACTIVATE_RI_TEST_REGISTRATION_NOW?: string;
   ACTIVATE_RI_OPS_HARD_DISABLED?: "true" | "false";
   CF_ACCESS_TEAM_DOMAIN?: string;
   CF_ACCESS_AUD?: string;

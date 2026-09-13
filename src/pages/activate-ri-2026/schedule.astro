@@ -5,6 +5,8 @@ import Footer from "../../components/Footer.astro";
 import Notice from "../../components/Notice.astro";
 import SiteHeader from "../../components/SiteHeader.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
+import { eventPhaseAt } from "../../lib/activate-ri/event-phase";
+const postEvent = eventPhaseAt() === "post-event";
 ---
 
 <BaseLayout
@@ -20,10 +22,11 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         <div class="section-header">
           <p class="eyebrow">Activation windows</p>
           <h1 id="schedule-title">Event schedule</h1>
-          <p class="lead">
+          <p class="lead" data-schedule-live hidden={postEvent}>
             Planned activation times for Activate All RI 2026. Check current POTA spots for frequencies and changes.
           </p>
-          <p><a class="button" href="/on-air/">See RI on air now</a></p>
+          <p class="lead" data-schedule-archive hidden={!postEvent}>The plans shared for Activate All RI 2026, preserved here as the event schedule. For what was recorded on the air, <a href="/activate-ri-2026/parks/">see the park results</a>.</p>
+          <p data-schedule-live hidden={postEvent}><a class="button" href="/on-air/">See RI on air now</a></p>
         </div>
         <ScheduleTable />
       </div>
@@ -32,3 +35,11 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
   </main>
   <Footer />
 </BaseLayout>
+
+<script>
+  import { subscribeEventPhase } from "../../lib/activate-ri/event-phase";
+  subscribeEventPhase((phase) => {
+    document.querySelectorAll<HTMLElement>("[data-schedule-live]").forEach((element) => { element.hidden = phase === "post-event"; });
+    document.querySelectorAll<HTMLElement>("[data-schedule-archive]").forEach((element) => { element.hidden = phase !== "post-event"; });
+  });
+</script>

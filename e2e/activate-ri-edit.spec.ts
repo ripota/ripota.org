@@ -325,6 +325,7 @@ async function submitVolunteerStop(
     mode: string;
   },
 ): Promise<string> {
+  await page.clock.install({ time: new Date("2026-09-13T12:00:00.000Z") });
   await page.goto(`${origin}/activate-ri-2026/volunteer/`);
 
   await page.getByLabel(/Callsign/).first().fill(options.callsign);

@@ -40,15 +40,14 @@ try {
     </style></head><body>
       <div class="glow"></div>
       <div class="brand"><img alt="RI POTA" src="data:image/svg+xml;base64,${logo.toString("base64")}">Rhode Island POTA</div>
-      <div class="copy"><p class="event">ACTIVATE ALL RI 2026</p><h1>Photos &amp;<br>videos</h1>
+      <div class="copy"><p class="event">ACTIVATE ALL RI 2026</p><h1>Photos</h1>
         <p class="description">Shared by the activators<br>who were there.</p></div>
       <div class="footer"><span class="cta">Explore the gallery ↗</span><span class="url">ripota.org</span></div>
       <div class="back"></div>
       <figure class="photo"><img alt="Rhode Island shoreline" src="data:image/jpeg;base64,${photo.toString("base64")}">
         <figcaption>From the field.</figcaption>
-        <div class="formats" aria-label="Photos and videos">
+        <div class="formats" aria-label="Photos">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 3-3 6 5"/></svg>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="m10 8 6 4-6 4z" fill="currentColor" stroke="none"/></svg>
         </div>
       </figure>
     </body></html>`, { waitUntil: "load" });

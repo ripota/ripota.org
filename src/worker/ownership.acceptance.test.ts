@@ -20,6 +20,8 @@ let env: Env;
 let send: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(now));
   database = createMigratedSqliteD1();
   send = vi.fn(async () => ({ messageId: "sent" }));
   const limiter = { limit: vi.fn(async () => ({ success: true })) } as RateLimit;
@@ -42,6 +44,7 @@ beforeEach(() => {
 afterEach(() => {
   database.close();
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 describe("unified activator ownership", () => {

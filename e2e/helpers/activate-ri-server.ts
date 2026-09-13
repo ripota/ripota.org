@@ -20,9 +20,10 @@ export type ActivateRiServer = {
 };
 
 export async function startActivateRiServer(
-  options: { legacyLinkIssuanceEnabled?: boolean; seedAccountOnly?: boolean; https?: boolean; adminHeaderAuthOnly?: boolean } = {},
+  options: { legacyLinkIssuanceEnabled?: boolean; seedAccountOnly?: boolean; https?: boolean; adminHeaderAuthOnly?: boolean; registrationNow?: string } = {},
 ): Promise<ActivateRiServer> {
   const port = await freePort();
+  const origin = `${options.https ? "https" : "http"}://localhost:${port}`;
   const inspectorPort = await freePort(port);
   const persistTo = mkdtempSync(join(tmpdir(), "ripota-e2e-wrangler-"));
   prepareLocalDatabase(persistTo);
@@ -42,6 +43,12 @@ export async function startActivateRiServer(
     options.https ? "https" : "http",
     "--persist-to",
     persistTo,
+    "--var",
+    `SITE_ORIGIN:${origin}`,
+    "--var",
+    // Only the new-plan deadline uses this loopback-only test clock. Account
+    // sessions and all other Worker dates continue using the real clock.
+    `ACTIVATE_RI_TEST_REGISTRATION_NOW:${options.registrationNow ?? "2026-09-13T12:00:00.000Z"}`,
   ];
   if (options.legacyLinkIssuanceEnabled) {
     wranglerArgs.push("--var", "AUTH_LEGACY_LINK_ISSUANCE_ENABLED:true");
@@ -49,8 +56,7 @@ export async function startActivateRiServer(
   if (options.adminHeaderAuthOnly) {
     // Public-gallery tests must distinguish anonymous visitors from organizers.
     // Other local tests keep the existing convenient administrator bypass.
-    wranglerArgs.push("--var", "ALLOW_LOCAL_ADMIN_AUTH:false", "--var", "ALLOW_ADMIN_HEADER_AUTH:true",
-      "--var", `SITE_ORIGIN:${options.https ? "https" : "http"}://localhost:${port}`);
+    wranglerArgs.push("--var", "ALLOW_LOCAL_ADMIN_AUTH:false", "--var", "ALLOW_ADMIN_HEADER_AUTH:true");
   }
   const child = spawn(
     "./node_modules/.bin/wrangler",
@@ -72,7 +78,6 @@ export async function startActivateRiServer(
     logs.value += chunk.toString();
   });
 
-  const origin = `${options.https ? "https" : "http"}://localhost:${port}`;
   try {
     await waitForServerReady(child, origin, logs);
   } catch (error) {

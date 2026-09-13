@@ -4,6 +4,7 @@ import {
   validatePlanSubmission,
 } from "../../lib/activate-ri/validation";
 import { planRowsToPublicStops } from "../../lib/activate-ri/public-export";
+import { eventEnd } from "../../lib/activate-ri/event-phase";
 import {
   activatorSessionCookie,
   clearActivatorSessionCookie,
@@ -1036,10 +1037,37 @@ async function handleCancelStop(
   return json({ ok: true });
 }
 
+function registrationTime(request: Request, env: Env): number {
+  // Isolated local tests can replay the registration window without changing
+  // authentication/session clocks. Both origins must be explicitly loopback;
+  // a production request can never enable this fixture clock.
+  if (env.ACTIVATE_RI_TEST_REGISTRATION_NOW && env.SITE_ORIGIN) {
+    try {
+      const requestUrl = new URL(request.url);
+      const siteUrl = new URL(env.SITE_ORIGIN);
+      const loopback = (url: URL) =>
+        (url.protocol === "http:" || url.protocol === "https:") &&
+        ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+      const fixtureTime = Date.parse(env.ACTIVATE_RI_TEST_REGISTRATION_NOW);
+      if (loopback(requestUrl) && loopback(siteUrl) && Number.isFinite(fixtureTime)) return fixtureTime;
+    } catch {
+      // Invalid local test configuration must fall back to the real deadline.
+    }
+  }
+  return Date.now();
+}
+
 async function handlePlanSubmission(
   request: Request,
   env: Env,
 ): Promise<Response> {
+  if (registrationTime(request, env) >= eventEnd) {
+    return json({
+      ok: false,
+      errors: ["Activate All RI 2026 has ended, and new activation plans are closed. Existing activators can still open My Plan and share photos."],
+    }, { status: 410, headers: { "cache-control": "no-store" } });
+  }
+
   let payload: unknown;
 
   try {

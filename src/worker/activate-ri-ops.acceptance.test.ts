@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "./env";
 import { ActivateRiOpsRoom } from "./durable-objects/activate-ri-ops-room";
 import { handleActivateRiApi } from "./routes/activate-ri";
@@ -8,6 +8,11 @@ import { createMigratedSqliteD1 } from "./test-utils/sqlite-d1";
 import type { CreateOpsMessageInput, OpsEvent, OpsMessageDto } from "../lib/activate-ri/ops-types";
 
 let closeDatabase: (() => void) | undefined;
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-09-13T12:00:00.000Z"));
+});
 
 afterEach(() => {
   closeDatabase?.();
@@ -478,6 +483,8 @@ describe("Activate RI Ops Room D1 flow", () => {
     expect(rules.status).toBe(200);
     const expectedLabels = ["N1RWJ - Rob", "N1RWJ - Rob J.", "N1RWJ"];
     for (const [index, displayName] of [null, "Rob J.", ""].entries()) {
+      // Keep the intended chronology distinct while Date is fixed by the fixture.
+      vi.setSystemTime(new Date(Date.now() + 1000));
       const saved = await handleActivateRiApi(sessionRequest("/api/activate-ri-2026/ops/profile", cookie, {
         method: "PATCH", headers: jsonHeaders(), body: JSON.stringify({ displayName }),
       }), env);

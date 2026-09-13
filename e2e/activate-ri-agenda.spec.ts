@@ -11,6 +11,7 @@ const stops = [
 ];
 
 test("requested agenda preserves parks, statuses, filters, and a portable share link", async ({ page, browser }) => {
+  await page.clock.setFixedTime(new Date("2026-09-13T12:00:00Z"));
   const server = await startActivateRiServer();
   const recipient = await browser.newContext();
   try {
@@ -26,7 +27,7 @@ test("requested agenda preserves parks, statuses, filters, and a portable share 
     await expect(page.locator("[data-requested-schedule-unmatched-list]")).toContainText("US-0515");
     await expect(page.locator("[data-requested-schedule-unmatched-list]")).toContainText("published windows cancelled");
     await expect(page.locator("[data-requested-schedule-unmatched-list]")).toContainText("US-0516");
-    await expect(page.locator(".schedule-estimate-note")).toContainText("planned estimates");
+    await expect(page.locator(".schedule-estimate-note:visible")).toContainText("planned estimates");
 
     await page.locator('[data-filter="mode"]').selectOption("SSB");
     await expect(rows).toHaveCount(2);
@@ -37,6 +38,7 @@ test("requested agenda preserves parks, statuses, filters, and a portable share 
     expect(link).not.toMatch(/private|token|scope|notes|email|phone|#/);
 
     const other = await recipient.newPage();
+    await other.clock.setFixedTime(new Date("2026-09-13T12:00:00Z"));
     await other.route("**/api/activate-ri-2026/public/stops", (route) => route.fulfill({ json: { ok: true, stops } }));
     await other.goto(link);
     await expect(other.locator("[data-filter-row]:visible")).toHaveCount(2);
@@ -92,6 +94,7 @@ test("invalid, empty, and unavailable agendas never widen to all parks", async (
 });
 
 test("requested-park scopes restore their parks through Back and Forward", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-09-13T12:00:00Z"));
   const server = await startActivateRiServer();
   try {
     await page.route("**/api/activate-ri-2026/public/stops", route => route.fulfill({ json: { ok: true, stops } }));

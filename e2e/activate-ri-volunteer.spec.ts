@@ -46,7 +46,7 @@ test("volunteer browser graph stays metadata-only on desktop and mobile", async 
         route.fulfill({ status: 204 })
       );
 
-      await page.goto(`${server.origin}/activate-ri-2026/volunteer/`);
+      await openRegistrationPage(page, `${server.origin}/activate-ri-2026/volunteer/`);
       await expect(page.locator("[data-activate-ri-volunteer]")).toBeVisible();
       await expect(page.locator("[data-park-option]")).toHaveCount(61);
 
@@ -93,7 +93,7 @@ test("volunteer can submit a plan that can be approved and shown publicly", asyn
   const email = `${callsign.toLowerCase()}@example.com`;
 
   try {
-    await page.goto(`${server.origin}/activate-ri-2026/volunteer/`);
+    await openRegistrationPage(page, `${server.origin}/activate-ri-2026/volunteer/`);
 
     await page.getByLabel(/Callsign/).first().fill(callsign);
     await page.getByLabel(/Name/).first().fill("Rob Jackson");
@@ -251,7 +251,7 @@ test("volunteer map add activation scrolls to identity fields and skips duplicat
   const server = await startActivateRiServer();
 
   try {
-    await page.goto(`${server.origin}/activate-ri-2026/volunteer/`);
+    await openRegistrationPage(page, `${server.origin}/activate-ri-2026/volunteer/`);
 
     await addParkFromVolunteerMap(page, "US-2868");
 
@@ -291,7 +291,7 @@ test("planning links prefill a park and event day and preserve them through sign
     });
     expect(response.status(), await response.text()).toBe(202);
 
-    await page.goto(`${server.origin}/activate-ri-2026/volunteer/?park=us-2868&date=2026-09-12`);
+    await openRegistrationPage(page, `${server.origin}/activate-ri-2026/volunteer/?park=us-2868&date=2026-09-12`);
     await expect(page.locator("[data-park-reference]")).toHaveValue("US-2868");
     await expect(page.locator("[data-planned-date]")).toHaveValue("2026-09-12");
     await expect(page.locator("[data-time-block]")).toHaveValue("");
@@ -320,10 +320,10 @@ test("planning links prefill a park and event day and preserve them through sign
     await expect(page.locator("[data-stop-card]")).toHaveCount(2);
     await expect(page.locator("[data-stop-card]").last().locator("[data-planned-date]")).toHaveValue("2026-09-12");
 
-    await page.goto(`${server.origin}/activate-ri-2026/volunteer/?park=US-2868&date=2026-09-14`);
+    await openRegistrationPage(page, `${server.origin}/activate-ri-2026/volunteer/?park=US-2868&date=2026-09-14`);
     await expect(page.locator("[data-park-reference]")).toHaveValue("US-2868");
     await expect(page.locator("[data-planned-date]")).toHaveValue("");
-    await page.goto(`${server.origin}/activate-ri-2026/volunteer/?park=US-UNKNOWN&date=2026-09-12`);
+    await openRegistrationPage(page, `${server.origin}/activate-ri-2026/volunteer/?park=US-UNKNOWN&date=2026-09-12`);
     await expect(page.locator("[data-stop-card]")).toHaveCount(1);
     await expect(page.locator("[data-park-reference]")).toHaveValue("");
     await expect(page.locator("[data-planned-date]")).toHaveValue("");
@@ -338,7 +338,7 @@ test("additional parks inherit date, bands, and modes without copying stop detai
   const server = await startActivateRiServer();
 
   try {
-    await page.goto(`${server.origin}/activate-ri-2026/volunteer/`);
+    await openRegistrationPage(page, `${server.origin}/activate-ri-2026/volunteer/`);
 
     const firstStop = page.locator("[data-stop-card]").first();
     await firstStop.locator("[data-park-input]").fill("US-2868");
@@ -370,6 +370,12 @@ test("additional parks inherit date, bands, and modes without copying stop detai
     await server.stop();
   }
 });
+
+async function openRegistrationPage(page: Page, url: string): Promise<void> {
+  // Start in the signup window, with Date and timers advancing for map animations.
+  await page.clock.install({ time: new Date("2026-09-13T12:00:00.000Z") });
+  await page.goto(url);
+}
 
 async function addParkFromVolunteerMap(page: Page, reference: string): Promise<void> {
   await page.evaluate((selectedReference) => {

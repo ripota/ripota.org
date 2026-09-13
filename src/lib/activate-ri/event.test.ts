@@ -31,7 +31,7 @@ describe("Activate RI event config", () => {
   it("uses existing tools for live updates and post-event results", () => {
     expect(activateRi2026Event.phaseCtas["event-live"].primary.href).toBe("/on-air/");
     expect(activateRi2026Event.phaseCtas["event-live"].secondary.href).toBe(eventRoute("activatorPlan"));
-    expect(activateRi2026Event.phaseCtas["post-event"].primary.href).toBe(eventRoute("progress"));
+    expect(activateRi2026Event.phaseCtas["post-event"].primary.href).toBe(eventRoute("parks"));
     expect(activateRi2026Event.phaseCtas["post-event"].secondary.href).toBe(eventRoute("help"));
   });
 

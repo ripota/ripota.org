@@ -39,6 +39,7 @@ export type ActivatorMedia = {
   parkReference: string | null;
   title: string | null;
   description: string | null;
+  featuredOnRecap?: boolean;
   canEdit: boolean;
   isOwn: boolean;
   editUrl: string | null;

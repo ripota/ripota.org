@@ -5,18 +5,30 @@ import Footer from "../../components/Footer.astro";
 import Notice from "../../components/Notice.astro";
 import SiteHeader from "../../components/SiteHeader.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
+import { eventEnd, eventPhaseAt } from "../../lib/activate-ri/event-phase";
+const postEvent = eventPhaseAt() === "post-event";
 ---
 
 <BaseLayout
   title="Activate All RI 2026 Progress"
-  description="Public spot activity and progress for Activate All RI 2026."
+  description="Find the recorded POTA activation results from Activate All RI 2026."
   canonicalPath="/activate-ri-2026/progress/"
 >
   <SiteHeader variant="solid" showEventLink />
   <main id="main">
-    <section class="section event-page" aria-labelledby="progress-title">
+    <section class="section event-page" aria-label="Activate All RI event records">
       <div class="container">
         <EventNav />
+        <div data-progress-wrapup hidden={!postEvent}>
+          <div class="section-header">
+            <p class="eyebrow">Activate All RI 2026</p>
+            <h1 id="progress-wrapup-title" tabindex="-1">Looking for the weekend’s results?</h1>
+            <p class="lead">The live progress page has wrapped up. You can now explore the recorded POTA activations and photos from the weekend in park results.</p>
+          </div>
+          <a class="button" data-variant="primary" data-progress-results-link href="/activate-ri-2026/parks/">See park results</a>
+        </div>
+        <template data-progress-template>
+        <div data-progress-live>
         <div class="section-header">
           <p class="eyebrow">Activate All RI 2026</p>
           <h1 id="progress-title">Event progress</h1>
@@ -26,9 +38,40 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
           </p>
         </div>
         <PotaSpotActivity />
+        </div>
+        </template>
+        <script is:inline define:vars={{ eventEnd }}>
+          {
+            const template = document.querySelector("[data-progress-template]");
+            if (Date.now() < eventEnd && template instanceof HTMLTemplateElement) template.replaceWith(template.content);
+          }
+        </script>
+        <noscript><style is:global>[data-progress-wrapup][hidden] { display: block !important; }</style></noscript>
       </div>
     </section>
     <Notice />
   </main>
   <Footer />
 </BaseLayout>
+
+<script>
+  import { subscribeEventPhase } from "../../lib/activate-ri/event-phase";
+  const wrapup = document.querySelector<HTMLElement>("[data-progress-wrapup]");
+  const resultsLink = document.querySelector<HTMLAnchorElement>("[data-progress-results-link]");
+  function syncResultsLink() {
+    const query = new URLSearchParams(window.location.search).get("q")?.trim();
+    if (resultsLink) resultsLink.href = query ? `/activate-ri-2026/parks/?${new URLSearchParams({ "results-q": query })}` : "/activate-ri-2026/parks/";
+  }
+  window.addEventListener("popstate", syncResultsLink);
+  subscribeEventPhase((phase) => {
+    syncResultsLink();
+    const ended = phase === "post-event";
+    if (wrapup) wrapup.hidden = !ended;
+    if (ended) {
+      const live = document.querySelector<HTMLElement>("[data-progress-live]");
+      const focused = live?.contains(document.activeElement);
+      live?.remove();
+      if (focused) document.querySelector<HTMLElement>("#progress-wrapup-title")?.focus();
+    }
+  });
+</script>

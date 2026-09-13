@@ -8,11 +8,14 @@ import SiteHeader from "../../components/SiteHeader.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import EventPhaseViews from "../../components/activate-ri/EventPhaseViews.astro";
 import ReferenceMap from "../../components/ReferenceMap.astro";
+import ActivationResults from "../../components/activate-ri/ActivationResults.astro";
+import { eventEnd, eventPhaseAt } from "../../lib/activate-ri/event-phase";
+const postEvent = eventPhaseAt() === "post-event";
 ---
 
 <BaseLayout
-  title="Activate All RI 2026 Park Coverage"
-  description="Coverage status for Rhode Island POTA references in Activate All RI 2026."
+  title="Activate All RI 2026 Park Results"
+  description="POTA activation results for Rhode Island parks in Activate All RI 2026, with callsigns, UTC dates, and QSO totals."
   canonicalPath="/activate-ri-2026/parks/"
 >
   <SiteHeader variant="solid" showEventLink />
@@ -21,39 +24,78 @@ import ReferenceMap from "../../components/ReferenceMap.astro";
       <div class="container">
         <EventNav />
         <div class="section-header">
-          <p class="eyebrow">Park coverage</p>
-          <h1 id="parks-title">Event parks</h1>
-          <p class="lead">
+          <p class="eyebrow" data-parks-eyebrow>{postEvent ? "2026 POTA records" : "Park coverage"}</p>
+          <h1 id="parks-title" tabindex="-1">{postEvent ? "Park results" : "Event parks"}</h1>
+          <p class="lead" data-parks-live hidden={postEvent}>
             See each park’s progress, compare planned activations, and find your next
             park to activate. Additional times, bands, and modes are always welcome.
           </p>
+          <p class="lead" data-parks-archive hidden={!postEvent}>Explore the POTA activation logs from Activate All RI 2026 by park, callsign, date, and mode, with photos shared from the parks.</p>
         </div>
-        <EventPhaseViews>
-        <div slot="results">
-          <PotaParkProgress />
+        <div data-parks-archive hidden={!postEvent}>
+          <details class="park-map-disclosure">
+            <summary>Show park map</summary>
+            <ReferenceMap
+              id="activate-ri-archived-results-map"
+              variant="coverage"
+              title="Map of 2026 event parks"
+              caption="Recorded activity during Activate All RI 2026. Open a park to see its results and photos."
+              legendPlacement="below"
+              legendTitle="2026 park activity"
+              resultsMode recapMode
+            />
+          </details>
+          <ActivationResults />
         </div>
-        </EventPhaseViews>
-        <details class="park-map-disclosure">
-          <summary>Show park map</summary>
-          <ReferenceMap
-            id="activate-ri-pota-results-map"
-            variant="coverage"
-            title="Map of event parks"
-            caption="Explore locations, then use the park list to compare status and activation plans. A gold pulse means a current POTA spot."
-            legendPlacement="below"
-            legendTitle="POTA evidence"
-            resultsMode
-          />
-        </details>
-        <section id="park-planning" aria-label="Park status and activation plans">
-          <ParkCoverageTable />
-        </section>
+        <div data-parks-live data-parks-legacy hidden={postEvent}>
+          <template id="event-park-planning-template">
+            <EventPhaseViews><div slot="results"><PotaParkProgress /></div></EventPhaseViews>
+            <details class="park-map-disclosure">
+              <summary>Show park map</summary>
+              <ReferenceMap
+                id="activate-ri-pota-results-map"
+                variant="coverage"
+                title="Map of event parks"
+                caption="Explore locations, then use the park list to compare status and activation plans. A gold pulse means a current POTA spot."
+                legendPlacement="below"
+                legendTitle="POTA evidence"
+                resultsMode
+              />
+            </details>
+            <section id="park-planning" aria-label="Park status and activation plans"><ParkCoverageTable /></section>
+          </template>
+          <script is:inline define:vars={{ eventEnd }}>
+            // An old static build remains useful before the deadline without
+            // starting schedule/account requests on post-event visits.
+            if (Date.now() < eventEnd) {
+              const template = document.getElementById("event-park-planning-template");
+              if (template instanceof HTMLTemplateElement) template.replaceWith(template.content);
+            }
+          </script>
+          <noscript><p><a href="https://pota.app/">Explore the parks and activation logs on POTA</a>.</p></noscript>
+        </div>
       </div>
     </section>
     <Notice />
   </main>
   <Footer />
 </BaseLayout>
+
+<script>
+  import { subscribeEventPhase } from "../../lib/activate-ri/event-phase";
+  subscribeEventPhase((phase) => {
+    const archived = phase === "post-event";
+    document.getElementById("parks-title")!.textContent = archived ? "Park results" : "Event parks";
+    document.querySelector("[data-parks-eyebrow]")!.textContent = archived ? "2026 POTA records" : "Park coverage";
+    if (phase === "post-event") {
+      const legacy = document.querySelector<HTMLElement>("[data-parks-legacy]");
+      if (legacy?.contains(document.activeElement)) document.getElementById("parks-title")?.focus();
+      legacy?.replaceChildren();
+    }
+    document.querySelectorAll<HTMLElement>("[data-parks-live]").forEach((element) => { element.hidden = phase === "post-event"; });
+    document.querySelectorAll<HTMLElement>("[data-parks-archive]").forEach((element) => { element.hidden = phase !== "post-event"; });
+  });
+</script>
 
 <style>
   #park-planning { scroll-margin-top: 2rem; }

@@ -108,6 +108,7 @@ test("schedule offers park planning even when every park already has an activato
 });
 
 test("schedule search preserves deep links, mobile secondary filters, and print context", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-09-13T12:00:00Z"));
   const server = await startActivateRiServer();
   try {
     await page.setViewportSize({ width: 390, height: 844 });

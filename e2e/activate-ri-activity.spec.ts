@@ -86,21 +86,27 @@ for (const path of ["/activate-ri-2026/", "/activate-ri-2026/parks/"]) {
         await expect(results.getByRole("link", { name: "See RI on air now", exact: true })).toHaveAttribute("href", "/on-air/");
         await expect(results.getByRole("link", { name: "Update my activation", exact: true })).toHaveAttribute("href", "/activate-ri-2026/activator/plan/");
       }
+      await progressLink.focus();
       await page.clock.setFixedTime(new Date("2026-09-14T00:00:00Z"));
       await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
-      await expect(page.locator("[data-event-phase-views]")).toHaveAttribute("data-phase", "post-event");
-      await expect(progressLink).toBeVisible();
+      await expect(progressLink).toBeHidden();
+      await expect(page.getByRole("navigation", { name: "Activate All RI navigation" }).getByRole("link", { name: "Recap", exact: true })).toBeFocused();
       if (path.endsWith("/parks/")) {
-        await expect(page.locator("#park-planning")).toBeVisible();
-        await expect(page.locator("[data-live-coverage]")).toBeVisible();
+        await expect(page.locator("[data-activation-results]")).toBeVisible();
+        await expect(page.locator("[data-park-planning]")).toHaveCount(0);
       }
       if (!path.endsWith("/parks/")) {
-        const progressAction = results.getByRole("link", { name: "View event progress", exact: true });
+        await expect(page.locator("[data-event-phase-views]")).toHaveAttribute("data-phase", "post-event");
+        await expect(results).toBeHidden();
+        const recap = page.locator('[data-event-view="recap"]');
+        await expect(recap).toBeVisible();
+        await expect(page.locator('[data-event-participation]')).toBeHidden();
+        const progressAction = recap.getByRole("link", { name: "See each park’s results", exact: false });
         await expect(progressAction).toBeVisible();
-        await expect(progressAction).toHaveAttribute("href", "/activate-ri-2026/progress/");
+        await expect(progressAction).toHaveAttribute("href", "/activate-ri-2026/parks/");
         const destination = await request.get(server.origin + await progressAction.getAttribute("href"));
         expect(destination.status()).toBe(200);
-        await expect(results.getByRole("link", { name: "Submit corrections", exact: true })).toHaveAttribute("href", "/activate-ri-2026/help/");
+        await expect(recap.getByRole("link", { name: "Send a correction or get help", exact: false })).toHaveAttribute("href", "/activate-ri-2026/help/");
       }
       expect(errors).toEqual([]);
     } finally {
@@ -132,7 +138,7 @@ test("activity filters missing parks, keeps the view on refresh, and explains st
     let fail = false;
     await page.route("**/api/activate-ri-2026/public/spot-activity", route =>
       fail ? route.fulfill({ status: 503 }) : route.fulfill({ json: snapshot }));
-    await page.clock.install();
+    await page.clock.install({ time: new Date("2026-09-11T12:00:00Z") });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(server.origin + "/activate-ri-2026/progress/?view=unspotted");
     await expect(page.getByLabel("Event progress summary").locator("dt")).toHaveText([

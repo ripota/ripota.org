@@ -3,6 +3,10 @@ import { startActivateRiServer } from "./helpers/activate-ri-server";
 
 test.setTimeout(60_000);
 
+test.beforeEach(async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-09-13T12:00:00Z"));
+});
+
 const csv = [
   '"DX Entity","Location","HASC","Reference","Park Name","First QSO Date","QSOs"',
   '"United States","US-RI","US.RI","US-0513","Synthetic, Island","20260101","1"',
@@ -226,6 +230,7 @@ test("hunter search and status links restore across import, reload, history, and
     const fresh = await browser.newContext();
     try {
       const recipient = await fresh.newPage();
+      await recipient.clock.setFixedTime(new Date("2026-09-13T12:00:00Z"));
       await recipient.route("**/api/activate-ri-2026/public/stops", route => route.fulfill({ json: { ok: true, stops: [] } }));
       await recipient.goto(sharedUrl);
       await expect(recipient.locator("[data-hunter-results]")).toBeHidden();

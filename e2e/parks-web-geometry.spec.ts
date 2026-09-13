@@ -778,8 +778,8 @@ for (const viewport of [
       const popup = page.locator(".leaflet-popup-content");
       await expect(popup).toContainText("US-2870");
       await expect(popup).toContainText("Needs coverage");
-      // The signup's real Turnstile challenge requires an accurate browser clock.
-      await page.clock.setSystemTime(new Date());
+      // Keep this signup flow inside the event window regardless of the run date.
+      await page.clock.setSystemTime(new Date("2026-09-13T12:00:00Z"));
       await popup.getByRole("link", { name: "Volunteer for this park" }).click();
       await expect(page).toHaveURL(`${parksOrigin}/activate-ri-2026/volunteer/?park=US-2870`);
       await expect(page.getByRole("heading", { level: 1, name: "Volunteer to activate" })).toBeVisible();
@@ -835,8 +835,8 @@ for (const viewport of [
 
       for (const route of ["/activate-ri-2026/", "/activate-ri-2026/volunteer/"]) {
         if (route.endsWith("/volunteer/")) {
-          // The signup's real Turnstile challenge requires an accurate browser clock.
-          await page.clock.setSystemTime(new Date());
+          // Keep signup open after the real event deadline while timers advance.
+          await page.clock.setSystemTime(new Date("2026-09-13T12:00:00Z"));
         }
         await page.goto(`${parksOrigin}${route}`);
         await readyMap(page, "[data-reference-map]");
@@ -936,8 +936,8 @@ for (const viewport of [
       await expect(parkRows.filter({ hasText: "Activation plans unavailable" })).toHaveCount(61);
       await page.waitForLoadState("networkidle");
 
-      // Keep the event-phase fixture's clock out of the real Turnstile challenge.
-      await page.clock.setSystemTime(new Date());
+      // Keep this signup flow inside the event window regardless of the run date.
+      await page.clock.setSystemTime(new Date("2026-09-13T12:00:00Z"));
       await page.goto(`${parksOrigin}/activate-ri-2026/volunteer/`);
       await readyMap(page, "[data-reference-map]");
       await expect(page.locator("[data-map-coverage-status]")).toContainText("The event schedule is unavailable");

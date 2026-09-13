@@ -83,14 +83,17 @@ export function setupSpotActivity(root: HTMLElement): void {
     renderRows();
     search?.focus();
   });
-  window.addEventListener("popstate", () => {
+  const onPopState = () => {
+    if (!root.isConnected) { dispose(); return; }
     searchEditing = false;
     restoreView();
-  });
+  };
+  window.addEventListener("popstate", onPopState);
   restoreView();
   updateUrl("replace");
 
   const refresh = async () => {
+    if (!root.isConnected) { dispose(); return; }
     if (refreshing) return;
     refreshing = true;
     if (refreshButton) refreshButton.disabled = true;
@@ -100,6 +103,7 @@ export function setupSpotActivity(root: HTMLElement): void {
       });
       if (!response.ok) throw new Error(`Spot activity responded with ${response.status}`);
       snapshot = await response.json() as ActivitySnapshot;
+      if (!root.isConnected) { dispose(); return; }
       renderSummary(root, snapshot);
       renderRows();
     } catch {
@@ -112,8 +116,14 @@ export function setupSpotActivity(root: HTMLElement): void {
     }
   };
   refreshButton?.addEventListener("click", () => { void refresh(); });
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) void refresh(); });
-  window.setInterval(() => { if (!document.hidden) void refresh(); }, refreshIntervalMilliseconds);
+  const onVisibility = () => { if (!document.hidden) void refresh(); };
+  document.addEventListener("visibilitychange", onVisibility);
+  const timer = window.setInterval(() => { if (!document.hidden) void refresh(); }, refreshIntervalMilliseconds);
+  function dispose() {
+    window.clearInterval(timer);
+    document.removeEventListener("visibilitychange", onVisibility);
+    window.removeEventListener("popstate", onPopState);
+  }
   void refresh();
 }
 

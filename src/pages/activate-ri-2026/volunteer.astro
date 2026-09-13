@@ -6,6 +6,9 @@ import Notice from "../../components/Notice.astro";
 import ReferenceMap from "../../components/ReferenceMap.astro";
 import SiteHeader from "../../components/SiteHeader.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
+import { eventPhaseAt } from "../../lib/activate-ri/event-phase";
+
+const registrationClosed = eventPhaseAt() === "post-event";
 ---
 
 <BaseLayout
@@ -20,12 +23,23 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         <EventNav />
         <div class="section-header">
           <p class="eyebrow">Activator signup</p>
-          <h1 id="volunteer-title">Volunteer to activate</h1>
-          <p class="lead">
-            Add one park or a multi-park route. More activations are welcome at
-            parks already scheduled. New plans appear after organizer review.
+          <h1 id="volunteer-title" tabindex="-1">{registrationClosed ? "2026 registration is closed" : "Volunteer to activate"}</h1>
+          <p class="lead" data-volunteer-introduction>
+            {registrationClosed
+              ? "Thank you for putting Rhode Island on the air. New activation plans for this event are now closed."
+              : "Add one park or a multi-park route. More activations are welcome at parks already scheduled. New plans appear after organizer review."}
           </p>
         </div>
+        <div data-volunteer-closed hidden={!registrationClosed}>
+          <p>Existing activators can still open My Plan, manage their account, and share photos from the weekend.</p>
+          <div class="button-row">
+            <a class="button" data-variant="primary" href="/activate-ri-2026/">Explore the event recap</a>
+            <a class="button" data-variant="light" href="/activate-ri-2026/activator/media/">Share photos</a>
+            <a class="button" data-variant="light" href="/activate-ri-2026/activator/plan/">Open My Plan</a>
+          </div>
+          <p><a href="/activate-ri-2026/media/">Browse the event photos</a> or <a href="/activate-ri-2026/help/">contact the organizers</a> if you need help with a correction.</p>
+        </div>
+        <div data-volunteer-registration-open hidden={registrationClosed}>
         <aside class="event-guidance event-guidance--compact" data-volunteer-account-state>
           <p data-volunteer-account-message>
             Already signed up? <a data-volunteer-my-plan href="/activate-ri-2026/activator/plan/">Open My Plan</a>
@@ -74,6 +88,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
             Sign in to My Plan
           </a>
         </div>
+        </div>
       </div>
     </section>
     <Notice />
@@ -83,6 +98,23 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 
 <script>
   import { planningPrefillPlanUrl, readPlanningPrefill } from "../../lib/activate-ri/planning-prefill";
+  import { subscribeEventPhase } from "../../lib/activate-ri/event-phase";
+
+  const registration = document.querySelector<HTMLElement>("[data-volunteer-registration-open]");
+  const closedNotice = document.querySelector<HTMLElement>("[data-volunteer-closed]");
+  const heading = document.querySelector<HTMLElement>("#volunteer-title");
+  const introduction = document.querySelector<HTMLElement>("[data-volunteer-introduction]");
+  subscribeEventPhase((phase) => {
+    const closed = phase === "post-event";
+    const focusedRegistration = closed && registration?.contains(document.activeElement);
+    if (registration) registration.hidden = closed;
+    if (closedNotice) closedNotice.hidden = !closed;
+    if (heading) heading.textContent = closed ? "2026 registration is closed" : "Volunteer to activate";
+    if (introduction) introduction.textContent = closed
+      ? "Thank you for putting Rhode Island on the air. New activation plans for this event are now closed."
+      : "Add one park or a multi-park route. More activations are welcome at parks already scheduled. New plans appear after organizer review.";
+    if (focusedRegistration) heading?.focus();
+  });
 
   const planUrl = planningPrefillPlanUrl(readPlanningPrefill(window.location.search));
   const existingPlanLink = document.querySelector<HTMLAnchorElement>("[data-volunteer-my-plan]");

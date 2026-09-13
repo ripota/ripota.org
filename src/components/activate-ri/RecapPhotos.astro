@@ -1,0 +1,95 @@
+---
+import parks from "../../../public/data/activate-ri-2026/parks.json";
+---
+
+<section class="recap-photos" aria-labelledby="recap-photos-title" data-recap-photos data-parks={JSON.stringify(parks.map(({ reference, name }) => ({ reference, name })))}>
+  <div class="container">
+    <div class="recap-photos__header">
+      <div><p class="eyebrow">From the parks</p><h2 id="recap-photos-title">The people behind the signals.</h2><p>Radios, antennas, familiar faces, and a few new ones. A look at the weekend through our activators’ cameras.</p></div>
+      <a href="/activate-ri-2026/media/">See all photos <span aria-hidden="true">→</span></a>
+    </div>
+    <div class="recap-photos__grid" data-recap-photo-grid></div>
+    <p class="recap-photos__status" data-recap-photo-status role="status">Photos from the weekend are in the <a href="/activate-ri-2026/media/">event gallery</a>.</p>
+    <p class="recap-photos__invite">Have a moment to share? <a href="/activate-ri-2026/activator/media/">Add your photos</a>.</p>
+  </div>
+</section>
+
+<script>
+  import { subscribeEventPhase } from "../../lib/activate-ri/event-phase";
+  import { loadFeaturedRecapPhotos, selectRecapPhotos } from "../../lib/activate-ri/recap-photos";
+  const root = document.querySelector<HTMLElement>("[data-recap-photos]");
+  if (root) {
+    let loaded = false;
+    subscribeEventPhase((phase) => {
+      if (phase !== "post-event" || loaded) return;
+      loaded = true;
+      void loadPhotos(root);
+    });
+  }
+  async function loadPhotos(root: HTMLElement) {
+    const status = root.querySelector<HTMLElement>("[data-recap-photo-status]")!;
+    const grid = root.querySelector<HTMLElement>("[data-recap-photo-grid]")!;
+    const parks = new Map<string, string>(JSON.parse(root.dataset.parks ?? "[]").map((park: { reference: string; name: string }) => [park.reference, park.name]));
+    try {
+      const selected = selectRecapPhotos(await loadFeaturedRecapPhotos());
+      if (!selected.length) {
+        // Keep the gallery invitation until organizers have picked their favourites.
+        return;
+      }
+      for (const file of selected) {
+        const figure = document.createElement("figure");
+        const link = document.createElement("a");
+        link.href = `/activate-ri-2026/media/?mediaId=${encodeURIComponent(file.id)}`;
+        const park = file.parkReference ? parks.get(file.parkReference) ?? file.parkReference : null;
+        const title = file.title || park || "From the weekend";
+        link.setAttribute("aria-label", `${title} — photo shared by ${file.authorLabel}`);
+        const photo = document.createElement("img");
+        photo.src = file.thumbnailUrl!;
+        photo.alt = file.title || (park ? `Photo from ${park}, shared by ${file.authorLabel}` : `Event photo shared by ${file.authorLabel}`);
+        photo.loading = "lazy";
+        photo.width = 600;
+        photo.height = 450;
+        const fallback = document.createElement("span");
+        fallback.className = "recap-photo-fallback";
+        fallback.hidden = true;
+        fallback.textContent = "Open photo in the gallery →";
+        photo.addEventListener("error", () => { photo.hidden = true; fallback.hidden = false; });
+        link.appendChild(photo);
+        link.appendChild(fallback);
+        const caption = document.createElement("figcaption");
+        const heading = document.createElement("strong");
+        heading.textContent = title;
+        const author = document.createElement("span");
+        author.textContent = `Shared by ${file.authorLabel}${file.title && park ? ` · ${park}` : ""}`;
+        caption.appendChild(heading);
+        caption.appendChild(author);
+        figure.appendChild(link);
+        figure.appendChild(caption);
+        grid.appendChild(figure);
+      }
+      status.hidden = true;
+    } catch {
+      status.textContent = "The photo preview couldn’t load. You can still open the event gallery above.";
+    }
+  }
+</script>
+
+<style>
+  .recap-photos { background: var(--surface-raised); border-block: 1px solid var(--border-subtle); padding-block: clamp(2.5rem, 5vw, 4rem); }
+  .recap-photos__header { display: flex; align-items: end; justify-content: space-between; gap: 2rem; margin-bottom: 1.7rem; }
+  .recap-photos h2 { font-size: clamp(2rem, 3vw, 2.9rem); line-height: 1.1; }
+  .recap-photos__header p:not(.eyebrow) { max-width: 62ch; line-height: 1.65; margin-bottom: 0; }
+  .recap-photos__header > a { color: var(--link-strong); white-space: nowrap; font-size: .9rem; }
+  .recap-photos__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.5rem; }
+  .recap-photos__grid :global(figure) { margin: 0; min-width: 0; }
+  .recap-photos__grid :global(figure > a) { display: block; aspect-ratio: 4 / 3; background: var(--notice-surface); border-radius: 5px; overflow: hidden; }
+  .recap-photos__grid :global(img) { width: 100%; height: 100%; object-fit: cover; }
+  .recap-photos__grid :global(figcaption) { padding-top: .85rem; display: grid; gap: .3rem; overflow-wrap: anywhere; }
+  .recap-photos__grid :global(figcaption strong) { font-size: .96rem; font-weight: 600; }
+  .recap-photos__grid :global(figcaption > span) { font-size: .8rem; color: var(--text-muted); }
+  .recap-photos__grid :global(.recap-photo-fallback) { padding: 2rem; }
+  .recap-photos__invite, .recap-photos__status { margin-top: 1.8rem; font-size: .9rem; color: var(--text-muted); }
+  .recap-photos__invite a, .recap-photos__status a { color: var(--link-strong); }
+  @media (max-width: 850px) { .recap-photos__header { display: block; } .recap-photos__header > a { display: inline-block; margin-top: 1rem; } }
+  @media (max-width: 620px) { .recap-photos__grid { grid-template-columns: 1fr; gap: 1.7rem; } }
+</style>

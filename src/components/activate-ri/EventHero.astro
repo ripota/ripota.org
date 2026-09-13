@@ -1,9 +1,11 @@
 ---
 import EventHeroContent from "./EventHeroContent.astro";
 import EventPhaseViews from "./EventPhaseViews.astro";
+import EventRecap from "./EventRecap.astro";
 ---
 
 <EventPhaseViews>
   <EventHeroContent slot="planning" />
   <EventHeroContent slot="results" results />
+  <EventRecap slot="recap" />
 </EventPhaseViews>

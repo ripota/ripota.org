@@ -13,13 +13,13 @@ const Heading = organizer ? "h2" : "h1";
   <header class="media-workspace__header">
     <div>
       <p class="eyebrow">From the field</p>
-      <Heading id={`${prefix}-media-title`}>{personal ? "My media" : "Photos & videos"}</Heading>
-      <p class="lead">{personal ? "Share your activation and manage your photos and videos." : "The places, people, and moments behind our activations."}</p>
+      <Heading id={`${prefix}-media-title`}>{personal ? "My photos" : "Photos"}</Heading>
+      <p class="lead">{personal ? "Share your activation and manage your photos." : "The places, people, and moments behind our activations."}</p>
     </div>
     <div class="media-workspace__actions">
       {personal && <a href="/activate-ri-2026/media/">View public gallery</a>}
-      {personal && <button class="button" data-variant="primary" type="button" data-media-open-upload>Upload photos & videos</button>}
-      {publicGallery && <a class="button" data-variant="primary" href="/activate-ri-2026/activator/media/">Upload & manage my media</a>}
+      {personal && <button class="button" data-variant="primary" type="button" data-media-open-upload>Upload photos</button>}
+      {publicGallery && <a class="button" data-variant="primary" href="/activate-ri-2026/activator/media/">Upload & manage my photos</a>}
     </div>
   </header>
 
@@ -43,23 +43,29 @@ const Heading = organizer ? "h2" : "h1";
           <button class="button" data-variant="light" type="button" data-media-filter-clear hidden>Clear filters</button>
         </div>
       )}
+      {organizer && (
+        <div class="media-filters">
+          <label class="media-feature-checkbox"><input type="checkbox" data-media-filter-featured /> Featured only</label>
+          <button class="button" data-variant="light" type="button" data-media-filter-clear hidden>Clear filters</button>
+        </div>
+      )}
       <button class="button" data-variant="light" type="button" data-media-refresh>Refresh files</button>
     </div>
-    <p class="form-status" data-media-status role="status" aria-live="polite">Loading photos and videos…</p>
+    <p class="form-status" data-media-status role="status" aria-live="polite">Loading photos…</p>
     <p class="form-status" data-media-link-status role="status" aria-live="polite"></p>
     <div class="media-empty" data-media-empty hidden>
       <p data-media-empty-title>No shared uploads yet</p>
-      <span data-media-empty-help>Share a photo or video from your activation.</span>
+      <span data-media-empty-help>Share a photo from your activation.</span>
     </div>
     <div class="media-grid" data-media-gallery></div>
     <button class="button" data-variant="light" type="button" data-media-more hidden>Load more files</button>
   </section>
 
   {personal && (
-    <dialog class="media-modal media-upload-modal" data-media-upload-dialog aria-label="Upload photos & videos">
+    <dialog class="media-modal media-upload-modal" data-media-upload-dialog aria-label="Upload photos">
       <div class="media-upload">
         <header class="media-modal__header">
-          <div><p class="eyebrow">Share your activation</p><h2>Upload photos & videos</h2></div>
+          <div><p class="eyebrow">Share your activation</p><h2>Upload photos</h2></div>
           <button class="media-close" type="button" data-media-upload-close aria-label="Close upload">✕</button>
         </header>
         <p class="form-help" id="media-upload-limits">Photos up to {formatMediaBytes(mediaLimits.photoBytes)} each · Videos up to {formatMediaBytes(mediaLimits.videoBytes)} each.</p>
@@ -72,7 +78,7 @@ const Heading = organizer ? "h2" : "h1";
           <p class="form-help" id="media-default-park-help">Applies to files you choose next. You can change the park for each file.</p>
         </div>
         <div class="media-dropzone" data-media-dropzone>
-          <label for="activator-media-files">Choose photos and videos</label>
+          <label for="activator-media-files">Choose photos</label>
           <input id="activator-media-files" type="file" multiple accept={mediaAccept} data-media-input aria-describedby="media-upload-limits media-upload-formats" />
           <p class="form-help">Or drag files here.</p>
         </div>
@@ -132,7 +138,10 @@ const Heading = organizer ? "h2" : "h1";
               </select>
             </div>
             <p class="form-status" data-media-details-status role="status" aria-live="polite"></p>
-            <button class="button" data-variant="primary" type="submit" data-media-details-save>Save details</button>
+            <div class="media-detail__save-actions">
+              {organizer && <label class="media-feature-checkbox" data-media-feature-control hidden><input type="checkbox" data-media-edit-featured /> Feature on recap</label>}
+              <button class="button" data-variant="primary" type="submit" data-media-details-save>Save details</button>
+            </div>
           </form>
         </div>
       </div>
@@ -152,7 +161,7 @@ const Heading = organizer ? "h2" : "h1";
       </div>
     </form>
   </dialog>
-  <noscript><p class="form-status">Enable JavaScript to upload and view activator photos and videos.</p></noscript>
+  <noscript><p class="form-status">Enable JavaScript to upload and view activator photos.</p></noscript>
 </div>
 
 <script>
@@ -167,6 +176,9 @@ const Heading = organizer ? "h2" : "h1";
   .media-workspace__actions { display: flex; align-items: center; flex-wrap: wrap; gap: 1rem; }
   .media-workspace__actions > a:not(.button) { color: var(--link); font-size: .9rem; }
   .media-filters { display: flex; align-items: end; flex-wrap: wrap; gap: .75rem; min-width: 0; }
+  .media-feature-checkbox { display: inline-flex; align-items: center; gap: .55rem; min-height: 44px; font-weight: 700; font-size: .9rem; cursor: pointer; }
+  .media-feature-checkbox input { width: 1.15rem; height: 1.15rem; accent-color: var(--accent); }
+  .media-detail__save-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem; }
   .media-filter-park { width: min(24rem, 100%); }
   .media-workspace .media-workspace__header h1, .media-workspace .media-workspace__header h2 { margin: 0; max-width: none; font-size: clamp(2rem, 4vw, 2.75rem); }
   .media-workspace__header .lead { margin: .6rem 0 0; max-width: 54ch; font-size: 1rem; }
@@ -185,6 +197,7 @@ const Heading = organizer ? "h2" : "h1";
   .media-tile__preview, .media-tile__preview > img { width: 100%; height: 100%; object-fit: cover; }
   .media-tile__fallback { display: grid; position: absolute; inset: 0; align-content: center; gap: .35rem; padding: .7rem; font: inherit; font-size: .85rem; text-align: center; }
   .media-tile__park { position: absolute; top: .55rem; right: .55rem; border: 1px solid #ffffff45; border-radius: 999px; padding: .25rem .5rem; background: #142b27e6; color: #fff; font-size: .72rem; font-weight: 800; }
+  .media-tile__featured { position: absolute; bottom: .55rem; left: .55rem; border-radius: .35rem; padding: .3rem .55rem; background: #f5d680; color: #1d302b; font-size: .75rem; font-weight: 800; }
   .media-tile__tooltip { position: absolute; top: 2.8rem; right: .5rem; left: .5rem; width: fit-content; margin-left: auto; max-width: calc(100% - 1rem); border-radius: 5px; padding: .4rem .6rem; background: var(--surface-raised); color: var(--text-primary); font-size: .8rem; text-align: left; opacity: 0; pointer-events: none; }
   .media-tile__button:hover .media-tile__tooltip, .media-tile__button:focus-visible .media-tile__tooltip { opacity: 1; }
   .media-tile__caption { display: grid; gap: .15rem; padding: .5rem .1rem .15rem; }

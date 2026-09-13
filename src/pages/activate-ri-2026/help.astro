@@ -4,6 +4,8 @@ import Footer from "../../components/Footer.astro";
 import Notice from "../../components/Notice.astro";
 import SiteHeader from "../../components/SiteHeader.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
+import { eventPhaseAt } from "../../lib/activate-ri/event-phase";
+const postEvent = eventPhaseAt() === "post-event";
 
 const qrzEmbedSnippet = `<p style="margin: 0 auto; max-width: 960px; text-align: center;">
   <iframe
@@ -18,8 +20,8 @@ const qrzEmbedSnippet = `<p style="margin: 0 auto; max-width: 960px; text-align:
 ---
 
 <BaseLayout
-  title="Activate All RI 2026 FAQ"
-  description="Answers for Activate All RI 2026 activators and hunters, including schedules, live spots, QRZ embeds, and event contacts."
+  title="Activate All RI 2026 Help"
+  description="Help with Activate All RI 2026 logs, hunter credit, photos, account access, and corrections."
   canonicalPath="/activate-ri-2026/help/"
 >
   <SiteHeader variant="solid" showEventLink />
@@ -28,27 +30,42 @@ const qrzEmbedSnippet = `<p style="margin: 0 auto; max-width: 960px; text-align:
       <div class="container">
         <EventNav />
         <div class="section-header">
-          <p class="eyebrow">Event guide</p>
-          <h1 id="faq-title">Activate All RI FAQ</h1>
-          <p class="lead">
+          <p class="eyebrow" data-help-before="Event guide" data-help-after="Activate All RI 2026">{postEvent ? "Activate All RI 2026" : "Event guide"}</p>
+          <h1 id="faq-title" tabindex="-1" data-help-before="Activate All RI FAQ" data-help-after="A few things to wrap up">{postEvent ? "A few things to wrap up" : "Activate All RI FAQ"}</h1>
+          <p class="lead" data-help-live hidden={postEvent}>
             Find event details and practical answers for activators and hunters
             participating in Activate All RI 2026.
           </p>
+          <p class="lead" data-help-archive hidden={!postEvent}>Thank you for being part of the weekend. Here’s where to send your logs and photos, check a missing contact, or get a hand with your account.</p>
         </div>
 
         <nav class="faq-jump-links" aria-label="FAQ sections">
-          <a href="#general-faq">General FAQ</a>
-          <a href="#activator-faq">Activator FAQ</a>
-          <a href="#hunter-faq">Hunter FAQ</a>
+          <a href="#general-faq" data-help-before="General FAQ" data-help-after="Logs & results">{postEvent ? "Logs & results" : "General FAQ"}</a>
+          <a href="#activator-faq" data-help-before="Activator FAQ" data-help-after="Photos & your account">{postEvent ? "Photos & your account" : "Activator FAQ"}</a>
+          <a href="#hunter-faq" data-help-before="Hunter FAQ" data-help-after="Hunter credit & corrections">{postEvent ? "Hunter credit & corrections" : "Hunter FAQ"}</a>
         </nav>
 
         <div class="faq-groups">
           <section class="faq-group" id="general-faq" aria-labelledby="general-faq-title">
             <div class="faq-group__header">
-              <p class="eyebrow">About the weekend</p>
-              <h2 id="general-faq-title">General FAQ</h2>
+              <p class="eyebrow" data-help-live hidden={postEvent}>About the weekend</p>
+              <h2 id="general-faq-title" data-help-before="General FAQ" data-help-after="Logs and results">{postEvent ? "Logs and results" : "General FAQ"}</h2>
             </div>
-            <div class="event-guidance event-guidance--stacked">
+            <div class="event-guidance event-guidance--stacked" data-help-archive hidden={!postEvent}>
+              <article class="event-guidance__item">
+                <h3>Still have a log to upload?</h3>
+                <p>Please upload it to the <a href="https://pota.app/">official POTA app</a> as usual. It isn’t too late: POTA has no log-submission deadline. Even an attempt with fewer than 10 contacts can give your hunters credit. See the <a href="https://docs.pota.app/docs/rules.html#logging-requirements">POTA logging rules</a>.</p>
+              </article>
+              <article class="event-guidance__item">
+                <h3>Why are the results still changing?</h3>
+                <p>The <a href="/activate-ri-2026/#weekend-results">recap numbers</a> and <a href="/activate-ri-2026/parks/">park results</a> are provisional while logs arrive. A spot or a planned stop isn’t a confirmed activation. The <a href="/activate-ri-2026/schedule/">2026 schedule</a> preserves what people planned; the park results show what was recorded.</p>
+                <details>
+                  <summary>Which dates do the results cover?</summary>
+                  <p>Our reporting window runs from September 10 at 00:00 UTC up to September 14 at 00:00 UTC, including the early start. That’s September 9 at 8 p.m. through September 13 at 8 p.m. EDT. These are the site’s reporting boundaries, not a POTA log-submission deadline.</p>
+                </details>
+              </article>
+            </div>
+            <div class="event-guidance event-guidance--stacked" data-help-live hidden={postEvent}>
               <article class="event-guidance__item">
                 <h3>What is Activate All RI?</h3>
                 <p>
@@ -96,7 +113,7 @@ const qrzEmbedSnippet = `<p style="margin: 0 auto; max-width: 960px; text-align:
                 </p>
               </article>
 
-              <article class="event-guidance__item">
+              <article class="event-guidance__item" data-help-live hidden={postEvent}>
                 <h3>How can I promote the event?</h3>
                 <p>
                   Include an announcement on your nets, talk it up on the air,
@@ -105,7 +122,7 @@ const qrzEmbedSnippet = `<p style="margin: 0 auto; max-width: 960px; text-align:
                 </p>
               </article>
 
-              <article class="event-guidance__item">
+              <article class="event-guidance__item" data-help-live hidden={postEvent}>
                 <h3>I heard there is a cookout. What are the details?</h3>
                 <p>
                   Newport County Radio Club has invited Activate All Rhode
@@ -134,11 +151,21 @@ const qrzEmbedSnippet = `<p style="margin: 0 auto; max-width: 960px; text-align:
 
           <section class="faq-group" id="activator-faq" aria-labelledby="activator-faq-title">
             <div class="faq-group__header">
-              <p class="eyebrow">Putting parks on the air</p>
-              <h2 id="activator-faq-title">Activator FAQ</h2>
+              <p class="eyebrow" data-help-live hidden={postEvent}>Putting parks on the air</p>
+              <h2 id="activator-faq-title" data-help-before="Activator FAQ" data-help-after="Photos and your account">{postEvent ? "Photos and your account" : "Activator FAQ"}</h2>
             </div>
-            <div class="event-guidance event-guidance--stacked">
+            <div class="event-guidance event-guidance--stacked" data-help-archive hidden={!postEvent}>
               <article class="event-guidance__item">
+                <h3>Have a photo to share?</h3>
+                <p>We’d love to see your view of the weekend. Activators can <a href="/activate-ri-2026/activator/media/">add photos</a> through their existing account. You can also <a href="/activate-ri-2026/media/">browse the event gallery</a> to see what others shared.</p>
+              </article>
+              <article class="event-guidance__item">
+                <h3>Can I still get into my account?</h3>
+                <p>Yes. <a href="/activate-ri-2026/activator/plan/">Open My Plan</a>, or <a href="/account/sign-in/?returnTo=%2Factivate-ri-2026%2Factivator%2Fplan%2F">sign in with your passkey or an email link</a> using the address on your plan. Registration for new 2026 plans is closed, but existing activators can still make corrections and share media. If you’re stuck, <a href="#corrections">get in touch below</a>.</p>
+              </article>
+            </div>
+            <div class="event-guidance event-guidance--stacked" data-help-live hidden={postEvent}>
+              <article class="event-guidance__item" data-help-live hidden={postEvent}>
                 <h3>How do I sign up to put one or more RI parks on the air?</h3>
                 <p>
                   Open the <a href="/activate-ri-2026/volunteer/">activator signup</a>
@@ -146,7 +173,7 @@ const qrzEmbedSnippet = `<p style="margin: 0 auto; max-width: 960px; text-align:
                 </p>
               </article>
 
-              <article class="event-guidance__item">
+              <article class="event-guidance__item" data-help-live hidden={postEvent}>
                 <h3>Can I schedule a park that already has an activation scheduled?</h3>
                 <p>
                   Yes. Most, if not all, parks have at least one activation
@@ -244,10 +271,25 @@ const qrzEmbedSnippet = `<p style="margin: 0 auto; max-width: 960px; text-align:
 
           <section class="faq-group" id="hunter-faq" aria-labelledby="hunter-faq-title">
             <div class="faq-group__header">
-              <p class="eyebrow">Finding Rhode Island activations</p>
-              <h2 id="hunter-faq-title">Hunter FAQ</h2>
+              <p class="eyebrow" data-help-live hidden={postEvent}>Finding Rhode Island activations</p>
+              <h2 id="hunter-faq-title" data-help-before="Hunter FAQ" data-help-after="Hunter credit and corrections">{postEvent ? "Hunter credit and corrections" : "Hunter FAQ"}</h2>
             </div>
-            <div class="event-guidance event-guidance--stacked">
+            <div class="event-guidance event-guidance--stacked" data-help-archive hidden={!postEvent}>
+              <article class="event-guidance__item">
+                <h3>A park I hunted hasn’t appeared in POTA yet.</h3>
+                <p>The activator’s log may still be on its way. <a href="https://docs.pota.app/docs/rules.html#logging-requirements">Hunters receive credit through activator logs</a> and don’t submit their own logs to POTA. Check your <a href="https://pota.app/">official POTA record</a> as logs come in.</p>
+              </article>
+              <article class="event-guidance__item" id="corrections">
+                <h3>Something looks wrong, or I need a hand.</h3>
+                <p>Feel free to reach out to any of us. We’re happy to help.</p>
+                <ul class="event-help-list">
+                  <li><a href="https://www.qrz.com/db/N1RWJ">Rob Jackson — N1RWJ</a></li>
+                  <li><a href="https://www.qrz.com/db/N1BS">Brian Swann — N1BS</a></li>
+                  <li><a href="https://www.qrz.com/db/K1NW">Brian Maynard — K1NW</a></li>
+                </ul>
+              </article>
+            </div>
+            <div class="event-guidance event-guidance--stacked" data-help-live hidden={postEvent}>
               <article class="event-guidance__item">
                 <h3>I'm a POTA hunter. How do I participate?</h3>
                 <p>
@@ -298,3 +340,16 @@ const qrzEmbedSnippet = `<p style="margin: 0 auto; max-width: 960px; text-align:
   </main>
   <Footer />
 </BaseLayout>
+
+<script>
+  import { subscribeEventPhase } from "../../lib/activate-ri/event-phase";
+  subscribeEventPhase((phase) => {
+    const moveFocus = phase === "post-event" && Array.from(document.querySelectorAll<HTMLElement>("[data-help-live]")).some((element) => element.contains(document.activeElement));
+    document.querySelectorAll<HTMLElement>("[data-help-live]").forEach((element) => { element.hidden = phase === "post-event"; });
+    document.querySelectorAll<HTMLElement>("[data-help-archive]").forEach((element) => { element.hidden = phase !== "post-event"; });
+    if (moveFocus) document.querySelector<HTMLElement>("#faq-title")?.focus();
+    document.querySelectorAll<HTMLElement>("[data-help-before][data-help-after]").forEach((element) => {
+      element.textContent = (phase === "post-event" ? element.dataset.helpAfter : element.dataset.helpBefore) ?? "";
+    });
+  });
+</script>

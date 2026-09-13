@@ -7,6 +7,7 @@ import Notice from "../../components/Notice.astro";
 import SiteHeader from "../../components/SiteHeader.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import shareCardMetadata from "../../../public/assets/activate-ri-2026-share-card.meta.json";
+import { eventPhaseAt } from "../../lib/activate-ri/event-phase";
 
 const activateRiShareImage = {
   src: `/assets/activate-ri-2026-share-card.png?v=${encodeURIComponent(shareCardMetadata.generatedAt)}`,
@@ -19,17 +20,21 @@ const activateRiShareImage = {
 
 <BaseLayout
   title="Activate All RI 2026"
-  description="Follow Activate All RI progress, find Rhode Island parks on the air, and hunt the parks you need for your Worked All RI award."
+  description="Thank you to the activators, hunters, and helpers who put Rhode Island on the air. Explore Activate All RI 2026 results and photos from the parks."
   canonicalPath="/activate-ri-2026/"
   image={activateRiShareImage}
 >
   <SiteHeader variant="solid" showEventLink />
   <main id="main">
+    <noscript><style is:global>
+      #main [data-event-view="planning"], #main [data-event-view="results"], #main [data-event-participation] { display: none !important; }
+      #main [data-event-view="recap"][hidden] { display: block !important; }
+    </style></noscript>
     <div class="container event-overview-nav">
       <EventNav />
     </div>
     <EventHero />
-    <section class="section event-overview" aria-labelledby="event-overview-title">
+    <section class="section event-overview" aria-labelledby="event-overview-title" data-event-participation hidden={eventPhaseAt() === "post-event"}>
       <div class="container">
         <div class="section-header">
           <h2 id="event-overview-title">Two ways to join</h2>
@@ -80,3 +85,12 @@ const activateRiShareImage = {
   </main>
   <Footer />
 </BaseLayout>
+
+<script>
+  import { subscribeEventPhase } from "../../lib/activate-ri/event-phase";
+  subscribeEventPhase((phase) => {
+    document.querySelectorAll<HTMLElement>("[data-event-participation]").forEach((section) => {
+      section.hidden = phase === "post-event";
+    });
+  });
+</script>

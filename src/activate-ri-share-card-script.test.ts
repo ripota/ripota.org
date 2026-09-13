@@ -100,6 +100,30 @@ describe("share card status fingerprints", () => {
     expect(statusFingerprint(confirmed)).toBe(statusFingerprint(original));
   });
 
+  it("updates the recap card when recorded activity gains a qualifying log", () => {
+    const original = statusResponse();
+    const confirmed = statusResponse();
+    confirmed.parks[1].status = "confirmed";
+    confirmed.summary.confirmed = 2;
+    confirmed.summary.observedNotConfirmed = 0;
+    expect(shareCardStatusInput(original, "post-event")).toMatchObject({
+      total: 4, confirmed: 1, observed: 1,
+      parks: expect.arrayContaining([{ reference: "US-0514", status: "observed" }]),
+    });
+    expect(statusFingerprint(confirmed, "post-event")).not.toBe(statusFingerprint(original, "post-event"));
+  });
+
+  it("keeps the recap card stable when present-day spots or unrecorded plans change", () => {
+    const original = statusResponse();
+    const changed = statusResponse();
+    changed.parks[1].live = false;
+    changed.parks[3].live = true;
+    changed.parks[3].status = "scheduled";
+    changed.summary.scheduledNotConfirmed = 2;
+    changed.summary.stillNeeded = 0;
+    expect(statusFingerprint(changed, "post-event")).toBe(statusFingerprint(original, "post-event"));
+  });
+
   it("regenerates for new activity even when the live count is unchanged", () => {
     const original = statusResponse();
     const activated = statusResponse();
@@ -241,5 +265,5 @@ function statusResponse(): StatusResponse {
 }
 
 function statusFingerprint(snapshot: StatusResponse, phase = "event-live"): string {
-  return hashStableJson({ phase, status: shareCardStatusInput(snapshot) });
+  return hashStableJson({ phase, status: shareCardStatusInput(snapshot, phase) });
 }

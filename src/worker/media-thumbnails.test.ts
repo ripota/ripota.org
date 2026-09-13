@@ -11,6 +11,7 @@ const row: MediaRow = {
   content_type: "image/jpeg", kind: "photo", size: original.length, state: "ready",
   created_at: "2026-09-11T12:00:00.000Z", updated_at: "2026-09-11T12:00:00.000Z",
   park_reference: null, title: null, description: null, usage_notice_version: "ri-pota-media-v1",
+  featured_on_recap: 0,
 };
 const key = mediaThumbnailKey(row.object_key);
 type Stored = { bytes: Uint8Array<ArrayBuffer>; metadata: Record<string, string>; etag: string };

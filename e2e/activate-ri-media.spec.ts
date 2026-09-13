@@ -36,16 +36,16 @@ test("the gallery opens original media in owner-aware dialogs and preserves meta
     expect(profile.status(), await profile.text()).toBe(200);
     const authorLabel = (await profile.json() as { authorLabel: string }).authorLabel;
     expect(authorLabel).toBe("N1PIC - Coastal Operator");
-    await page.getByRole("link", { name: "My media", exact: true }).click();
+    await page.getByRole("link", { name: "My photos", exact: true }).click();
     await expect(page).toHaveURL(`${server.origin}${pagePath}`);
     await expect(page.locator("[data-media-input]")).toBeHidden();
     await expect(page.locator("[data-media-details-dialog]")).toBeHidden();
-    const launcher = page.getByRole("button", { name: "Upload photos & videos", exact: true });
+    const launcher = page.getByRole("button", { name: "Upload photos", exact: true });
     await expect(launcher).toBeVisible();
     const upload = await openUpload(page);
     await expect(page.getByLabel("Park (optional)", { exact: true })).toHaveValue("");
     await page.getByLabel("Park (optional)", { exact: true }).selectOption("US-2868");
-    await page.getByLabel("Choose photos and videos", { exact: true }).setInputFiles([photo, video]);
+    await page.getByLabel("Choose photos", { exact: true }).setInputFiles([photo, video]);
     await expect(page.locator('[data-media-queue] [data-state="ready"]')).toHaveCount(2);
     await expect(page.getByLabel(`Park for ${photo.name}`, { exact: true })).toHaveValue("US-2868");
     await page.getByLabel(`Park for ${video.name}`, { exact: true }).selectOption("");
@@ -216,7 +216,7 @@ test("the gallery opens original media in owner-aware dialogs and preserves meta
 
     const adminPage = await adminContext.newPage();
     await adminPage.goto(`${server.origin}/activate-ri-2026/admin/#media`);
-    await expect(adminPage.getByRole("tab", { name: "Photos & Videos", exact: true })).toHaveAttribute("aria-selected", "true");
+    await expect(adminPage.getByRole("tab", { name: "Photos", exact: true })).toHaveAttribute("aria-selected", "true");
     await expect(adminPage.locator("[data-media-gallery] article")).toHaveCount(2);
     await expect(adminPage.locator("[data-media-input]")).toHaveCount(0);
     await editDetails(page, savedPhoto.id, { parkReference: "US-2869" });
@@ -280,7 +280,7 @@ test("selection rejects unsupported files and preserves uploads for retry and ca
     await page.goto(`${server.origin}${pagePath}`);
     await expect(page.getByRole("button", { name: "Refresh files", exact: true })).toBeEnabled();
     const upload = await openUpload(page);
-    await page.getByLabel("Choose photos and videos", { exact: true }).setInputFiles({
+    await page.getByLabel("Choose photos", { exact: true }).setInputFiles({
       name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("activation notes"),
     });
     await page.locator("[data-media-input]").evaluate((input: HTMLInputElement) => {
@@ -312,7 +312,7 @@ test("selection rejects unsupported files and preserves uploads for retry and ca
       else await route.continue();
     });
     await page.getByLabel("Park (optional)", { exact: true }).selectOption("US-2868");
-    await page.getByLabel("Choose photos and videos", { exact: true }).setInputFiles(photo);
+    await page.getByLabel("Choose photos", { exact: true }).setInputFiles(photo);
     await page.getByRole("button", { name: "Upload 1 file", exact: true }).click();
     const retryRow = page.locator("[data-media-queue] li").filter({ hasText: photo.name });
     await expect(retryRow).toHaveAttribute("data-state", "error");
@@ -326,7 +326,7 @@ test("selection rejects unsupported files and preserves uploads for retry and ca
     expect(retryParks).toEqual(["US-2868", "US-2868"]);
 
     await openUpload(page);
-    await page.getByLabel("Choose photos and videos", { exact: true }).setInputFiles({ ...photo, name: "cancel.png" });
+    await page.getByLabel("Choose photos", { exact: true }).setInputFiles({ ...photo, name: "cancel.png" });
     await page.getByRole("button", { name: "Upload 1 file", exact: true }).click();
     await cancelRequestStarted;
     await expect(upload.getByRole("button", { name: "Close upload", exact: true })).toBeDisabled();
@@ -396,7 +396,7 @@ test("a throttled batch preserves unattempted files and resumes through explicit
     await expect(page.getByRole("group", { name: "Media shown", exact: true })).toHaveCount(0);
     await expect.poll(() => galleryReads).toBe(1);
     const upload = await openUpload(page);
-    await page.getByLabel("Choose photos and videos", { exact: true }).setInputFiles(selection);
+    await page.getByLabel("Choose photos", { exact: true }).setInputFiles(selection);
     await page.getByRole("button", { name: "Upload 12 files", exact: true }).click();
     await firstUploadStarted;
     await expect(page.locator("[data-media-refresh]")).toBeDisabled();
@@ -516,7 +516,7 @@ test("public filters survive links and history, keep ownership private, and disc
     await expect(gallery.locator("article")).toHaveCount(3);
     await expect(anonymous.locator("[data-media-open-upload]")).toHaveCount(0);
     await expect(anonymous.locator("[data-media-own]:visible")).toHaveCount(0);
-    await expect(anonymous.getByRole("link", { name: "Upload & manage my media", exact: true })).toHaveAttribute("href", pagePath);
+    await expect(anonymous.getByRole("link", { name: "Upload & manage my photos", exact: true })).toHaveAttribute("href", pagePath);
     await expect(gallery.locator("video")).toHaveCount(0);
     await expect(gallery.locator("img")).toHaveCount(2);
     expect(await gallery.locator("img").evaluateAll((images) => images.every((image) => (image as HTMLImageElement).src.endsWith("/thumbnail")))).toBe(true);
@@ -723,7 +723,7 @@ test("public pagination uses thumbnails while large private selections and dupli
     await signInActivator(page, server, "N1CAP");
     await page.goto(`${server.origin}${pagePath}`);
     const upload = await openUpload(page);
-    await page.getByLabel("Choose photos and videos", { exact: true }).setInputFiles(Array.from({ length: 55 }, (_, index) => ({ ...png, name: `selection-${index}.png` })));
+    await page.getByLabel("Choose photos", { exact: true }).setInputFiles(Array.from({ length: 55 }, (_, index) => ({ ...png, name: `selection-${index}.png` })));
     await expect(page.locator('[data-media-queue] [data-state="ready"]')).toHaveCount(55);
     await expect(upload.getByRole("button", { name: "Upload 55 files", exact: true })).toBeEnabled();
     await expect(upload).not.toContainText(/500 MB|50-file|50 files/);
@@ -890,7 +890,7 @@ async function captureMediaScreenshots(page: Page, name: string, selector: strin
 
 async function openUpload(page: Page) {
   const dialog = page.locator("[data-media-upload-dialog]");
-  if (!await dialog.isVisible()) await page.getByRole("button", { name: "Upload photos & videos", exact: true }).click();
+  if (!await dialog.isVisible()) await page.getByRole("button", { name: "Upload photos", exact: true }).click();
   await expect(dialog).toBeVisible();
   return dialog;
 }

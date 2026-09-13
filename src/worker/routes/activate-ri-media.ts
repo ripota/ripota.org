@@ -1,5 +1,5 @@
 import { mediaUsageNoticeVersion, mediaContentType, mediaLimits, validateMediaFile } from "../../lib/activate-ri/media";
-import { parseMediaMetadataPatch } from "../../lib/activate-ri/media-metadata";
+import { parseMediaMetadataPatch, type MediaMetadataPatch } from "../../lib/activate-ri/media-metadata";
 import { validateMediaParkReference } from "../../lib/activate-ri/media-parks";
 import { requireActivator, requireAdmin, type ActivatorIdentity } from "../auth/authorization";
 import type { Env } from "../env";
@@ -24,7 +24,7 @@ export async function handleActivateRiMediaApi(request: Request, env: Env): Prom
     return withHeaders(await handleMedia(request, env));
   } catch (error) {
     logWorkerError("activator-media-request-failed", error);
-    return withHeaders(json({ ok: false, error: "Unable to access photos and videos. Please try again." }, { status: 503 }));
+    return withHeaders(json({ ok: false, error: "Unable to access photos. Please try again." }, { status: 503 }));
   }
 }
 
@@ -43,12 +43,14 @@ async function handleMedia(request: Request, env: Env): Promise<Response> {
     if (env.REMOTE_DATA_READ_ONLY === "true") return failure("Remote production data is read-only in local development.", 403);
     if (!hasTrustedOrigin(request, env)) return failure("Forbidden", 403);
   }
-  if (!env.ACTIVATOR_MEDIA) return failure("Photo and video storage is not available yet. Please try again later.", 503);
+  if (!env.ACTIVATOR_MEDIA) return failure("Photo storage is not available yet. Please try again later.", 503);
 
   const id = match[2];
   if (match[3] === "thumbnail") return failure("Not found", 404);
   const file = match[3] === "file";
   if (!id && request.method === "GET") {
+    const featured = url.searchParams.get("featured");
+    if (featured !== null && (featured !== "1" || url.searchParams.getAll("featured").length !== 1)) return failure("Use featured=1 to select recap photos.", 400);
     const scope = url.searchParams.get("scope") ?? "all";
     if (!["all", "mine"].includes(scope) || (scope === "mine" && !owner)) return failure("Choose All media or My media.", 400);
     const cursor = url.searchParams.get("cursor");
@@ -56,6 +58,7 @@ async function handleMedia(request: Request, env: Env): Promise<Response> {
     const [createdAt, cursorId] = cursor?.split("|") ?? [null, null];
     const result = await env.DB.prepare(`${mediaSelect}
       WHERE m.event_id = ? AND m.state = 'ready'
+        ${featured === "1" ? "AND m.featured_on_recap = 1 AND m.kind = 'photo'" : ""}
         AND (? IS NULL OR m.activator_id = ?)
         AND (? IS NULL OR m.created_at < ? OR (m.created_at = ? AND m.id < ?))
       ORDER BY m.created_at DESC, m.id DESC LIMIT 51`)
@@ -76,12 +79,12 @@ async function handleMedia(request: Request, env: Env): Promise<Response> {
   const row = await env.DB.prepare(`${mediaSelect}
     WHERE m.event_id = ? AND m.id = ?`)
     .bind(env.ACTIVATE_RI_EVENT_ID, id).first<MediaRow & MediaAuthor>();
-  if (!row || row.state === "uploading") return failure("Photo or video not found.", 404);
+  if (!row || row.state === "uploading") return failure("File not found.", 404);
   // Gallery visibility never grants mutation rights. Other activators may only
   // read ready files, including downloads and ranges.
   if (owner && row.activator_id !== owner.activatorId &&
     (!file || !["GET", "HEAD"].includes(request.method))) {
-    return failure("Photo or video not found.", 404);
+    return failure("File not found.", 404);
   }
   if (file && ["GET", "HEAD"].includes(request.method) && row.state === "ready") return serveMedia(request, env.ACTIVATOR_MEDIA, row);
   if (!file && request.method === "GET" && row.state === "ready") {
@@ -94,14 +97,31 @@ async function handleMedia(request: Request, env: Env): Promise<Response> {
     await removeMediaObject(env, row);
     return json({ ok: true });
   }
-  return failure(row.state === "deleting" ? "Photo or video not found." : "Method not allowed", row.state === "deleting" ? 404 : 405);
+  return failure(row.state === "deleting" ? "File not found." : "Method not allowed", row.state === "deleting" ? 404 : 405);
 }
 
 async function handlePublicMedia(request: Request, env: Env, url: URL, id?: string, resource?: string): Promise<Response> {
   if (!["GET", "HEAD"].includes(request.method)) return failure("Method not allowed", 405);
-  if (!env.ACTIVATOR_MEDIA) return failure("Photo and video storage is not available yet. Please try again later.", 503);
+  if (!env.ACTIVATOR_MEDIA) return failure("Photo storage is not available yet. Please try again later.", 503);
   if (!id) {
     if (request.method !== "GET") return failure("Method not allowed", 405);
+    const summary = url.searchParams.get("summary");
+    if (summary !== null) {
+      if (summary !== "parks" || ["park", "kind", "cursor", "featured"].some((key) => url.searchParams.has(key))) {
+        return failure("Choose the park summary without gallery filters.", 400);
+      }
+      const result = await env.DB.prepare(`SELECT m.park_reference AS reference,
+        SUM(CASE WHEN m.kind = 'photo' THEN 1 ELSE 0 END) AS photos,
+        SUM(CASE WHEN m.kind = 'video' THEN 1 ELSE 0 END) AS videos
+        FROM activate_ri_media m
+        INNER JOIN activate_ri_activators a ON a.id = m.activator_id AND a.event_id = m.event_id
+        WHERE m.event_id = ? AND m.state = 'ready' AND m.park_reference IS NOT NULL
+        GROUP BY m.park_reference ORDER BY m.park_reference`)
+        .bind(env.ACTIVATE_RI_EVENT_ID).all<{ reference: string; photos: number; videos: number }>();
+      return json({ ok: true, parks: result.results });
+    }
+    const featured = url.searchParams.get("featured");
+    if (featured !== null && (featured !== "1" || url.searchParams.getAll("featured").length !== 1)) return failure("Use featured=1 to select recap photos.", 400);
     const park = url.searchParams.get("park");
     if (park !== null && park !== "general" && !validateMediaParkReference(park)) {
       return failure("Choose a Rhode Island park from the list, or General — no park.", 400);
@@ -116,6 +136,7 @@ async function handlePublicMedia(request: Request, env: Env, url: URL, id?: stri
     const viewerActivatorId = activator instanceof Response ? null : activator.activatorId;
     const result = await env.DB.prepare(`${mediaSelect}
       WHERE m.event_id = ? AND m.state = 'ready'
+        ${featured === "1" ? "AND m.featured_on_recap = 1 AND m.kind = 'photo'" : ""}
         AND (? IS NULL OR (? = 'general' AND m.park_reference IS NULL) OR m.park_reference = ?)
         AND (? IS NULL OR m.kind = ?)
         AND (? IS NULL OR m.created_at < ? OR (m.created_at = ? AND m.id < ?))
@@ -133,7 +154,7 @@ async function handlePublicMedia(request: Request, env: Env, url: URL, id?: stri
     const row = await env.DB.prepare(`${mediaSelect}
       WHERE m.event_id = ? AND m.id = ? AND m.state = 'ready'`)
       .bind(env.ACTIVATE_RI_EVENT_ID, id).first<MediaRow & MediaAuthor>();
-    if (!row) return failure("Photo or video not found.", 404);
+    if (!row) return failure("File not found.", 404);
     const [admin, activator] = await Promise.all([requireAdmin(request, env), requireActivator(request, env)]);
     return json({ ok: true, media: serializeMedia(row, "public",
       activator instanceof Response ? null : activator.activatorId, !(admin instanceof Response)) });
@@ -141,7 +162,7 @@ async function handlePublicMedia(request: Request, env: Env, url: URL, id?: stri
   const row = await env.DB.prepare(`SELECT * FROM activate_ri_media
     WHERE event_id = ? AND id = ? AND state = 'ready'`)
     .bind(env.ACTIVATE_RI_EVENT_ID, id).first<MediaRow>();
-  if (!row) return failure("Photo or video not found.", 404);
+  if (!row) return failure("File not found.", 404);
   if (resource === "thumbnail") {
     return row.kind === "photo" ? servePublicMediaThumbnail(request, env, row) : failure("Photo not found.", 404);
   }
@@ -161,7 +182,7 @@ function withPublicMediaHeaders(response: Response): Response {
 }
 
 async function uploadMedia(request: Request, env: Env, owner: ActivatorIdentity): Promise<Response> {
-  if (owner.status === "rejected") return failure("This registration cannot upload photos or videos. Contact an organizer.", 403);
+  if (owner.status === "rejected") return failure("This registration cannot upload photos. Contact an organizer.", 403);
   if (env.MEDIA_UPLOAD_RATE_LIMIT) {
     const allowed = await env.MEDIA_UPLOAD_RATE_LIMIT.limit({ key: `${env.ACTIVATE_RI_EVENT_ID}:${owner.activatorId}` });
     if (!allowed.success) return json({ ok: false, error: "Please wait a minute before uploading more files." }, { status: 429, headers: { "retry-after": "60" } });
@@ -192,6 +213,7 @@ async function uploadMedia(request: Request, env: Env, owner: ActivatorIdentity)
     size, state: "uploading", created_at: now, updated_at: now,
     park_reference: parkReference,
     title: null, description: null, usage_notice_version: mediaUsageNoticeVersion,
+    featured_on_recap: 0,
   };
   // Track the object before streaming so interrupted uploads remain eligible
   // for cleanup. Gallery pagination does not cap the number of uploads.
@@ -254,11 +276,32 @@ async function updateMediaDetails(
   } finally {
     reader.releaseLock();
   }
-  const { patch, error } = parseMediaMetadataPatch(payload);
-  if (error !== null) return failure(error, 400);
+  let featuredOnRecap: boolean | undefined;
+  let metadataPayload = payload;
+  let featureOnly = false;
+  if (typeof payload === "object" && payload !== null && !Array.isArray(payload) && "featuredOnRecap" in payload) {
+    if (audience !== "admin") return failure("Only organizers can change recap photo selections.", 403);
+    if (typeof payload.featuredOnRecap !== "boolean") return failure("Choose true or false for featuredOnRecap.", 400);
+    if (row.kind !== "photo") return failure("Only photos can be selected for the recap.", 400);
+    featuredOnRecap = payload.featuredOnRecap;
+    const metadata = Object.fromEntries(Object.entries(payload).filter(([key]) => key !== "featuredOnRecap"));
+    metadataPayload = metadata;
+    featureOnly = Object.keys(metadata).length === 0;
+  }
+  let patch: MediaMetadataPatch = {};
+  // A feature-only organizer change needs no ordinary metadata fields. Other
+  // updates keep the existing strict parser and cannot silently mutate selection.
+  if (!featureOnly) {
+    const parsed = parseMediaMetadataPatch(metadataPayload);
+    if (parsed.error !== null) return failure(parsed.error, 400);
+    patch = parsed.patch;
+  }
   const updatedAt = new Date().toISOString();
   const fields: string[] = ["updated_at = ?"];
-  const values: (string | null)[] = [updatedAt];
+  const values: (string | number | null)[] = [updatedAt];
+  if (featuredOnRecap !== undefined) {
+    fields.push("featured_on_recap = ?"); values.push(featuredOnRecap ? 1 : 0);
+  }
   if ("parkReference" in patch) {
     fields.push("park_reference = ?"); values.push(patch.parkReference ?? null);
   }
@@ -269,7 +312,7 @@ async function updateMediaDetails(
   const updated = await env.DB.prepare(`UPDATE activate_ri_media SET ${fields.join(", ")}
     WHERE event_id = ? AND id = ? AND activator_id = ? AND state = 'ready' RETURNING *`)
     .bind(...values, env.ACTIVATE_RI_EVENT_ID, row.id, row.activator_id).first<MediaRow>();
-  if (!updated) return failure("Photo or video not found.", 404);
+  if (!updated) return failure("File not found.", 404);
   const author = await currentMediaAuthor(env, row.activator_id);
   return json({ ok: true, media: serializeMedia({ ...updated, ...author }, audience, viewerActivatorId) });
 }
@@ -320,13 +363,13 @@ async function serveMedia(request: Request, bucket: R2Bucket, row: MediaRow): Pr
   }
   if (request.method === "HEAD") {
     const object = await bucket.head(row.object_key);
-    if (!object) return failure("Photo or video not found.", 404);
+    if (!object) return failure("File not found.", 404);
     headers.set("content-length", String(object.size));
     headers.set("etag", object.httpEtag);
     return new Response(null, { headers });
   }
   const object = await bucket.get(row.object_key, range ? { range } : undefined);
-  if (!object) return failure("Photo or video not found.", 404);
+  if (!object) return failure("File not found.", 404);
   headers.set("etag", object.httpEtag);
   if (range) {
     const actual = object.range;

@@ -12,7 +12,6 @@ export const publicPagePaths = [
   "/parks/",
   "/activate-ri-2026/",
   "/activate-ri-2026/help/",
-  "/activate-ri-2026/hunter/",
   "/activate-ri-2026/parks/",
   "/activate-ri-2026/schedule/",
   "/activate-ri-2026/volunteer/",

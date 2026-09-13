@@ -52,9 +52,9 @@ export const activateRi2026Event = {
     },
     "post-event": {
       primary: {
-        label: "View event progress",
-        href: eventRoute("progress"),
-        description: "See Rhode Island park activity during the event.",
+        label: "View park results",
+        href: eventRoute("parks"),
+        description: "Explore the recorded POTA activations from the weekend.",
       },
       secondary: {
         label: "Submit corrections",

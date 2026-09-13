@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import worker from "./index";
 import type { Env } from "./env";
 import { createMigratedSqliteD1 } from "./test-utils/sqlite-d1";
@@ -28,6 +28,11 @@ function localRequest(path: string, init?: RequestInit): Request {
 }
 
 describe("worker routing", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-13T12:00:00.000Z"));
+  });
+
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.useRealTimers();
@@ -246,7 +251,7 @@ describe("worker routing", () => {
   });
 
   it("routes the Activate All RI embed through the Worker without site chrome", async () => {
-    vi.useFakeTimers();
+    vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-09-09T12:00:00Z"));
     const testEnv = env();
 
@@ -265,7 +270,7 @@ describe("worker routing", () => {
   });
 
   it("automatically serves live spots in the embedded widget during the event", async () => {
-    vi.useFakeTimers();
+    vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-09-11T12:00:00Z"));
     const testEnv = env();
     const database = createMigratedSqliteD1();

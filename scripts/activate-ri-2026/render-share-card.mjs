@@ -20,6 +20,7 @@ const localParksPath = new URL("public/data/activate-ri-2026/parks.json", root);
 const outputWidth = 1200;
 const outputHeight = 630;
 const captureSelector = "[data-share-card-capture]";
+const recapCaptureSelector = "[data-event-recap] .recap-hero";
 
 const args = new Set(process.argv.slice(2));
 const force = args.has("--force");
@@ -42,6 +43,8 @@ const templateInputs = [
   "src/components/activate-ri/EventHero.astro",
   "src/components/activate-ri/EventHeroContent.astro",
   "src/components/activate-ri/EventPhaseViews.astro",
+  "src/components/activate-ri/EventRecap.astro",
+  "src/lib/activate-ri/recap.ts",
   "src/components/ReferenceMap.astro",
   "src/styles/global.css",
   "src/lib/reference-map.ts",
@@ -84,7 +87,7 @@ async function main() {
     phase,
     event: await hashFiles(dataInputs.event),
     parks: await hashFiles(dataInputs.parks),
-    ...(status ? { status: hashStableJson(shareCardStatusInput(status)) } : { stops: hashStableJson(stops.data) }),
+    ...(status ? { status: hashStableJson(shareCardStatusInput(status, phase)) } : { stops: hashStableJson(stops.data) }),
     template: await hashFiles(templateInputs),
   };
   const fingerprint = hashStableJson(inputs);
@@ -118,6 +121,11 @@ async function main() {
     // Live marker state comes from park-status. Radio details are hover-only
     // and are not part of this static card.
     await context.route("**/api/pota/spots", (route) => route.abort());
+    // The captured hero uses only the frozen park-status snapshot. Keep photo
+    // galleries and per-park photo summaries out of this scheduled render.
+    await context.route("**/api/activate-ri-2026/public/media?*", (route) =>
+      route.fulfill({ json: new URL(route.request().url()).searchParams.has("summary")
+        ? { ok: true, parks: [] } : { ok: true, media: [], nextCursor: null } }));
 
     const page = await context.newPage();
     // Let time advance: Leaflet uses Date.now() to fade loaded tiles in.
@@ -125,7 +133,7 @@ async function main() {
     await page.goto(`${server.origin}/activate-ri-2026/`, {
       waitUntil: "domcontentloaded",
     });
-    await page.addStyleTag({ content: shareCardCss() });
+    await page.addStyleTag({ content: shareCardCss(phase) });
     await waitForShareCardReady(page, phase, status);
 
     await mkdir(new URL("public/assets/", root), { recursive: true });
@@ -164,7 +172,18 @@ export function shareCardPhaseAt(event, now = new Date()) {
   return event.phase;
 }
 
-export function shareCardStatusInput(snapshot) {
+export function shareCardStatusInput(snapshot, phase = "event-live") {
+  if (phase === "post-event") {
+    return {
+      total: snapshot.summary.total,
+      confirmed: snapshot.summary.confirmed,
+      observed: snapshot.summary.observedNotConfirmed,
+      parks: snapshot.parks.map(({ reference, status }) => ({
+        reference,
+        status: status === "confirmed" || status === "observed" ? status : "needed",
+      })).sort((left, right) => left.reference.localeCompare(right.reference)),
+    };
+  }
   return {
     total: snapshot.summary.total,
     activated: snapshot.summary.confirmed + snapshot.summary.observedNotConfirmed,
@@ -369,9 +388,11 @@ async function waitForPreview(child, origin) {
 }
 
 export async function waitForShareCardReady(page, phase, status) {
-  const hero = page.locator(captureSelector).filter({ visible: true });
+  const selector = phase === "post-event" ? recapCaptureSelector : captureSelector;
+  const mapSelector = phase === "post-event" ? ".recap-hero__map" : ".event-hero__map";
+  const hero = page.locator(selector).filter({ visible: true });
   await hero.waitFor({ state: "visible", timeout: 20_000 });
-  await hero.locator(".event-hero__map .leaflet-container").waitFor({
+  await hero.locator(`${mapSelector} .leaflet-container`).waitFor({
     state: "visible",
     timeout: 20_000,
   });
@@ -380,6 +401,22 @@ export async function waitForShareCardReady(page, phase, status) {
       (element) => element.getClientRects().length > 0,
     );
     if (visibleHero?.closest("[data-event-phase-views]")?.getAttribute("data-phase") !== phase) return false;
+    if (phase === "post-event") {
+      const recap = visibleHero.closest("[data-event-recap]");
+      if (recap?.dataset.resultsState === "unavailable") throw new Error("Share card event results are unavailable.");
+      if (!status || recap?.dataset.resultsState !== "ready") return false;
+      const format = new Intl.NumberFormat("en-US");
+      const recorded = status.summary.confirmed + status.summary.observedNotConfirmed;
+      const coverage = visibleHero.querySelector("[data-recap-coverage]")?.textContent ?? "";
+      return recap.querySelector('[data-recap-stat="parks"]')?.textContent === `${format.format(status.summary.confirmed)} / ${format.format(status.summary.total)}` &&
+        (recorded === 0 || coverage.startsWith(recorded === status.summary.total
+          ? `Activity recorded at all ${format.format(recorded)} parks.`
+          : `Activity recorded at ${format.format(recorded)} of ${format.format(status.summary.total)} parks.`)) &&
+        visibleHero.querySelectorAll(".reference-map-status-symbol--activated").length === status.summary.confirmed &&
+        visibleHero.querySelectorAll(".reference-map-status-symbol--observed").length === status.summary.observedNotConfirmed &&
+        visibleHero.querySelectorAll(".reference-map-status-symbol--needed").length === status.summary.total - recorded &&
+        visibleHero.querySelectorAll(".reference-map-live-indicator--active").length === 0;
+    }
     const state = visibleHero?.querySelector("[data-live-hero-coverage]")?.getAttribute("data-state");
     if (state === "unavailable") throw new Error("Share card event data is unavailable.");
     if (state !== "ready") return false;
@@ -394,21 +431,25 @@ export async function waitForShareCardReady(page, phase, status) {
       progress?.value === activated && progress?.max === status.summary.total &&
       visibleHero.querySelectorAll(".reference-map-status-symbol--activated").length === activated &&
       visibleHero.querySelectorAll(".reference-map-live-indicator--active").length === Number(gaps);
-  }, { selector: captureSelector, phase, status }, { timeout: 20_000 });
+  }, { selector, phase, status }, { timeout: 20_000 });
   await page.evaluate(() => document.fonts.ready);
   await hero.locator(".leaflet-tile").first().waitFor({ state: "visible" });
   await page.waitForFunction((selector) => {
     const hero = [...document.querySelectorAll(selector)].find((element) => element.getClientRects().length > 0);
     return [...hero.querySelectorAll(".leaflet-tile")].every((tile) =>
       tile.complete && tile.naturalWidth > 0 && Number(getComputedStyle(tile).opacity) >= 0.99);
-  }, captureSelector, { timeout: 20_000 });
+  }, selector, { timeout: 20_000 });
   await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
-  await hero.locator(".event-hero__content").evaluate((content, height) => {
+  await hero.locator(phase === "post-event" ? ".recap-hero__copy" : ".event-hero__content").evaluate((content, height) => {
     if (content.getBoundingClientRect().bottom > height) throw new Error("Share card content is clipped.");
+  }, outputHeight);
+  if (phase === "post-event") await hero.locator(mapSelector).evaluate((map, height) => {
+    if (map.getBoundingClientRect().bottom > height) throw new Error("Share card recap map is clipped.");
   }, outputHeight);
 }
 
-function shareCardCss() {
+function shareCardCss(phase) {
+  const selector = phase === "post-event" ? recapCaptureSelector : captureSelector;
   return `
     html,
     body {
@@ -425,8 +466,9 @@ function shareCardCss() {
       display: none !important;
     }
 
-    ${captureSelector} {
+    ${selector} {
       position: fixed !important;
+      z-index: 1 !important;
       inset: 0 auto auto 0 !important;
       margin: 0 !important;
       box-sizing: border-box !important;
@@ -435,7 +477,7 @@ function shareCardCss() {
       padding: 32px 0 !important;
     }
 
-    ${captureSelector} .container {
+    ${selector} .container {
       width: 1128px !important;
     }
 
@@ -471,6 +513,17 @@ function shareCardCss() {
       min-height: 550px !important;
     }
     .event-hero__map .map-preview { margin: 0 !important; }
+    .recap-hero__inner {
+      height: 100% !important;
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr) !important;
+      gap: 36px !important;
+    }
+    .recap-hero h1 { font-size: 64px !important; line-height: 1.05 !important; }
+    .recap-hero .eyebrow { font-size: 15px !important; }
+    .recap-hero__thanks { font-size: 19px !important; line-height: 1.5 !important; }
+    .recap-hero .button { font-size: 14px !important; padding: 12px 14px !important; }
+    .recap-hero__map .ri-reference-map { height: 430px !important; min-height: 430px !important; }
+    .recap-hero__map .map-preview { margin: 0 !important; }
     .leaflet-control-zoom { display: none !important; }
     .leaflet-control-attribution { font-size: 9px !important; }
     .map-legend { font-size: 12px !important; gap: 8px !important; }

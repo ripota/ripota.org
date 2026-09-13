@@ -107,6 +107,7 @@ describe("park field-guide routes", () => {
     const xml = await response.text();
 
     expect(parkPaths).toHaveLength(61);
+    expect(paths).not.toContain("/activate-ri-2026/hunter/");
     expect(response.headers.get("content-type")).toBe("application/xml; charset=utf-8");
     for (const path of parkPaths) {
       expect(xml).toContain(`<loc>https://ripota.org${path}</loc>`);

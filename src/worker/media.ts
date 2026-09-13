@@ -19,6 +19,7 @@ export type MediaRow = {
   title: string | null;
   description: string | null;
   usage_notice_version: string | null;
+  featured_on_recap: number;
 };
 
 export type MediaAuthor = {
@@ -48,6 +49,7 @@ export function serializeMedia(
     parkReference: row.park_reference,
     title: row.title,
     description: row.description,
+    featuredOnRecap: row.featured_on_recap === 1,
     canEdit,
     isOwn,
     editUrl: canEdit ? `/api/activate-ri-2026/${isAdmin ? "admin" : "activator"}/media/${row.id}` : null,

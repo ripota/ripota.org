@@ -2,6 +2,10 @@ import { expect, test, type Page } from "@playwright/test";
 import { parseAnalyticsEvent, type AnalyticsEvent } from "../src/lib/analytics/events";
 import { startActivateRiServer } from "./helpers/activate-ri-server";
 
+test.beforeEach(async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-09-13T12:00:00Z"));
+});
+
 test.setTimeout(60_000);
 
 async function collectEvents(page: Page): Promise<AnalyticsEvent[]> {

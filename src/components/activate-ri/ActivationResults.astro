@@ -1,0 +1,87 @@
+---
+import { activationResultDates } from "../../lib/activate-ri/activation-results";
+import { eventPhaseAt } from "../../lib/activate-ri/event-phase";
+---
+
+<section class="activation-results" data-activation-results id={eventPhaseAt() === "post-event" ? "park-results" : undefined} aria-labelledby="activation-results-title">
+  <div class="activation-results__heading">
+    <div><p class="eyebrow">From the POTA logs</p><h2 id="activation-results-title">Recorded activations</h2></div>
+    <button class="button" data-variant="light" type="button" data-results-refresh>Refresh results</button>
+  </div>
+  <p class="activation-results__notice">These provisional records cover September 10–13, 2026, in UTC, including the early start. Logs and corrections may still arrive. Each row is one park, callsign, and UTC day; attempts with fewer than 10 QSOs are included.</p>
+  <p data-results-status role="status">Loading POTA activation records…</p>
+  <form class="activation-results__filters" data-results-filters aria-label="Activation record filters">
+    <label class="activation-results__search">Search parks or callsigns<input type="search" data-results-search placeholder="Park name, reference, or callsign" /></label>
+    <label>Date (UTC)<select data-results-filter="date">
+      {activationResultDates.map(({ value, label }) => <option value={value}>{value === "2026-09-10" ? `${label} · early start` : label}</option>)}
+    </select></label>
+    <label>Mode<select data-results-filter="mode"><option value="all">All modes</option><option value="cw">CW</option><option value="phone">Phone</option><option value="data">Data</option></select></label>
+    <label>Log result<select data-results-filter="outcome"><option value="all">All records</option><option value="qualifying">Qualifying activations</option><option value="attempts">Recorded attempts</option></select></label>
+    <label>Sort records<select data-results-filter="sort"><option value="date-desc">Newest date first</option><option value="date-asc">Oldest date first</option><option value="park">Park name</option><option value="callsign">Callsign</option><option value="qsos-desc">Most QSO credits</option></select></label>
+    <button class="button" data-variant="light" type="button" data-results-clear>Clear filters</button>
+  </form>
+  <p class="activation-results__count" data-results-count aria-live="polite"></p>
+  <p class="activation-results__empty" data-results-empty hidden></p>
+  <table class="activation-records" data-results-table hidden>
+    <caption class="sr-only">POTA activation records for Activate All RI 2026. QSO credits can include the same contact at more than one park.</caption>
+    <thead><tr><th scope="col">Park</th><th scope="col">Callsign</th><th scope="col">Date (UTC)</th><th scope="col">Result</th><th scope="col">Total QSOs</th><th scope="col">CW</th><th scope="col">Phone</th><th scope="col">Data</th><th scope="col">From this park</th></tr></thead>
+    <tbody data-results-rows></tbody>
+  </table>
+  <p class="activation-results__footnote">The roster is the 61 parks from the 2026 event. Parks without uploaded event logs do not have a row here yet. QSO totals are park credits, so contacts credited to multiple parks can appear more than once. Official <a href="https://pota.app/">Parks on the Air records</a> remain the source of truth for activation validity and awards.</p>
+  <noscript><p>Enable JavaScript to load and filter the recorded activations, or <a href="https://pota.app/">check the official POTA records</a>.</p></noscript>
+</section>
+
+<script>
+  import { subscribeEventPhase } from "../../lib/activate-ri/event-phase";
+  import { setupActivationResults } from "../../lib/activate-ri/activation-results-client";
+  document.querySelectorAll<HTMLElement>("[data-activation-results]").forEach((root) => {
+    let started = false;
+    subscribeEventPhase((phase) => {
+      if (phase !== "post-event") { root.removeAttribute("id"); return; }
+      root.id = "park-results";
+      if (started) return;
+      started = true;
+      setupActivationResults(root);
+      // The page reveals its archive ancestor in another phase subscriber.
+      // Wait for that visibility change before resolving an old-build anchor.
+      if (window.location.hash === "#park-results") requestAnimationFrame(() => root.scrollIntoView({ block: "start" }));
+    });
+  });
+</script>
+
+<style>
+  .activation-results { scroll-margin-top: 2rem; margin-block: 2rem; }
+  .activation-results__heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+  .activation-results__heading h2 { margin: 0; }
+  .activation-results__heading .eyebrow { margin-bottom: .35rem; }
+  .activation-results__notice, .activation-results__footnote { color: var(--text-muted); line-height: 1.7; max-width: 95ch; font-size: .9rem; }
+  [data-results-status] { font-size: .85rem; color: var(--text-muted); }
+  .activation-results__filters { display: grid; grid-template-columns: minmax(12rem, 2fr) repeat(4, minmax(7.5rem, 1fr)); align-items: end; gap: 1rem; margin: 1.5rem 0; }
+  .activation-results__filters label { display: grid; gap: .45rem; min-width: 0; font-size: .82rem; font-weight: 700; }
+  .activation-results__filters input, .activation-results__filters select { width: 100%; min-width: 0; border: 1px solid var(--border-subtle); border-radius: .35rem; padding: .7rem; background: var(--surface-raised); color: var(--text-primary); font: inherit; font-weight: 400; }
+  .activation-results__filters button { width: fit-content; }
+  .activation-results__count { font-size: .87rem; }
+  .activation-results__empty { background: var(--notice-surface); border-radius: .4rem; padding: 1.2rem; }
+  .activation-records { width: 100%; border-collapse: collapse; font-size: .85rem; }
+  .activation-records :global(th), .activation-records :global(td) { padding: .8rem .5rem; border-bottom: 1px solid var(--border-subtle); text-align: left; vertical-align: top; }
+  .activation-records thead th { color: var(--text-muted); font-size: .72rem; white-space: nowrap; }
+  .activation-records :global(th[scope="row"]) { width: 24%; font-weight: 600; }
+  .activation-records :global(.activation-record__name) { display: block; font-weight: 400; margin-top: .2rem; }
+  .activation-records :global(.activation-record__numeric) { text-align: right; font-variant-numeric: tabular-nums; }
+  .activation-records :global(.activation-record__date) { white-space: nowrap; }
+  .activation-records :global(.activation-record__outcome) { display: inline-block; border-radius: .3rem; padding: .15rem .4rem; background: var(--notice-surface); color: var(--surface-ink); font-size: .77rem; }
+  .activation-records :global([data-outcome="attempt"]) { border: 1px solid #aa772c; }
+  .activation-records :global(.activation-record__media) { font-size: .8rem; }
+  @media (max-width: 1050px) { .activation-results__filters { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (max-width: 1000px) {
+    .activation-records, .activation-records :global(tbody) { display: block; }
+    .activation-records thead { position: absolute; clip-path: inset(50%); width: 1px; height: 1px; overflow: hidden; }
+    .activation-records :global(tr) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid var(--border-subtle); border-radius: .4rem; margin-bottom: 1rem; padding: .35rem .6rem; }
+    .activation-records :global(th[scope="row"]) { grid-column: 1 / -1; width: auto; }
+    .activation-records :global(td) { display: flex; flex-direction: column; align-items: flex-start; gap: .2rem; border: 0; padding: .55rem .5rem; min-width: 0; overflow-wrap: anywhere; }
+    .activation-records :global(td)::before { content: attr(data-label); font-size: .72rem; color: var(--text-muted); }
+    .activation-records :global(.activation-record__numeric) { text-align: left; }
+    .activation-records :global(.activation-record__media) { grid-column: 1 / -1; }
+  }
+  @media (max-width: 560px) { .activation-results__filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } .activation-results__search { grid-column: 1 / -1; } .activation-results__heading { align-items: start; } }
+</style>

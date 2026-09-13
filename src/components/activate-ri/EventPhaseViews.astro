@@ -1,17 +1,27 @@
-<div data-event-phase-views>
-  <div data-event-view="planning"><slot name="planning" /></div>
-  <div data-event-view="results" hidden><slot name="results" /></div>
+---
+import { eventPhaseAt } from "../../lib/activate-ri/event-phase";
+const hasRecap = Astro.slots.has("recap");
+const phase = eventPhaseAt();
+const initialView = phase === "post-event" && hasRecap ? "recap"
+  : phase === "event-live" || phase === "post-event" ? "results" : "planning";
+---
+
+<div data-event-phase-views data-has-recap={hasRecap ? "true" : undefined} data-phase={phase}>
+  <div data-event-view="planning" hidden={initialView !== "planning"}><slot name="planning" /></div>
+  <div data-event-view="results" hidden={initialView !== "results"}><slot name="results" /></div>
+  {hasRecap && <div data-event-view="recap" hidden={initialView !== "recap"}><slot name="recap" /></div>}
 </div>
 
 <script>
   import { subscribeEventPhase } from "../../lib/activate-ri/event-phase";
 
   subscribeEventPhase((phase) => {
-    const results = phase === "event-live" || phase === "post-event";
     document.querySelectorAll<HTMLElement>("[data-event-phase-views]").forEach((root) => {
       root.dataset.phase = phase;
+      const viewName = phase === "post-event" && root.dataset.hasRecap === "true" ? "recap"
+        : phase === "event-live" || phase === "post-event" ? "results" : "planning";
       root.querySelectorAll<HTMLElement>("[data-event-view]").forEach((view) => {
-        view.hidden = (view.dataset.eventView === "results") !== results;
+        view.hidden = view.dataset.eventView !== viewName;
       });
     });
   });

@@ -9,6 +9,8 @@ let database: ReturnType<typeof createMigratedSqliteD1>;
 let env: Env;
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-09-13T12:00:00.000Z"));
   database = createMigratedSqliteD1();
   env = {
     ACTIVATE_RI_EVENT_ID: "activate-ri-2026",
@@ -22,7 +24,10 @@ beforeEach(() => {
   };
 });
 
-afterEach(() => database.close());
+afterEach(() => {
+  database.close();
+  vi.useRealTimers();
+});
 
 describe("signed-in volunteer association", () => {
   it("links a verified matching signed-in user", async () => {
