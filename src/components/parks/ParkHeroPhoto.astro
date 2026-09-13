@@ -1,0 +1,132 @@
+---
+import type { ParkHeroPhoto } from "../../lib/parks/images";
+
+interface Props {
+  hero: ParkHeroPhoto;
+  sizes?: string;
+}
+
+const { hero, sizes = "(min-width: 861px) 52vw, 100vw" } = Astro.props;
+const { image } = hero;
+---
+
+<figure class="park-hero-photo" data-park-hero-photo>
+  <div class="park-hero-photo__image" data-park-hero-image>
+    <img
+      src={hero.src}
+      srcset={hero.srcset}
+      sizes={sizes}
+      width={hero.width}
+      height={hero.height}
+      alt={image.alt}
+      style={`object-position: ${hero.objectPosition}`}
+      loading="eager"
+      fetchpriority="high"
+      decoding="async"
+    />
+  </div>
+  <figcaption class="park-hero-photo__caption" data-park-photo-credit>
+    {image.caption && <span class="park-hero-photo__title">{image.caption}</span>}
+    <span class="park-hero-photo__credit">
+      Photo: <a href={image.source.pageUrl} target="_blank" rel="noreferrer">{image.credit}</a>
+      <span aria-hidden="true"> · </span>
+      <a href={image.rights.url} target="_blank" rel="noreferrer">{image.rights.label}</a>
+    </span>
+    <details class="park-hero-photo__details">
+      <summary>Photo details</summary>
+      <p>
+        <a href={hero.variants.at(-1)!.url} target="_blank" rel="noreferrer">Open full photo ↗</a>
+        <span aria-hidden="true"> · </span>
+        <a href={image.source.imageUrl} target="_blank" rel="noreferrer">Source image ↗</a>
+        <span aria-hidden="true"> · </span>
+        Retrieved {image.source.retrievedAt}. Rights reviewed {image.rights.reviewedAt}.
+      </p>
+      {image.transforms.length > 0 && (
+        <ul>{image.transforms.map((transform) => <li>{transform}</li>)}</ul>
+      )}
+      <p>
+        RI POTA resized and encoded this photo as WebP for different screen sizes.
+        The displayed crop may vary with the layout. The linked photo license applies to these versions.
+      </p>
+    </details>
+  </figcaption>
+</figure>
+
+<style>
+  .park-hero-photo {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    margin: 0;
+    color: var(--text-primary);
+  }
+
+  .park-hero-photo__image {
+    position: relative;
+    flex: none;
+    width: 100%;
+    height: var(--park-hero-image-height, 390px);
+    border-radius: 7px;
+    overflow: hidden;
+  }
+
+  .park-hero-photo__image img {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: var(--park-photo-fit, cover);
+  }
+
+  .park-hero-photo__caption {
+    flex: 0 0 auto;
+    padding: 0.65rem 0;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+
+  .park-hero-photo__title,
+  .park-hero-photo__credit {
+    display: block;
+  }
+
+  .park-hero-photo__title {
+    margin-bottom: 0.2rem;
+    color: var(--text-primary);
+    font-weight: 750;
+  }
+
+  .park-hero-photo__caption a {
+    color: var(--link-strong);
+    text-underline-offset: 0.15em;
+  }
+
+  .park-hero-photo__details {
+    margin-top: 0.25rem;
+  }
+
+  .park-hero-photo__details summary {
+    width: fit-content;
+    cursor: pointer;
+    font-weight: 750;
+  }
+
+  .park-hero-photo__details p,
+  .park-hero-photo__details ul {
+    margin-top: 0.5rem;
+  }
+
+  .park-hero-photo__details ul {
+    padding-left: 1.2rem;
+  }
+
+  .park-hero-photo__details summary:focus-visible,
+  .park-hero-photo__caption a:focus-visible {
+    outline: 2px solid var(--link-strong);
+    outline-offset: 3px;
+  }
+
+</style>

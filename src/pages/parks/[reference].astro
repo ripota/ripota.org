@@ -3,6 +3,8 @@ import Footer from "../../components/Footer.astro";
 import Notice from "../../components/Notice.astro";
 import ParkCoordinates from "../../components/parks/ParkCoordinates.astro";
 import ParkDetailMap from "../../components/parks/ParkDetailMap.astro";
+import ParkHeroPhoto from "../../components/parks/ParkHeroPhoto.astro";
+import { getParkHeroPhoto } from "../../lib/parks/images";
 import ParkVisitInfo from "../../components/parks/ParkVisitInfo.astro";
 import { getPark } from "@ripota/parks";
 import SiteHeader from "../../components/SiteHeader.astro";
@@ -30,6 +32,7 @@ export function getStaticPaths() {
 
 const { park } = Astro.props;
 const visitorInfo = getPark(park.reference)!;
+const hero = await getParkHeroPhoto(visitorInfo);
 const relatedParks = sameGeometryReferences(parksCatalog.references, park.reference);
 const relationshipParks = [park, ...relatedParks];
 const geometryLabel = parkGeometryLabel(park);
@@ -42,36 +45,52 @@ const officialMultipleReferencesUrl =
   title={`${park.name} field guide`}
   description={`A Rhode Island field guide for ${park.name}, including its map, park identity, and source links.`}
   canonicalPath={parkGuidePath(park.reference)}
+  image={hero ? {
+    src: hero.src,
+    alt: hero.image.alt,
+    width: hero.width,
+    height: hero.height,
+    type: "image/webp",
+  } : undefined}
   bodyClass="park-page"
 >
-  <SiteHeader variant="overlay" />
+  <SiteHeader variant="solid" />
   <main id="main">
     <section class="park-hero" aria-labelledby="park-title">
-      <ParkDetailMap
-        id={`park-boundary-map-${park.reference.toLowerCase()}`}
-        park={park}
-        relatedParks={relatedParks}
-      />
-
       <div class="park-hero__content container">
-        <article class="park-identity">
-          <a class="park-identity__breadcrumb" href="/parks/">
-            All Rhode Island parks <span aria-hidden="true">/</span> {park.counties.join(", ")}
-          </a>
-          <p class="park-identity__reference">{park.reference}</p>
-          <h1 id="park-title">{park.name}</h1>
-          <p class="park-identity__meta">
-            {park.counties.join(" · ")} <span aria-hidden="true">•</span> Grid {park.grid}
-          </p>
-          <ParkCoordinates park={park} variant="hero" />
-          <a
-            class="button park-identity__official-link"
-            data-variant="secondary"
-            href={park.potaUrl}
-            target="_blank"
-            rel="noreferrer"
-          >Official POTA page ↗</a>
-        </article>
+        <a class="park-identity__breadcrumb" href="/parks/">
+          All Rhode Island parks <span aria-hidden="true">/</span> {park.counties.join(", ")}
+        </a>
+        <div class="park-identity">
+          <div>
+            <p class="park-identity__reference">{park.reference}</p>
+            <h1 id="park-title">{park.name}</h1>
+            {visitorInfo.summary && <p class="park-identity__summary">{visitorInfo.summary}</p>}
+            <p class="park-identity__meta">
+              {park.counties.join(" · ")} <span aria-hidden="true">·</span> Grid {park.grid}
+            </p>
+          </div>
+          <div class="park-identity__actions">
+            <ParkCoordinates park={park} />
+            <a
+              class="button park-identity__official-link"
+              data-variant="primary"
+              href={park.potaUrl}
+              target="_blank"
+              rel="noreferrer"
+            >Official POTA page ↗</a>
+          </div>
+        </div>
+      </div>
+      <div class:list={["park-hero__media container", { "park-hero__media--with-photo": hero }]}>
+        {hero && <ParkHeroPhoto hero={hero} sizes="(min-width: 1200px) 615px, (min-width: 861px) 52vw, 100vw" />}
+        <div class="park-hero__map">
+          <ParkDetailMap
+            id={`park-boundary-map-${park.reference.toLowerCase()}`}
+            park={park}
+            relatedParks={relatedParks}
+          />
+        </div>
       </div>
     </section>
 
@@ -176,110 +195,127 @@ const officialMultipleReferencesUrl =
 </BaseLayout>
 
 <style>
-  :global(.park-page .site-header) {
-    z-index: 1000;
-  }
-
   .park-hero {
-    position: relative;
-    z-index: 0;
-    min-height: min(780px, 92svh);
-    isolation: isolate;
-    overflow: hidden;
-    background: var(--surface-brand);
-  }
-
-  .park-hero__content {
-    position: relative;
-    z-index: 800;
-    display: flex;
-    min-height: min(780px, 92svh);
-    align-items: flex-end;
-    padding-bottom: clamp(2.2rem, 5vw, 4.5rem);
-    pointer-events: none;
-  }
-
-  .park-identity {
-    width: min(570px, 100%);
-    border: 1px solid rgba(255, 250, 240, 0.2);
-    border-radius: 10px;
-    background: rgba(18, 39, 37, 0.93);
-    box-shadow: 0 28px 85px rgba(5, 17, 16, 0.38);
-    padding: clamp(1.35rem, 3.5vw, 2.2rem);
-    color: var(--text-on-hero);
-    pointer-events: auto;
-    backdrop-filter: blur(14px);
+    padding-block: clamp(1.5rem, 3vw, 2.5rem) 2rem;
+    background: var(--surface-page);
   }
 
   .park-identity__breadcrumb {
-    display: inline-flex;
+    display: flex;
+    flex-wrap: wrap;
     gap: 0.45rem;
-    margin-bottom: 1rem;
-    color: color-mix(in srgb, var(--text-on-hero) 76%, transparent);
+    margin-bottom: 1.5rem;
+    color: var(--text-muted);
     font-size: 0.78rem;
     font-weight: 750;
     text-decoration: none;
   }
 
+  .park-identity {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 1rem 2rem;
+    margin-bottom: 1.5rem;
+  }
+
   .park-identity__reference {
     width: fit-content;
-    border: 1px solid rgba(255, 250, 240, 0.38);
-    border-radius: 999px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 4px;
     margin-bottom: 0.9rem;
     padding: 0.28rem 0.55rem;
-    color: var(--text-on-hero);
-    font-size: 0.67rem;
+    color: var(--link-strong);
+    font-size: 0.7rem;
     font-weight: 900;
     letter-spacing: 0.08em;
   }
 
   .park-identity h1 {
-    max-width: 13ch;
-    color: var(--text-on-hero);
-    font-size: clamp(2.75rem, 5vw, 4.5rem);
-    line-height: 0.94;
+    color: var(--surface-ink);
+    max-width: 20ch;
+    font-size: clamp(2.6rem, 4.8vw, 4.5rem);
+    line-height: 1;
     overflow-wrap: normal;
+  }
+
+  .park-identity__summary {
+    max-width: 65ch;
+    margin-top: 1rem;
+    color: var(--text-muted);
+    font-size: 1rem;
   }
 
   .park-identity__meta {
     margin-top: 1rem;
-    color: color-mix(in srgb, var(--text-on-hero) 72%, transparent);
-    font-size: 0.83rem;
-    font-weight: 800;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+  }
+
+  .park-identity__actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .park-identity__actions :global(.park-coordinates) {
+    margin-top: 0;
   }
 
   .park-identity__official-link {
     width: fit-content;
-    margin-top: 1.35rem;
-    background: rgba(255, 250, 240, 0.08);
   }
 
-  .park-hero[data-location-mode="active"] .park-hero__content {
+  .park-hero__media {
+    display: grid;
+    gap: 1rem;
+    align-items: start;
+    --park-hero-image-height: 390px;
+  }
+
+  .park-hero__media--with-photo {
+    grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr);
+  }
+
+  .park-hero__map {
+    position: relative;
+    height: var(--park-hero-image-height);
+    border: 1px solid var(--border-subtle);
+    border-radius: 7px;
+    overflow: hidden;
+  }
+
+  .park-hero[data-location-mode="active"] .park-hero__content,
+  .park-hero[data-location-mode="active"] :global([data-park-hero-photo]) {
     display: none;
   }
 
-  .park-hero[data-location-mode="active"] .park-identity {
-    display: none;
-  }
-
-  :global(.park-page .park-hero[data-location-mode="active"] .park-detail-map__key) {
-    visibility: hidden;
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  @media (min-width: 561px) {
-    .park-hero[data-location-mode="active"] {
-      min-height: 100svh;
+  @media (max-width: 860px) {
+    .park-identity {
+      grid-template-columns: 1fr;
     }
-  }
 
-  @media (prefers-reduced-motion: no-preference) {
-    .park-identity,
-    :global(.park-detail-map__key) {
-      transition:
-        opacity 180ms ease,
-        transform 180ms ease;
+    .park-identity h1 {
+      font-size: clamp(2.5rem, 8vw, 4rem);
+    }
+
+    .park-identity__actions {
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .park-hero__media--with-photo {
+      grid-template-columns: 1fr;
+    }
+
+    .park-hero__media {
+      --park-hero-image-height: clamp(250px, 60vw, 390px);
+    }
+
+    .park-hero__map {
+      height: 360px;
     }
   }
 
@@ -490,26 +526,6 @@ const officialMultipleReferencesUrl =
   }
 
   @media (max-width: 860px) {
-    .park-hero,
-    .park-hero__content {
-      min-height: 760px;
-    }
-
-    .park-hero__content {
-      align-items: flex-end;
-      padding-bottom: 1rem;
-    }
-
-    .park-identity {
-      width: 100%;
-      padding: 1.25rem;
-    }
-
-    .park-identity h1 {
-      max-width: 12ch;
-      font-size: clamp(2.8rem, 12vw, 4rem);
-    }
-
     .park-map-facts__layout,
     .park-overlap__layout,
     .park-sources__layout {
@@ -522,45 +538,7 @@ const officialMultipleReferencesUrl =
   }
 
   @media (max-width: 560px) {
-    .park-hero {
-      min-height: 0;
-      overflow: visible;
-    }
-
-    :global(.park-page .park-hero .park-detail-map) {
-      position: relative;
-      inset: auto;
-      height: 430px;
-    }
-
-    .park-hero[data-location-mode="active"] {
-      min-height: 100svh;
-      height: 100svh;
-      overflow: hidden;
-    }
-
-    :global(.park-page .park-hero[data-location-mode="active"] .park-detail-map) {
-      position: absolute;
-      inset: 0;
-      height: 100%;
-    }
-
-    .park-hero__content {
-      min-height: 0;
-      padding-block: 1rem;
-    }
-
-    .park-identity__breadcrumb {
-      display: none;
-    }
-
-    .park-identity__official-link {
-      width: 100%;
-    }
-
-    .park-subnav__inner {
-      width: 100%;
-      padding-inline: 1rem;
-    }
+    .park-subnav span { display: none; }
+    .park-subnav__inner { gap: 1rem; }
   }
 </style>

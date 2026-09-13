@@ -17,17 +17,17 @@ import { parksCatalog } from "./catalog";
 describe("@ripota/parks package contract", () => {
   it("pins the immutable v4 release tarball", () => {
     const releaseUrl =
-      "https://github.com/ripota/parks/releases/download/v4.0.0/ripota-parks-4.0.0.tgz";
+      "https://github.com/ripota/parks/releases/download/v4.1.0/ripota-parks-4.1.0.tgz";
 
     expect(packageManifest.dependencies["@ripota/parks"]).toBe(releaseUrl);
     expect(packageLock.packages["node_modules/@ripota/parks"]).toMatchObject({
-      version: "4.0.0",
-      integrity: "sha512-uRIkJJXeBGMBiy+szfJAtSbLY9Z6x8rc1wDJaAFtI41LLEsv7RhhBbuvvzvVwAqwGlN+uOAoLI+RMyrTGCEfVQ==",
+      version: "4.1.0",
+      integrity: "sha512-dciXbajk5twG0xdJdWDZ+7xePVD0xT3zRAqIudkwKslXh5IOgN1lvTcNIYj/EYGVW9uIiwS0iLwtE94cAYxhpQ==",
       resolved: releaseUrl,
     });
     const entry = createRequire(import.meta.url).resolve("@ripota/parks");
     const installed = JSON.parse(readFileSync(new URL("../package.json", `file://${entry}`), "utf8"));
-    expect(installed.version).toBe("4.0.0");
+    expect(installed.version).toBe("4.1.0");
   });
 
   it("adds visitor metadata while preserving every identity and display geometry", () => {
@@ -122,7 +122,7 @@ describe("@ripota/parks package contract", () => {
       expect(web.bbox![1]).toBeGreaterThanOrEqual(display.bbox![1]);
       expect(web.bbox![2]).toBeLessThanOrEqual(display.bbox![2]);
       expect(web.bbox![3]).toBeLessThanOrEqual(display.bbox![3]);
-      expect(getCanonicalGeometryUrl(display.reference)).toBe(`/data/parks/4.0.0/boundaries/${display.reference.toLowerCase()}.geojson`);
+      expect(getCanonicalGeometryUrl(display.reference)).toBe(`/data/parks/4.1.0/boundaries/${display.reference.toLowerCase()}.geojson`);
       const detailed = JSON.parse(readGeometryArtifact(display.artifact!));
       expect(detailed.properties.fidelity).not.toBe("web");
       expect(detailed.features).toEqual(parksCatalog.references.find(({ reference }) => reference === display.reference)?.geojson.features);
@@ -130,7 +130,7 @@ describe("@ripota/parks package contract", () => {
     const detailedTrail = parksCatalog.references.find(({ reference }) => reference === "US-4582")!;
     expect(getWebGeometry("US-4582").features.map(({ geometry }) => geometry))
       .toEqual(detailedTrail.geojson.features.map(({ geometry }) => geometry));
-    expect(getCanonicalGeometryUrl()).toBe("/data/parks/4.0.0/all.geojson");
+    expect(getCanonicalGeometryUrl()).toBe("/data/parks/4.1.0/all.geojson");
     expect(() => getWebGeometry("US-UNKNOWN")).toThrow("Missing park geometry");
   });
 

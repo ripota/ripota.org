@@ -18,7 +18,7 @@ guidance. These are best-effort planning notes. A missing amenity means it has
 not been documented, rather than that it is unavailable.
 
 The same records are available without JavaScript as the standalone
-[`parks.json` release download](https://github.com/ripota/parks/releases/download/v4.0.0/parks.json).
+[`parks.json` release download](https://github.com/ripota/parks/releases/download/v4.1.0/parks.json).
 It is a plain array, suitable for static-site builds or any JSON consumer.
 
 The directory filters by name/manager, county, type, and a documented amenity.
@@ -46,6 +46,31 @@ requirement always use that quieter presentation. The browser checks the
 current Rhode Island date, including while a page remains open, so a static
 build does not lock the site into the season when it was published. This is
 a display window; it does not change the actual seasons in the park notes.
+
+## Park photos
+
+The v4.1.0 package includes optional `heroImageId` and `summary` fields. The
+build-only adapter in `src/lib/parks/images.ts` resolves selections through
+`@ripota/parks/images.json` and reads the checked-in image through its package
+export. It verifies the master checksum and dimensions, then emits WebP
+variants up to 480, 800, 1280, and 1920 pixels wide without enlargement.
+The `/assets/parks/` static routes use hashes of the output bytes and immutable
+caching; browsers load photos from this site, without contacting source hosts.
+Generated renditions live in the build output, not in the repository.
+
+`ParkHeroPhoto.astro` shows the photo, supplied title, credit, source, license,
+and a disclosure of package and site transformations. The detail page uses
+photo + map panels on desktop and stacks them on mobile; the photo also becomes
+the page's social preview image. A park without a selected photo renders only
+the map and retains the default social preview. There is no placeholder or
+inherited photo from a related park.
+
+Show my location moves the existing map into a full-viewport native dialog,
+hiding the photo and credit until Exit location mode or Escape. Permission
+errors stay in that view so the error and exit control remain available. Exit
+stops location tracking, restores the original map layout and scroll position,
+and returns keyboard focus to the location button. Exact boundary data remains
+lazy-loaded for location checks; responsive photos do not change classification.
 
 ## Updating information
 

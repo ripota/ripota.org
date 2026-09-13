@@ -37,8 +37,59 @@ const parks = [
   { reference: "US-4582", name: "Washington-Rochambeau Revolutionary Route National Historic Trail", components: 1, holes: 0 },
 ];
 
-const canonicalPath = /\/data\/parks\/4\.0\.0\/(?:boundaries\/us-\d+|all)\.geojson$/;
+const canonicalPath = /\/data\/parks\/4\.1\.0\/(?:boundaries\/us-\d+|all)\.geojson$/;
 const brentonPoint = { latitude: 41.452, longitude: -71.3542, accuracy: 5 };
+
+type LocationHarness = {
+  started: number[];
+  stopped: number[];
+};
+
+async function installLocationHarness(page: Page) {
+  await page.addInitScript((point) => {
+    const harness: LocationHarness = { started: [], stopped: [] };
+    (window as Window & { parkLocationHarness?: LocationHarness }).parkLocationHarness = harness;
+    Object.defineProperty(navigator, "geolocation", {
+      configurable: true,
+      value: {
+        watchPosition(success: PositionCallback) {
+          const id = harness.started.length + 1;
+          harness.started.push(id);
+          queueMicrotask(() => success({
+            coords: { ...point, altitude: null, altitudeAccuracy: null, heading: null, speed: null },
+            timestamp: Date.now(),
+          } as GeolocationPosition));
+          return id;
+        },
+        clearWatch(id: number) { harness.stopped.push(id); },
+      },
+    });
+  }, brentonPoint);
+}
+
+async function locationHarness(page: Page) {
+  return page.evaluate(() => (window as Window & { parkLocationHarness?: LocationHarness }).parkLocationHarness);
+}
+
+async function expectFullscreenLocation(page: Page) {
+  const dialog = page.locator("[data-park-location-dialog]");
+  await expect(dialog).toBeVisible();
+  await expect.poll(() => dialog.evaluate((element) => element.matches(":modal"))).toBe(true);
+  await expect(dialog.locator("[data-park-detail-map-shell]")).toHaveCount(1);
+  await expect(page.locator("[data-park-detail-map-shell]")).toHaveCount(1);
+  await expect(page.locator("[data-park-hero-photo]")).toBeHidden();
+  // Check viewport coordinates, including when the document is already scrolled.
+  await expect.poll(() => dialog.locator("[data-park-detail-map]").evaluate((element) => {
+    const bounds = element.getBoundingClientRect();
+    return Math.max(Math.abs(bounds.left), Math.abs(bounds.top),
+      Math.abs(bounds.width - innerWidth), Math.abs(bounds.height - innerHeight));
+  })).toBeLessThanOrEqual(1);
+  await expect(page.getByRole("button", { name: "Exit location mode", exact: true })).toBeInViewport({ ratio: 1 });
+  await expect.poll(() => dialog.evaluate((element) => ({
+    focusInsideDialog: element.contains(document.activeElement),
+    activeElement: document.activeElement?.outerHTML.slice(0, 300),
+  }))).toMatchObject({ focusInsideDialog: true });
+}
 
 function observeBrowser(page: Page) {
   const errors: string[] = [];
@@ -158,12 +209,148 @@ async function embeddedGeometryCollections(page: Page) {
   });
 }
 
+test("fullscreen location survives narrow screens and the photo-map breakpoint", async ({ page, parksOrigin }) => {
+  const browser = observeBrowser(page);
+  await installLocationHarness(page);
+  await page.setViewportSize({ width: 860, height: 844 });
+  await page.goto(`${parksOrigin}/parks/us-2870/`);
+  await readyMap(page, "[data-park-detail-map]");
+  await page.getByRole("button", { name: "Show my location", exact: true }).click();
+  await expectFullscreenLocation(page);
+  await expect(page.locator("[data-park-location-status]")).toContainText("Inside mapped boundary");
+  for (const width of [320, 860, 861, 1440]) {
+    await page.setViewportSize({ width, height: 844 });
+    await expectFullscreenLocation(page);
+    await expect(page.locator("[data-park-location-status]")).toBeInViewport({ ratio: 1 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  }
+  await page.getByRole("button", { name: "Exit location mode", exact: true }).click();
+  await expect(page.locator("[data-park-location-dialog]")).toBeHidden();
+  await expect(page.locator("[data-park-map-location]")).toBeFocused();
+  await expect.poll(() => locationHarness(page)).toEqual({ started: [1], stopped: [1] });
+  for (const width of [860, 861, 320]) {
+    await page.setViewportSize({ width, height: 844 });
+    await expect(page.locator("[data-park-hero-photo]")).toBeVisible();
+    await expect(page.locator("[data-park-detail-map-shell]")).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  }
+  expect(browser.errors).toEqual([]);
+});
+
+test("a page retained for Back navigation stops location and can start a fresh watch", async ({ page, parksOrigin }) => {
+  const browser = observeBrowser(page);
+  await installLocationHarness(page);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto(`${parksOrigin}/parks/us-2870/`);
+  await readyMap(page, "[data-park-detail-map]");
+  const map = await page.locator("[data-park-detail-map-shell]").elementHandle();
+  const location = page.locator("[data-park-map-location]");
+  await location.click();
+  await expectFullscreenLocation(page);
+  await expect(page.locator("[data-park-location-status]")).toContainText("Inside mapped boundary");
+  // Playwright disables Chromium's back/forward cache. Dispatch its lifecycle
+  // events explicitly to exercise the retained document, rather than a reload.
+  await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent("pagehide", { persisted: true })));
+  await expect(page.locator("[data-park-location-dialog]")).toBeHidden();
+  await expect(page.locator("[data-park-hero-photo]")).toBeVisible();
+  await expect.poll(() => locationHarness(page)).toEqual({ started: [1], stopped: [1] });
+  await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true })));
+  await location.click();
+  await expectFullscreenLocation(page);
+  await expect(page.locator("[data-park-location-status]")).toContainText("Inside mapped boundary");
+  expect(await map!.evaluate((element) => element === document.querySelector("[data-park-location-dialog] [data-park-detail-map-shell]"))).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(page.locator("[data-park-location-dialog]")).toBeHidden();
+  await expect(location).toBeFocused();
+  await expect.poll(() => locationHarness(page)).toEqual({ started: [1, 2], stopped: [1, 2] });
+  expect(browser.errors).toEqual([]);
+});
+
 for (const viewport of [
   { name: "desktop", width: 1440, height: 1000 },
   { name: "mobile", width: 390, height: 844 },
 ]) {
   test.describe(viewport.name, () => {
     test.use({ viewport: { width: viewport.width, height: viewport.height } });
+
+    test("park photo folds into the same fullscreen map and restores on Exit and Escape", async ({ page, parksOrigin }, testInfo) => {
+      const browser = observeBrowser(page);
+      await installLocationHarness(page);
+      await page.goto(`${parksOrigin}/parks/us-2870/`);
+      await readyMap(page, "[data-park-detail-map]");
+      const photo = page.locator("[data-park-hero-photo]");
+      const image = photo.locator("img");
+      await expect(photo).toBeVisible();
+      await expect(image).toHaveAttribute("alt", /\S+/);
+      await expect(image).toHaveAttribute("srcset", /\d+w/);
+      await expect.poll(() => image.evaluate((element: HTMLImageElement) => element.complete && element.naturalWidth > 0)).toBe(true);
+      expect(await image.evaluate((element: HTMLImageElement) => new URL(element.currentSrc).origin)).toBe(parksOrigin);
+      await expect(photo.locator("figcaption")).toContainText(/\S+/);
+      await expect(photo.locator('a[href^="https://"]').first()).toHaveAttribute("href", /^https:\/\//);
+      await testInfo.attach(`park-photo-and-map-${viewport.name}`, { body: await page.screenshot(), contentType: "image/png" });
+
+      const map = await page.locator("[data-park-detail-map-shell]").elementHandle();
+      const location = page.locator("[data-park-map-location]");
+      await page.locator("#plan-your-visit").scrollIntoViewIfNeeded();
+      await location.scrollIntoViewIfNeeded();
+      expect(await page.evaluate(() => scrollY)).toBeGreaterThan(0);
+      const scrollBefore = await page.evaluate(() => scrollY);
+
+      await location.click();
+      await expectFullscreenLocation(page);
+      await expect(page.locator("[data-park-location-status]")).toContainText("Inside mapped boundary");
+      expect(await map!.evaluate((element) => element === document.querySelector("[data-park-location-dialog] [data-park-detail-map-shell]"))).toBe(true);
+      await attachMap(page, testInfo, `park-fullscreen-location-${viewport.name}`, "[data-park-location-dialog]");
+      await page.getByRole("button", { name: "Exit location mode", exact: true }).click();
+      await expect(page.locator("[data-park-location-dialog]")).toBeHidden();
+      await expect(photo).toBeVisible();
+      await expect(location).toBeFocused();
+      await expect(location).toHaveAttribute("aria-pressed", "false");
+      await expect(page.locator("[data-park-location-status]")).toBeHidden();
+      expect(await map!.evaluate((element) => element === document.querySelector(".park-hero [data-park-detail-map-shell]") && !element.closest("dialog"))).toBe(true);
+      await expect.poll(() => locationHarness(page)).toEqual({ started: [1], stopped: [1] });
+      await expect.poll(() => page.evaluate((before) => Math.abs(scrollY - before), scrollBefore)).toBeLessThanOrEqual(2);
+
+      // Repeated entry must not create a second Leaflet map or leak the location watch.
+      await location.click();
+      await expectFullscreenLocation(page);
+      await page.keyboard.press("Escape");
+      await expect(page.locator("[data-park-location-dialog]")).toBeHidden();
+      await expect(photo).toBeVisible();
+      await expect(location).toBeFocused();
+      await expect(page.locator("[data-park-location-status]")).toBeHidden();
+      await expect.poll(() => locationHarness(page)).toEqual({ started: [1, 2], stopped: [1, 2] });
+      expect(new URL(page.url()).searchParams.has("location")).toBe(false);
+      expect(new URL(page.url()).searchParams.has("from")).toBe(false);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await page.getByRole("button", { name: "Recenter map", exact: true }).click();
+      expect(browser.errors).toEqual([]);
+    });
+
+    test("a park without a hero has a complete map and the same location interaction", async ({ page, parksOrigin }) => {
+      const browser = observeBrowser(page);
+      await installLocationHarness(page);
+      await page.goto(`${parksOrigin}/parks/us-4582/`);
+      await readyMap(page, "[data-park-detail-map]");
+      await expect(page.locator("[data-park-hero-photo]")).toHaveCount(0);
+      await expect(page.locator(".park-hero")).not.toContainText(/photo (?:coming soon|unavailable)|image placeholder/i);
+      const map = page.locator("[data-park-detail-map-shell]");
+      const hero = page.locator(".park-hero");
+      const normalMapBounds = await map.boundingBox();
+      const heroBounds = await hero.boundingBox();
+      expect(normalMapBounds!.width).toBeGreaterThan(heroBounds!.width * 0.8);
+      await page.getByRole("button", { name: "Show my location", exact: true }).click();
+      await expectFullscreenLocation(page);
+      await expect(page.locator("[data-park-location-status]")).toContainText(/(?:Inside|Outside|Near) mapped/);
+      await page.keyboard.press("Escape");
+      await expect(page.locator("[data-park-location-dialog]")).toBeHidden();
+      await expect(page.locator("[data-park-map-location]")).toBeFocused();
+      await expect(page.locator("[data-park-hero-photo]")).toHaveCount(0);
+      await expect.poll(() => locationHarness(page)).toEqual({ started: [1], stopped: [1] });
+      await expect(map).toBeVisible();
+      await expect.poll(async () => (await map.boundingBox())?.width).toBe(normalMapBounds!.width);
+      expect(browser.errors).toEqual([]);
+    });
 
     for (const park of parks) {
       test(`${park.reference} preserves web parcels, holes, bounds, and official links`, async ({ page, parksOrigin }, testInfo) => {
@@ -177,7 +364,7 @@ for (const viewport of [
         await expect(page.locator("body")).toContainText("not an official Parks on the Air property");
 
         const payload = await detailPayload(page);
-        expect(payload.park.canonicalGeometryUrl).toBe(`/data/parks/4.0.0/boundaries/${park.reference.toLowerCase()}.geojson`);
+        expect(payload.park.canonicalGeometryUrl).toBe(`/data/parks/4.1.0/boundaries/${park.reference.toLowerCase()}.geojson`);
         expect(JSON.stringify(payload)).not.toContain('"fidelity":"detailed"');
         expect(JSON.stringify(payload)).toContain('"fidelity":"web"');
         expect(await embeddedGeometryCollections(page)).toBe(1);
@@ -250,7 +437,7 @@ for (const viewport of [
       const browser = observeBrowser(page);
       await context.grantPermissions(["geolocation"], { origin: parksOrigin });
       await context.setGeolocation(brentonPoint);
-      const canonicalUrl = `${parksOrigin}/data/parks/4.0.0/boundaries/us-2870.geojson`;
+      const canonicalUrl = `${parksOrigin}/data/parks/4.1.0/boundaries/us-2870.geojson`;
       const releases: Array<() => void> = [];
       await page.route(canonicalUrl, async (route) => {
         await new Promise<void>((resolve) => { releases.push(resolve); });
@@ -294,7 +481,7 @@ for (const viewport of [
       const browser = observeBrowser(page);
       await context.grantPermissions(["geolocation"], { origin: parksOrigin });
       await context.setGeolocation(brentonPoint);
-      const canonicalUrl = `${parksOrigin}/data/parks/4.0.0/boundaries/us-2870.geojson`;
+      const canonicalUrl = `${parksOrigin}/data/parks/4.1.0/boundaries/us-2870.geojson`;
       browser.expectedFailures.add(canonicalUrl);
       await page.route(canonicalUrl, (route) => route.fulfill({ status: 503, body: "Synthetic geometry outage" }));
       await page.goto(`${parksOrigin}/parks/us-2870/`);
@@ -347,11 +534,12 @@ for (const viewport of [
       const results = page.locator("[data-reference-location-results]");
       await expect(page.locator('[data-reference-location-section="inside"]')).toContainText("US-2870");
       await attachMap(page, testInfo, `directory-location-${viewport.name}`, ".parks-directory-hero");
-      expect(browser.canonicalRequests).toContain(`${parksOrigin}/data/parks/4.0.0/all.geojson`);
+      expect(browser.canonicalRequests).toContain(`${parksOrigin}/data/parks/4.1.0/all.geojson`);
       const result = results.locator('a[href^="/parks/us-2870/"]');
       await result.click();
       await expect(page).toHaveURL(/\/parks\/us-2870\/\?location=1&from=parks-map$/);
       await expect(page.locator("[data-park-location-status]")).toContainText("Inside mapped boundary");
+      await expectFullscreenLocation(page);
       await page.getByRole("link", { name: "← Back to all parks" }).click();
       await expect(page).toHaveURL(/\/parks\/$/);
       await expect(page.locator(".parks-directory-hero")).toHaveAttribute("data-location-mode", "active");
@@ -368,7 +556,7 @@ for (const viewport of [
       const browser = observeBrowser(page);
       await context.grantPermissions(["geolocation"], { origin: parksOrigin });
       await context.setGeolocation(brentonPoint);
-      const canonicalUrl = `${parksOrigin}/data/parks/4.0.0/all.geojson`;
+      const canonicalUrl = `${parksOrigin}/data/parks/4.1.0/all.geojson`;
       browser.expectedFailures.add(canonicalUrl);
       const releases: Array<() => void> = [];
       await page.route(canonicalUrl, async (route) => {
@@ -418,10 +606,36 @@ for (const viewport of [
       await page.getByRole("button", { name: "Show my location", exact: true }).click();
       await expect(page.locator("[data-park-location-status]")).toContainText("Location access is off");
       await expect(page.locator("[data-park-location-status]")).not.toContainText(/Inside|Outside|Near mapped/);
+      await expectFullscreenLocation(page);
       await page.getByRole("button", { name: "Zoom in on the mapped area" }).click();
+      await expectFullscreenLocation(page);
       await page.getByRole("button", { name: "Exit location mode" }).click();
+      await expect(page.locator("[data-park-location-dialog]")).toBeHidden();
+      await expect(page.locator("[data-park-hero-photo]")).toBeVisible();
+      await expect(page.locator("[data-park-map-location]")).toBeFocused();
       await expect(page.locator("[data-park-location-status]")).toBeHidden();
       await page.getByRole("button", { name: "Recenter map", exact: true }).click();
+      expect(browser.canonicalRequests).toEqual([]);
+      expect(browser.errors).toEqual([]);
+    });
+
+    test("unsupported location opens an accessible fullscreen error and Escape returns to the photo", async ({ page, parksOrigin }) => {
+      const browser = observeBrowser(page);
+      await page.addInitScript(() => Object.defineProperty(navigator, "geolocation", {
+        configurable: true,
+        value: undefined,
+      }));
+      await page.goto(`${parksOrigin}/parks/us-2870/?location=1&from=parks-map&source=club#plan-your-visit`);
+      await readyMap(page, "[data-park-detail-map]");
+      await expectFullscreenLocation(page);
+      await expect(page.locator("[data-park-location-status]")).toContainText("Location is not available in this browser");
+      await expect(page.locator("[data-park-location-status]")).not.toContainText(/Inside|Outside|Near mapped/);
+      await page.keyboard.press("Escape");
+      await expect(page.locator("[data-park-location-dialog]")).toBeHidden();
+      await expect(page.locator("[data-park-hero-photo]")).toBeVisible();
+      await expect(page.locator("[data-park-map-location]")).toBeFocused();
+      await expect(page.locator("[data-park-location-status]")).toBeHidden();
+      await expect(page).toHaveURL(`${parksOrigin}/parks/us-2870/?source=club#plan-your-visit`);
       expect(browser.canonicalRequests).toEqual([]);
       expect(browser.errors).toEqual([]);
     });
@@ -431,7 +645,7 @@ for (const viewport of [
       for (const route of [
         { path: "", heading: "Activate All RI", nav: "Overview" },
         { path: "help/", heading: "Activate All RI FAQ", nav: "FAQ" },
-        { path: "parks/", heading: "Activation plans by park", nav: "Parks" },
+        { path: "parks/", heading: "Event parks", nav: "Parks" },
         { path: "schedule/", heading: "Event schedule", nav: "Schedule" },
         { path: "hunter/", heading: "Plan your Worked All RI hunt", nav: "Hunter" },
         { path: "progress/", heading: "Event progress", nav: "Progress" },
@@ -716,8 +930,10 @@ for (const viewport of [
       await expect(page.locator("[data-coverage-shortcut-wrap]")).toBeVisible();
       await page.waitForLoadState("networkidle");
       await page.goto(`${parksOrigin}/activate-ri-2026/parks/`);
-      await expect(page.locator("[data-live-coverage]")).toContainText("Live coverage is unavailable");
-      await expect(page.locator("[data-live-coverage] [data-filter-row]")).toHaveCount(0);
+      await expect(page.locator("[data-planning-status]")).toContainText("Activation plans are unavailable");
+      const parkRows = page.locator("[data-live-coverage] [data-filter-row]");
+      await expect(parkRows).toHaveCount(61);
+      await expect(parkRows.filter({ hasText: "Activation plans unavailable" })).toHaveCount(61);
       await page.waitForLoadState("networkidle");
 
       // Keep the event-phase fixture's clock out of the real Turnstile challenge.
@@ -768,7 +984,7 @@ for (const viewport of [
       await expect(popup).toContainText("Activated");
       await expect(popup).toContainText("12 QSOs");
       await expect(popup.getByRole("link", { name: "Open local field guide" })).toHaveAttribute("href", "/parks/us-2870/");
-      await expect(popup.getByRole("link", { name: "Open full evidence list" })).toHaveAttribute("href", "/activate-ri-2026/parks/");
+      await expect(popup.getByRole("link", { name: "View activation results" })).toHaveAttribute("href", "/activate-ri-2026/parks/?progress-q=US-2870#park-results");
       expect(browser.canonicalRequests).toEqual([]);
       expect(browser.errors).toEqual([]);
     });

@@ -27,12 +27,13 @@
     "astro": "^7.3.1",
     "leaflet": "^1.9.4",
     "pdfjs-dist": "^6.3.289",
+    "sharp": "0.35.4",
     "typescript": "^6.0.3",
     "vitest": "^4.1.11",
     "wrangler": "^4.129.0"
   },
   "dependencies": {
-    "@ripota/parks": "https://github.com/ripota/parks/releases/download/v4.0.0/ripota-parks-4.0.0.tgz",
+    "@ripota/parks": "https://github.com/ripota/parks/releases/download/v4.1.0/ripota-parks-4.1.0.tgz",
     "@simplewebauthn/browser": "13.3.0",
     "@simplewebauthn/server": "13.3.3",
     "@turf/point-to-polygon-distance": "^7.4.0",
