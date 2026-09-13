@@ -19,7 +19,10 @@
   const add = document.querySelector<HTMLButtonElement>("[data-add-passkey]");
   const retry = document.querySelector<HTMLButtonElement>("[data-retry-passkeys]");
   const signIn = document.querySelector<HTMLAnchorElement>("[data-passkey-reauth]");
-  if (signIn) signIn.href = `/account/sign-in/?returnTo=${encodeURIComponent(window.location.pathname)}`;
+  if (signIn) signIn.href = `/account/sign-in/?${new URLSearchParams({
+    returnTo: window.location.pathname + window.location.search + window.location.hash,
+    reauth: "passkey",
+  })}`;
 
   void loadPasskeys();
   retry?.addEventListener("click", () => {

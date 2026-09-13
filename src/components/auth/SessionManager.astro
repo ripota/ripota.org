@@ -15,7 +15,10 @@
   const revoke = document.querySelector<HTMLButtonElement>("[data-revoke-other-sessions]");
   const retry = document.querySelector<HTMLButtonElement>("[data-retry-sessions]");
   const signIn = document.querySelector<HTMLAnchorElement>("[data-session-sign-in]");
-  if (signIn) signIn.href = `/account/sign-in/?returnTo=${encodeURIComponent(window.location.pathname)}`;
+  if (signIn) signIn.href = `/account/sign-in/?${new URLSearchParams({
+    returnTo: window.location.pathname + window.location.search + window.location.hash,
+    reauth: "passkey",
+  })}`;
   void loadSessions();
   retry?.addEventListener("click", () => {
     status?.replaceChildren();

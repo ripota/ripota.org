@@ -170,7 +170,7 @@ const worker = {
       if (identity instanceof Response) {
         const accessPath = getAuthConfig(env, request).activatorMode === "legacy"
           ? "/activate-ri-2026/access/"
-          : "/account/sign-in/?returnTo=%2Factivate-ri-2026%2Factivator%2F";
+          : `/account/sign-in/?${new URLSearchParams({ returnTo: `${url.pathname}${url.search}` })}`;
         return withPrivateHeaders(
           new Response(null, {
             status: 303,

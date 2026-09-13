@@ -35,6 +35,7 @@ import { clearActivatorSessionCookie } from "../activator-session";
 import { accessBootstrap } from "../auth/bootstrap";
 import { consumePasskeyReset } from "../auth/admin-recovery";
 import { getAuthConfig } from "../auth/config";
+import { evaluateAdminAuthorization } from "../auth/authorization";
 import { logWorkerError } from "../logging";
 import {
   CallsignConflictError,
@@ -60,8 +61,10 @@ export async function handleAuthApi(request: Request, env: Env): Promise<Respons
           email: context.user.primaryEmail,
         },
         authenticationMethod: context.session.authenticationMethod,
+        sessionPurpose: context.session.purpose,
         passkeyVerifiedAt: context.session.passkeyVerifiedAt,
         admin: context.admin,
+        adminAuthorized: evaluateAdminAuthorization(context, getAuthConfig(env, request)) === null,
         activator: context.activator ? {
           callsign: context.activator.callsign,
           status: context.activator.status,

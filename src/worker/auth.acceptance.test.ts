@@ -61,6 +61,103 @@ beforeEach(async () => {
 afterEach(() => database.close());
 
 describe("unified authentication acceptance", () => {
+  it.each([
+    "/activate-ri-2026/activator/?kind=chat",
+    "/activate-ri-2026/activator/media/?status=published&search=park+photo",
+    "/activate-ri-2026/activator/plan/?park=US-2868&date=2026-09-12",
+    "/activate-ri-2026/activator/account?section=notifications",
+  ])("preserves the complete requested portal destination before sign-in: %s", async (returnTo) => {
+    env.AUTH_ACTIVATOR_MODE = "unified";
+    const response = await worker.fetch(request(returnTo), env);
+
+    expect(response.status).toBe(303);
+    const location = new URL(response.headers.get("location")!, origin);
+    expect(location.origin).toBe(origin);
+    expect(location.pathname).toBe("/account/sign-in/");
+    expect(location.searchParams.get("returnTo")).toBe(returnTo);
+    expect(location.searchParams.has("reauth")).toBe(false);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(env.ASSETS.fetch).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { purpose: "authenticated", admin: false, passkey: false, stale: false, authorized: false },
+    { purpose: "authenticated", admin: true, passkey: true, stale: false, authorized: true },
+    { purpose: "authenticated", admin: true, passkey: true, stale: true, authorized: false },
+    { purpose: "authenticated", admin: true, passkey: false, stale: false, authorized: false },
+    { purpose: "enrollment", admin: true, passkey: false, stale: false, authorized: false },
+    { purpose: "recovery", admin: true, passkey: false, stale: false, authorized: false },
+  ] as const)("reports session purpose and effective admin authorization: %j", async (scenario) => {
+    env.AUTH_ADMIN_MODE = "passkey";
+    env.AUTH_ADMIN_REAUTH_SECONDS = "60";
+    const user = await createUserWithVerifiedEmail(env, "user@example.com", "User");
+    await linkActivatorMembership(env, user.id, "activator");
+    if (scenario.admin) await grantAdminRole(env, user.id, null);
+    const session = await createAuthSession(env, {
+      userId: user.id,
+      purpose: scenario.purpose,
+      authenticationMethod: scenario.passkey ? "passkey" : "email",
+      passkeyVerified: scenario.passkey,
+    }, new Date(Date.now() - (scenario.stale ? 120_000 : 0)));
+
+    const response = await worker.fetch(request("/api/auth/session", {
+      headers: { cookie: `__Host-ripota-session=${session.token}` },
+    }), env);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    await expect(response.json()).resolves.toMatchObject({
+      signedIn: true,
+      sessionPurpose: scenario.purpose,
+      admin: scenario.admin,
+      adminAuthorized: scenario.authorized,
+      activator: { callsign: "N1ABC" },
+    });
+  });
+
+  it("keeps the anonymous session response free of account metadata", async () => {
+    const response = await worker.fetch(request("/api/auth/session"), env);
+    await expect(response.json()).resolves.toEqual({ ok: true, signedIn: false });
+  });
+
+  it.each([
+    { mode: "passkey", session: "anonymous", reauth: false },
+    { mode: "passkey", session: "email-admin", reauth: true },
+    { mode: "passkey", session: "stale-admin", reauth: true },
+    { mode: "passkey", session: "forbidden", reauth: false },
+    { mode: "passkey", session: "enrollment", reauth: false },
+    { mode: "dual", session: "anonymous", reauth: false },
+    { mode: "dual", session: "stale-admin", reauth: true },
+  ] as const)("marks only required admin passkey reauthentication in navigation: %j", async (scenario) => {
+    env.AUTH_ADMIN_MODE = scenario.mode;
+    env.AUTH_ADMIN_REAUTH_SECONDS = "60";
+    let cookie = "";
+    if (scenario.session !== "anonymous") {
+      const user = await createUserWithVerifiedEmail(env, "user@example.com", "User");
+      if (scenario.session !== "forbidden") await grantAdminRole(env, user.id, null);
+      const passkey = scenario.session === "stale-admin" || scenario.session === "forbidden";
+      const session = await createAuthSession(env, {
+        userId: user.id,
+        purpose: scenario.session === "enrollment" ? "enrollment" : "authenticated",
+        authenticationMethod: passkey ? "passkey" : "email",
+        passkeyVerified: passkey,
+      }, new Date(Date.now() - (scenario.session === "stale-admin" ? 120_000 : 0)));
+      cookie = `__Host-ripota-session=${session.token}`;
+    }
+    const returnTo = "/activate-ri-2026/admin/?view=ops&search=park+photo";
+    const response = await worker.fetch(request(returnTo, { headers: { cookie } }), env);
+
+    expect(response.status).toBe(303);
+    const location = new URL(response.headers.get("location")!, origin);
+    expect(location.pathname).toBe("/account/sign-in/");
+    expect(location.searchParams.get("returnTo")).toBe(returnTo);
+    expect(location.searchParams.get("reauth")).toBe(scenario.reauth ? "passkey" : null);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(env.ASSETS.fetch).not.toHaveBeenCalled();
+  });
+
   it("preserves a legacy link while creating an activator account that can enroll", async () => {
     const exchange = await worker.fetch(request(`/activate-ri-2026/edit/${legacyToken}/`), env);
     expect(exchange.status).toBe(303);

@@ -69,7 +69,11 @@ export async function requireAdmin(
 
   const access = await requireAccessIdentity(request, env);
   return access instanceof Response
-    ? adminFailureResponse(request, "unauthenticated", options.navigation)
+    ? adminFailureResponse(
+        request,
+        failure === "reauthentication-required" ? failure : "unauthenticated",
+        options.navigation,
+      )
     : { ...access, authentication: "access" };
 }
 
@@ -109,7 +113,9 @@ function adminFailureResponse(
   if (navigation && request.method === "GET") {
     const url = new URL(request.url);
     const returnTo = `${url.pathname}${url.search}`;
-    const location = `/account/sign-in/?returnTo=${encodeURIComponent(returnTo)}`;
+    const params = new URLSearchParams({ returnTo });
+    if (failure === "reauthentication-required") params.set("reauth", "passkey");
+    const location = `/account/sign-in/?${params}`;
     return withPrivateHeaders(new Response(null, { status: 303, headers: { location } }));
   }
   const status = failure === "forbidden" ? 403 : 401;

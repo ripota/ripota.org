@@ -21,6 +21,12 @@ POTA accounts and credentials are never used here.
   30-day session. Administrator authorization and destructive
   account-security actions require a passkey verification no older than
   `AUTH_ADMIN_REAUTH_SECONDS` (30 days by default).
+- Sign-in checks for an existing usable browser session before showing login
+  controls. This restores access after an external link omits the `SameSite=Strict`
+  cookie on its first request. Continuation preserves the requested page, query,
+  and fragment; enrollment and recovery sessions can continue account setup but
+  do not grant activator or administrator access. Explicit passkey
+  reauthentication uses `reauth=passkey` to keep the verification prompt.
 - Security pages and APIs send private/no-store headers. State-changing requests
   require the exact trusted Origin.
 

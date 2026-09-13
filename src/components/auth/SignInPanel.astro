@@ -7,38 +7,42 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY;
 <section class="form-card" aria-labelledby="passkey-sign-in-title">
   <p class="eyebrow">RI POTA account</p>
   <h1 id="passkey-sign-in-title">Sign in</h1>
-  <p>
-    Use a saved passkey, or get a sign-in link at the email address on your
-    activation plan.
-  </p>
-  <div class="form-actions">
-    <button class="button" data-variant="primary" type="button" data-passkey-sign-in>
-      Sign in with a passkey
-    </button>
-  </div>
-  <p class="form-status" data-sign-in-status aria-live="polite"></p>
+  <p class="form-status" data-session-check-status aria-live="polite">Checking your sign-in…</p>
+  <div data-sign-in-controls hidden>
+    <p data-sign-in-intro>
+      Use a saved passkey, or get a sign-in link at the email address on your
+      activation plan.
+    </p>
+    <div class="form-actions">
+      <button class="button" data-variant="primary" type="button" data-passkey-sign-in>
+        Sign in with a passkey
+      </button>
+    </div>
+    <p class="form-status" data-sign-in-status aria-live="polite"></p>
 
-  <details>
-    <summary>Email me a sign-in link</summary>
-    <form class="stack" data-email-sign-in>
-      <label>
-        Email address
-        <input name="email" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" required />
-      </label>
-      <p>Each email link works once and expires in 15 minutes.</p>
-      <div
-        class="cf-turnstile"
-        data-sitekey={turnstileSiteKey}
-        data-action="auth-email-login"
-        data-theme="auto"
-      ></div>
-      <button class="button" data-variant="light" type="submit">Send sign-in link</button>
-      <p class="form-status" data-email-status aria-live="polite"></p>
-    </form>
-  </details>
+    <details data-email-sign-in-option>
+      <summary>Email me a sign-in link</summary>
+      <form class="stack" data-email-sign-in>
+        <label>
+          Email address
+          <input name="email" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" required />
+        </label>
+        <p>Each email link works once and expires in 15 minutes.</p>
+        <div
+          class="cf-turnstile"
+          data-sitekey={turnstileSiteKey}
+          data-action="auth-email-login"
+          data-theme="auto"
+        ></div>
+        <button class="button" data-variant="light" type="submit">Send sign-in link</button>
+        <p class="form-status" data-email-status aria-live="polite"></p>
+      </form>
+    </details>
+  </div>
 </section>
 
 <script>
+  import { canResumeSignIn, signInReturnPath } from "../../lib/auth-sign-in";
   import { safeLocalReturnPath } from "../../lib/auth-return-path";
   import { startAuthentication } from "@simplewebauthn/browser";
   import type { PublicKeyCredentialRequestOptionsJSON } from "@simplewebauthn/browser";
@@ -49,7 +53,41 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY;
   const emailForm = document.querySelector<HTMLFormElement>("[data-email-sign-in]");
   const emailStatus = document.querySelector<HTMLElement>("[data-email-status]");
   const emailButton = emailForm?.querySelector<HTMLButtonElement>('button[type="submit"]');
+  const controls = document.querySelector<HTMLElement>("[data-sign-in-controls]");
+  const sessionStatus = document.querySelector<HTMLElement>("[data-session-check-status]");
+  const parameters = new URLSearchParams(window.location.search);
+  const requestedReturnTo = safeLocalReturnPath(parameters.get("returnTo"));
+  const returnTo = signInReturnPath(requestedReturnTo, window.location.hash);
+  const requiresPasskey = parameters.get("reauth") === "passkey";
   let requestingEmail = false;
+
+  void resumeSession();
+
+  async function resumeSession(): Promise<void> {
+    if (requiresPasskey) {
+      document.querySelector("[data-sign-in-intro]")?.replaceChildren("Confirm your passkey to continue.");
+      const emailOption = document.querySelector<HTMLElement>("[data-email-sign-in-option]");
+      if (emailOption) emailOption.hidden = true;
+    } else {
+      try {
+        // This same-origin request can use a Strict cookie withheld on the
+        // initial navigation from an email or another website.
+        const response = await fetch("/api/auth/session", {
+          headers: { accept: "application/json" },
+          cache: "no-store",
+          signal: AbortSignal.timeout(5000),
+        });
+        if (response.ok && canResumeSignIn(await response.json(), returnTo)) {
+          window.location.replace(returnTo);
+          return;
+        }
+      } catch {
+        // A failed or slow session check must leave manual sign-in available.
+      }
+    }
+    if (sessionStatus) sessionStatus.hidden = true;
+    if (controls) controls.hidden = false;
+  }
 
   button?.addEventListener("click", async () => {
     button.disabled = true;
@@ -72,11 +110,12 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY;
       if (!verifyResponse.ok) {
         throw new Error("Passkey sign-in failed.");
       }
-      window.location.replace(safeReturnPath());
+      window.location.replace(returnTo);
     } catch (error) {
       const cancelled = error instanceof Error && (error.name === "NotAllowedError" || /cancel/i.test(error.message));
       status?.replaceChildren(cancelled
         ? "The passkey prompt was cancelled. You can try again."
+        : requiresPasskey ? "We could not verify that passkey. Please try again."
         : "We could not verify that passkey. Try again or use email sign-in.");
       button.disabled = false;
     }
@@ -98,7 +137,7 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY;
         body: JSON.stringify({
           email: data.get("email"),
           turnstileToken: data.get("cf-turnstile-response"),
-          returnTo: safeLocalReturnPath(new URLSearchParams(window.location.search).get("returnTo")),
+          returnTo: requestedReturnTo ? returnTo : null,
         }),
       });
       const body = await response.json();
@@ -124,11 +163,6 @@ const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY;
       emailForm.removeAttribute("aria-busy");
     }
   });
-
-  function safeReturnPath(): string {
-    const requested = new URLSearchParams(window.location.search).get("returnTo");
-    return safeLocalReturnPath(requested) ?? "/account/security/";
-  }
 
   function isOptionsBody(value: unknown): value is {
     challengeId: string;
