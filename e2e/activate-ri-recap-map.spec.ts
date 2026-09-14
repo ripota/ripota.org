@@ -5,7 +5,7 @@ import { startActivateRiServer } from "./helpers/activate-ri-server";
 
 test.setTimeout(60_000);
 
-test("the recap map keeps 2026 evidence separate from current activity and plans", async ({ page }) => {
+test("the archived park-results map keeps 2026 evidence separate from current activity and plans", async ({ page }) => {
   const server = await startActivateRiServer();
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
@@ -52,7 +52,8 @@ test("the recap map keeps 2026 evidence separate from current activity and plans
     await page.route("**/api/auth/session", route => route.fulfill({ json: { ok: true, signedIn: false } }));
     await page.route("**/api/activate-ri-2026/public/stops", route => route.fulfill({ json: { ok: true, stops: [] } }));
     await page.route("**/api/pota/spots", route => route.fulfill({ json: { ok: true, spots: [], generatedAt: snapshot.generatedAt, stale: false } }));
-    await page.goto(`${server.origin}/activate-ri-2026/`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${server.origin}/activate-ri-2026/parks/`, { waitUntil: "domcontentloaded" });
+    await page.getByText("Show park map", { exact: true }).click();
 
     const map = page.locator('[data-map-recap="true"]');
     const legend = map.locator("..").locator(".map-legend");
@@ -109,6 +110,7 @@ test("the recap map keeps 2026 evidence separate from current activity and plans
 
     fail = true;
     await page.reload();
+    await page.getByText("Show park map", { exact: true }).click();
     await expect(map.locator(".reference-map-marker")).toHaveCount(eventParks.length);
     await expect(legend).toBeHidden();
     await map.locator(".reference-map-marker").first().dispatchEvent("click");

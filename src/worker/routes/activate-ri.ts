@@ -74,6 +74,7 @@ import {
 } from "../pota-event";
 import { logWorkerError } from "../logging";
 import { getPublicPotaSpotActivity } from "../pota-spot-activity";
+import { handlePublicEventReplay } from "../event-replay";
 
 const submissionReceivedMessage =
   "Submission received for organizer review.";
@@ -184,6 +185,13 @@ export async function handleActivateRiApi(
       await getPublicPotaParkStatus(env),
       { headers: publicJsonCacheHeaders },
     );
+  }
+
+  if (
+    request.method === "GET" &&
+    url.pathname === "/api/activate-ri-2026/public/event-replay"
+  ) {
+    return handlePublicEventReplay(env);
   }
 
   if (

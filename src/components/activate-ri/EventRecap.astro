@@ -1,5 +1,5 @@
 ---
-import ReferenceMap from "../ReferenceMap.astro";
+import EventReplayMap from "./EventReplayMap.astro";
 import RecapPhotos from "./RecapPhotos.astro";
 ---
 
@@ -14,13 +14,14 @@ import RecapPhotos from "./RecapPhotos.astro";
           <a class="button" data-variant="primary" href="#weekend-results">Explore the results</a>
           <a class="button" data-variant="light" href="/activate-ri-2026/media/">Photos</a>
         </div>
+        <div class="recap-hero__coverage">
+          <p class="eyebrow">The event’s recorded coverage</p>
+          <p class="recap-map-caption" data-recap-coverage>Explore the parks that brought us together.</p>
+          <a href="/activate-ri-2026/parks/">See each park’s results <span aria-hidden="true">→</span></a>
+        </div>
       </div>
       <div class="recap-hero__map">
-        <ReferenceMap id="activate-ri-recap-map" variant="coverage" resultsMode recapMode
-          title="Rhode Island park activity during Activate All RI 2026" caption=""
-          legendPlacement="below" legendTitle="2026 park activity" showBoundaries={false} />
-        <p class="recap-map-caption" data-recap-coverage>Explore the parks that brought us together.</p>
-        <a href="/activate-ri-2026/parks/">See each park’s results <span aria-hidden="true">→</span></a>
+        <EventReplayMap />
       </div>
     </div>
   </section>
@@ -39,7 +40,7 @@ import RecapPhotos from "./RecapPhotos.astro";
     <p class="recap-results-note">Logs are still coming in, so these results are provisional. Early activations on September 10 are included.</p>
     <details class="recap-method">
       <summary>About these numbers</summary>
-      <p>A park is confirmed when its POTA history includes an event activation with at least 10 QSOs. Recorded activity without a qualifying log is shown separately on the map.</p>
+      <p>A park is confirmed when its POTA history includes an event activation with at least 10 QSOs. The replay follows timestamped spot reports; <a href="/activate-ri-2026/parks/">park results</a> distinguish recorded activity from qualifying logs.</p>
       <p>Activations count each park, callsign, and UTC date separately. Callsigns come from uploaded logs and can represent an individual or a group. QSO credits include all recorded event logs, including attempts with fewer than 10 contacts. A contact made at several parks can earn several park credits, so this is not a count of unique contacts.</p>
       <p>Results cover September 10–13, 2026, in UTC. Official <a href="https://pota.app/">Parks on the Air records</a> remain the source of truth for logs and awards.</p>
     </details>
@@ -134,7 +135,7 @@ import RecapPhotos from "./RecapPhotos.astro";
 <style>
   .event-recap { --recap-phone: #277a70; --recap-cw: #b67a37; --recap-data: #526bb3; }
   .recap-hero { background: #18312f; color: #f7f4ed; padding-block: clamp(2.5rem, 5vw, 4.5rem); }
-  .recap-hero__inner { display: grid; grid-template-columns: 1.05fr 1fr; align-items: center; gap: clamp(2rem, 4vw, 4rem); }
+  .recap-hero__inner { display: grid; grid-template-columns: .86fr 1.08fr; align-items: center; gap: clamp(2rem, 4vw, 4rem); }
   .recap-hero .eyebrow { color: #e9bc7e; font-size: .72rem; letter-spacing: .12em; }
   .recap-hero h1 { color: #fffaf0; font-size: clamp(2.8rem, 4.6vw, 4.5rem); max-width: 15ch; line-height: 1.05; text-wrap: balance; }
   .recap-hero h1 > span { display: block; }
@@ -147,11 +148,9 @@ import RecapPhotos from "./RecapPhotos.astro";
   .recap-hero a:hover { color: #edc18a; }
   .recap-hero .button:hover { background: #fffaf0; color: #18312f; }
   .recap-hero__map { min-width: 0; }
-  .recap-hero__map :global(.map-preview) { margin: 0; height: auto; min-height: 0; box-shadow: none; border-radius: 8px; overflow: hidden; background: #f7f4ed; }
-  .recap-hero__map :global(.ri-reference-map) { height: 370px; min-height: 0; }
-  .recap-hero__map :global(.map-legend--below) { color: #18312f; background: #f7f4ed; padding: .8rem 1rem; margin: 0; }
-  .recap-map-caption { margin: .9rem 0 .35rem; font-size: .9rem; }
-  .recap-hero__map > a { font-size: .9rem; color: #edc18a; }
+  .recap-hero__coverage { margin-top: 2rem; border-top: 1px solid #607b74; padding-top: 1.2rem; }
+  .recap-map-caption { margin: .4rem 0 .35rem; font-size: .95rem; }
+  .recap-hero__coverage > a { font-size: .9rem; color: #edc18a; }
   .recap-results { padding-block: clamp(2.5rem, 5vw, 4rem); scroll-margin-top: 1.5rem; }
   .recap-section-heading { display: flex; align-items: end; justify-content: space-between; gap: 2rem; }
   .recap-section-heading h2, .recap-thanks h2, .recap-keep-going h2 { font-size: clamp(2rem, 3vw, 2.9rem); line-height: 1.1; }
@@ -199,7 +198,6 @@ import RecapPhotos from "./RecapPhotos.astro";
     .recap-hero__inner { grid-template-columns: 1fr; }
     .recap-hero h1 { max-width: 20ch; }
     .recap-hero__copy > p:not(.eyebrow) { max-width: 60ch; }
-    .recap-hero__map :global(.ri-reference-map) { height: 330px; }
     .recap-section-heading { display: block; }
     .recap-status { margin-top: 1rem; max-width: none; }
     .recap-stats > div { padding-inline: .9rem; }

@@ -122,3 +122,31 @@ edits preserve it, and unfeaturing does not remove a photo from the full gallery
 Migration `0034_media_featured_on_recap.sql` starts existing and new uploads
 unfeatured. Organizers need to pick the initial favourites after rollout. Until
 then, the recap links to the gallery without substituting unreviewed uploads.
+
+## Hero event replay
+
+The recap hero replays archived POTA spot reports on the Rhode Island map.
+Parks begin muted, light up on their first retained report, and pulse on later
+activity. The historical “parks heard” count stays separate from the recap’s
+recorded coverage and official log totals. A spot timestamp is reported on-air
+activity, not the moment an activation earned credit.
+
+The 72-second animation plays once when the map becomes visible. Empty time
+before the first report is compressed to at most one second. The scrubber
+always maps linearly across September 10–13 UTC, including early activations.
+Visitors can pause, scrub, skip to the final map, replay, and inspect parks.
+Selecting or navigating the map pauses playback. Background tabs and wholly
+offscreen replays pause without advancing the clock; explicit pauses persist.
+Reduced-motion visitors start on the final map and can opt into playback
+without expanding rings. Keyboard visitors can skip directly to the controls.
+
+`GET /api/activate-ri-2026/public/event-replay` projects the permanent archive,
+collapses revised reports, and retains positive reports followed by QRT.
+Declared N-fer references use the existing normalized evidence and frozen event roster.
+At most 128 reports per park are sampled across the full event, preserving each
+park’s first and last reports. The public response contains only timestamps,
+park references, activator callsigns, modes, and frequencies, plus feed metadata.
+Comments, spotters, collection metadata, and private archives are not exposed.
+Empty archives and service failures have separate UI states; neither invents
+activity. The compact activity silhouette counts reported parks per hour from
+this sampled feed, rather than claiming to count all spots or contacts.
