@@ -31,6 +31,10 @@ const items = buildReferenceMapItems({ references: parks, displayReferences })
       </div>
     </div>
     <div class="event-replay__timeline">
+      <span class="help-popover event-replay__activity-help">
+        <button class="help-popover__button" type="button" aria-label="About the activity bars" aria-describedby="event-replay-activity-help"><span aria-hidden="true">?</span></button>
+        <span id="event-replay-activity-help" class="help-popover__bubble" role="tooltip">Approximate parks spotted per hour (UTC). Each park counts once per hour.</span>
+      </span>
       <div class="event-replay__activity" data-replay-activity aria-hidden="true"></div>
       <label class="sr-only" for="event-replay-time">Event replay time</label>
       <input id="event-replay-time" data-replay-scrubber type="range" min="0" max="1000" step="1" value="0" disabled />
@@ -89,6 +93,13 @@ const items = buildReferenceMapItems({ references: parks, displayReferences })
   .event-replay__count { text-align: right; }
   .event-replay__count strong { font-size: 1.7rem; line-height: 1; font-weight: 800; }
   .event-replay__total { color: #c0d0c8; font-size: .9rem; }
+  .event-replay__timeline { position: relative; padding-right: 2rem; }
+  .event-replay .event-replay__activity-help { position: absolute; right: 0; top: 0; }
+  .event-replay__activity-help .help-popover__button { width: 28px; height: 28px; border: 0; background: transparent; color: #c0d0c8; }
+  .event-replay__activity-help .help-popover__button > span { display: grid; place-items: center; width: 1.15rem; height: 1.15rem; border: 1px solid #91aaa0; border-radius: 50%; }
+  .event-replay__activity-help .help-popover__bubble { left: auto; right: 0; transform: translateY(.25rem); }
+  .event-replay .event-replay__activity-help:hover .help-popover__bubble,
+  .event-replay .event-replay__activity-help:focus-within .help-popover__bubble { transform: translateY(0); }
   .event-replay__activity { height: 28px; display: flex; align-items: flex-end; gap: 2px; }
   .event-replay__activity span { flex: 1; min-width: 0; border-radius: 2px 2px 0 0; background: #55726a; }
   .event-replay__activity span[data-past="true"] { background: var(--replay-gold); }
@@ -115,6 +126,8 @@ const items = buildReferenceMapItems({ references: parks, displayReferences })
     .event-replay__map { height: 350px; }
     .event-replay__controls button { min-height: 44px; }
     .event-replay__timeline input { height: 32px; }
+    .event-replay__timeline { padding-right: 3rem; }
+    .event-replay__activity-help .help-popover__button { width: 44px; height: 44px; }
     .event-replay__label { font-size: .7rem; letter-spacing: 0; }
   }
   @media (prefers-reduced-motion: reduce) {
