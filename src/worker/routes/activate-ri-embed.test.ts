@@ -159,8 +159,17 @@ describe("Activate All RI embed renderer", () => {
   it("renders a useful post-event thank-you without live language", () => {
     const html = renderActivateRiEmbed({ kind: "post-event" }, now);
 
-    expect(html).toContain("Thank you, Rhode Island");
-    expect(html).toContain("Visit the event page");
+    expect(html).toContain("We did it!!");
+    expect(html).toContain("Thank you!!");
+    expect(html).toContain("every activator who packed the gear");
+    expect(html).toContain("every hunter who called back");
+    expect(html).toContain("everyone who lent a hand");
+    expect(html).toContain('href="/activate-ri-2026/"');
+    expect(html).toContain('href="/activate-ri-2026/parks/"');
+    expect(html).toContain('href="/activate-ri-2026/media/"');
+    expect(html).not.toContain("Join activators and hunters");
+    expect(html).not.toContain('href="/activate-ri-2026/schedule/"');
+    expect(html).toContain("Community-run and unofficial");
     expect(html).not.toContain("Event live");
     expect(html).not.toContain('http-equiv="refresh"');
   });
@@ -211,6 +220,21 @@ describe("Activate All RI embed route", () => {
     await expect(response.text()).resolves.toContain(
       "No current Rhode Island spots",
     );
+  });
+
+  it("retires live previews after the event without fetching current spots", async () => {
+    const getSnapshot = vi.fn();
+    const response = await handleActivateRiEmbed(
+      new Request("https://ripota.org/embed/activate-ri-2026/?preview=live"),
+      env,
+      { getSnapshot, now: () => new Date("2026-09-14T00:00:00.000Z") },
+    );
+
+    const html = await response.text();
+    expect(html).toContain('data-embed-state="post-event"');
+    expect(html).toContain("We did it!!");
+    expect(html).not.toContain('http-equiv="refresh"');
+    expect(getSnapshot).not.toHaveBeenCalled();
   });
 
   it("sets no-store, script-free framing headers for GET", async () => {

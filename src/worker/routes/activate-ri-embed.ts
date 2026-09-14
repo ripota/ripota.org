@@ -59,7 +59,7 @@ export async function handleActivateRiEmbed(
   const url = new URL(request.url);
   const now = options.now ?? (() => new Date());
   const phase = options.eventPhase ?? eventPhaseAt(now());
-  const forceLive = url.searchParams.get("preview") === "live";
+  const forceLive = phase !== "post-event" && url.searchParams.get("preview") === "live";
   const live = forceLive || phase === "event-live";
   let view: ActivateRiEmbedView;
 
@@ -113,8 +113,10 @@ export function renderActivateRiEmbed(
       <div class="flyer__copy">
         <p class="eyebrow">${escapeHtml(dateRange)} · Rhode Island</p>
         <h1>${escapeHtml(event.name)}</h1>
-        <p class="headline">${event.goalParkCount} Rhode Island parks <span aria-hidden="true">·</span> ${dayCount} days</p>
-        <p class="invitation">Join activators and hunters for a community-wide weekend on the air.</p>
+        ${view.kind === "post-event"
+          ? '<p class="headline">Together, we put Rhode Island on the air.</p>'
+          : `<p class="headline">${event.goalParkCount} Rhode Island parks <span aria-hidden="true">·</span> ${dayCount} days</p>
+        <p class="invitation">Join activators and hunters for a community-wide weekend on the air.</p>`}
       </div>
     </header>
     ${renderPanel(view, now)}
@@ -145,10 +147,14 @@ function renderPanel(view: ActivateRiEmbedView, now: Date): string {
   }
 
   if (view.kind === "post-event") {
-    return `<section class="panel panel--centered" aria-labelledby="widget-action">
-      <p class="panel__kicker">Thank you, Rhode Island</p>
-      <p id="widget-action" class="panel__message">Thanks to everyone who activated, hunted, and helped make the weekend possible.</p>
-      ${scheduleLink("Visit the event page", eventRoute("home"))}
+    return `<section class="panel panel--centered panel--recap" aria-labelledby="widget-action">
+      <h2 id="widget-action">We did it!! <span>Thank you!!</span></h2>
+      <p class="panel__message">To every activator who packed the gear, every hunter who called back, and everyone who lent a hand: you made this weekend happen.</p>
+      <div class="links">
+        ${scheduleLink("See the weekend recap", eventRoute("home"))}
+        <a class="text-link" href="${eventRoute("parks")}" target="_blank" rel="noreferrer">Park results</a>
+        <a class="text-link" href="/activate-ri-2026/media/" target="_blank" rel="noreferrer">Photos</a>
+      </div>
     </section>`;
   }
 
@@ -309,6 +315,12 @@ const styles = `
   .panel--centered { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 8px; }
   .panel__kicker, .live-dot { color: #765124; font-size: 11px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; }
   .panel__message { max-width: 54ch; margin-top: 6px !important; color: #3f4e48; font-size: 13px; line-height: 1.38; }
+  .panel--recap { gap: 12px; }
+  .panel--recap h2 { font-size: clamp(32px, 5vw, 46px); line-height: 1.04; }
+  .panel--recap h2 span { color: #765124; white-space: nowrap; }
+  .panel--recap .panel__message { max-width: 72ch; margin-top: 0 !important; font-size: 14px; line-height: 1.45; }
+  .panel--recap .button { background: #18312f; }
+  .panel--recap .button:hover { background: #264643; }
   .button { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; gap: 6px; min-height: 38px; border-radius: 4px; padding: 8px 12px; background: #a87338; color: #fffaf0; font-size: 12px; font-weight: 850; text-decoration: none; }
   .button:hover { background: #765124; }
   .links { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; }
@@ -343,6 +355,10 @@ const styles = `
     h1 { font-size: clamp(24px, 8vw, 32px); }
     .invitation { display: none; }
     .panel { padding: 12px 14px; }
+    .panel--recap { gap: 10px; }
+    .panel--recap h2 span { display: block; }
+    .panel--recap .panel__message { font-size: 12px; }
+    .panel--recap .links { gap: 8px 14px; }
     .panel--pre { grid-template-columns: 1fr; align-content: center; gap: 9px; }
     .pre-state { display: none; }
     .pre-copy h2 { font-size: clamp(23px, 7.5vw, 27px); }

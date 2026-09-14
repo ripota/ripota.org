@@ -68,9 +68,10 @@ no new feedback form, contact database, or commitment to another event.
 
 ## Follow-up experience audit
 
-The recap now leads with “We did it!! Thank you!!”. Post-event help has six
-practical answers about logs, results, photos, account access, hunter credit,
-and corrections. The old planning FAQ is retained for the pre-event phase.
+The recap now leads with “We did it!! Thank you!!”. Post-event help answers
+practical questions about logs, results, photos, account access, hunter credit,
+corrections, and the QRZ widget. The old planning FAQ is retained for the
+pre-event phase.
 Organizer contact offers a friendly invitation to reach out, with each name
 and callsign linked directly to its QRZ profile.
 
@@ -100,9 +101,13 @@ The remaining recommendations, in roughly this order, are:
 3. Clarify that the current photo uploader requires an existing activator
    account, and offer organizer contact to other contributors. Broadening upload
    access is a separate product decision.
-4. Update the QRZ embed invitation for the completed event. The social share
-   image now shows the thank-you recap, and its scheduled generator supports
-   both the recap and earlier event phases.
+
+The QRZ widget now leads with “We did it!! Thank you!!” and links to the recap,
+park results, and photos. Existing iframes update at the same URL; even old live
+preview URLs retire after the event, without fetching current spots or refreshing.
+The post-event FAQ retains the embed instructions. The social share image also
+shows the thank-you recap, and its scheduled generator supports both the recap
+and earlier event phases.
 
 The recap photo preview chooses up to three photos from the organizer-curated
 pool, favoring different contributor callsigns. It reads every page of featured
