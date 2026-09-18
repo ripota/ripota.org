@@ -1,0 +1,195 @@
+---
+import Footer from "../../components/Footer.astro";
+import Notice from "../../components/Notice.astro";
+import SiteHeader from "../../components/SiteHeader.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { onAirEmbedHeight } from "../../lib/pota/on-air-embed";
+---
+
+<BaseLayout
+  title="On-air widget for your QRZ page"
+  description="Add current Rhode Island POTA spots to your QRZ biography with a free, automatically updating widget."
+  canonicalPath="/widgets/on-air/"
+>
+  <SiteHeader variant="solid" />
+  <main id="main">
+    <section class="section widget-page" aria-labelledby="widget-title">
+      <div class="container">
+        <div class="widget-intro">
+          <p class="eyebrow">Bring Rhode Island to your QRZ page</p>
+          <h1 id="widget-title">Share what’s on air.</h1>
+          <p>Give hunters a window into Rhode Island’s parks, all year long.
+            This widget shows current official POTA spots from every RI activator
+            and refreshes automatically every minute.</p>
+          <a class="text-link" href="/on-air/">See Rhode Island on air →</a>
+        </div>
+
+        <div class="widget-builder" data-widget-builder>
+          <div class="widget-setup">
+            <h2>Make it yours</h2>
+            <form data-widget-form>
+              <label for="embed-callsign">Your callsign <span>(required)</span></label>
+              <input id="embed-callsign" data-widget-callsign type="text" required maxlength="32"
+                autocomplete="off" autocapitalize="characters" spellcheck="false"
+                aria-describedby="callsign-help" />
+              <p id="callsign-help">Enter your callsign, then generate your widget. Everyone sees the same RI spots.</p>
+              <button class="button" data-variant="primary" type="submit" disabled data-widget-generate>Generate my widget</button>
+            </form>
+            <noscript><p>Enable JavaScript to generate and preview your widget.</p></noscript>
+            <div class="widget-result" data-widget-result hidden>
+              <label for="embed-url">Your widget URL</label>
+              <input id="embed-url" data-widget-url type="text" readonly />
+              <label for="embed-code">QRZ embed code</label>
+              <textarea id="embed-code" data-widget-code readonly rows="11" spellcheck="false" />
+              <button class="button" data-variant="primary" type="button" data-widget-copy>Copy embed code</button>
+            </div>
+            <p class="widget-feedback" data-widget-feedback role="status" aria-live="polite"></p>
+          </div>
+
+          <section class="widget-preview" aria-labelledby="preview-title">
+            <div class="preview-heading"><h2 id="preview-title">Live preview</h2><span>Fits your page</span></div>
+            <div class="preview-placeholder" data-widget-placeholder>
+              <img src="/assets/logos/ri-pota-coastal-signal.svg" alt="" width="80" height="80" />
+              <p>Enter your callsign to see your widget.</p>
+              <span>Current parks · Callsigns · Frequencies · Modes</span>
+            </div>
+            <iframe data-widget-preview title="Rhode Island on-air widget preview"
+              width="100%" height={onAirEmbedHeight} hidden></iframe>
+            <p class="preview-note">Shows recent spots, including when they were reported. Activations may be underway without a spot.</p>
+          </section>
+        </div>
+
+        <section class="widget-instructions" aria-labelledby="qrz-title">
+          <p class="eyebrow">Ready in a few steps</p>
+          <h2 id="qrz-title">Add it to your QRZ biography</h2>
+          <ol>
+            <li>Generate your widget above and choose <strong>Copy embed code</strong>.</li>
+            <li>On QRZ, choose <strong>Edit your callsign</strong>, then <strong>Add or edit your biography text, fonts, etc.</strong></li>
+            <li>In the biography editor, choose <strong>Source</strong> and paste the code where you want the widget to appear.</li>
+            <li>Choose the disk icon to save, then return to your callsign listing.</li>
+          </ol>
+          <p>The widget updates itself—there’s no need to replace the code when activity changes.</p>
+        </section>
+      </div>
+    </section>
+    <Notice />
+  </main>
+  <Footer />
+</BaseLayout>
+
+<script>
+  import { siteIdentity } from "../../data/site";
+  import { normalizeEmbedCallsign, onAirEmbedPath, onAirEmbedSnippet } from "../../lib/pota/on-air-embed";
+
+  const root = document.querySelector<HTMLElement>("[data-widget-builder]");
+  if (root) {
+    const form = root.querySelector<HTMLFormElement>("[data-widget-form]")!;
+    const callsign = root.querySelector<HTMLInputElement>("[data-widget-callsign]")!;
+    const result = root.querySelector<HTMLElement>("[data-widget-result]")!;
+    const url = root.querySelector<HTMLInputElement>("[data-widget-url]")!;
+    const code = root.querySelector<HTMLTextAreaElement>("[data-widget-code]")!;
+    const preview = root.querySelector<HTMLIFrameElement>("[data-widget-preview]")!;
+    const placeholder = root.querySelector<HTMLElement>("[data-widget-placeholder]")!;
+    const feedback = root.querySelector<HTMLElement>("[data-widget-feedback]")!;
+    const generate = root.querySelector<HTMLButtonElement>("[data-widget-generate]")!;
+    let callsignEdited = false;
+
+    function updateCallsignState(): void {
+      const valid = normalizeEmbedCallsign(callsign.value);
+      generate.disabled = !valid;
+      callsign.setCustomValidity(valid ? "" : "Enter your callsign using letters, numbers, and optional slashes (for example, K1NW/P).");
+    }
+    updateCallsignState();
+
+    callsign.addEventListener("input", () => {
+      callsignEdited = true;
+      updateCallsignState();
+      result.hidden = true;
+      preview.hidden = true;
+      preview.removeAttribute("src");
+      placeholder.hidden = false;
+      code.value = "";
+      url.value = "";
+      feedback.textContent = "";
+    });
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const normalized = normalizeEmbedCallsign(callsign.value);
+      if (!normalized) return;
+      callsign.value = normalized;
+      const path = onAirEmbedPath(normalized);
+      url.value = `${siteIdentity.url}${path}`;
+      code.value = onAirEmbedSnippet(normalized);
+      // Preview locally as well as in production, without counting it as embed traffic.
+      preview.src = `${path}?preview=1`;
+      preview.hidden = false;
+      placeholder.hidden = true;
+      result.hidden = false;
+      feedback.textContent = `Your widget for ${normalized} is ready. Copy the code below your callsign.`;
+    });
+
+    root.querySelector<HTMLButtonElement>("[data-widget-copy]")!.addEventListener("click", async () => {
+      if (!code.value) return;
+      try {
+        await navigator.clipboard.writeText(code.value);
+        feedback.textContent = "Embed code copied. You’re ready to paste it into QRZ.";
+      } catch {
+        code.focus();
+        code.select();
+        feedback.textContent = "Copy wasn’t available. The embed code is selected; copy it with your keyboard or device menu.";
+      }
+    });
+    void prefillCallsign();
+
+    async function prefillCallsign(): Promise<void> {
+      try {
+        const response = await fetch("/api/auth/community-profile", {
+          headers: { accept: "application/json" }, credentials: "same-origin", cache: "no-store",
+        });
+        if (!response.ok) return;
+        const body = await response.json() as {
+          ok?: boolean; profile?: { callsign?: unknown } | null; proposedCallsign?: unknown;
+        } | null;
+        const candidate = body?.profile?.callsign ?? body?.proposedCallsign;
+        const normalized = typeof candidate === "string" ? normalizeEmbedCallsign(candidate) : null;
+        if (body?.ok !== true || !normalized || callsignEdited || callsign.value !== "") return;
+        callsign.value = normalized;
+        updateCallsignState();
+      } catch {
+        // Sign-in and profile availability are optional; manual entry always works.
+      }
+    }
+  }
+</script>
+
+<style>
+  .widget-page { padding-top: 56px; }
+  .widget-intro { max-width: 720px; margin-bottom: 36px; }
+  h1 { max-width: none; margin: 8px 0 18px; color: var(--surface-ink); font-size: clamp(38px, 6vw, 64px); line-height: 1.05; }
+  .widget-intro > p:not(.eyebrow) { color: var(--text-muted); font-size: 18px; }
+  .widget-builder { display: grid; grid-template-columns: minmax(280px, .85fr) minmax(0, 1.3fr); gap: 32px; align-items: start; }
+  .widget-setup { padding: 24px; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--surface-raised); }
+  h2 { margin-top: 0; font-size: 25px; }
+  label { display: block; margin: 20px 0 8px; font-weight: 750; }
+  label span { font-size: 13px; color: var(--text-muted); font-weight: 400; }
+  input, textarea { width: 100%; min-width: 0; border: 1px solid var(--border-subtle); border-radius: 6px; padding: 12px; background: var(--surface-page); color: var(--text-primary); }
+  #embed-callsign { text-transform: uppercase; font-weight: 750; letter-spacing: .08em; }
+  #callsign-help, .preview-note { color: var(--text-muted); font-size: 13px; line-height: 1.5; }
+  #callsign-help { margin: 8px 0 16px; }
+  .preview-note { margin-top: 12px; }
+  #embed-url, textarea { font-family: ui-monospace, monospace; font-size: 12px; }
+  textarea { resize: vertical; line-height: 1.6; }
+  .widget-result .button { margin-top: 12px; }
+  .widget-feedback { font-size: 14px; margin-top: 12px; }
+  .preview-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+  .preview-heading span { color: var(--text-muted); font-size: 12px; }
+  .preview-placeholder { min-height: 420px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 16px; padding: 24px; border: 1px dashed var(--border-subtle); border-radius: 8px; text-align: center; }
+  .preview-placeholder p { margin: 0; }
+  .preview-placeholder span { font-size: 12px; color: var(--text-muted); }
+  iframe { display: block; border: 0; background: #fffdf7; box-shadow: var(--shadow-soft); }
+  .widget-instructions { max-width: 780px; margin-top: 48px; }
+  .widget-instructions li { padding-left: 6px; margin-block: 12px; }
+  .widget-instructions > p:last-child { color: var(--text-muted); }
+  @media (max-width: 760px) { .widget-builder { grid-template-columns: 1fr; } .widget-setup { padding: 20px; } }
+</style>

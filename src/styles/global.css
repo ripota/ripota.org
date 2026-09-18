@@ -575,6 +575,29 @@ p {
   font-weight: 800;
 }
 
+.on-air-hero__widget-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 44px;
+  margin-top: 0.35rem;
+  border: 1px solid rgba(241, 200, 131, 0.55);
+  border-radius: 6px;
+  padding: 0.6rem 0.9rem;
+  background: rgba(255, 250, 240, 0.06);
+  color: #f1c883;
+  font-size: 0.9rem;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.on-air-hero__widget-link:hover,
+.on-air-hero__widget-link:focus-visible {
+  border-color: #f1c883;
+  background: rgba(255, 250, 240, 0.12);
+  color: #fffaf0;
+}
+
 .on-air-hero__spots {
   grid-area: spots;
   min-width: 0;

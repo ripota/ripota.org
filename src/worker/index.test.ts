@@ -269,6 +269,19 @@ describe("worker routing", () => {
     expect(testEnv.ASSETS.fetch).not.toHaveBeenCalled();
   });
 
+  it("routes generic and attributed evergreen embeds through the Worker", async () => {
+    const testEnv = env();
+    for (const path of ["/embed/on-air", "/embed/on-air/", "/embed/on-air/K1NW/", "/embed/on-air/K1NW%2FP/"]) {
+      const response = await worker.fetch(request(path, { method: "HEAD" }), testEnv);
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-security-policy")).toContain("frame-ancestors");
+    }
+    const click = await worker.fetch(request("/embed/on-air/K1NW/?visit=1"), testEnv);
+    expect(click.status).toBe(302);
+    expect(click.headers.get("location")).toContain("utm_content=K1NW");
+    expect(testEnv.ASSETS.fetch).not.toHaveBeenCalled();
+  });
+
   it("automatically serves live spots in the embedded widget during the event", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-09-11T12:00:00Z"));

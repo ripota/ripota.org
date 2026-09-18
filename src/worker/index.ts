@@ -14,6 +14,7 @@ import {
   isActivateRiEmbedPath,
 } from "./routes/activate-ri-embed";
 import { handlePotaSpots } from "./routes/pota";
+import { handleOnAirEmbed, isOnAirEmbedPath } from "./routes/on-air-embed";
 import { ActivateRiOpsRoom } from "./durable-objects/activate-ri-ops-room";
 import { runPotaCollection } from "./pota-collection";
 import { afterActionArchiveCron, runAfterActionArchive } from "./after-action-archive";
@@ -82,6 +83,10 @@ const worker = {
 
     if (url.pathname.startsWith("/api/")) {
       return json({ ok: false, error: "Not found" }, { status: 404 });
+    }
+
+    if (isOnAirEmbedPath(url.pathname)) {
+      return handleOnAirEmbed(request, env);
     }
 
     if (isActivateRiEmbedPath(url.pathname)) {
