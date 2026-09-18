@@ -41,6 +41,16 @@ function post(body: unknown, headers: HeadersInit = {}): Request {
 }
 
 describe("analytics event route", () => {
+  it("accepts evergreen generator events with a separate HMAC scope and anonymous mirror stream", async () => {
+    const env = testEnv();
+    for (const [scope, name] of [["activate-ri-2026", "volunteer_form_started"], ["on-air", "widget_generated"]]) {
+      expect((await handleAnalyticsEvent(post({ schemaVersion: 1, scope, name, anonymousId }), env)).status).toBe(202);
+    }
+    const points = vi.mocked(env.ANALYTICS!.writeDataPoint).mock.calls.map(call => call[0]!);
+    expect(points[0].indexes).not.toEqual(points[1].indexes);
+    expect(points[1].blobs?.slice(0, 3)).toEqual(["on-air", "widget_generated", "anonymous"]);
+    expect(recordAnalyticsIngestionOutcome).toHaveBeenCalledWith(env.DB, "accepted", expect.any(String), "on-air");
+  });
   it("writes a validated event without retaining the browser identifier", async () => {
     const env = testEnv();
     const response = await handleAnalyticsEvent(post({
@@ -151,7 +161,7 @@ describe("analytics event route", () => {
     const response = await handleAnalyticsEvent(post({ schemaVersion: 1, scope: "activate-ri-2026", name: "volunteer_form_started", anonymousId }), env);
     expect(response.status).toBe(202);
     expect(env.ANALYTICS!.writeDataPoint).not.toHaveBeenCalled();
-    expect(recordAnalyticsIngestionOutcome).toHaveBeenCalledWith(env.DB, "duplicate", expect.any(String));
+    expect(recordAnalyticsIngestionOutcome).toHaveBeenCalledWith(env.DB, "duplicate", expect.any(String), "activate-ri-2026");
   });
 
   it("returns a retryable failure if durable storage fails", async () => {
@@ -169,7 +179,7 @@ describe("analytics event route", () => {
     try {
       const response = await handleAnalyticsEvent(post({ schemaVersion: 1, scope: "activate-ri-2026", name: "volunteer_form_started", anonymousId }), env);
       expect(response.status).toBe(202);
-      expect(recordAnalyticsIngestionOutcome).toHaveBeenCalledWith(env.DB, "mirror_failed", expect.any(String));
+      expect(recordAnalyticsIngestionOutcome).toHaveBeenCalledWith(env.DB, "mirror_failed", expect.any(String), "activate-ri-2026");
     } finally {
       logger.mockRestore();
     }
@@ -181,7 +191,7 @@ describe("analytics event route", () => {
 
     expect(response.status).toBe(413);
     expect(env.ANALYTICS?.writeDataPoint).not.toHaveBeenCalled();
-    expect(recordAnalyticsIngestionOutcome).toHaveBeenCalledWith(env.DB, "rejected", expect.any(String));
+    expect(recordAnalyticsIngestionOutcome).toHaveBeenCalledWith(env.DB, "rejected", expect.any(String), "unscoped");
   });
 
   it.each([
@@ -193,7 +203,7 @@ describe("analytics event route", () => {
       method: "POST", headers: { origin: "https://ripota.org", "content-type": contentType }, body,
     });
     expect((await handleAnalyticsEvent(request, env)).status).toBe(status);
-    expect(recordAnalyticsIngestionOutcome).toHaveBeenCalledWith(env.DB, "rejected", expect.any(String));
+    expect(recordAnalyticsIngestionOutcome).toHaveBeenCalledWith(env.DB, "rejected", expect.any(String), "unscoped");
   });
 
   it("rate limits the anonymous collector before parsing", async () => {

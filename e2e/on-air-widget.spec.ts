@@ -29,6 +29,13 @@ const test = base.extend<{ feed: Feed }, { server: ActivateRiServer }>({
 });
 
 test("requires a callsign, generates a normalized preview and snippet, copies, and clears outdated output", async ({ page, context, server, feed }) => {
+  const events: Array<{ scope: string; name: string; properties: unknown }> = [];
+  await page.route("**/api/analytics/events", async route => {
+    events.push(route.request().postDataJSON());
+    expect(route.request().headers().cookie).toBeUndefined();
+    expect(route.request().headers().referer).toBeUndefined();
+    await route.fulfill({ status: 202, json: { ok: true } });
+  });
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto(`${server.origin}/widgets/on-air/`);
   const callsign = page.getByLabel("Your callsign (required)");
@@ -56,6 +63,10 @@ test("requires a callsign, generates a normalized preview and snippet, copies, a
   await expect(page.getByRole("status")).toContainText("Embed code copied");
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(await code.inputValue());
   expect(await code.inputValue()).not.toContain("preview=1");
+  await expect.poll(() => events.map(event => event.name)).toEqual(["widget_generated", "widget_code_copied"]);
+  expect(events.every(event => event.scope === "on-air")).toBe(true);
+  expect(events.map(event => event.properties)).toEqual([{ pageCategory: "widget" }, { pageCategory: "widget" }]);
+  expect(JSON.stringify(events)).not.toContain("K1NW");
 
   await callsign.fill("ea8/k1nw/p");
   await expect(code).toBeHidden();
@@ -137,6 +148,11 @@ for (const edited of ["W1AW", ""]) {
 }
 
 test("offers selected code when clipboard access is denied", async ({ page, server, feed }) => {
+  const events: string[] = [];
+  await page.route("**/api/analytics/events", async route => {
+    events.push(route.request().postDataJSON().name);
+    await route.fulfill({ status: 202, json: { ok: true } });
+  });
   await page.addInitScript(() => Object.defineProperty(navigator, "clipboard", {
     value: { writeText: async () => { throw new Error("Permission denied"); } },
   }));
@@ -149,7 +165,27 @@ test("offers selected code when clipboard access is denied", async ({ page, serv
   await expect(code).toBeFocused();
   expect(await code.evaluate((element: HTMLTextAreaElement) => element.selectionEnd - element.selectionStart)).toBe((await code.inputValue()).length);
   expect(feed.snapshot).not.toBeNull();
+  await expect.poll(() => events).toEqual(["widget_generated"]);
 });
+
+for (const signal of ["globalPrivacyControl", "doNotTrack"]) {
+  test(`generator honors ${signal} without blocking generation or copying`, async ({ page, context, server, feed }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.addInitScript(signal => Object.defineProperty(navigator, signal, {
+      value: signal === "globalPrivacyControl" ? true : "1",
+    }), signal);
+    const events: string[] = [];
+    await page.route("**/api/analytics/events", route => { events.push(route.request().url()); return route.abort(); });
+    await page.goto(`${server.origin}/widgets/on-air/`);
+    await page.getByLabel("Your callsign (required)").fill("K1NW");
+    await page.getByRole("button", { name: "Generate my widget" }).click();
+    await page.getByRole("button", { name: "Copy embed code" }).click();
+    await expect(page.getByRole("status")).toContainText("Embed code copied");
+    expect(events).toHaveLength(0);
+    expect(await page.evaluate(() => localStorage.getItem("ripota:analytics:subjects:v1"))).toBeNull();
+    expect(feed.requests).toEqual(["/embed/on-air/K1NW/?preview=1"]);
+  });
+}
 
 for (const width of [320, 960]) {
   test(`the ${width}px iframe keeps all spots reachable and handles quiet, delayed, and unavailable feeds`, async ({ page, server, feed }, testInfo) => {

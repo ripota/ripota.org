@@ -20,6 +20,30 @@ afterEach(() => {
 });
 
 describe("analytics client", () => {
+  it("keeps evergreen subjects stable past 2026 and rotates them after 90 days", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2027-02-01T12:00:00Z"));
+    vi.stubGlobal("location", { pathname: "/widgets/on-air/" });
+    await trackAnalyticsEvent("on-air", "widget_generated");
+    vi.setSystemTime(new Date("2027-02-02T12:00:00Z"));
+    await trackAnalyticsEvent("on-air", "widget_code_copied");
+    vi.setSystemTime(new Date("2027-05-02T12:00:00Z"));
+    await trackAnalyticsEvent("on-air", "widget_generated");
+    const bodies = vi.mocked(fetch).mock.calls.map(call => JSON.parse(String(call[1]?.body)));
+    expect(bodies[0].anonymousId).toBe(bodies[1].anonymousId);
+    expect(bodies[2].anonymousId).not.toBe(bodies[0].anonymousId);
+    expect(bodies[0].properties).toEqual({ pageCategory: "widget" });
+  });
+
+  it("separates scope identities even when local storage fails", async () => {
+    vi.mocked(localStorage.getItem).mockImplementation(() => { throw new Error("Unavailable"); });
+    await trackAnalyticsEvent("on-air", "widget_generated");
+    await trackAnalyticsEvent("activate-ri-2026", "volunteer_form_started");
+    await trackAnalyticsEvent("on-air", "widget_code_copied");
+    const bodies = vi.mocked(fetch).mock.calls.map(call => JSON.parse(String(call[1]?.body)));
+    expect(bodies[0].anonymousId).not.toBe(bodies[1].anonymousId);
+    expect(bodies[0].anonymousId).toBe(bodies[2].anonymousId);
+  });
   it("reuses a random event-scoped subject without sending credentials", async () => {
     await trackAnalyticsEvent("activate-ri-2026", "hunter_import_attempted", {
       importMethod: "file_picker",

@@ -86,7 +86,7 @@ const worker = {
     }
 
     if (isOnAirEmbedPath(url.pathname)) {
-      return handleOnAirEmbed(request, env);
+      return handleOnAirEmbed(request, env, {}, ctx);
     }
 
     if (isActivateRiEmbedPath(url.pathname)) {

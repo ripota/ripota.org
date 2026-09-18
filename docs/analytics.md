@@ -1,6 +1,6 @@
 # Product analytics and after-action evidence
 
-Implementation updated September 10, 2026. See the
+Implementation updated September 18, 2026. See the
 [collection and retention runbook](activate-ri-2026/after-action-collection.md)
 for archives, verification, and event boundaries. The September 8 review is a
 historical assessment, not the current implementation contract.
@@ -18,13 +18,19 @@ The site uses separate sources for separate questions:
 3. Authenticated D1 facts record successful private-feature requests and bounded
    Ops foreground/message exposure. Plans, changes, messages, and notification
    delivery processing remain domain records.
+4. Evergreen widget requests use daily D1 counters and an optional Analytics
+   Engine mirror. They identify embedder URLs, not viewers. See
+   [the on-air widget runbook](on-air-widget.md) for attribution and reporting.
 
 Do not add custom page-view events. Anonymous identifiers are random,
-event-scoped browser UUIDs; the Worker stores only the existing HMAC key.
+scope-specific browser UUIDs; the Worker stores only the existing HMAC key.
 Anonymous browser keys are never joined to authenticated activator IDs.
 GPC and DNT disable collection, including retries. No browser park checklist,
 CSV contents, filenames, callsigns, form values, full URLs, IP addresses, or
 referrers are added to public analytics. Requests omit cookies and referrer.
+This browser-event restriction also covers the widget generator. The separate
+server widget stream explicitly stores the normalized public embedder URL label
+(callsign or `generic`); it is never joined to anonymous browser subjects or accounts.
 
 Schema v2 includes an action UUID and client occurrence time. Properties are
 strictly allowlisted enums, UUID import-attempt identifiers, and bounded integer
@@ -47,6 +53,13 @@ the report: doing so splits one browser across different HMAC subjects.
 D1 acceptance does not depend on the `ripota_usage` mirror being available.
 
 ## Public instrumentation
+
+The event registry validates names and properties within each scope:
+`activate-ri-2026` retains its existing contract; evergreen `on-air` accepts
+`widget_generated` and `widget_code_copied` with only the shared page category.
+Generation requires a valid callsign; copied means successful clipboard completion,
+not a manual copy or installation. Browser schema versions 1 and 2 remain supported.
+The `on-air` subject expires 90 days after creation; AARI keeps its existing expiry.
 
 - Checklist start, resume, every manual progress change, reset and clear.
 - Import attempt, success/failure, persistence and parser quality, linked by
@@ -129,8 +142,26 @@ outcomes. Weight sampled Analytics Engine observations with `_sample_interval`.
 
 ## Retention and export
 
+Evergreen generator records have a minimum retention of 365 days from server
+receipt, explicitly overriding the historical AARI table default. This is metadata,
+not a purge schedule. Widget daily counters have no automatic purge. Both remain
+in full D1 backups, outside the AARI-scoped evidence exports and snapshot cutoff.
+
+New collector diagnostics use `analytics_ingestion_by_scope_daily`. Accepted
+payloads supply their validated scope; malformed, oversized, and rate-limited
+requests use `unscoped`. Original `analytics_ingestion_daily` rows remain as legacy
+AARI diagnostics. AARI exports include only their own scope's new diagnostics.
+
+Analytics Engine continues using `ripota_usage`. Anonymous events keep their
+existing layout and `blob3 = 'anonymous'`; queries must filter by stream before
+interpreting `index1` as a browser. Widget mirrors use `blob1 = 'on-air'`,
+`blob2 = 'widget_request'`, `blob3 = 'widget'`, `blob4 = 'on_air_widget'`,
+`blob5 = action`, `blob11 = '1'` (widget stream version), `blob12 = embedder`,
+`double1 = 1`, and `index1 = 'widget:on-air:' + embedder`. Other widget blobs are
+empty. Sampled queries must weight counts by `_sample_interval`.
+
 D1 evidence is retained for the report, with no automatic event purge.
-Anonymous and spot archives have a minimum retention date of January 1, 2027;
+AARI anonymous and spot archives have a minimum retention date of January 1, 2027;
 changing a retention date alone does not delete anything. Later deletion
 requires a deliberate retention decision after verified export.
 

@@ -1,4 +1,5 @@
-import type { AnalyticsEvent } from "../lib/analytics/events";
+import type { AnalyticsEvent, AnalyticsScope } from "../lib/analytics/events";
+import { analyticsRetainUntil } from "../lib/analytics/retention";
 
 /** Receipt time is authoritative for intervals; client time is evidence only. */
 export async function persistAnonymousAnalyticsEvent(
@@ -13,11 +14,12 @@ export async function persistAnonymousAnalyticsEvent(
   const clockSkewed = Math.abs(Date.parse(occurredAt) - Date.parse(receivedAt)) > 300_000;
   const results = await db.batch([db.prepare(`INSERT INTO analytics_anonymous_events (
     scope, subject_hash, event_id, event_name, schema_version,
-    occurred_at, received_at, clock_skewed, properties_json
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    occurred_at, received_at, clock_skewed, properties_json, retain_until
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   ON CONFLICT(scope, subject_hash, event_id) DO NOTHING`).bind(
     event.scope, subjectHash, eventId, event.name, event.schemaVersion,
     occurredAt, receivedAt, Number(clockSkewed), JSON.stringify(event.properties ?? {}),
+    analyticsRetainUntil(event.scope, receivedAt),
   ), db.prepare(`INSERT INTO analytics_collection_metadata(scope, stream, started_at)
     VALUES (?, 'anonymous_events', ?) ON CONFLICT(scope, stream) DO UPDATE
     SET started_at = MIN(started_at, excluded.started_at)`).bind(event.scope, receivedAt)]);
@@ -34,10 +36,11 @@ export async function recordAnalyticsIngestionOutcome(
   db: D1Database,
   outcome: AnalyticsIngestionOutcome,
   at = new Date().toISOString(),
+  scope: AnalyticsScope | "unscoped" = "unscoped",
 ): Promise<void> {
-  await db.prepare(`INSERT INTO analytics_ingestion_daily
-    (day, outcome, count, first_seen_at, last_seen_at) VALUES (?, ?, 1, ?, ?)
-    ON CONFLICT(day, outcome) DO UPDATE SET
+  await db.prepare(`INSERT INTO analytics_ingestion_by_scope_daily
+    (day, scope, outcome, count, first_seen_at, last_seen_at) VALUES (?, ?, ?, 1, ?, ?)
+    ON CONFLICT(day, scope, outcome) DO UPDATE SET
       count = count + 1, last_seen_at = MAX(last_seen_at, excluded.last_seen_at)`)
-    .bind(at.slice(0, 10), outcome, at, at).run();
+    .bind(at.slice(0, 10), scope, outcome, at, at).run();
 }

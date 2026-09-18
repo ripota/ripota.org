@@ -15,7 +15,7 @@ available afterward. The original review's October 14 cutoff is obsolete.
 | Collection health | `activate_ri_pota_collection_runs` distinguishes scheduled/actual times, fresh/stale/empty/error states and stage counts. A started run without completion identifies interruption. Earlier uptime is not fabricated. |
 | Public actions | `analytics_anonymous_events` retains validated lifecycle/count properties, receipt/client time, skew, schema and retry ID under the separate HMAC browser identity. |
 | Private engagement | Timestamped feature events, UTC-minute foreground samples and daily message exposures support bounded event-window reporting. |
-| Operational health | `analytics_ingestion_daily` stores acceptance/rejection/storage/mirror outcomes; `operational_health_daily` stores coarse browser/server/background failure counts without error text or personal data. |
+| Operational health | `analytics_ingestion_daily` retains legacy AARI ingestion outcomes; new outcomes use `analytics_ingestion_by_scope_daily`, with this archive including only `activate-ri-2026`. Rejections before scope validation are `unscoped`. `operational_health_daily` stores coarse browser/server/background failure counts without error text or personal data. |
 | Domain history | Existing stops, activity audit, Ops transitions and send attempts remain in D1. Use before/after records and dated snapshots rather than treating current state as the original plan. |
 
 Rolling spot cleanup still manages the UI cache after fourteen days. It does

@@ -8,6 +8,21 @@ const base = {
 };
 
 describe("analytics payload validation", () => {
+  it.each(["widget_generated", "widget_code_copied"])("accepts evergreen %s only in its own scope", name => {
+    expect(parseAnalyticsEvent({ ...base, scope: "on-air", name, properties: { pageCategory: "widget" } })).not.toBeNull();
+    expect(parseAnalyticsEvent({ ...base, name })).toBeNull();
+    expect(parseAnalyticsEvent({ ...base, scope: "on-air" })).toBeNull();
+  });
+
+  it.each(["constructor", "__proto__", "toString"])("rejects inherited scope %s", scope => {
+    expect(parseAnalyticsEvent({ ...base, scope })).toBeNull();
+  });
+
+  it.each([{ embedder: "K1NW" }, { callsign: "K1NW" }, { action: "open" }, { completedCount: 1 }])(
+    "rejects identifying and unrelated widget properties %j", properties => {
+      expect(parseAnalyticsEvent({ ...base, scope: "on-air", name: "widget_generated", properties })).toBeNull();
+    },
+  );
   it("accepts the rendered hunter CTA action", () => {
     expect(parseAnalyticsEvent({ ...base, name: "event_cta_clicked", properties: { action: "hunter", feature: "hunter_checklist" } })).not.toBeNull();
   });

@@ -19,6 +19,16 @@ function legacyEvent() {
 }
 
 describe("durable anonymous evidence", () => {
+  it("retains evergreen generator events independently of the AARI cutoff and deduplicates retries", async () => {
+    const db = setup();
+    const at = "2027-02-01T12:00:00.000Z";
+    const event = parseAnalyticsEvent({ ...legacyEvent(), schemaVersion: 2, scope: "on-air", name: "widget_generated",
+      eventId: "22222222-2222-4222-8222-222222222222", occurredAt: at })!;
+    expect(await persistAnonymousAnalyticsEvent(db, event, "evergreen-subject", at)).toBe(true);
+    expect(await persistAnonymousAnalyticsEvent(db, event, "evergreen-subject", at)).toBe(false);
+    expect(await db.prepare("SELECT scope, retain_until FROM analytics_anonymous_events").first())
+      .toEqual({ scope: "on-air", retain_until: "2028-02-01T12:00:00.000Z" });
+  });
   it("stores only the HMAC subject and validated properties, with receipt-time legacy provenance", async () => {
     const db = setup();
     expect(await persistAnonymousAnalyticsEvent(db, legacyEvent(), "hashed-subject", receipt)).toBe(true);
@@ -50,7 +60,7 @@ describe("durable anonymous evidence", () => {
     await recordAnalyticsIngestionOutcome(db, "accepted", receipt);
     await recordAnalyticsIngestionOutcome(db, "accepted", receipt);
     await recordAnalyticsIngestionOutcome(db, "duplicate", receipt);
-    expect((await db.prepare("SELECT outcome, count FROM analytics_ingestion_daily ORDER BY outcome").all()).results)
+    expect((await db.prepare("SELECT outcome, count FROM analytics_ingestion_by_scope_daily ORDER BY outcome").all()).results)
       .toEqual([{ outcome: "accepted", count: 2 }, { outcome: "duplicate", count: 1 }]);
   });
 });

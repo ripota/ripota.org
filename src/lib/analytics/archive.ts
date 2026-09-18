@@ -19,6 +19,7 @@ export const evidenceTables = [
   { name: "analytics_feature_usage", scope: "scope" },
   { name: "analytics_feature_usage_legacy", scope: "scope" },
   { name: "analytics_ingestion_daily", scope: null },
+  { name: "analytics_ingestion_by_scope_daily", scope: "scope" },
   { name: "operational_health_daily", scope: "scope" },
   { name: "activate_ri_ops_foreground_samples", scope: "event_id" },
   { name: "activate_ri_ops_message_exposures", scope: "event_id" },

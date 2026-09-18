@@ -402,6 +402,7 @@ async function main(): Promise<void> {
 function analyticsWhere(options: CliOptions): string {
   const clauses = [
     `blob1 = ${sqlString(options.scope)}`,
+    `blob3 = 'anonymous'`,
     `timestamp >= toDateTime(${sqlString(toAnalyticsTimestamp(options.since))})`,
     `timestamp < toDateTime(${sqlString(toAnalyticsTimestamp(options.until))})`,
   ];
@@ -498,7 +499,7 @@ async function queryAnalyticsEngine(
   return parsed.data ?? [];
 }
 
-function queryD1(database: string, sql: string): Record<string, unknown>[] {
+export function queryD1(database: string, sql: string): Record<string, unknown>[] {
   const response = runWranglerJson<Array<{ results?: Record<string, unknown>[] }>>([
     "d1",
     "execute",

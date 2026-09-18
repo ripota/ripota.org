@@ -78,6 +78,7 @@ import { onAirEmbedHeight } from "../../lib/pota/on-air-embed";
 </BaseLayout>
 
 <script>
+  import { trackAnalyticsEvent } from "../../lib/analytics/client";
   import { siteIdentity } from "../../data/site";
   import { normalizeEmbedCallsign, onAirEmbedPath, onAirEmbedSnippet } from "../../lib/pota/on-air-embed";
 
@@ -127,12 +128,14 @@ import { onAirEmbedHeight } from "../../lib/pota/on-air-embed";
       placeholder.hidden = true;
       result.hidden = false;
       feedback.textContent = `Your widget for ${normalized} is ready. Copy the code below your callsign.`;
+      void trackAnalyticsEvent("on-air", "widget_generated");
     });
 
     root.querySelector<HTMLButtonElement>("[data-widget-copy]")!.addEventListener("click", async () => {
       if (!code.value) return;
       try {
         await navigator.clipboard.writeText(code.value);
+        void trackAnalyticsEvent("on-air", "widget_code_copied");
         feedback.textContent = "Embed code copied. You’re ready to paste it into QRZ.";
       } catch {
         code.focus();

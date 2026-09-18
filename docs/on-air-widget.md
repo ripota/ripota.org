@@ -34,12 +34,40 @@ Worker logs emit JSON entries with `event: "on-air-widget"`, an `embedder` label
   with `utm_source=qrz`, `utm_medium=widget`, `utm_campaign=ri-on-air`, and the
   embedder in `utm_content`.
 
-Filter those structured entries in Workers Logs and group by embedder/action.
-These are request counts, **not unique visitors**; bots, manual loads, and copied
-URLs can affect them. No cookies or viewer identifiers are added, and these events
-are not stored in the event-specific analytics archive. Retention follows Workers
-Logs configuration.
+The Worker also increments `analytics_widget_daily` in D1 by UTC date, `on-air`
+scope, embedder, and action. Successful D1 writes are optionally mirrored into
+the existing `ripota_usage` Analytics Engine dataset as the `widget` stream.
+Recording runs through `waitUntil`; a storage or mirror failure is logged and
+does not prevent rendering or redirecting. Counts represent recorded requests,
+**not unique visitors**, verified installations, or successful renders; bots,
+manual loads, copied URLs, and storage failures can affect them. `click` measures
+only the Full on-air view link, not park links or official POTA links.
+
+No cookies or viewer identifiers are added to the iframe. Requests carrying
+`Sec-GPC: 1` or `DNT: 1`, and read-only production-data development requests, are
+excluded. The totals have no automatic purge and are independent of AARI's archive
+schedule. Full D1 recovery backups include them; the scoped AARI evidence export
+does not. Existing short-lived Worker logs are not backfilled into the counters.
 
 Generator previews use `?preview=1` and carry that flag through refreshes and
 clicks. Preview requests and HEAD probes do not emit widget analytics entries.
 The copied embed code never includes the preview flag.
+
+The generator records `widget_generated` after valid generation and
+`widget_code_copied` only after clipboard success through the existing anonymous
+collector. No callsign, account ID, or generated URL is sent with those events.
+Manual copying cannot be observed. The client respects GPC/DNT and uses a separate
+`on-air` browser subject with a 90-day lifetime.
+
+## Reporting
+
+```bash
+mise run analytics:widgets -- --since 2026-09-18 --until 2026-10-01
+mise run analytics:widgets -- --json
+```
+
+The report uses durable D1 data and shows daily loads, refreshes, and clicks by
+embedder, generator actions, and collection start times. Defaults cover the last
+30 UTC dates including today. Windows are `[since, until)` and accept whole dates
+only; today's totals are partial. No Analytics Engine access is required to run
+this report, and its overlapping mirror counts must not be added to D1 totals.

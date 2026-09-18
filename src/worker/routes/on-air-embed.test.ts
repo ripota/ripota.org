@@ -1,10 +1,16 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createMigratedSqliteD1 } from "../test-utils/sqlite-d1";
 import type { LivePotaSpot } from "../../lib/pota/spots";
 import type { RiPotaSpotsSnapshot, RiPotaSpotsSnapshotResult } from "./pota";
 import { handleOnAirEmbed, renderOnAirEmbed } from "./on-air-embed";
 
 const now = new Date("2026-10-01T15:30:00Z");
-const env = { DB: { prepare: vi.fn() } as unknown as D1Database };
+let database: ReturnType<typeof createMigratedSqliteD1>;
+let env: { DB: D1Database };
+beforeEach(() => {
+  database = createMigratedSqliteD1();
+  env = { DB: database.DB };
+});
 const spot: LivePotaSpot = {
   id: "1", parkReference: "US-10545", parkName: "Hillsdale Preserve Management Area",
   activatorCallsign: "N1BS", frequency: "14052.0", mode: "CW", spotTime: "2026-10-01T15:27:00",
@@ -16,7 +22,7 @@ function available(): RiPotaSpotsSnapshotResult {
   return { ok: true, snapshot, fetchedAt: now.valueOf(), observedAt: now.valueOf() };
 }
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => { vi.restoreAllMocks(); database.close(); });
 
 describe("evergreen on-air embed", () => {
   it.each(["2026-01-01T12:00:00Z", "2026-09-12T12:00:00Z", "2027-01-01T12:00:00Z"])(
@@ -111,6 +117,8 @@ describe("evergreen on-air embed", () => {
     expect(log.mock.calls.map(([value]) => JSON.parse(value))).toEqual(["load", "refresh", "click"].map(action => ({
       event: "on-air-widget", action, embedder: "K1NW/P",
     })));
+    expect((await env.DB.prepare("SELECT embedder, action, count FROM analytics_widget_daily ORDER BY action").all()).results)
+      .toEqual(["click", "load", "refresh"].map(action => ({ embedder: "K1NW/P", action, count: 1 })));
   });
 
   it("rejects bad methods and malformed paths without requesting POTA data", async () => {
@@ -122,5 +130,26 @@ describe("evergreen on-air embed", () => {
       expect(response.status).toBe(status);
     }
     expect(getSnapshot).not.toHaveBeenCalled();
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM analytics_widget_daily").first()).toEqual({ count: 0 });
+  });
+
+  it.each(["sec-gpc", "dnt"])("serves opted-out %s requests without any widget collection", async header => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const response = await handleOnAirEmbed(new Request("https://ripota.org/embed/on-air/K1NW/", { headers: { [header]: "1" } }), env,
+      { getSnapshot: async () => available() });
+    expect(response.status).toBe(200);
+    expect(log).not.toHaveBeenCalled();
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM analytics_widget_daily").first()).toEqual({ count: 0 });
+  });
+
+  it("keeps generic rendering and click redirects working during storage failures", async () => {
+    vi.spyOn(env.DB, "batch").mockRejectedValue(new Error("Unavailable"));
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    for (const query of ["", "?refresh=1", "?visit=1"]) {
+      const response = await handleOnAirEmbed(new Request(`https://ripota.org/embed/on-air/${query}`), env,
+        { getSnapshot: async () => available() });
+      expect(response.status).toBe(query.includes("visit") ? 302 : 200);
+    }
+    expect(error).toHaveBeenCalledTimes(3);
   });
 });

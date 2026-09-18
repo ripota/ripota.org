@@ -4,6 +4,7 @@ import { onAirEmbedBasePath, onAirEmbedPath, parseOnAirEmbedPath } from "../../l
 import { formatRadioDetails } from "../../lib/pota/radio-details";
 import { officialPotaSpotsUrl, type LivePotaSpot } from "../../lib/pota/spots";
 import type { Env } from "../env";
+import { captureWidgetRequest } from "../widget-analytics";
 import { getRiPotaSpotsSnapshot, type PotaSpotsHandlerOptions, type RiPotaSpotsSnapshot } from "./pota";
 
 const headers = {
@@ -21,8 +22,9 @@ export function isOnAirEmbedPath(pathname: string): boolean {
 
 export async function handleOnAirEmbed(
   request: Request,
-  env: Pick<Env, "DB">,
+  env: Pick<Env, "DB" | "ANALYTICS" | "REMOTE_DATA_READ_ONLY">,
   options: PotaSpotsHandlerOptions & { getSnapshot?: typeof getRiPotaSpotsSnapshot } = {},
+  ctx?: ExecutionContext,
 ): Promise<Response> {
   if (request.method !== "GET" && request.method !== "HEAD") {
     return new Response("Method not allowed", { status: 405, headers: { ...headers, allow: "GET, HEAD" } });
@@ -36,7 +38,8 @@ export async function handleOnAirEmbed(
 
   // These are request counts, not unique visitors. Previews and HEAD probes are excluded.
   if (!preview && request.method === "GET") {
-    console.log(JSON.stringify({ event: "on-air-widget", action, embedder: parsed.callsign ?? "generic" }));
+    await captureWidgetRequest(request, env, ctx, parsed.callsign ?? "generic", action,
+      (options.now?.() ?? new Date()).toISOString());
   }
   if (action === "click") {
     const destination = new URL("/on-air/", url.origin);

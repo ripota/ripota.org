@@ -17,6 +17,16 @@ describe("after-action snapshots", () => {
       (scope,subject_hash,event_id,event_name,schema_version,occurred_at,received_at,properties_json)
       VALUES ('activate-ri-2026','hmac','one','hunter_progress_changed',2,'2026-09-10T00:00:00.000Z','2026-09-10T00:00:00.000Z','{"completedCount":4}')`).run();
     const files = new Map<string, string>();
+    await db.prepare(`INSERT INTO analytics_anonymous_events
+      (scope,subject_hash,event_id,event_name,schema_version,occurred_at,received_at,properties_json)
+      VALUES ('on-air','separate','two','widget_generated',2,'2026-09-18T00:00:00.000Z','2026-09-18T00:00:00.000Z','{}')`).run();
+    await db.prepare(`INSERT INTO analytics_widget_daily
+      (day,scope,embedder,action,first_seen_at,last_seen_at)
+      VALUES ('2026-09-18','on-air','K1NW','load','2026-09-18T00:00:00.000Z','2026-09-18T00:00:00.000Z')`).run();
+    for (const scope of ["activate-ri-2026", "on-air", "unscoped"]) {
+      await db.prepare(`INSERT INTO analytics_ingestion_by_scope_daily
+        (day,scope,outcome,first_seen_at,last_seen_at) VALUES ('2026-09-18',?,'accepted','2026-09-18T00:00:00.000Z','2026-09-18T00:00:00.000Z')`).bind(scope).run();
+    }
     const manifest = await exportAfterActionEvidence(query, async (key, body, digest) => {
       expect(await sha256(body)).toBe(digest);
       files.set(key, body);
@@ -25,6 +35,9 @@ describe("after-action snapshots", () => {
     expect([...files.keys()].at(-1)).toBe("activate-ri-2026/test/snapshot/manifest.json");
     expect(manifest.files.every((file) => files.has(file.key))).toBe(true);
     expect(manifest.retainUntil).toBe("2027-01-01T00:00:00.000Z");
+    expect([...files.values()].join("\n")).not.toContain("widget_generated");
+    expect(manifest.tables.some(table => table.name === "analytics_widget_daily")).toBe(false);
+    expect(manifest.tables.find(table => table.name === "analytics_ingestion_by_scope_daily")?.rows).toBe(1);
     expect(JSON.parse(files.get("activate-ri-2026/test/snapshot/analytics_anonymous_events/00000.json")!)[0]).not.toHaveProperty("_export_rowid");
   });
 

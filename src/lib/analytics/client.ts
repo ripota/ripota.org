@@ -3,19 +3,19 @@ import type {
   AnalyticsProperties,
   AnalyticsScope,
 } from "./events";
+import { analyticsSubjectExpiry } from "./retention";
 
 const storageKey = "ripota:analytics:subjects:v1";
-const subjectExpiry = "2026-12-31T23:59:59.999Z";
-let pageSubjectId: string | null = null;
+const pageSubjectIds: Partial<Record<AnalyticsScope, string>> = {};
 
 type StoredSubjects = Partial<Record<AnalyticsScope, {
   id: string;
   expiresAt: string;
 }>>;
 
-export async function trackAnalyticsEvent(
-  scope: AnalyticsScope,
-  name: AnalyticsEventName,
+export async function trackAnalyticsEvent<Scope extends AnalyticsScope>(
+  scope: Scope,
+  name: AnalyticsEventName<Scope>,
   properties?: AnalyticsProperties,
 ): Promise<void> {
   if (privacySignalEnabled()) return;
@@ -70,6 +70,7 @@ function pageCategory(): NonNullable<AnalyticsProperties["pageCategory"]> {
   if (/^\/activate-ri-2026\/schedule\/?$/.test(path)) return "schedule";
   if (/^\/activate-ri-2026\/volunteer\/?$/.test(path)) return "volunteer";
   if (path.startsWith("/activate-ri-2026/")) return "event";
+  if (/^\/widgets\/on-air\/?$/.test(path)) return "widget";
   return "other";
 }
 
@@ -90,12 +91,11 @@ function analyticsSubjectId(scope: AnalyticsScope): string {
     }
 
     const id = crypto.randomUUID();
-    stored[scope] = { id, expiresAt: subjectExpiry };
+    stored[scope] = { id, expiresAt: analyticsSubjectExpiry(scope, now) };
     localStorage.setItem(storageKey, JSON.stringify(stored));
     return id;
   } catch {
-    pageSubjectId ??= crypto.randomUUID();
-    return pageSubjectId;
+    return pageSubjectIds[scope] ??= crypto.randomUUID();
   }
 }
 

@@ -80,10 +80,10 @@ export async function handleAnalyticsEvent(
   try {
     inserted = await persistAnonymousAnalyticsEvent(env.DB, event, subjectHash, new Date().toISOString());
   } catch {
-    await recordOutcome(env, "storage_failed");
+    await recordOutcome(env, "storage_failed", event.scope);
     return analyticsJson({ ok: false, error: "Analytics unavailable" }, { status: 503 });
   }
-  await recordOutcome(env, inserted ? "accepted" : "duplicate");
+  await recordOutcome(env, inserted ? "accepted" : "duplicate", event.scope);
   if (!inserted) return analyticsJson({ ok: true }, { status: 202 });
 
   try {
@@ -127,16 +127,16 @@ export async function handleAnalyticsEvent(
       ],
     });
   } catch {
-    await recordOutcome(env, "mirror_failed");
+    await recordOutcome(env, "mirror_failed", event.scope);
     console.error(JSON.stringify({ event: "analytics-mirror-failed" }));
   }
 
   return analyticsJson({ ok: true }, { status: 202 });
 }
 
-async function recordOutcome(env: Env, outcome: Parameters<typeof recordAnalyticsIngestionOutcome>[1]): Promise<void> {
+async function recordOutcome(env: Env, outcome: Parameters<typeof recordAnalyticsIngestionOutcome>[1], scope: Parameters<typeof recordAnalyticsIngestionOutcome>[3] = "unscoped"): Promise<void> {
   try {
-    await recordAnalyticsIngestionOutcome(env.DB, outcome, new Date().toISOString());
+    await recordAnalyticsIngestionOutcome(env.DB, outcome, new Date().toISOString(), scope);
   } catch { /* Diagnostics must not turn a durable accepted event into a failure. */ }
 }
 

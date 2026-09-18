@@ -9,7 +9,7 @@
     const target = event.target;
     if (!(target instanceof Element)) return;
     const tracked = target.closest<HTMLElement>("[data-analytics-event]");
-    const name = tracked?.dataset.analyticsEvent as AnalyticsEventName | undefined;
+    const name = tracked?.dataset.analyticsEvent as AnalyticsEventName<"activate-ri-2026"> | undefined;
     if (!tracked || !name) return;
 
     const properties: AnalyticsProperties = {};

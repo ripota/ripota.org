@@ -1,4 +1,4 @@
-export const analyticsScopes = ["activate-ri-2026"] as const;
+export const analyticsScopes = ["activate-ri-2026", "on-air"] as const;
 export type AnalyticsScope = (typeof analyticsScopes)[number];
 
 const sharedPropertyValues = {
@@ -14,7 +14,7 @@ const sharedPropertyValues = {
   direction: ["hunted", "remaining", "reset", "clear"],
   persistence: ["saved", "unavailable"],
   importQuality: ["clean", "partial", "zero_matches"],
-  pageCategory: ["hunter", "schedule", "volunteer", "event", "other"],
+  pageCategory: ["hunter", "schedule", "volunteer", "event", "widget", "other"],
 } as const;
 
 const numericPropertyLimits = {
@@ -58,8 +58,13 @@ const activateRiEventProperties = {
   volunteer_submit_completed: ["outcome"],
 } as const satisfies Record<string, readonly AnalyticsPropertyName[]>;
 
-export const analyticsEventProperties = { "activate-ri-2026": activateRiEventProperties } as const;
-export type AnalyticsEventName = keyof typeof activateRiEventProperties;
+export const analyticsEventProperties = {
+  "activate-ri-2026": activateRiEventProperties,
+  "on-air": { widget_generated: [], widget_code_copied: [] },
+} as const satisfies Record<AnalyticsScope, Record<string, readonly AnalyticsPropertyName[]>>;
+export type AnalyticsEventName<Scope extends AnalyticsScope = AnalyticsScope> = {
+  [Key in Scope]: keyof typeof analyticsEventProperties[Key];
+}[Scope];
 
 type AnalyticsEventBase = {
   scope: AnalyticsScope;
@@ -76,11 +81,12 @@ export function parseAnalyticsEvent(value: unknown): AnalyticsEvent | null {
   if (!isRecord(value) || !hasOnlyKeys(value, ["anonymousId", "name", "properties", "schemaVersion", "scope", "eventId", "occurredAt"])) return null;
   if (
     (value.schemaVersion !== 1 && value.schemaVersion !== 2) ||
-    value.scope !== "activate-ri-2026" ||
+    typeof value.scope !== "string" || !Object.hasOwn(analyticsEventProperties, value.scope) ||
     typeof value.name !== "string" ||
-    !Object.hasOwn(activateRiEventProperties, value.name) ||
     typeof value.anonymousId !== "string" || !uuidPattern.test(value.anonymousId)
   ) return null;
+  const scopedEvents: Readonly<Record<string, readonly AnalyticsPropertyName[]>> = analyticsEventProperties[value.scope as AnalyticsScope];
+  if (!Object.hasOwn(scopedEvents, value.name)) return null;
   if (value.schemaVersion === 2) {
     if (typeof value.eventId !== "string" || !uuidPattern.test(value.eventId) || !isIsoTimestamp(value.occurredAt)) return null;
   } else if (value.eventId !== undefined || value.occurredAt !== undefined) {
@@ -90,7 +96,7 @@ export function parseAnalyticsEvent(value: unknown): AnalyticsEvent | null {
   const name = value.name as AnalyticsEventName;
   if (value.properties !== undefined && !isRecord(value.properties)) return null;
   const properties = value.properties as Record<string, unknown> | undefined;
-  const allowedProperties: readonly string[] = activateRiEventProperties[name];
+  const allowedProperties: readonly string[] = scopedEvents[name]!;
   for (const [key, propertyValue] of Object.entries(properties ?? {})) {
     if (key !== "pageCategory" && !allowedProperties.includes(key)) return null;
     if (Object.hasOwn(numericPropertyLimits, key)) {
