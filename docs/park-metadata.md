@@ -60,10 +60,9 @@ Generated renditions live in the build output, not in the repository.
 
 `ParkHeroPhoto.astro` shows the photo, supplied title, credit, source, license,
 and a disclosure of package and site transformations. The detail page uses
-photo + map panels on desktop and stacks them on mobile; the photo also becomes
-the page's social preview image. A park without a selected photo renders only
-the map and retains the default social preview. There is no placeholder or
-inherited photo from a related park.
+photo + map panels on desktop and stacks them on mobile. A park without a
+selected photo renders only the map. There is no placeholder or inherited photo
+from a related park.
 
 Show my location moves the existing map into a full-viewport native dialog,
 hiding the photo and credit until Exit location mode or Escape. Permission
@@ -71,6 +70,33 @@ errors stay in that view so the error and exit control remain available. Exit
 stops location tracking, restores the original map layout and scroll position,
 and returns keyboard focus to the location button. Exact boundary data remains
 lazy-loaded for location checks; responsive photos do not change classification.
+
+## Park share cards
+
+Every park guide uses its own 1200 × 630 PNG for Open Graph and Twitter previews.
+The card includes the reference, name, county, grid, map, and unofficial-site
+label. Parks with a selected photo use a photo/map split; other parks use a
+full-width map. Photo crops respect the selected focal point and include credit
+and license text. Full source and license links remain on the park page.
+
+`src/lib/parks/share-cards.ts` composes the cards with Sharp during the normal
+Astro build, and `/assets/parks/share/[filename].png.ts` emits the static files.
+No browser or runtime image endpoint is needed. Names hash the emitted PNG bytes,
+and metadata includes the absolute image URL, dimensions, type, and alt text.
+
+`share-map.ts` uses the same reviewed web geometry, display point, boundary colors,
+and OpenStreetMap layer as the interactive map. It fits the complete bounds with
+padding, preserves polygon holes, and includes visible map attribution. Tile
+requests identify RI POTA and run sequentially with timeouts and bounded retries.
+A missing tile fails generation instead of publishing a blank map.
+
+Generated cards and tiles are cached under ignored `tmp/park-share-cards/`.
+Cards are reused until their metadata, photo, geometry, renderer, or Sharp version
+changes; ordinary repeat builds do not fetch tiles. Tile downloads are cached for
+at least a week. Removing the `cards/` subdirectory forces card regeneration;
+removing the full cache also refreshes the basemap. Generated images live in
+`dist/`, not in the repository. Fresh build environments need network access to
+the tile server; preserve the cache between builds when possible.
 
 ## Updating information
 

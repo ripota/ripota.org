@@ -5,6 +5,7 @@ import ParkCoordinates from "../../components/parks/ParkCoordinates.astro";
 import ParkDetailMap from "../../components/parks/ParkDetailMap.astro";
 import ParkHeroPhoto from "../../components/parks/ParkHeroPhoto.astro";
 import { getParkHeroPhoto } from "../../lib/parks/images";
+import { getParkShareCard } from "../../lib/parks/share-cards";
 import ParkVisitInfo from "../../components/parks/ParkVisitInfo.astro";
 import { getPark } from "@ripota/parks";
 import SiteHeader from "../../components/SiteHeader.astro";
@@ -33,6 +34,7 @@ export function getStaticPaths() {
 const { park } = Astro.props;
 const visitorInfo = getPark(park.reference)!;
 const hero = await getParkHeroPhoto(visitorInfo);
+const shareCard = await getParkShareCard(park);
 const relatedParks = sameGeometryReferences(parksCatalog.references, park.reference);
 const relationshipParks = [park, ...relatedParks];
 const geometryLabel = parkGeometryLabel(park);
@@ -45,13 +47,7 @@ const officialMultipleReferencesUrl =
   title={`${park.name} field guide`}
   description={`A Rhode Island field guide for ${park.name}, including its map, park identity, and source links.`}
   canonicalPath={parkGuidePath(park.reference)}
-  image={hero ? {
-    src: hero.src,
-    alt: hero.image.alt,
-    width: hero.width,
-    height: hero.height,
-    type: "image/webp",
-  } : undefined}
+  image={shareCard}
   bodyClass="park-page"
 >
   <SiteHeader variant="solid" />

@@ -121,8 +121,9 @@ describe("ParkDetailMap", () => {
     expect(parkPageSource).toContain(
       '.park-hero[data-location-mode="active"]',
     );
-    expect(parkPageSource).toContain("min-height: 100svh");
-    expect(parkPageSource).toContain("height: 100svh");
+    expect(source).toContain("locationDialog.appendChild(shell)");
+    expect(source).toContain("locationDialog.showModal()");
+    expect(source).toMatch(/\.park-detail-map-dialog\s*\{[^}]*height: 100dvh;/);
   });
 
   it("gives the return action its own row on narrow phones", () => {

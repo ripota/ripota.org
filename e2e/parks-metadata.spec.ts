@@ -1,4 +1,7 @@
 import { expect, test as base } from "@playwright/test";
+import { createHash } from "node:crypto";
+import { parks } from "@ripota/parks";
+import sharp from "sharp";
 import { startActivateRiServer } from "./helpers/activate-ri-server";
 
 const test = base.extend<{}, { parksOrigin: string }>({
@@ -17,6 +20,33 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/api/analytics/events", (route) => route.fulfill({
     status: 202, contentType: "application/json", body: JSON.stringify({ ok: true }),
   }));
+});
+
+test("every park publishes a unique, decodable share card in its initial HTML", async ({ request, parksOrigin }) => {
+  const urls = new Set<string>();
+  for (const park of parks) {
+    const response = await request.get(`${parksOrigin}/parks/${park.reference.toLowerCase()}/`);
+    expect(response.ok(), park.reference).toBe(true);
+    const html = await response.text();
+    const meta = (key: string) => html.match(new RegExp(`<meta (?:property|name)="${key}" content="([^"]*)"`))?.[1];
+    const image = meta("og:image")!;
+    expect(image).toMatch(new RegExp(`^https://ripota\\.org/assets/parks/share/${park.reference.toLowerCase()}\\.[a-f0-9]{16}\\.png$`));
+    expect(meta("twitter:image")).toBe(image);
+    expect(meta("og:image:width")).toBe("1200");
+    expect(meta("og:image:height")).toBe("630");
+    expect(meta("og:image:type")).toBe("image/png");
+    expect(meta("og:image:alt")).toContain(park.reference);
+    expect(meta("og:image:alt")).toContain(park.heroImageId ? "Park photo and map" : "Map showing");
+    expect(meta("twitter:image:alt")).toBe(meta("og:image:alt"));
+    urls.add(image);
+    const asset = await request.get(new URL(new URL(image).pathname, parksOrigin).toString());
+    expect(asset.ok(), image).toBe(true);
+    expect(asset.headers()["content-type"]).toContain("image/png");
+    const data = await asset.body();
+    expect(await sharp(data).metadata()).toMatchObject({ width: 1200, height: 630, format: "png" });
+    expect(image).toContain(createHash("sha256").update(data).digest("hex").slice(0, 16));
+  }
+  expect(urls.size).toBe(parks.length);
 });
 
 for (const viewport of [{ name: "desktop", width: 1440, height: 1000 }, { name: "mobile", width: 390, height: 844 }]) {
