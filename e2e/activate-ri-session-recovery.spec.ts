@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
-import type { Cookie, Page } from "@playwright/test";
+import { expect, test } from "./fixtures";
+import type { Cookie, Page } from "./fixtures";
 import { startActivateRiServer } from "./helpers/activate-ri-server";
 import type { ActivateRiServer } from "./helpers/activate-ri-server";
 

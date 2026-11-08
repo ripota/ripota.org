@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, createTestContext } from "./fixtures";
 import { startActivateRiServer } from "./helpers/activate-ri-server";
 
 test.setTimeout(60_000);
@@ -227,7 +227,7 @@ test("hunter search and status links restore across import, reload, history, and
     await expect(filter).toHaveValue("remaining");
     await expect(remaining.locator("li")).toHaveCount(1);
 
-    const fresh = await browser.newContext();
+    const fresh = await createTestContext(browser);
     try {
       const recipient = await fresh.newPage();
       await recipient.clock.setFixedTime(new Date("2026-09-13T12:00:00Z"));

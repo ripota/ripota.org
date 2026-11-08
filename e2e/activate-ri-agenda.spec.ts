@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, createTestContext } from "./fixtures";
 import { startActivateRiServer } from "./helpers/activate-ri-server";
 
 test.setTimeout(60_000);
@@ -13,7 +13,7 @@ const stops = [
 test("requested agenda preserves parks, statuses, filters, and a portable share link", async ({ page, browser }) => {
   await page.clock.setFixedTime(new Date("2026-09-13T12:00:00Z"));
   const server = await startActivateRiServer();
-  const recipient = await browser.newContext();
+  const recipient = await createTestContext(browser);
   try {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.route("**/api/activate-ri-2026/public/stops", (route) => route.fulfill({ json: { ok: true, stops } }));
@@ -59,6 +59,7 @@ test("requested agenda preserves parks, statuses, filters, and a portable share 
 });
 
 test("invalid, empty, and unavailable agendas never widen to all parks", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-09-13T12:00:00Z"));
   const server = await startActivateRiServer();
   try {
     await page.route("**/api/activate-ri-2026/public/stops", (route) => route.fulfill({ json: { ok: true, stops } }));
@@ -129,6 +130,7 @@ test("requested-park scopes restore their parks through Back and Forward", async
 });
 
 test("explicit default schedule filters show all requested windows and canonicalize the URL", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-09-13T12:00:00Z"));
   const server = await startActivateRiServer();
   try {
     await page.route("**/api/activate-ri-2026/public/stops", route => route.fulfill({ json: { ok: true, stops } }));
@@ -165,6 +167,7 @@ test("an old agenda shows its age on screen and in print", async ({ page }) => {
 });
 
 test("shared dynamic filters survive removed options and outages while invalid static filters reset", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-09-13T12:00:00Z"));
   const server = await startActivateRiServer();
   let unavailable = false;
   let recovered = false;
@@ -204,6 +207,7 @@ test("shared dynamic filters survive removed options and outages while invalid s
 });
 
 test("sharing a remaining-parks schedule makes its local selection portable, including zero parks", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-09-13T12:00:00Z"));
   const server = await startActivateRiServer();
   try {
     await page.route("**/api/activate-ri-2026/public/stops", (route) => route.fulfill({ json: { ok: true, stops } }));

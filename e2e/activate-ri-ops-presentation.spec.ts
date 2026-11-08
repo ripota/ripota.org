@@ -1,4 +1,4 @@
-import { expect, test, type Page, type WebSocketRoute } from "@playwright/test";
+import { expect, test, type Page, type WebSocketRoute, createTestContext } from "./fixtures";
 import type { OpsMessageDto } from "../src/lib/activate-ri/ops-types";
 import { startActivateRiServer, type ActivateRiServer } from "./helpers/activate-ri-server";
 
@@ -231,7 +231,7 @@ test("room filters deep link, restore browser history, and follow internal view 
     await expect(feed.locator('[data-message-id="access"]')).toBeVisible();
 
     // Opening the copied URL in a new authenticated browser restores its filter without device preferences.
-    const sharedContext = await browser.newContext({
+    const sharedContext = await createTestContext(browser, {
       storageState: { cookies: (await page.context().storageState()).cookies, origins: [] },
     });
     try {

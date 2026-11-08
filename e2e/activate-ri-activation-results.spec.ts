@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./fixtures";
 import parks from "../public/data/activate-ri-2026/parks.json" with { type: "json" };
 import { startActivateRiServer, type ActivateRiServer } from "./helpers/activate-ri-server";
 import type { PublicParkEvidence, PublicPotaParkStatusSnapshot } from "../src/lib/activate-ri/pota-status-client";

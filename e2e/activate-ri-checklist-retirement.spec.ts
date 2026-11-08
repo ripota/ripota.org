@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, createTestContext } from "./fixtures";
 import { startActivateRiServer } from "./helpers/activate-ri-server";
 
 test.setTimeout(60_000);
@@ -22,7 +22,7 @@ async function seedChecklist(page: Page): Promise<void> {
 
 test("the retired hunter URL leaves saved data intact and has a no-JavaScript fallback", async ({ page, browser }) => {
   const server = await startActivateRiServer();
-  const noScript = await browser.newContext({ javaScriptEnabled: false });
+  const noScript = await createTestContext(browser, { javaScriptEnabled: false });
   try {
     await page.clock.setFixedTime(new Date("2026-09-15T12:00:00Z"));
     await seedChecklist(page);

@@ -1,4 +1,4 @@
-import { expect, test as base, type Page } from "@playwright/test";
+import { expect, test as base, type Page } from "./fixtures";
 import type { LivePotaSpot } from "../src/lib/pota/spots";
 import { startActivateRiServer } from "./helpers/activate-ri-server";
 

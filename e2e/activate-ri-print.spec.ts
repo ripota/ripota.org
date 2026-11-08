@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import parks from "../public/data/activate-ri-2026/parks.json" with { type: "json" };
 import { startActivateRiServer } from "./helpers/activate-ri-server";
 import { readPrintedPdf } from "./helpers/printed-pdf";
@@ -29,6 +29,7 @@ const stops = Array.from({ length: 54 }, (_, index) => ({
 
 for (const format of ["Letter", "A4"] as const) {
   test(`${format} schedule PDFs preserve rows, repeated headers, margins, and privacy`, async ({ page }, testInfo) => {
+    await page.clock.setFixedTime(new Date("2026-09-13T12:00:00Z"));
     const server = await startActivateRiServer();
     try {
       await page.setViewportSize({ width: 390, height: 844 });

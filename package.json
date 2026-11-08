@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "packageManager": "npm@11.19.0",
+  "packageManager": "npm@11.19.1",
   "engines": {
     "node": "^24.0.0"
   },
@@ -15,29 +15,29 @@
     "e2e:activate-ri": "playwright test e2e/activate-ri-*.spec.ts",
     "preview": "astro preview",
     "check": "astro check",
-    "test": "npm run test:unit -- --run && playwright test e2e/activate-ri-*.spec.ts e2e/on-air-*.spec.ts",
+    "test": "npm run test:unit -- --run && playwright test",
     "test:unit": "vitest"
   },
   "devDependencies": {
-    "@astrojs/check": "^0.9.10",
-    "@cloudflare/workers-types": "^5.20260904.1",
-    "@playwright/test": "^1.62.1",
+    "@astrojs/check": "^0.9.12",
+    "@cloudflare/workers-types": "^5.20261107.1",
+    "@playwright/test": "^1.65.0",
     "@types/leaflet": "^1.9.22",
-    "@types/node": "^24.13.3",
-    "astro": "^7.3.1",
+    "@types/node": "^24.19.2",
+    "astro": "^7.4.7",
     "leaflet": "^1.9.4",
-    "pdfjs-dist": "^6.3.289",
-    "sharp": "0.35.4",
+    "pdfjs-dist": "^6.5.438",
+    "sharp": "0.35.5",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.11",
-    "wrangler": "^4.129.0"
+    "vitest": "^4.1.12",
+    "wrangler": "^4.158.0"
   },
   "dependencies": {
     "@ripota/parks": "https://github.com/ripota/parks/releases/download/v4.1.0/ripota-parks-4.1.0.tgz",
     "@simplewebauthn/browser": "13.3.0",
     "@simplewebauthn/server": "13.3.3",
     "@turf/point-to-polygon-distance": "^7.4.0",
-    "jose": "^6.2.11",
-    "markdown-it": "^15.0.2"
+    "jose": "^6.2.15",
+    "markdown-it": "^15.0.3"
   }
 }

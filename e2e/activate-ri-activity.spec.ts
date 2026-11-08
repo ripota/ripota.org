@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { parks as references } from "@ripota/parks";
 import { startActivateRiServer } from "./helpers/activate-ri-server";
 

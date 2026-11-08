@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, createTestContext } from "./fixtures";
 import { startActivateRiServer } from "./helpers/activate-ri-server";
 
 test.setTimeout(60_000);
@@ -20,7 +20,7 @@ const stops = [
 
 test("My schedule is visible above More filters and shares the activator filter across controls, links, and history", async ({ page, browser }, testInfo) => {
   const server = await startActivateRiServer();
-  const recipient = await browser.newContext();
+  const recipient = await createTestContext(browser);
   try {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.route("**/api/auth/session", route => route.fulfill({ json: session }));

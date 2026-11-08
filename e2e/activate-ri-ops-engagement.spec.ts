@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { startActivateRiServer } from "./helpers/activate-ri-server";
 import type { OpsMessageDto } from "../src/lib/activate-ri/ops-types";
 

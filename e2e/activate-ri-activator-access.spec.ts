@@ -1,9 +1,10 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { startActivateRiServer } from "./helpers/activate-ri-server";
 
 test.setTimeout(60_000);
 
 test("the Activator tab opens shared sign-in when this browser has no session", async ({ page, request }) => {
+  await page.clock.install({ time: new Date("2026-09-05T12:00:00Z") });
   const server = await startActivateRiServer();
   try {
     const removedPluralRoute = await request.get(

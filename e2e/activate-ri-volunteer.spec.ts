@@ -1,4 +1,4 @@
-import { expect, type Page, type Response, test } from "@playwright/test";
+import { expect, type Page, type Response, test, createTestContext } from "./fixtures";
 import { startActivateRiServer } from "./helpers/activate-ri-server";
 
 test.setTimeout(60_000);
@@ -13,7 +13,7 @@ test("volunteer browser graph stays metadata-only on desktop and mobile", async 
       { width: 1280, height: 800 },
       { width: 390, height: 844 },
     ]) {
-      const context = await browser.newContext({ viewport });
+      const context = await createTestContext(browser, { viewport });
       const page = await context.newPage();
       const browserErrors: string[] = [];
       const scriptResponses = new Map<string, Response>();

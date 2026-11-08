@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 import { parks as references } from "@ripota/parks";
 import type { PublicActivationStop } from "../src/lib/activate-ri/types";
 import type { PublicPotaParkStatusSnapshot } from "../src/lib/activate-ri/pota-status-client";

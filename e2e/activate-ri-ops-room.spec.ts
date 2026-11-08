@@ -1,4 +1,4 @@
-import { devices, expect, test, webkit } from "@playwright/test";
+import { devices, expect, test, webkit, createTestContext } from "./fixtures";
 import { startActivateRiServer } from "./helpers/activate-ri-server";
 
 test.setTimeout(90_000);
@@ -11,10 +11,10 @@ test("approved activators acknowledge rules and exchange a live room message", a
   const server = await startActivateRiServer({ legacyLinkIssuanceEnabled: true, https: true });
   const callsign = randomCallsign();
   const email = `${callsign.toLowerCase()}@example.com`;
-  const firstContext = await browser.newContext({ ignoreHTTPSErrors: true });
+  const firstContext = await createTestContext(browser, { ignoreHTTPSErrors: true });
   const mobileBrowser = await webkit.launch();
-  const secondContext = await mobileBrowser.newContext({ ...devices["iPhone 13"], ignoreHTTPSErrors: true });
-  const adminContext = await browser.newContext({ ignoreHTTPSErrors: true });
+  const secondContext = await createTestContext(mobileBrowser, { ...devices["iPhone 13"], ignoreHTTPSErrors: true });
+  const adminContext = await createTestContext(browser, { ignoreHTTPSErrors: true });
   const first = await firstContext.newPage();
   const second = await secondContext.newPage();
   const admin = await adminContext.newPage();
@@ -66,7 +66,7 @@ test("approved activators acknowledge rules and exchange a live room message", a
     await expect(first).toHaveURL(`${server.origin}/activate-ri-2026/activator/plan/`);
     await first.route("**/api/activate-ri-2026/ops/bootstrap", (route) => route.abort(), { times: 1 });
     await first.goto(`${server.origin}/activate-ri-2026/activator/`);
-    await expect(first.locator(".event-nav").first().getByRole("link", { name: "Activator", exact: true })).toHaveAttribute("aria-current", "page");
+    await expect(first.locator(".event-nav").first().getByRole("link", { name: /^Activator(?: access)?$/ })).toHaveAttribute("aria-current", "page");
     await expect(first.getByRole("navigation", { name: "Activator tools" })).toBeVisible();
     await expect(first.getByRole("dialog", { name: "Coordinate clearly. Operate safely." })).toBeVisible();
     await first.getByRole("button", { name: "Agree and review settings" }).click();

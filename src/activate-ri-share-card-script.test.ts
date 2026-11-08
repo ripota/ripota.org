@@ -6,6 +6,7 @@ import {
   normalizeParkStatusResponse,
   previewProcessOptions,
   shareCardPhaseAt,
+  shareCardReplayInput,
   shareCardStatusInput,
   terminationSignalTarget,
 } from "../scripts/activate-ri-2026/render-share-card.mjs";
@@ -50,6 +51,20 @@ describe("share card event phases", () => {
 });
 
 describe("share card status fingerprints", () => {
+  it("fingerprints the final replay map without timestamps or repeated reports", () => {
+    const replay = {
+      totalParks: 61, truncated: false, generatedAt: "2026-09-14T12:00:00Z",
+      events: [{ parkReference: "US-0514" }, { parkReference: "US-0513" }],
+    };
+    const input = shareCardReplayInput(replay);
+    expect(input).toEqual({ totalParks: 61, truncated: false, heardParks: ["US-0513", "US-0514"] });
+    expect(shareCardReplayInput({
+      ...replay, generatedAt: "2026-11-07T12:00:00Z",
+      events: [...replay.events].reverse().concat(replay.events),
+    })).toEqual(input);
+    expect(shareCardReplayInput({ ...replay, events: [...replay.events, { parkReference: "US-0515" }] })).not.toEqual(input);
+  });
+
   it("captures the displayed totals, warning, and park colors in reference order", () => {
     const snapshot = statusResponse();
     snapshot.parks.reverse();

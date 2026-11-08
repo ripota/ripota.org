@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { requireActivator, requireAdmin } from "./auth/authorization";
 import { hasActiveSiteRole } from "./auth/community-profile";
 import { createAuthSession } from "./auth/session";
@@ -15,6 +15,8 @@ const eventId = "activate-ri-2026";
 const now = new Date("2026-08-31T12:00:00.000Z");
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(now);
   database = createMigratedSqliteD1();
   const limiter = { limit: async () => ({ success: true }) } as RateLimit;
   env = {
@@ -29,7 +31,10 @@ beforeEach(() => {
   };
 });
 
-afterEach(() => database.close());
+afterEach(() => {
+  database.close();
+  vi.useRealTimers();
+});
 
 describe("park-change migration and authorization gate", () => {
   it("discovers every ordered migration instead of maintaining a partial test list", () => {

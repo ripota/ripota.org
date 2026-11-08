@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
-import type { CDPSession, Page } from "@playwright/test";
+import { expect, test, createTestContext } from "./fixtures";
+import type { CDPSession, Page } from "./fixtures";
 import { startActivateRiServer } from "./helpers/activate-ri-server";
 
 test.setTimeout(90_000);
@@ -140,8 +140,8 @@ test("a dual-role email session cannot use administrator APIs", async ({ page })
 
 test("reset completion revokes the previous passkey and session", async ({ browser }) => {
   const server = await startActivateRiServer({ legacyLinkIssuanceEnabled: true });
-  const adminContext = await browser.newContext();
-  const subjectContext = await browser.newContext();
+  const adminContext = await createTestContext(browser);
+  const subjectContext = await createTestContext(browser);
   const adminPage = await adminContext.newPage();
   const subjectPage = await subjectContext.newPage();
   const adminCdp = await adminContext.newCDPSession(adminPage);

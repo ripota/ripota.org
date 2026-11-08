@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./fixtures";
 import { parseAnalyticsEvent, type AnalyticsEvent } from "../src/lib/analytics/events";
 import { startActivateRiServer } from "./helpers/activate-ri-server";
 

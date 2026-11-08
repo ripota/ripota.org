@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, createTestContext } from "./fixtures";
 import type { OpsMessageDto } from "../src/lib/activate-ri/ops-types";
 import { startActivateRiServer, type ActivateRiServer } from "./helpers/activate-ri-server";
 
@@ -251,7 +251,7 @@ test("changing the filter cancels an older-message reveal that is still loading"
 
 test("permalinks survive sign-in redirects when a room session expires or is missing", async ({ page, browser }) => {
   const server = await startActivateRiServer({ legacyLinkIssuanceEnabled: true });
-  const signedOutContext = await browser.newContext();
+  const signedOutContext = await createTestContext(browser);
   try {
     await signInActivator(page, server);
     await page.route("**/api/activate-ri-2026/activator/session", (route) => route.fulfill({

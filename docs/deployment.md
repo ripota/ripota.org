@@ -63,10 +63,16 @@ timestamp records the captured snapshot. Each new card gets a new image URL
 in the page's social metadata. Failed or incomplete API responses
 leave the previous card in place.
 
+The recap card captures a frozen final replay map alongside the park results.
+Reported activity and qualifying logs stay distinct. Replay polling timestamps
+and repeated reports for an already heard park do not regenerate the card.
+
 The workflow commits the asset; it does not deploy the Worker. Use the normal
 `mise run deploy` task to publish committed share-card updates. To use a test
 data source, set `ACTIVATE_RI_SHARE_CARD_PARK_STATUS_URL` or, for the planning
 view, `ACTIVATE_RI_SHARE_CARD_STOPS_URL` to an API with the same response shape.
+`ACTIVATE_RI_SHARE_CARD_REPLAY_URL` overrides the replay source; by default it
+uses the `event-replay` endpoint alongside the park-status URL.
 
 ## Cloudflare Shape
 

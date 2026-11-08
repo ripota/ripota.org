@@ -32,6 +32,8 @@ const stopsUrl = useLocalStops
 const requireRemoteStops = Boolean(stopsUrl && !useLocalStops);
 const parkStatusUrl = process.env.ACTIVATE_RI_SHARE_CARD_PARK_STATUS_URL?.trim()
   || "https://ripota.org/api/activate-ri-2026/public/park-status";
+const replayUrl = process.env.ACTIVATE_RI_SHARE_CARD_REPLAY_URL?.trim()
+  || new URL("event-replay", parkStatusUrl).href;
 
 const dataInputs = {
   event: ["src/data/activate-ri-2026/event.ts", "public/data/activate-ri-2026/event.json"],
@@ -44,6 +46,10 @@ const templateInputs = [
   "src/components/activate-ri/EventHeroContent.astro",
   "src/components/activate-ri/EventPhaseViews.astro",
   "src/components/activate-ri/EventRecap.astro",
+  "src/components/activate-ri/EventReplayMap.astro",
+  "src/lib/activate-ri/event-replay-map.ts",
+  "src/lib/activate-ri/event-replay.ts",
+  "src/lib/activate-ri/replay-timeline.ts",
   "src/lib/activate-ri/recap.ts",
   "src/components/ReferenceMap.astro",
   "src/styles/global.css",
@@ -82,12 +88,14 @@ async function main() {
   const status = results ? normalizeParkStatusResponse(
     await fetchJson(parkStatusUrl), parks.map((park) => park.reference),
   ) : null;
+  const replay = phase === "post-event" ? await fetchJson(replayUrl) : null;
   const stops = results ? null : await readStopsInput();
   const inputs = {
     phase,
     event: await hashFiles(dataInputs.event),
     parks: await hashFiles(dataInputs.parks),
     ...(status ? { status: hashStableJson(shareCardStatusInput(status, phase)) } : { stops: hashStableJson(stops.data) }),
+    ...(replay ? { replay: hashStableJson(shareCardReplayInput(replay)) } : {}),
     template: await hashFiles(templateInputs),
   };
   const fingerprint = hashStableJson(inputs);
@@ -118,11 +126,12 @@ async function main() {
       route.fulfill({ json: { ok: true, stops: stops?.data ?? [] } }));
     await context.route("**/api/activate-ri-2026/public/park-status", (route) =>
       status ? route.fulfill({ json: status }) : route.abort());
-    // Live marker state comes from park-status. Radio details are hover-only
-    // and are not part of this static card.
+    await context.route("**/api/activate-ri-2026/public/event-replay", (route) =>
+      replay ? route.fulfill({ json: replay }) : route.abort());
+    // Present-day radio details are not part of this static card. Event-live
+    // markers use park-status; the recap uses the frozen replay.
     await context.route("**/api/pota/spots", (route) => route.abort());
-    // The captured hero uses only the frozen park-status snapshot. Keep photo
-    // galleries and per-park photo summaries out of this scheduled render.
+    // Keep photo galleries and per-park photo summaries out of this render.
     await context.route("**/api/activate-ri-2026/public/media?*", (route) =>
       route.fulfill({ json: new URL(route.request().url()).searchParams.has("summary")
         ? { ok: true, parks: [] } : { ok: true, media: [], nextCursor: null } }));
@@ -134,7 +143,7 @@ async function main() {
       waitUntil: "domcontentloaded",
     });
     await page.addStyleTag({ content: shareCardCss(phase) });
-    await waitForShareCardReady(page, phase, status);
+    await waitForShareCardReady(page, phase, status, replay);
 
     await mkdir(new URL("public/assets/", root), { recursive: true });
     const tempOutputPath = `${outputPath.pathname}.tmp.png`;
@@ -158,6 +167,7 @@ async function main() {
       inputs,
       ...(status ? { parkStatusUrl, snapshotGeneratedAt: status.generatedAt }
         : { stopsSource: stops.source, stopsUrl: stops.url }),
+      ...(replay ? { replayUrl, replayGeneratedAt: replay.generatedAt } : {}),
     });
     console.log("Regenerated public/assets/activate-ri-2026-share-card.png");
   } finally {
@@ -387,7 +397,16 @@ async function waitForPreview(child, origin) {
   throw new Error(`Timed out waiting for astro preview:\n${logs}`);
 }
 
-export async function waitForShareCardReady(page, phase, status) {
+export function shareCardReplayInput(replay) {
+  return {
+    totalParks: replay.totalParks,
+    heardParks: [...new Set(replay.events.map(event => event.parkReference))].sort(),
+    truncated: replay.truncated,
+  };
+}
+
+/** @param {import("../../src/lib/activate-ri/event-replay").EventReplay | null} [replay] */
+export async function waitForShareCardReady(page, phase, status, replay = null) {
   const selector = phase === "post-event" ? recapCaptureSelector : captureSelector;
   const mapSelector = phase === "post-event" ? ".recap-hero__map" : ".event-hero__map";
   const hero = page.locator(selector).filter({ visible: true });
@@ -396,7 +415,7 @@ export async function waitForShareCardReady(page, phase, status) {
     state: "visible",
     timeout: 20_000,
   });
-  await page.waitForFunction(({ selector, phase, status }) => {
+  await page.waitForFunction(({ selector, phase, status, replay }) => {
     const visibleHero = [...document.querySelectorAll(selector)].find(
       (element) => element.getClientRects().length > 0,
     );
@@ -404,18 +423,20 @@ export async function waitForShareCardReady(page, phase, status) {
     if (phase === "post-event") {
       const recap = visibleHero.closest("[data-event-recap]");
       if (recap?.dataset.resultsState === "unavailable") throw new Error("Share card event results are unavailable.");
-      if (!status || recap?.dataset.resultsState !== "ready") return false;
+      const player = visibleHero.querySelector("[data-event-replay]");
+      if (player?.dataset.state === "unavailable") throw new Error("Share card event replay is unavailable.");
+      if (!status || !replay || recap?.dataset.resultsState !== "ready") return false;
       const format = new Intl.NumberFormat("en-US");
       const recorded = status.summary.confirmed + status.summary.observedNotConfirmed;
+      const heard = new Set(replay.events.map(event => event.parkReference)).size;
       const coverage = visibleHero.querySelector("[data-recap-coverage]")?.textContent ?? "";
       return recap.querySelector('[data-recap-stat="parks"]')?.textContent === `${format.format(status.summary.confirmed)} / ${format.format(status.summary.total)}` &&
         (recorded === 0 || coverage.startsWith(recorded === status.summary.total
           ? `Activity recorded at all ${format.format(recorded)} parks.`
           : `Activity recorded at ${format.format(recorded)} of ${format.format(status.summary.total)} parks.`)) &&
-        visibleHero.querySelectorAll(".reference-map-status-symbol--activated").length === status.summary.confirmed &&
-        visibleHero.querySelectorAll(".reference-map-status-symbol--observed").length === status.summary.observedNotConfirmed &&
-        visibleHero.querySelectorAll(".reference-map-status-symbol--needed").length === status.summary.total - recorded &&
-        visibleHero.querySelectorAll(".reference-map-live-indicator--active").length === 0;
+        ["complete", "empty"].includes(player?.dataset.state) &&
+        visibleHero.querySelectorAll(".event-replay__marker").length === replay.totalParks &&
+        visibleHero.querySelectorAll('.event-replay__marker[data-heard="true"]').length === heard;
     }
     const state = visibleHero?.querySelector("[data-live-hero-coverage]")?.getAttribute("data-state");
     if (state === "unavailable") throw new Error("Share card event data is unavailable.");
@@ -431,7 +452,7 @@ export async function waitForShareCardReady(page, phase, status) {
       progress?.value === activated && progress?.max === status.summary.total &&
       visibleHero.querySelectorAll(".reference-map-status-symbol--activated").length === activated &&
       visibleHero.querySelectorAll(".reference-map-live-indicator--active").length === Number(gaps);
-  }, { selector, phase, status }, { timeout: 20_000 });
+  }, { selector, phase, status, replay }, { timeout: 20_000 });
   await page.evaluate(() => document.fonts.ready);
   await hero.locator(".leaflet-tile").first().waitFor({ state: "visible" });
   await page.waitForFunction((selector) => {
@@ -448,7 +469,7 @@ export async function waitForShareCardReady(page, phase, status) {
   }, outputHeight);
 }
 
-function shareCardCss(phase) {
+export function shareCardCss(phase) {
   const selector = phase === "post-event" ? recapCaptureSelector : captureSelector;
   return `
     html,
@@ -524,6 +545,10 @@ function shareCardCss(phase) {
     .recap-hero .button { font-size: 14px !important; padding: 12px 14px !important; }
     .recap-hero__map .ri-reference-map { height: 430px !important; min-height: 430px !important; }
     .recap-hero__map .map-preview { margin: 0 !important; }
+    .recap-hero__map .event-replay__map { height: 430px !important; }
+    .recap-hero__map .event-replay__deck,
+    .recap-hero__map .event-replay__badge,
+    .recap-hero__map .event-replay__skip { display: none !important; }
     .leaflet-control-zoom { display: none !important; }
     .leaflet-control-attribution { font-size: 9px !important; }
     .map-legend { font-size: 12px !important; gap: 8px !important; }

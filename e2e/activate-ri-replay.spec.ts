@@ -1,8 +1,9 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./fixtures";
 import parks from "../public/data/activate-ri-2026/parks.json" with { type: "json" };
 import { eventReplayPath, eventReplayWindow, type EventReplay } from "../src/lib/activate-ri/event-replay";
 import type { PublicPotaParkStatusSnapshot } from "../src/lib/activate-ri/pota-status-client";
 import { startActivateRiServer, type ActivateRiServer } from "./helpers/activate-ri-server";
+import { shareCardCss, waitForShareCardReady } from "../scripts/activate-ri-2026/render-share-card.mjs";
 
 test.setTimeout(60_000);
 test.use({ viewport: { width: 1440, height: 1100 } });
@@ -64,6 +65,21 @@ async function setup(page: Page, options: { time?: string; data?: EventReplay; f
 const player = (page: Page) => page.locator("[data-event-replay]");
 const results = (page: Page) => page.locator('[data-event-view="results"]');
 const recap = (page: Page) => page.locator("[data-event-recap]");
+
+test("the share card captures the final replay without confusing reported parks with confirmed logs", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1200, height: 630 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const state = await setup(page);
+  await page.clock.resume();
+  await page.addStyleTag({ content: shareCardCss("post-event") });
+  await waitForShareCardReady(page, "post-event", snapshot, replay);
+  await expect(player(page)).toHaveAttribute("data-state", "complete");
+  await expect(player(page).locator('[data-heard="true"]')).toHaveCount(3);
+  await expect(recap(page).locator('[data-recap-stat="parks"]')).toHaveText(`4 / ${parks.length}`);
+  await expect(player(page).locator("[data-replay-play]")).toBeHidden();
+  await page.screenshot({ path: testInfo.outputPath("recap-share-card.png") });
+  expect(state.errors).toEqual([]);
+});
 
 test("the recap hero autoplays once, retains final totals, and finishes at the honest reported park count", async ({ page }) => {
   const state = await setup(page);

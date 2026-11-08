@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, createTestContext } from "./fixtures";
 import { parks as references } from "@ripota/parks";
 import { startActivateRiServer } from "./helpers/activate-ri-server";
 
@@ -314,7 +314,7 @@ test("schedule search preserves typing and Enter while activation windows are lo
 
 test("schedule address-bar links restore every filter and navigate search edits through history", async ({ page, browser }) => {
   const server = await startActivateRiServer();
-  const recipient = await browser.newContext();
+  const recipient = await createTestContext(browser);
   const stops = [
     { id: "block", parkReference: "US-0513", plannedDate: "2026-09-12", startTime: "13:00", endTime: "15:00", activatorCallsign: "W1AW", bands: ["20m"], modes: ["SSB"], status: "scheduled" },
     { id: "chafee", parkReference: "US-0514", plannedDate: "2026-09-13", startTime: "15:00", endTime: "18:00", activatorCallsign: "N1RI", bands: ["40m"], modes: ["CW"], status: "scheduled", activity: "confirmed" },

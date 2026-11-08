@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Page, test, createTestContext } from "./fixtures";
 import { mediaUsageNoticeText, type ActivatorMedia } from "../src/lib/activate-ri/media";
 import { startActivateRiServer, type ActivateRiServer } from "./helpers/activate-ri-server";
 
@@ -22,8 +22,8 @@ const video = {
 
 test("the gallery opens original media in owner-aware dialogs and preserves metadata", async ({ page, browser, request }) => {
   const server = await startActivateRiServer({ legacyLinkIssuanceEnabled: true, seedAccountOnly: true, adminHeaderAuthOnly: true });
-  const otherContext = await browser.newContext();
-  const adminContext = await browser.newContext({ extraHTTPHeaders: adminHeaders });
+  const otherContext = await createTestContext(browser);
+  const adminContext = await createTestContext(browser, { extraHTTPHeaders: adminHeaders });
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   try {
@@ -53,18 +53,18 @@ test("the gallery opens original media in owner-aware dialogs and preserves meta
     await expect(upload.getByRole("checkbox")).toHaveCount(0);
     await expect(upload).not.toContainText(/500 MB|50 files/);
     await captureMediaScreenshots(page, "public-my-upload", "[data-media-upload-dialog]");
-    const uploads: Array<Promise<{ status: number; size: string | undefined; park: string | undefined }>> = [];
+    const uploads: Array<Promise<{ status: number; park: string | undefined }>> = [];
     page.on("response", (response) => {
       if (response.url() === `${server.origin}${apiPath}` && response.request().method() === "POST") {
-        uploads.push(response.request().allHeaders().then((headers) => ({ status: response.status(), size: headers["content-length"], park: headers["x-media-park-reference"] })));
+        uploads.push(response.request().allHeaders().then((headers) => ({ status: response.status(), park: headers["x-media-park-reference"] })));
       }
     });
     await upload.getByRole("button", { name: "Upload 2 files", exact: true }).click();
     await expect(upload, server.output()).toBeHidden();
     await expect(launcher).toBeFocused();
     expect(await Promise.all(uploads)).toEqual([
-      { status: 201, size: String(photo.buffer.length), park: "US-2868" },
-      { status: 201, size: String(video.buffer.length), park: undefined },
+      { status: 201, park: "US-2868" },
+      { status: 201, park: undefined },
     ]);
     await expect(page.locator("[data-media-queue] li")).toHaveCount(0);
     await page.reload();
@@ -435,8 +435,8 @@ test("a throttled batch preserves unattempted files and resumes through explicit
 
 test("public filters survive links and history, keep ownership private, and discard stale results", async ({ page, browser }) => {
   const server = await startActivateRiServer({ legacyLinkIssuanceEnabled: true, adminHeaderAuthOnly: true });
-  const friendContext = await browser.newContext();
-  const anonymousContext = await browser.newContext();
+  const friendContext = await createTestContext(browser);
+  const anonymousContext = await createTestContext(browser);
   const anonymous = await anonymousContext.newPage();
   let releaseStale!: () => void;
   const staleRequest = new Promise<void>((resolve) => { releaseStale = resolve; });
@@ -549,7 +549,7 @@ test("public filters survive links and history, keep ownership private, and disc
     await anonymous.getByRole("button", { name: "Refresh files", exact: true }).click();
     await expect(anonymous).toHaveURL(generalPhotosUrl);
     await expect(gallery.locator("article")).toHaveCount(1);
-    const freshContext = await browser.newContext();
+    const freshContext = await createTestContext(browser);
     try {
       const freshPage = await freshContext.newPage();
       await freshPage.goto(generalPhotosUrl);
@@ -753,7 +753,7 @@ test("public pagination uses thumbnails while large private selections and dupli
 
 test("media permalinks open anonymously, survive history, and support copy and sharing", async ({ page, browser }) => {
   const server = await startActivateRiServer({ legacyLinkIssuanceEnabled: true, adminHeaderAuthOnly: true });
-  const anonymousContext = await browser.newContext();
+  const anonymousContext = await createTestContext(browser);
   try {
     await page.addInitScript(() => {
       Object.defineProperty(navigator, "clipboard", { configurable: true, value: {

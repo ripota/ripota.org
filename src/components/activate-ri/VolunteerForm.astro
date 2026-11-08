@@ -383,6 +383,18 @@ const turnstileSiteKey =
   }
 
   function focusVolunteerIdentityFields(): void {
+    if (form && !form.getClientRects().length) {
+      // A historical phase can reveal a form hidden in the static build.
+      // Wait for visibility before focusing, without taking focus from a user.
+      const observer = new ResizeObserver(() => {
+        if (!form.getClientRects().length) return;
+        observer.disconnect();
+        if (document.activeElement === document.body) focusVolunteerIdentityFields();
+      });
+      observer.observe(form);
+      window.addEventListener("pagehide", () => observer.disconnect(), { once: true });
+      return;
+    }
     form?.scrollIntoView({ behavior: "smooth", block: "start" });
     (form?.elements.namedItem("submitterCallsign") as HTMLInputElement | null)?.focus({
       preventScroll: true,

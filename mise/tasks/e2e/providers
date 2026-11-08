@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# -*- mode: sh; sh-shell: bash; -*-
+#MISE description="Check the real Turnstile test widget without browser mocks"
+#MISE raw=true
+#MISE raw_args=true
+
+set -euo pipefail
+
+RIPOTA_E2E_LIVE_SERVICES=1 npx playwright test e2e/turnstile-live.spec.ts "$@"

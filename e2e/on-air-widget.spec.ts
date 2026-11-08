@@ -1,4 +1,4 @@
-import { expect, test as base } from "@playwright/test";
+import { expect, test as base } from "./fixtures";
 import { renderOnAirEmbed } from "../src/worker/routes/on-air-embed";
 import type { RiPotaSpotsSnapshot } from "../src/worker/routes/pota";
 import { parseOnAirEmbedPath } from "../src/lib/pota/on-air-embed";

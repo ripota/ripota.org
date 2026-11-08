@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, createTestContext } from "./fixtures";
 import parks from "../public/data/activate-ri-2026/parks.json" with { type: "json" };
 import { startActivateRiServer } from "./helpers/activate-ri-server";
 
@@ -115,7 +115,7 @@ test("recap distinguishes unavailable data from zero and keeps gallery links usa
 
 test("the thank-you and archive links work without JavaScript", async ({ browser }) => {
   const server = await startActivateRiServer();
-  const context = await browser.newContext({ javaScriptEnabled: false });
+  const context = await createTestContext(browser, { javaScriptEnabled: false });
   try {
     const page = await context.newPage();
     await page.goto(`${server.origin}/activate-ri-2026/`);

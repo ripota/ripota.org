@@ -1,4 +1,4 @@
-import { expect, test as base, type Page, type Request, type TestInfo } from "@playwright/test";
+import { expect, test as base, type Page, type Request, type TestInfo } from "./fixtures";
 import { startActivateRiServer } from "./helpers/activate-ri-server";
 
 const test = base.extend<{}, { parksOrigin: string }>({
@@ -753,7 +753,7 @@ for (const viewport of [
       expect(shareUrl.searchParams.get("parks")).toBe("US-0513,US-0514");
       expect(shareUrl.searchParams.get("timezone")).toBe("utc");
       expect(shareUrl.searchParams.has("scope")).toBe(false);
-      await expect(page.locator(".schedule-estimate-note")).toContainText("planned estimates");
+      await expect(page.locator(".schedule-estimate-note:visible")).toContainText("planned estimates");
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await page.waitForLoadState("networkidle");
       expect(browser.errors).toEqual([]);

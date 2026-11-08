@@ -14,12 +14,26 @@ mise run check
 mise run build
 ```
 
-`test` includes Vitest and the Activate RI Playwright suite. Install Chromium
-with `mise exec -- npx playwright install chromium` before the first browser
-run. Browser tests build the site and use isolated local D1 databases. The
-separate `mise run e2e:parks` task checks park geometry and public event flows
+`test` includes Vitest and the complete Playwright suite. Install Chromium
+and WebKit with `mise exec -- npx playwright install chromium webkit` before
+the first browser run. Browser tests build the site and use isolated local D1
+databases. The separate `mise run e2e:parks` task checks park geometry and public event flows
 on desktop and mobile; run it for changes to those surfaces. `build` is a local
 build, while [deployment](docs/deployment.md) validates the production Turnstile key.
+
+## Browser Fixtures and Dependency Updates
+
+Browser tests replace only Turnstile's public test widget and OpenStreetMap
+tiles with deterministic fixtures. Application APIs, authorization, uploads,
+and isolated D1 databases remain real. `mise run e2e:providers` separately
+checks the real test widget without mocking the clock or sending email.
+
+Dependabot checks npm packages and GitHub Actions every Monday at 09:00 Eastern.
+Minor and patch updates are grouped; major updates get separate pull requests.
+The Checks workflow runs type checks, unit tests, the build, dependency auditing,
+and the complete browser suite on pull requests and main. Review and merge
+updates after those checks pass. Node/mise toolchain pins remain an explicit
+toolchain update, including the README and share-card workflow Node version.
 
 ## Content and Assets
 

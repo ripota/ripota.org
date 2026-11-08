@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, createTestContext } from "./fixtures";
 import { parks as references } from "@ripota/parks";
 import type { PublicActivationStop } from "../src/lib/activate-ri/types";
 import type { PublicPotaParkStatusSnapshot } from "../src/lib/activate-ri/pota-status-client";
@@ -197,7 +197,7 @@ test("park planning shows park evidence separately from each activator's done st
 
 test("planning search shares its query and keeps a typing session together in history", async ({ page, browser }) => {
   const server = await startActivateRiServer();
-  const recipient = await browser.newContext();
+  const recipient = await createTestContext(browser);
   try {
     await mockPlanning(page);
     await page.goto(`${server.origin}/activate-ri-2026/parks/?sort=name&mode=SSB&source=club#park-planning`);

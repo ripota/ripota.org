@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./fixtures";
 import { startActivateRiServer, type ActivateRiServer } from "./helpers/activate-ri-server";
 
 test.setTimeout(90_000);

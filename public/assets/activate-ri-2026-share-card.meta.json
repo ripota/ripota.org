@@ -1,13 +1,16 @@
 {
-  "fingerprint": "e489c41e1c5e939d059c8478a633097b25b4e6001f956d72b436eea89bbc31f8",
-  "generatedAt": "2026-09-14T01:42:28.432Z",
+  "fingerprint": "4ad06bae9a37f922ef2145cf2f341a39224159a095bd4dc89858ae8f221507b0",
+  "generatedAt": "2026-11-08T01:57:11.604Z",
   "inputs": {
     "phase": "post-event",
     "event": "a7b98ca585e7fb170cb9767607149ef43475be16b3faa1a591ebf6dc0c49968c",
     "parks": "e42276b4dfffdef8c927908b5c154a537c4fdee33a511ff1a14d73e6453531c7",
     "status": "1b2673a06b63c98ae668f7cc644ac033a4ff38ddd50da29d5d5b0dd909f865d8",
-    "template": "3466718e18d15811b97baabfd2d75a9d44061a630d590dfac394261524ac1611"
+    "replay": "be87768485f9b9ddccc6038ca9936bcdf31820e3fa5d9a1de37ddbce5c50c8f6",
+    "template": "8cd097f97e36ccbf8c82e7557362025badffad1478fed6fe66a7602107e4e669"
   },
   "parkStatusUrl": "https://ripota.org/api/activate-ri-2026/public/park-status",
-  "snapshotGeneratedAt": "2026-09-14T01:41:44.235Z"
+  "snapshotGeneratedAt": "2026-11-08T01:57:07.096Z",
+  "replayUrl": "https://ripota.org/api/activate-ri-2026/public/event-replay",
+  "replayGeneratedAt": "2026-11-08T01:57:07.216Z"
 }

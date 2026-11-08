@@ -1,4 +1,4 @@
-import { expect, test as base } from "@playwright/test";
+import { expect, test as base, createTestContext } from "./fixtures";
 import { startActivateRiServer } from "./helpers/activate-ri-server";
 
 const test = base.extend<{}, { parksOrigin: string }>({
@@ -200,7 +200,7 @@ for (const viewport of [{ name: "desktop", width: 1440, height: 1000 }, { name: 
 }
 
 test("orange guidance remains expandable without JavaScript", async ({ browser, parksOrigin }) => {
-  const context = await browser.newContext({ javaScriptEnabled: false });
+  const context = await createTestContext(browser, { javaScriptEnabled: false });
   try {
     const page = await context.newPage();
     await page.goto(`${parksOrigin}/parks/us-6979/`);

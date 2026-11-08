@@ -13,8 +13,8 @@ mise install
 mise exec -- npm ci
 ```
 
-`mise.toml` and `mise.lock` pin Node.js 24.20.0; `package.json` declares
-npm 11.19.0. Use `mise exec --` for npm/Wrangler commands if mise is not activated
+`mise.toml` and `mise.lock` pin Node.js 24.22.2; `package.json` declares
+npm 11.19.1. Use `mise exec --` for npm/Wrangler commands if mise is not activated
 in your shell.
 
 For Astro page and styling work, run:
@@ -71,10 +71,11 @@ Run the signup/approval acceptance test directly with:
 mise run test-unit -- --run src/worker/activate-ri.acceptance.test.ts
 ```
 
-The normal test command also runs the Activate RI browser suite. Playwright
-builds with the Turnstile test key and uses isolated, migrated local D1 databases
-for signup, editing, authentication, Ops Room, hunter tools, progress, and printed
-schedules. Run it directly with:
+The normal test command also runs the complete browser suite, including parks
+and on-air pages. Playwright builds with the Turnstile test key and uses
+isolated, migrated local D1 databases for signup, editing, authentication,
+Ops Room, hunter tools, progress, and printed schedules. Run only the
+Activate RI browser suite with:
 
 ```bash
 mise run e2e:activate-ri
@@ -87,7 +88,9 @@ mise run e2e:parks
 ```
 
 Playwright needs Chromium and WebKit installed (`mise exec -- npx playwright install chromium webkit`). The Ops Room test uses WebKit with an iPhone viewport to check mobile chat.
-The suite also needs network access to load the Cloudflare Turnstile test widget.
+The normal suite uses deterministic Turnstile and map-tile browser fixtures.
+Run `mise run e2e:providers` separately to check the real Cloudflare test widget;
+that check needs network access and uses the current browser clock.
 `mise run build` uses the local build wrapper and outputs Astro assets to `dist/`;
 the deployment build requires the real production Turnstile site key.
 

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, createTestContext } from "./fixtures";
 import type { ActivatorMedia } from "../src/lib/activate-ri/media";
 import { startActivateRiServer, type ActivateRiServer } from "./helpers/activate-ri-server";
 
@@ -17,7 +17,7 @@ type FeaturedMedia = ActivatorMedia & { featuredOnRecap: boolean };
 
 test("organizers feature a photo, keep its details, and unfeature it from the filtered gallery", async ({ page, browser, request }, testInfo) => {
   const server = await startActivateRiServer({ legacyLinkIssuanceEnabled: true, adminHeaderAuthOnly: true });
-  const organizers = await browser.newContext({ extraHTTPHeaders: adminHeaders });
+  const organizers = await createTestContext(browser, { extraHTTPHeaders: adminHeaders });
   try {
     await signInActivator(page, server, "N1FEA");
     const saved = await uploadPhoto(page, server, "Featured coast.jpg");
@@ -86,7 +86,7 @@ test("organizers feature a photo, keep its details, and unfeature it from the fi
 
 test("the organizer featured filter survives reload, history, refresh, and clear without losing unrelated URL state", async ({ page, browser }) => {
   const server = await startActivateRiServer({ legacyLinkIssuanceEnabled: true, adminHeaderAuthOnly: true });
-  const organizers = await browser.newContext({ extraHTTPHeaders: adminHeaders });
+  const organizers = await createTestContext(browser, { extraHTTPHeaders: adminHeaders });
   try {
     await signInActivator(page, server, "N1FIL");
     const featured = await uploadPhoto(page, server, "Featured park.jpg");
@@ -142,7 +142,7 @@ test("the organizer featured filter survives reload, history, refresh, and clear
 
 test("activators and public visitors cannot feature photos or see organizer controls", async ({ page, browser, request }) => {
   const server = await startActivateRiServer({ legacyLinkIssuanceEnabled: true, adminHeaderAuthOnly: true });
-  const visitors = await browser.newContext();
+  const visitors = await createTestContext(browser);
   try {
     await signInActivator(page, server, "N1OWN");
     const saved = await uploadPhoto(page, server, "Owner photo.jpg");

@@ -374,7 +374,7 @@ const payload = JSON.stringify({
 
     fitReferenceBounds(map, bounds, payload);
     // Phase views and map disclosures may become visible after initialization.
-    if (payload.variant === "on-air" || payload.recapMode || mapElement.closest("[data-event-view], details")) {
+    if (payload.variant === "on-air" || payload.recapMode || mapElement.closest("[data-event-view], details, [data-volunteer-registration-open]")) {
       let hasMapInteraction = false;
       let previousWidth = 0;
       let previousHeight = 0;
