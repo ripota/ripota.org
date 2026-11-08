@@ -35,7 +35,7 @@
   "dependencies": {
     "@ripota/parks": "https://github.com/ripota/parks/releases/download/v4.1.0/ripota-parks-4.1.0.tgz",
     "@simplewebauthn/browser": "13.3.0",
-    "@simplewebauthn/server": "13.3.3",
+    "@simplewebauthn/server": "14.0.3",
     "@turf/point-to-polygon-distance": "^7.4.0",
     "jose": "^6.2.15",
     "markdown-it": "^15.0.3"
