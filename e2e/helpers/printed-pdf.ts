@@ -1,4 +1,5 @@
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
+import { printedPdfText } from "./pdf-text";
 
 export async function readPrintedPdf(bytes: Buffer) {
   const task = getDocument({ data: new Uint8Array(bytes), useSystemFonts: true });
@@ -14,7 +15,7 @@ export async function readPrintedPdf(bytes: Buffer) {
       pages.push({
         width: viewport.width,
         height: viewport.height,
-        text: textItems.map((item) => "str" in item ? item.str : "").join(" ").replace(/\s+/g, " "),
+        text: printedPdfText(content.items.flatMap((item) => "str" in item ? [item] : [])),
         textItems: textItems.flatMap((item) => "str" in item ? [{
           text: item.str,
           x: Number(item.transform[4]),

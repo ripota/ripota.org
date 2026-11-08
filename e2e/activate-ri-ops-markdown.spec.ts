@@ -67,6 +67,9 @@ test("formatting buttons and keyboard shortcuts preserve selections and saved dr
     await help.click();
     for (const viewport of [{ width: 320, height: 740 }, { width: 390, height: 844 }, { width: 1280, height: 900 }]) {
       await page.setViewportSize(viewport);
+      if (viewport.width <= 560) {
+        await expect(page.locator("[data-ops-stops-disclosure]")).not.toHaveAttribute("open");
+      }
       await expect(body).toBeInViewport({ ratio: 1 });
       await expect(page.locator("[data-ops-send]")).toBeInViewport({ ratio: 1 });
       await expect(toolbar).toBeInViewport({ ratio: 1 });

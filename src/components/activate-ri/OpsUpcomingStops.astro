@@ -21,7 +21,11 @@
 
 <script>
   const disclosure = document.querySelector<HTMLDetailsElement>("[data-ops-stops-disclosure]");
-  if (disclosure && window.matchMedia("(max-width: 560px)").matches) {
-    disclosure.open = false;
+  if (disclosure) {
+    const mobile = window.matchMedia("(max-width: 560px)");
+    const updateLayout = () => { disclosure.open = !mobile.matches; };
+    updateLayout();
+    mobile.addEventListener("change", updateLayout);
+    window.addEventListener("pagehide", () => mobile.removeEventListener("change", updateLayout), { once: true });
   }
 </script>
