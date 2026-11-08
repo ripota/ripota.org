@@ -28,7 +28,7 @@
     "leaflet": "^1.9.4",
     "pdfjs-dist": "^6.5.438",
     "sharp": "0.35.5",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.12",
     "wrangler": "^4.158.0"
   },
